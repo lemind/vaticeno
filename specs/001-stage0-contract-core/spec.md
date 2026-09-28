@@ -348,3 +348,16 @@ listed element is present.
 - Reply delivery, live lock timing against real edit windows, mention polling and rate caps are
   Stage 1+ concerns; Stage 0 models the fields and rules and exercises them with simulated times.
 - Out of scope: case B (clarifying conversation), accuracy percentages, leaderboards, payments.
+
+## Deferred (post-MVP, revisit after real-usage feedback on complex cases)
+
+In the MVP the language model decides every non-price verdict on its own (FR-020). These are
+deliberately left for later, to be designed from what real complex cases (e.g. elections) show:
+
+- **Resolution tiers** assigned at recording: feed (prices) / official result (match results,
+  regulatory approvals) / contested (elections, legal rulings, appointments).
+- **"Final result" condition** for contested topics: the contract names what counts as final
+  (e.g. a certified result), and resolution waits for it instead of reading projections.
+- **Verdict checks before posting**: evidence cites the named source, event dated between lock and
+  deadline, result is final, independent confirmation, two runs agree, confidence above threshold.
+- **Operator review queue** for verdicts that fail those checks, targeting under 10% of verdicts.
