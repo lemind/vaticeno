@@ -49,8 +49,8 @@
 
 ## AI Rules
 
-- The LLM is the **normalizer only, never the resolver**. Resolution is deterministic against a pinned source (INIT_SPEC §6.7).
-- The LLM proposes; deterministic gates decide (INIT_SPEC §6.4).
+- The LLM writes the contract; deterministic checks accept or reject it.
+- Resolution: deterministic for crypto prices; LLM-decided elsewhere, only against the locked contract, always with cited evidence. No evidence = VOID, never MISS (constitution II).
 - Use structured JSON outputs only.
 - Validate all AI outputs through Zod.
 - Prefer cheaper models first.
@@ -135,8 +135,7 @@ This applies even if the extra work seems obviously correct, helpful, or "the ri
 - Silent failures.
 - Hidden magic behavior.
 - Microservices.
-- Anything the spec lists as deliberately absent (INIT_SPEC §2): Redis, message broker, frontend framework, user auth, Stripe, web search.
-- LLM-judged resolution (deferred to 1.2.0).
+- Deliberately absent tech (constitution VII): Redis, message broker, frontend framework, user auth, Stripe, microservices.
 - Force-pushing or history rewriting.
 - Committing secrets or `.env` files.
 - Adding new dependencies without explicit approval and justification in PR.
