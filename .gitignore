@@ -1,1 +1,4 @@
 INIT_SPEC.md
+node_modules/
+.env
+.state/
