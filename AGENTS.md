@@ -69,7 +69,7 @@
 - Match test type to change: unit for logic, integration for APIs/DB, e2e for user flows.
 - Run relevant tests iteratively; run full suite before finalizing.
 - Mock external services; never skip tests due to flakiness without documenting why.
-- Target no more than 60% test coverage — don't chase coverage numbers past that; put effort into tests that catch real bugs (gates, resolver, lease/posting lifecycle, edge cases), not into padding coverage on straightforward/generated code.
+- Target ~55% test coverage (MVP), no more — don't chase coverage numbers past that; put effort into tests that catch real bugs (gates, resolver, lease/posting lifecycle, edge cases), not into padding coverage on straightforward/generated code.
 
 ## Spec-kit & `specs/` (keep in sync)
 

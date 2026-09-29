@@ -18,7 +18,8 @@ npm run db:migrate
 npm run corpus            # proposal + checks over 100 fixtures → pass rate (≥ 90%)
 npm run seeds:crypto      # 60 frozen crypto claims → must be 100%
 npm run seeds:open        # seeded open-topic claims (SC-003 mix) → agreement ≥ 95%, wrong HIT/MISS < 5%
-npm test                  # unit + DB integration tests
+npm test                  # unit tests
+npm run test:integration  # DB integration tests (needs local Postgres)
 ```
 
 ## Walk one claim through its life (simulated time)

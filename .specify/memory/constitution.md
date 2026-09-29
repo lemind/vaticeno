@@ -1,6 +1,10 @@
 <!--
 Sync Impact Report
-- Version change: (template) → 1.0.0
+- Version change: 1.0.0 → 1.1.0 (2026-09-29, MINOR): I — lock version + hash recorded, edited
+  posts re-checked, never locked against a version they weren't built from; II — official only
+  from the curated source policy, highest trust level decides; III — entity_gone needs 3 runs;
+  coverage cap 55%.
+- Earlier: (template) → 1.0.0
 - Principles defined (all new):
   I. The Lock Is Immutable
   II. Checkable by Construction (open topics; gated evidence from several sources; one resolution
@@ -40,8 +44,9 @@ until one of them is amended.
 - Once `lock_at` has passed, the contract and deadline MUST NOT change, enforced in the database. Any change
   is a new claim.
 - Before lock, an amend or an edit of the original tweet replaces the contract of the same claim and
-  is announced in a new `[AMENDED]` reply (the bot never edits its own replies). After lock, nothing
-  changes it.
+  is announced in a new `[AMENDED]` reply (the bot never edits its own replies). An edited post goes
+  through the same checks; a contract is never locked against a post version it was not built from.
+  After lock, nothing changes it.
 - At lock, the exact version of the user's tweet (version ID + hash of its text, never the text) is
   recorded and never changes, so "which version did you lock?" always has an answer.
 - A claim locks 15 minutes after the last contract reply to its author; a valid amend restarts the
@@ -61,12 +66,12 @@ Rationale: if the question can move after it is asked, no verdict means anything
 - Every claim is judged from evidence (for prices, the deterministic feed comparison alone;
   otherwise several web sources). Each evidence item must pass gates — trusted source, quote found
   in the fetched page, event inside the window, final result, independent — or it does not count.
-- Evidence has a trust level — official (the contract's source, the same issuer's record, the price
-  feed), trusted (curated list) or other (never counts) — official recognised from the contract's
-  own source link, aliases and trusted lists from the versioned source policy, applied in code,
-  never by a model. One resolution per claim: one passed
-  official item, or two passed trusted items agreeing, is final; contradictions go to a model
-  arbiter, which decides with notes or flags the claim for human review; a single trusted item
+- Evidence has a trust level — official (the price feed or a domain on the curated official list),
+  trusted (curated list) or other (never counts) — from the curated, versioned source policy,
+  applied in code, never by a model. A source named in a model-written contract is at most trusted
+  unless the policy lists it as official. One resolution per claim: one passed official item, or
+  two passed trusted items agreeing, is final; only the highest trust level present decides;
+  disagreement within it goes to a model arbiter, which decides with notes or flags the claim for human review; a single trusted item
   without an official one is flagged for human review. Models judge only against the locked contract.
 - Evidence MUST point to its proof (link + fingerprint of what was read), and the proof is checked
   in code (the model's quote must exist in the fetched page; the quote itself is not kept). HIT needs positive evidence the event occurred after lock and by the deadline;
@@ -83,8 +88,8 @@ not for the confidence of its answer.
 
 - A source that is unreachable, erroring or malformed yields no answer: retry on the next run.
   It MUST NOT void a claim.
-- Only a source that answers but no longer has the entity (delisted coin, deleted fixture) may
-  answer VOID ("unresolvable").
+- Only an official source that answers but no longer has the entity (delisted coin, deleted
+  fixture), confirmed in 3 separate runs, may make a claim VOID ("unresolvable").
 - A failed existence check MUST NOT trigger a retried post. Unknown state means wait, not act.
 - Failures MUST be visible: retryable errors back off, exhausted ones alert. Nothing is dropped
   silently.
@@ -158,7 +163,7 @@ Rationale: a one-person proto survives on code it can read in one sitting.
 - Staged rollout per INIT_SPEC §14: offline first, then read-only, then shadow resolution, then
   human review, then live. A stage starts only when the previous one is done.
 - Tests go where bugs cost trust: gates, the resolver, the mention/posting lifecycle and parsing
-  are exhaustive (including crash-window and lease-race cases). Elsewhere, ~60% coverage is a cap,
+  are exhaustive (including crash-window and lease-race cases). Elsewhere, ~55% coverage is a cap,
   not a floor.
 - Specs and code move together: behavior, scope, stack or layout changes update the matching
   artifacts under `specs/` in the same change.
@@ -178,4 +183,4 @@ Rationale: a one-person proto survives on code it can read in one sitting.
 - Every plan passes the Constitution Check before design and again after it. A justified violation
   is recorded in the plan's Complexity Tracking table; an unjustified one blocks the work.
 
-**Version**: 1.0.0 | **Ratified**: 2026-09-28 | **Last Amended**: 2026-09-28
+**Version**: 1.1.0 | **Ratified**: 2026-09-28 | **Last Amended**: 2026-09-29

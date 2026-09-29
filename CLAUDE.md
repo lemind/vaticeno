@@ -1,7 +1,7 @@
 @AGENTS.md
 
 <!-- SPECKIT START -->
-**Constitution**: `.specify/memory/constitution.md` (v1.0.0) — principles every plan must pass.
+**Constitution**: `.specify/memory/constitution.md` (v1.1.0) — principles every plan must pass.
 
 **Active plan**: `specs/001-stage0-contract-core/plan.md` (research, data-model, contracts/, quickstart alongside).
 
@@ -13,7 +13,7 @@ model-decided) proven on seeded claims, public pages. Where INIT_SPEC (v1.1.1) i
 
 ## Non-negotiables (from INIT_SPEC — read the section before changing the area)
 
-- **Lock is the trust primitive**: contract fields never change after `locked_at` (§4, §6.6).
+- **Lock is the trust primitive**: contract fields never change after `lock_at` (§4, §6.6).
 - **Checkable by construction** (constitution II): any topic, but every contract names criterion, deadline, source and how "no" is shown. Evidence from several sources must pass code gates; one resolution per claim (agree / LLM arbiter / human review flag). No evidence = VOID, never MISS.
 - **Outage ≠ verdict**: source down → retry next run, no void, no `undecided_count` bump (§6.7).
 - **One reply per inbound interaction**; never a standalone `@mention` post (§6.1, §6.5).
@@ -42,4 +42,4 @@ Before changing a provider or model, `grep -rn "HACK(" src/` and re-validate eve
 
 **Unverified numbers stay labelled**: prices, rate limits and API behavior not yet measured (e.g. the §9 summoned-reply rate) are marked UNRECONCILED until measured. A documented number is not a verified one.
 
-**Tests**: ~60% repo-wide coverage is a cap, not a floor. The exceptions are the gates, the resolver and the mention/posting lifecycle — keep those exhaustive, because the §12 acceptance criteria (60 seeded claims at 100%, crash-window and lease-race tests, 100-example fixture corpus) are the product's proof it can referee.
+**Tests**: ~55% repo-wide coverage is the MVP target and a cap, not a floor — default to NOT adding a test. The exceptions are the gates, the resolver and the mention/posting lifecycle — keep those exhaustive, because the §12 acceptance criteria (60 seeded claims at 100%, crash-window and lease-race tests, 100-example fixture corpus) are the product's proof it can referee.

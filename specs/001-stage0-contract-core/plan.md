@@ -12,11 +12,13 @@ retry, and deterministic checks decide whether it can be recorded; the statement
 the contract, never model-authored. Unclear predictions get a checked NEEDS INFO reply (case A).
 After the deadline evidence is gathered — for prices, Coinbase daily candles compared in code (the
 feed alone); otherwise web pages our code fetched and fingerprinted, read by a model — and every item passes code gates
-(trusted, quote found, in window, final, independent). One resolution per claim: passed evidence
-agreeing is final; contradictions go to an arbiter model, which decides with notes or flags the
+(trusted, quote found, in window, final, independent). One resolution per claim: only the highest
+trust level present decides; one official item, or two trusted items agreeing, is final;
+disagreement within that level goes to an arbiter model, which decides with notes or flags the
 claim for human review (CLI now, admin panel later). Proven by a 100-fixture corpus, 60 crypto seeds and a categorised
 open-topic seed set, all replayable at zero cost. Before lock, amends and tweet edits replace the
-contract with a new `[AMENDED]` reply; after lock nothing changes. No X calls (edits simulated).
+contract with a new `[AMENDED]` reply (an edit that fails the checks or exceeds the limit expires
+the claim); after lock nothing changes. No X calls (edits simulated).
 
 ## Technical Context
 
@@ -34,6 +36,10 @@ CLIs as regression suites in replay mode
 
 **Target Platform**: Linux (DigitalOcean droplet, 1 GB, systemd, Caddy for HTTPS)
 
+**Observability**: JSON logs via `src/log.ts` → journald on the droplet and Sentry Logs off it;
+Sentry for errors, alerts (needs_human, budget, failing jobs) and cron monitors; external uptime
+check on `/healthz` (research R11)
+
 **Project Type**: single backend service + CLI (server-rendered pages, no frontend app)
 
 **Performance Goals**: trivial volume (~300 claims/month); pages render < 300 ms; resolver run
@@ -50,7 +56,7 @@ search cost per claim; Coinbase candles ≤ 300 per request (≈ 13 requests for
 
 | Principle | How the design complies | Status |
 |---|---|---|
-| I. Lock is immutable | DB triggers freeze contract/deadline once `lock_at` is set and enforce the transition table (DB is the authority); lock = last reply + 15 min; tweet re-read at lock, an edit is handled as an amend (`[AMENDED]` reply), after lock nothing changes | ✅ |
+| I. Lock is immutable | DB triggers freeze contract/deadline once `lock_at` is set and enforce the transition table (DB is the authority); lock = last reply + 15 min; tweet re-read at lock, an edit is re-checked like an amend (`[AMENDED]` reply, or expired if it fails; the old contract is never locked), after lock nothing changes | ✅ |
 | II. Checkable by construction | ContractSchema requires criterion, deadline, structured source (incl. `absence_is_meaningful`), negative condition; statement rendered; evidence from several sources, each through code gates; models judge only fetched, hashed snapshots; one resolution per claim (agree / arbiter / human flag); proof and gates stored and shown | ✅ |
 | III. Outage is never a verdict | any failed step (feed, search, fetch, model, schema) produces no evidence; claim stays `resolving` for the next run | ✅ |
 | IV. Speak only when spoken to | Stage 0 posts nothing; reply templates fixed; one reply per interaction (replies produced and checked by the CLI) | ✅ (n/a live) |
@@ -84,8 +90,9 @@ specs/001-stage0-contract-core/
 
 ```text
 src/
-├── config.ts, log.ts               # existing — extended (DB, model env)
-├── ../config/source-policy.json    # issuer aliases + trusted sites per kind (adds to the locator rule)
+├── config.ts, log.ts               # existing — extended (DB, model env; log → stdout + Sentry Logs, R11)
+├── observe.ts                      # Sentry init, scrubber, cron monitors, alert(), flush (R11)
+├── ../config/source-policy.json    # curated official domains per issuer + trusted sites per kind
 ├── commands/, ingest/, x/, poc/    # existing POC — NOT touched by Stage 0 tasks
 ├── db/
 │   ├── schema.ts                   # Drizzle: claims, positions, evidences, resolutions, cost_events
@@ -105,7 +112,7 @@ src/
 │   └── arbitrate.ts                # decides between contradicting evidence, or flags for human
 ├── lifecycle/
 │   ├── transitions.ts              # early refusal; DB trigger is the authority
-│   ├── lock.ts                     # lock_at = last reply + 15 min; re-read at lock, edit → amend
+│   ├── lock.ts                     # lock_at = last reply + 15 min; re-read at lock, edit → re-checked amend or expired
 │   └── claims.ts                   # submit, amend, lock, expire (services, take `now`)
 ├── replies/
 │   ├── templates.ts
@@ -114,8 +121,9 @@ src/
 │   ├── price-evidence.ts           # Coinbase candles over (lock_at, deadline] → evidence
 │   ├── web-evidence.ts             # search → fetch → judge per snapshot → evidence
 │   ├── fetch.ts                    # snapshot, sha256, retrieved_at
-│   ├── trust.ts                    # trustLevel(url, contract, policy): locator domain = official — pure
+│   ├── trust.ts                    # trustLevel(url, contract, policy): official only from policy list — pure
 │   ├── gates.ts                    # trusted, quote_found, in_window, final, independent — pure
+│   ├── decide.ts                   # rule table → final | needs_arbiter | needs_human | wait — pure
 │   └── resolver.ts                 # passed evidence → agree | arbiter | needs_human (service, takes `now`)
 ├── feeds/coinbase.ts               # Zod-validated candles client
 ├── jobs/scheduler.ts               # node-cron: only calls the service functions above

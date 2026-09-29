@@ -34,6 +34,7 @@ JudgeSchema = {                         // one call per snapshot → one evidenc
   event_date: string | null,             // YYYY-MM-DD
   is_final_result: boolean,
   from_contract_source: boolean,        // informational only; trust comes from the source policy
+  original_source: string | null,       // who first reported it if the page credits one (e.g. "AP"); independence gate
   reasoning: string                      // ≤ 400 chars, stored for audit
 }
 ```

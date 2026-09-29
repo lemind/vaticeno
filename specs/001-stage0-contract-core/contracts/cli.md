@@ -14,7 +14,7 @@ All commands: `npm run <script> -- [options]`. Output is structured JSON lines u
 | `claim:edit` | simulate an edit of the original tweet (picked up at lock time) | `--slug`, `--text` | 0 |
 | `jobs:tick` | run lock sweeper, needs-info expiry and resolver once (same service functions cron calls) | `--now` | 0 |
 | `review:list` | resolutions flagged for human review, with their evidence | — | 0 |
-| `resolve:manual` | human decision for a flagged resolution, or override of a final one (FR-026); the only operator write path | `--slug`, `--outcome hit\|miss\|void`, `--deciding-evidence <id>`, `--note` | 0 |
+| `resolve:manual` | human decision for a flagged (`needs_human`) resolution (FR-026); the only operator write path; refuses final ones | `--slug`, `--outcome hit\|miss\|void`, `--deciding-evidence <id>`, `--note` | 0 |
 | `db:migrate` | apply migrations | — | 0 |
 
 ## Corpus report (per fixture, JSON line)
@@ -43,6 +43,8 @@ Final line: `{ "total": 100, "passed": 93, "pass_rate": 0.93, "by_group": { ... 
   "contract": { ...ContractSchema... }, "lock_at": "2024-02-01T12:00:00Z",
   "expected_outcome": "hit", "note": "why this is the right answer" }
 ```
+`expected_outcome` ∈ `hit | miss | void | needs_human | pending` (`pending` = claim still waiting,
+e.g. a price gap that blocks a MISS).
 `category` must be one of the SC-003 categories; `seeds:open` fails if any category is below its
 minimum count. Crypto seeds add `"candles": [[1710028800, low, high, open, close, volume], ...]`
 (frozen Coinbase daily candles).

@@ -38,6 +38,11 @@ Locks: {lock_in} · amends left: {amends_left}
 vaticeno.app/c/{slug}
 ```
 
+**EXPIRED** — the original post was edited before lock and the edit fails the checks or exceeds the amend limit
+```
+[EXPIRED] #{slug} — the post changed after recording, so nothing was locked. Tag me on a new post to record it.
+```
+
 **REJECTED**
 - not a prediction / deadline out of range: `NOT RECORDED — {reason_in_words}.`
 - X rules: `NOT RECORDED — I can't record this one.` (no quote, no explanation)

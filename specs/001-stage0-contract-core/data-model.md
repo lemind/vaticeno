@@ -38,7 +38,9 @@ browser → Fastify (server-rendered pages) → backend DB role → Postgres
 | locked_source_version | text null | version ID of the user's tweet at lock; written once, at lock |
 | locked_source_hash | text null | SHA-256 of the user's tweet text at lock (the text itself is never stored); written once, at lock |
 | author_x_user_id | text NOT NULL | X numeric ID |
-| contract | jsonb null | `ContractSchema`; null while parsing / needs info |
+| contract | jsonb null | `ContractSchema`; null while parsing / needs info / rejected |
+| contract_model_id | text null | model id + instruction version that wrote the current contract (audit, corpus regressions) |
+| self_confidence | real null | the model's own confidence at proposal; recorded for analysis, never a check (FR-003) |
 | resolution_method | text CHECK (price_feed, model) null | mirrored from contract for indexing |
 | deadline_at | timestamptz null | mirrored from contract for the due-claims index |
 | status | text NOT NULL CHECK (parsing, needs_info, draft, locked, resolving, resolved, void, rejected, expired) | |
@@ -47,6 +49,7 @@ browser → Fastify (server-rendered pages) → backend DB role → Postgres
 | amend_count | int default 0 | successful amends and tweet edits from draft; max 2 |
 | lock_at | timestamptz null | last contract reply + 15 min; reset by a valid amend. The claim **is** locked at this instant: amends at or after it are refused even before the status flips; the evaluation window starts here |
 | needs_info_since | timestamptz null | 24 h expiry clock |
+| next_check_at | timestamptz null | when the resolver may look at this claim next; set to `deadline_at` at lock, pushed back after a run that had to wait (see **Resolver schedule**); null once a resolution exists |
 | created_at | timestamptz default now() | |
 
 **Triggers (the database is the authority)**
@@ -56,8 +59,15 @@ browser → Fastify (server-rendered pages) → backend DB role → Postgres
 - `claims_status_transition` — BEFORE UPDATE OF status: reject any (old, new) pair not in the
   Lifecycle table; terminal states never change. Code (`src/lifecycle/transitions.ts`) refuses the
   same transitions early for clearer errors; a test asserts the two tables are identical.
+- `claims_insert_status` — BEFORE INSERT: status must be `parsing`, `draft`, `needs_info` or
+  `rejected` (a claim can't be born locked or resolved). Stage 0 inserts the final outcome of the
+  proposal directly; `parsing` is reserved for Stage 1's async intake.
 
-**Indexes**: `(status, deadline_at)` due claims; `(status, lock_at) WHERE status='draft'`;
+Every summon that is not a duplicate inserts a claim row, including `rejected` ones (with
+`reject_reason`, contract null), so a re-summon of the same post is a cheap duplicate, not a new
+model call.
+
+**Indexes**: `(next_check_at) WHERE status IN ('locked','resolving')` due claims; `(status, lock_at) WHERE status='draft'`;
 `(status, needs_info_since) WHERE status='needs_info'`; `(author_x_user_id, created_at DESC)`.
 
 ## ContractSchema (jsonb, Zod-validated before every write)
@@ -70,7 +80,7 @@ Contract = {
   source: {
     name: string,                     // issuing body + record
     kind: string,                     // key in source-policy.trusted (for "trusted")
-    locator: string,                  // URL of the official record; its domain = "official"
+    locator: string,                  // URL of the record the contract names; trusted unless its domain is on the official list
     scope: string,
     entity_id: string,
     absence_is_meaningful: boolean,   // true only for exhaustive official records
@@ -114,7 +124,7 @@ One row per source checked. Rows are written as sources are checked, before the 
 |---|---|---|
 | id | uuid PK | |
 | claim_id | uuid FK claims | |
-| run_at | timestamptz | the resolver run that produced this row; the resolution uses the latest run only |
+| run_at | timestamptz | the resolver run that produced this row. HIT/MISS/contradiction use the latest run only; the waiting rules (entity_gone ×3, nothing ×2, pending 30 days) also read earlier runs. An empty search writes one row (`url` null, `search_query`, `says = irrelevant`, `passed = false`) so the run is countable; an outage writes none |
 | source_kind | text CHECK (price_feed, web) | |
 | basis | text CHECK (record, absence) | `record` = the source shows a result; `absence` = the result is not in a source whose contract marks `absence_is_meaningful`, checked on or after the deadline |
 | source_name | text | e.g. `coinbase`, `premierleague.com`, `bbc.co.uk/sport` |
@@ -131,21 +141,27 @@ One row per source checked. Rows are written as sources are checked, before the 
 | passed | bool | true only if every applicable gate passed |
 | created_at | timestamptz default now() | |
 
-**Trust level** is computed in code by `trustLevel(url, contract, policy)`:
-- `official`: price-feed evidence; or the URL's registrable domain equals the domain of the
-  contract's own `source.locator` (works for any topic, no list needed); or it is listed as an
-  alias of that issuer in the source policy.
-- `trusted`: the domain is listed under the contract's `source.kind` in the source policy.
+**Trust level** is computed in code by `trustLevel(url, contract, policy)`. Naming a source in the
+contract (which a model writes) never makes it official:
+- `official`: price-feed evidence; or the URL's registrable domain is listed in the source policy's
+  `official` list (curated, versioned).
+- `trusted`: the domain is listed under the contract's `source.kind` in the policy; **or** it is the
+  domain of the contract's own `source.locator` but not on the official list (so any topic works,
+  yet the contract's own link always needs one more agreeing source).
 - `other`: anything else. The model's `from_contract_source` flag is ignored for trust.
 
-**Source policy** (`config/source-policy.json`, versioned) only *adds* to that — issuer aliases and
-trusted sites per kind; a missing entry never blocks a claim:
+One rule, no exceptions: **only the curated policy grants trust on its own.** The contract's locator
+is trusted as a fallback — a single domain the model chose, so it can supply at most one agreeing
+item and can never make a claim final alone. `source.kind` only selects which curated list applies;
+an unknown kind selects nothing.
+
+**Source policy** (`config/source-policy.json`, versioned; grows as real cases appear):
 
 ```json
 { "version": 1,
-  "issuer_aliases": {                 // extra domains of the same issuer as the locator's domain
-    "fda.gov":            ["accessdata.fda.gov"],
-    "premierleague.com":  ["resources.premierleague.com"] },
+  "official": {                       // issuer → its domains; only these can be "official"
+    "us_fda":         ["fda.gov", "accessdata.fda.gov"],
+    "premier_league": ["premierleague.com"] },
   "trusted": {                        // per kind of result
     "football_results": ["bbc.co.uk", "espn.com", "uefa.com"],
     "regulatory":       ["reuters.com", "apnews.com"] } }
@@ -159,7 +175,7 @@ trusted sites per kind; a missing entry never blocks a claim:
 | quote_found | the model's quote occurs in the fetched page (checked in memory; the quote is then discarded, never stored). Not applicable to `basis = absence` and price feeds |
 | in_window | the event date is inside `(lock_at, deadline_at]`. For `basis = absence`: instead, the source was read on or after the deadline and the contract marks it `absence_is_meaningful` |
 | final | the result is final, not a projection or preliminary figure |
-| independent | not a copy of another evidence row (different origin, not the same wire story) |
+| independent | not a copy of another item in the same run: different registrable domain **and** page text not near-identical (word-shingle similarity of the extracted text, computed in memory during the run; the text is then dropped) **and** not attributed to the same original report (the judge's `original_source`, e.g. "AP"). Copies count once |
 
 Insert-only.
 
@@ -183,24 +199,51 @@ Insert-only.
 
 **How the resolution is reached** (from the claim's passed evidences):
 
-Only the latest `run_at` is used. `pending`, `irrelevant` and `entity_gone` items never count as HIT
+HIT/MISS/contradiction use the latest `run_at` only; the waiting rows below (entity_gone, nothing
+found, pending) count earlier runs as well. `pending`, `irrelevant` and `entity_gone` items never count as HIT
 or MISS. An `official` item saying `pending` (it fails the `final` gate, so `passed = false`, but
 this rule reads it anyway) makes the claim wait for the next run; still pending 30 days after the
 deadline → `needs_human`.
 
+Only the **highest trust level present** decides: if any `official` item passed, `trusted` items are
+ignored (shown on the page, never a contradiction). A contradiction is a hit/miss disagreement
+**within** that level.
+
 | Passed evidence | Result |
 |---|---|
-| 1 or more `official`, none contradicting | final — `decided_by = evidence` |
+| 1 or more `official`, all agree | final — `decided_by = evidence` (trusted items don't matter) |
 | no `official`, 2 or more `trusted` agree, none contradicting | final — `decided_by = evidence` |
-| they contradict | LLM arbiter reads them (official outweighs trusted): decides → final, `decided_by = arbiter` with notes; can't decide → `needs_human` |
+| `official` items disagree, or (no official) `trusted` items disagree | LLM arbiter reads them: decides → final, `decided_by = arbiter` with notes; can't decide → `needs_human` |
 | exactly 1 `trusted`, no `official` | `needs_human` (one non-official source is not enough) |
-| none, but sources were checked | final VOID, `insufficient_evidence` |
-| an `official` item says `entity_gone` | final VOID, `unresolvable` |
+| none, but sources were checked (an empty search counts as checked; an error does not) — in 2 runs at least 24 h apart | final VOID, `insufficient_evidence`; after only one such run → wait (late reporting) |
+| an `official` item says `entity_gone` in 3 separate runs (counted from `run_at`) | final VOID, `unresolvable`; fewer runs → wait for the next run |
+
+**Price feed gaps.** HIT may come from any observed close that meets the criterion. MISS needs a
+close for **every** day the contract depends on (every day in the window for `any_time_before`, the
+deadline day for `at_deadline`). If a missing day could change the answer, the feed row says
+`pending` → wait; still missing 30 days after the deadline → `needs_human`. A gap never becomes MISS.
 
 A source that could not be reached writes no evidence; the claim waits for the next run. The claim
 moves to `resolved`/`void` only when the resolution is `final`; `needs_human` keeps it in `resolving`
 and lists it for the operator (CLI in Stage 0, admin panel later). A human decision updates the row:
 `outcome`, `decided_by = human`, `human_notes`, `review_status = final`.
+
+Trigger `resolutions_final_frozen` — BEFORE UPDATE OR DELETE: once `OLD.review_status = 'final'` the
+row never changes (a verdict is as immutable as the contract). Correcting a final verdict is
+deferred.
+
+**Resolver schedule** (`claims.next_check_at`; waiting runs never burn the budget):
+- the resolver picks `locked`/`resolving` claims with `next_check_at ≤ now` and no resolution row;
+  a `needs_human` claim is never re-run (it has a resolution row);
+- after a run that had to wait: outage → +1 h, doubling up to 24 h; pending, gap, single
+  insufficient run or `entity_gone` → +24 h, then 2, 4, 8 days (so 3 `entity_gone` runs span days,
+  not hours); pending past 30 days after the deadline → `needs_human`;
+- jobs take a Postgres advisory lock per job name, so an overlapping cron run or a manual
+  `jobs:tick` never processes the same claim twice.
+
+**Cost rows**: calls made before the claim row exists (proposal, examples) are buffered and written
+with the claim insert in the same transaction; for a duplicate summon they are written with
+`claim_id = null`.
 
 ## cost_events
 
@@ -226,8 +269,13 @@ terminal: rejected, expired, resolved, void
 ```
 `lock_at = last contract reply + 15 min`; a valid amend resets it. One column: planned lock time while
 draft, actual lock time after (the job only flips the status). At `lock_at` the original tweet is
-re-read once; if its version differs from `source_version`, the claim does not lock and the edit is
-handled as an amend (new contract, `[AMENDED]` reply, `lock_at` reset, `amend_count` + 1).
+re-read once; if its version differs from `source_version`, the claim does not lock. The edited text
+goes through proposal + checks again, exactly like an amend: passes and `amend_count < 2` → new
+contract, `[AMENDED]` reply, `lock_at` reset, `amend_count` + 1, `source_version` updated; fails the
+checks or the limit is reached → `expired` with one `[EXPIRED]` reply. The pre-edit contract is
+never locked against an edited post. An accepted amend also re-reads the tweet and stores its current
+version in `source_version`, so an edit made before the amend is not applied again at lock. Only
+the claim's author can amend.
 
 ## Not in Stage 0
 
