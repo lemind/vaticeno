@@ -1,0 +1,25 @@
+name: Test
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      # Coverage is reported, never enforced: ~55% is a cap, not a floor.
+      - run: npm run test:coverage
+      # Added as their tasks land (specs/001-stage0-contract-core/tasks.md T008):
+      # a postgres:16 service + `npm run test:integration`, then `npm run corpus`
+      # and `npm run seeds:crypto` with LLM_MODE=replay (no secrets needed).

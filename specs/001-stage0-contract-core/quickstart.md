@@ -4,9 +4,9 @@
 
 ```bash
 npm install
-docker run -d --name vaticeno-pg -e POSTGRES_PASSWORD=dev -p 5432:5432 postgres:16
+docker compose up -d          # local Postgres 16 (compose.yaml), db "vaticeno", password "dev"
 cp .env.example .env
-#   DATABASE_URL=postgres://postgres:dev@localhost:5432/postgres
+#   DATABASE_URL=postgres://postgres:dev@localhost:5432/vaticeno
 #   GEMINI_API_KEY=...          (only for LLM_MODE=live|record)
 #   NORMALIZER_MODEL=... JUDGE_MODEL_A=... JUDGE_MODEL_B=... ARBITER_MODEL=...   LLM_MODE=replay
 npm run db:migrate
@@ -19,7 +19,8 @@ npm run corpus            # proposal + checks over 100 fixtures → pass rate (�
 npm run seeds:crypto      # 60 frozen crypto claims → must be 100%
 npm run seeds:open        # seeded open-topic claims (SC-003 mix) → agreement ≥ 95%, wrong HIT/MISS < 5%
 npm test                  # unit tests
-npm run test:integration  # DB integration tests (needs local Postgres)
+npm run test:integration  # DB integration tests (needs `docker compose up -d`; each run creates its own scratch database)
+docker compose down -v    # reset the local database completely
 ```
 
 ## Walk one claim through its life (simulated time)

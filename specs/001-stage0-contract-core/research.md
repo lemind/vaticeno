@@ -136,14 +136,17 @@ a claim that waits 30 days costs ~6 runs, not 720.
     `text`, `quote`, `body` or `prompt`.
   - **Alerts that need a human**: a `needs_human` resolution, a claim over $0.30, the reply cap
     breached, or a job failing N times raise a Sentry event (→ email).
-  - **Jobs silently stopping**: Sentry Cron Monitors wrap the lock, expiry and resolver jobs; a
-    missed check-in alerts.
+  - **Jobs silently stopping**: one Sentry Cron Monitor on the every-minute lock job (the free plan
+    allows one; all jobs share one process, so one heartbeat catches a dead process or scheduler).
+    Resolver and expiry failures raise `alert()` instead.
   - **Process down**: external uptime check on `/healthz` (Sentry Uptime or UptimeRobot free).
 - **Rationale**: one vendor for errors, logs, job heartbeats and uptime; no new dependency, no log
   shipping agent on a 1 GB droplet. Vercel is not an option: its logs only cover apps hosted on
   Vercel, and we run a long-lived process on the droplet.
-- **UNRECONCILED**: Sentry free-plan quotas for Logs, Cron Monitors and Uptime monitors, and the
-  minimum `@sentry/node` version that has Logs — check at T001 before approving.
+- **Free Developer plan** (checked on sentry.io/pricing 2026-09-29): 5k errors/month, 5 GB logs,
+  1 cron monitor, 1 uptime monitor, email alerts, 1 user, 30-day retention. Enough for Stage 0–1.
+  The Team plan ($26/mo) adds errors and users, not monitors. Actual usage stays UNRECONCILED until
+  measured.
 - **Alternatives**: Better Stack or Axiom (log agent on the droplet, second vendor); Grafana Cloud
   Loki (heavier); pino (a dependency for what `log.ts` already does).
 
@@ -157,6 +160,10 @@ a claim that waits 30 days costs ~6 runs, not 720.
 | `node-cron` | in-process schedule |
 | `@google/genai` | Gemini client incl. search grounding |
 | `@sentry/node` | errors, logs, cron monitors, alerts (R11) |
+
+Approved 2026-09-29 by the owner. Pinned at install: fastify 5.12.5, drizzle-orm 0.45.3,
+drizzle-kit 0.31.11, postgres 3.4.9, node-cron 4.6.0, @google/genai 2.24.0, @sentry/node 11.1.0
+(Logs API is in this major; free-plan limits in R11).
 
 Sources: [Gemini grounding](https://ai.google.dev/gemini-api/docs/generate-content/google-search),
 [grounding pricing](https://www.marketingscoop.com/ai/gemini-grounding-with-google-search-how-it-works-what-it-costs-and-when-teams-should-turn-it-on/),
