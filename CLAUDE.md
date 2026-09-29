@@ -3,6 +3,8 @@
 <!-- SPECKIT START -->
 **Constitution**: `.specify/memory/constitution.md` (v1.0.0) — principles every plan must pass.
 
+**Active plan**: `specs/001-stage0-contract-core/plan.md` (research, data-model, contracts/, quickstart alongside).
+
 **Active feature**: `specs/001-stage0-contract-core/spec.md` — Stage 0, offline: contracts for any
 topic, checks CLI over fixtures, NEEDS INFO case A, resolver (crypto deterministic, everything else
 model-decided) proven on seeded claims, public pages. Where INIT_SPEC (v1.1.1) is narrower
@@ -12,7 +14,7 @@ model-decided) proven on seeded claims, public pages. Where INIT_SPEC (v1.1.1) i
 ## Non-negotiables (from INIT_SPEC — read the section before changing the area)
 
 - **Lock is the trust primitive**: contract fields never change after `locked_at` (§4, §6.6).
-- **Checkable by construction** (constitution II): any topic, but every contract names criterion, deadline, source and how "no" is shown. Crypto resolves deterministically; the rest by LLM with cited evidence. No evidence = VOID, never MISS.
+- **Checkable by construction** (constitution II): any topic, but every contract names criterion, deadline, source and how "no" is shown. Evidence from several sources must pass code gates; one resolution per claim (agree / LLM arbiter / human review flag). No evidence = VOID, never MISS.
 - **Outage ≠ verdict**: source down → retry next run, no void, no `undecided_count` bump (§6.7).
 - **One reply per inbound interaction**; never a standalone `@mention` post (§6.1, §6.5).
 - **Lease writes are `worker_token`-guarded**; 0 rows updated → no side effects (§6.1).

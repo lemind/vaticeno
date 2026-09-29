@@ -50,7 +50,7 @@
 ## AI Rules
 
 - The LLM writes the contract; deterministic checks accept or reject it.
-- Resolution: deterministic for crypto prices; LLM-decided elsewhere, only against the locked contract, always with cited evidence. No evidence = VOID, never MISS (constitution II).
+- Resolution: evidence items (price feed, web pages read by an LLM) pass code gates; passed evidence that agrees is final, contradictions go to an LLM arbiter or a human-review flag. No evidence = VOID, never MISS (constitution II).
 - Use structured JSON outputs only.
 - Validate all AI outputs through Zod.
 - Prefer cheaper models first.

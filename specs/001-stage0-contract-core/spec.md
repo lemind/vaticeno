@@ -6,7 +6,7 @@
 
 **Status**: Draft
 
-**Input**: User description: "Stage 0 of Vaticeno (fully offline, no X calls): the core that turns a prediction into a locked, checkable contract and resolves it. Data model with lifecycle states, append-only history and immutability after lock; normalizer plus checks runnable as a CLI over a fixture corpus; unclear-prediction handling, MVP = case A only (NEEDS INFO reply with what is missing, examples and the amend format; case B — an LLM-driven clarifying conversation — deferred); resolver proven on seeded historical claims (hypothesis D); public claim and author pages with raw counts only." Amended in session: **any topic can be recorded as long as it can be checked; no topic exclusions; an LLM decides verdicts for topics without a data API, with no human confirmation step.**
+**Input**: User description: "Stage 0 of Vaticeno (fully offline, no X calls): the core that turns a prediction into a locked, checkable contract and resolves it. Data model with lifecycle states and immutability after lock; normalizer plus checks runnable as a CLI over a fixture corpus; unclear-prediction handling, MVP = case A only (NEEDS INFO reply with what is missing, examples and the amend format; case B — an LLM-driven clarifying conversation — deferred); resolver proven on seeded historical claims (hypothesis D); public claim and author pages with raw counts only." Amended in session: **any topic can be recorded as long as it can be checked; no topic exclusions; evidence from several sources passes gates; one resolution per claim — evidence decides, or an LLM arbiter decides, or it is flagged for human review; tweet edits before lock count as amends (new `[AMENDED]` reply), after lock nothing changes.**
 
 ## Context
 
@@ -29,11 +29,10 @@ represented by IDs in fixtures and seed data.
 
 ### User Story 1 - Any clear prediction becomes a checkable contract (Priority: P1)
 
-The operator feeds a prediction text (as it would appear on X). The system writes a contract with
-four parts: **what must happen** (a precise, objectively decidable criterion), **by when** (a UTC
-deadline), **where the answer is read** (a named authoritative source) and **how "no" is shown**
-(what evidence would establish that it did not happen). A series of checks then decides:
-**recorded** (with the exact statement that will be judged), **needs info**, or **rejected**.
+The operator feeds a prediction text (as it would appear on X). The system writes a contract (see
+**Contract model**): **what must happen**, **by when**, **where the answer is read** and **how "no"
+is shown**. A series of checks then decides: **recorded** (with the statement that will be judged,
+rendered from the contract), **needs info**, or **rejected**.
 
 **Why this priority**: Without a precise contract no verdict means anything. Open topics make this
 the hardest and most important step.
@@ -53,7 +52,7 @@ reported.
    record) and how "no" is shown (no such approval in that record by the deadline).
 3. **Given** "Arsenal win the Premier League this season", **When** it is evaluated, **Then** it is
    recorded against a specific season and the official final table as the source.
-4. **Given** a prediction whose deadline is less than 24 hours away or more than 18 months away,
+4. **Given** a prediction whose deadline is less than 24 hours away or more than 10 years away,
    **When** it is evaluated, **Then** it is rejected with that reason.
 5. **Given** a text that is not a prediction ("love this thread"), **When** it is evaluated, **Then**
    it is rejected as not a prediction.
@@ -86,15 +85,18 @@ length limit; then feed a valid amend and check the claim becomes a draft contra
    "amend FDA approves a drug for pancreatic cancer by 2030-12-31".
 2. **Given** "Musk lands on Mars soon", **When** it is evaluated, **Then** the reply says the
    deadline and the exact event are unclear and gives an example with both.
-3. **Given** each example the system suggests, **When** it is evaluated as an amend, **Then** it
+3. **Given** "I bet Trump gonna be next president", **When** it is evaluated, **Then** the outcome
+   is needs info (no explicit date; "next president" is ambiguous) with an example that pins the
+   event and date, such as "amend Donald Trump is sworn in as US President by 2029-01-20".
+4. **Given** each example the system suggests, **When** it is evaluated as an amend, **Then** it
    would be recorded (examples must be valid contracts, not just prose).
-4. **Given** a claim in needs info, **When** its author sends a valid amend, **Then** the claim
+5. **Given** a claim in needs info, **When** its author sends a valid amend, **Then** the claim
    becomes a draft contract, and this amend does **not** count against the amend limit.
-5. **Given** a claim in needs info, **When** the amend is still unclear, **Then** the claim stays in
+6. **Given** a claim in needs info, **When** the amend is still unclear, **Then** the claim stays in
    needs info and one short reply is produced.
-6. **Given** a claim in needs info with no valid amend within 24 hours, **When** time passes,
+7. **Given** a claim in needs info with no valid amend within 24 hours, **When** time passes,
    **Then** the claim expires silently.
-7. **Given** any needs-info reply, **When** it is produced, **Then** it follows a fixed frame
+8. **Given** any needs-info reply, **When** it is produced, **Then** it follows a fixed frame
    (header, what is unclear, examples, amend format); only the unclear-items text and the examples
    are generated.
 
@@ -102,11 +104,11 @@ length limit; then feed a valid amend and check the claim becomes a draft contra
 
 ### User Story 3 - A locked claim is resolved correctly (Priority: P1)
 
-When a locked claim's deadline has passed, the system decides a verdict — **HIT**, **MISS** or
-**VOID** — and stores the evidence behind it. Crypto price claims are decided by comparing the
-price feed with the threshold. Every other claim is decided by the language model, which looks for
-evidence in the contract's named source (and corroborating sources), and must cite what it found.
-Both paths are proven on seeded historical claims whose correct verdicts are known.
+When a locked claim's deadline has passed, sources are checked and each answer is stored as
+evidence that must pass the gates. One resolution per claim follows (see **Resolution model**):
+evidence decides (one official source, or two trusted ones agreeing), or an arbiter model decides,
+or the claim is flagged for human review. Proven on
+seeded historical claims whose correct verdicts are known.
 
 **Why this priority**: This is hypothesis D, the kill criterion.
 
@@ -135,43 +137,56 @@ claims, whether cited evidence supports the verdict) with the known answers.
    **When** resolution runs, **Then** no verdict is recorded and the claim waits for the next run.
 9. **Given** a claim that was never locked when its deadline passed, **When** resolution runs,
    **Then** it is marked expired and never judged.
+10. **Given** two trusted results sites both show the same final match result, **When** resolution
+    runs, **Then** both pass the gates and the resolution is final without an arbiter.
+11. **Given** passed evidence that contradicts, **When** resolution runs, **Then** the arbiter decides
+    with notes, or, if it cannot, the resolution is flagged for human review and the claim stays open.
+12. **Given** one passed official item (e.g. the league's own final table) and nothing
+    contradicting, **When** resolution runs, **Then** the resolution is final.
+13. **Given** only one passed trusted item and no official one, **When** resolution runs, **Then** the
+    resolution is flagged for human review.
 
 ---
 
 ### User Story 4 - The contract lifecycle is trustworthy (Priority: P2)
 
 Every claim moves through defined states — parsing, needs info, draft, locked, resolving, resolved,
-void, rejected, expired — and every change is written to a history that cannot be edited or
-deleted. Once locked, the contract cannot change. Before lock the author may amend a valid draft at
-most twice; each successful amend restarts the wait before lock.
+void, rejected, expired. Once locked, the contract cannot change. Before lock the author may amend a
+valid draft at most twice; each successful amend restarts the wait before lock. An edit of the
+original tweet before lock counts as an amend; after lock, edits and amends change nothing.
 
 **Why this priority**: Immutability is the trust primitive; offline, it is proven by tests rather
 than traffic.
 
 **Independent Test**: Drive claims through every allowed and forbidden transition; verify allowed
-ones succeed, forbidden ones are refused, and the history is append-only.
+ones succeed and forbidden ones are refused by the database.
 
 **Acceptance Scenarios**:
 
-1. **Given** a locked claim, **When** anything attempts to change its contract, **Then** it is refused.
-2. **Given** any history entry, **When** anything attempts to edit or delete it, **Then** it is refused.
+1. **Given** a locked claim, **When** anything attempts to change its contract or deadline, **Then**
+   it is refused.
+2. **Given** a claim in a terminal state, **When** anything attempts to change its state, **Then** it
+   is refused.
 3. **Given** a draft claim, **When** its author makes a third successful amend, **Then** it is refused
    with one reply; failed amends never consume an attempt.
-4. **Given** a claim is locked, **When** lock happens, **Then** the exact source-post version is
-   recorded and never changes afterwards.
-5. **Given** a draft whose source post was edited before lock, **When** lock time arrives, **Then** the
-   contract is re-evaluated and a clearly labelled "contract updated before lock" message is
-   produced; if the edit no longer yields a checkable contract, the claim expires with one reply.
+4. **Given** a draft, **When** 15 minutes pass after the last contract reply with no amend, **Then** it
+   locks; an amend in that time restarts the 15 minutes.
+5. **Given** a draft whose original tweet was edited, **When** lock time arrives, **Then** the claim
+   does not lock: the edited text is treated as an amend — new contract, a new reply marked
+   `[AMENDED] #slug`, the claim updated, the 15 minutes restarted — and it counts toward the limit.
+6. **Given** a locked claim, **When** its original tweet is edited or an amend arrives, **Then**
+   nothing changes.
+7. **Given** a claim is locked, **When** lock happens, **Then** the tweet's version ID and text hash
+   at that moment are recorded and never change afterwards.
 
 ---
 
 ### User Story 5 - Anyone can see a claim and an author's record (Priority: P3)
 
 A public claim page shows the contract exactly as judged: statement, criterion, source, how "no"
-is shown, lock time, deadline and countdown, status, verdict with its evidence (links, observed
-values and dates), a link to the original post, and the full timeline. For model-decided verdicts
-the page states that the verdict was decided by a model and shows the cited evidence. A public
-author page lists that author's claims with raw counts: recorded, resolved, hit, miss, void.
+is shown, created, lock and resolve times, deadline and countdown, status, each source's answer with
+its proof, the arbiter's reason if sources disagreed, the final verdict, and a link to the original
+post. A public author page lists the claims the person holds a position on, with raw counts.
 
 **Why this priority**: "The site is the memory"; in Stage 0 it renders from seed data.
 
@@ -180,15 +195,121 @@ listed element is present.
 
 **Acceptance Scenarios**:
 
-1. **Given** a resolved claim, **When** its page is opened, **Then** it shows the verdict, how it was
-   decided (price feed or model), the evidence, and every contract version with timestamps.
+1. **Given** a resolved claim, **When** its page is opened, **Then** it shows the final verdict, every
+   source's answer with its link, and the arbiter's reason when there was one.
 2. **Given** an author, **When** their page is opened, **Then** it shows raw counts only — no
    percentage, ranking or comparison with other people.
-3. **Given** an author whose handle changed, **When** their page is opened by ID, **Then** it still
-   resolves and shows the new handle as display text.
+3. **Given** an author page, **When** it is opened, **Then** it is addressed by the permanent X user
+   ID (the display name comes from X from Stage 1; Stage 0 shows the ID).
 4. **Given** any page, **When** it is rendered, **Then** it contains no copy of the original post text.
 
 ---
+
+### Contract model
+
+One contract is the single thing that is judged. Its fields are the only source of meaning:
+
+| Field | Meaning |
+|---|---|
+| Subject | who or what the prediction is about (asset, team, drug, person, organisation) |
+| Criterion | the yes/no condition that must become true |
+| Deadline | a UTC instant; a bare date means 23:59:59 UTC that day |
+| Evaluation window | always `(lock time, deadline]`: an event counts only if it occurs after lock and at or before the deadline |
+| Source | where the answer is read (structured, below) |
+| Negative condition | what establishes that the criterion did **not** become true |
+| Resolution method | price feed or model |
+
+The **statement** shown to authors and on pages is rendered from these fields by a fixed
+template. It is never model-authored and never stored as canonical data, so it cannot drift from
+what is judged.
+
+**Source** is structured, not a free-text name:
+
+| Part | Meaning |
+|---|---|
+| Name and locator | the issuing body and its record (e.g. the regulator's approvals database, a league's official final table, a price feed) |
+| Kind | what kind of result it is (e.g. football results, regulatory decisions); picks the trusted sites in the source policy. The locator's own domain is always official |
+| Scope | what the source covers (jurisdiction, competition, asset) |
+| Entity identifier | the exact entity in that source (asset ID, team and season, product name) |
+| Absence is meaningful | yes if "not listed in this source by the deadline" proves the criterion false (e.g. an official approvals register); no for sources that are not exhaustive (e.g. news) |
+| Fallback | only an official record from the same issuing body may replace the locator if it moves or disappears |
+
+**Daily close** (price claims) = the closing price of the UTC calendar-day candle (00:00:00 to
+23:59:59 UTC) from the contract's named price feed. The closes considered are those whose day ends
+inside the evaluation window, so the deadline's own day is included. A day with no candle is a gap:
+it never counts as above or below the threshold.
+
+### Lifecycle
+
+Only these transitions exist; every other one is refused. Terminal states: **rejected, expired,
+resolved, void**.
+
+| From | To | When |
+|---|---|---|
+| parsing | draft | the contract passes all checks |
+| parsing | needs info | something is unclear |
+| parsing | rejected | not a prediction, breaks X's rules, deadline out of range, or duplicate source post |
+| needs info | draft | a valid amend from the author (does not count against the amend limit) |
+| needs info | needs info | an amend that is still unclear |
+| needs info | expired | no valid amend within 24 h of the needs-info reply |
+| draft | draft | a valid amend, or an edit of the original tweet found at lock time (max 2 in total) |
+| draft | locked | the lock time is reached |
+| draft | expired | the deadline passes before lock |
+| locked | resolving | the deadline has passed and the resolver picks the claim up |
+| resolving | resolving | a source is unavailable (no verdict; retried next run) |
+| resolving | resolved | final verdict HIT or MISS |
+| resolving | void | final verdict VOID |
+
+The database enforces this table; it is the single authority. Code refuses the same transitions
+early for clearer errors, and a test checks the two never differ.
+
+**Lock time** = 15 minutes after the most recent contract reply to the author (acknowledgement or
+`[AMENDED]` reply). A valid amend restarts it.
+
+**Amends and edits before lock.** An `amend` reply from the author, or an edit of the original tweet,
+before lock time produces a new contract for the **same claim** (same slug): the bot never edits its
+earlier reply, it posts a new reply marked `[AMENDED] #slug` with the new statement, the claim's
+contract is replaced, and lock time restarts. Both count toward the limit of two. Edits are detected
+by re-reading the original tweet once at lock time and comparing its version with the one the
+contract was built from; if it changed, the claim does not lock and the edit is handled as an amend.
+After lock, edits and amends change nothing.
+
+### Resolution model
+
+Two layers: **evidence** (what each source says) and one **resolution** (the verdict).
+
+**Evidence.** After the deadline the system checks sources — for price claims only the price feed
+(it is official and enough on its own); for other topics web sources found by search (e.g. for a
+football result, the league's own site and major results sites). Each source's answer is stored as an evidence item with its proof and is put
+through **gates**, and gets a **trust level**: *official* (the contract's named source, an official
+record of the same issuer, or the price feed), *trusted* (listed for that kind of result) or *other*
+(never counts). Official is recognised from the contract's own source link, so any topic works
+without a pre-made list; a versioned **source policy** only adds issuer aliases and trusted sites
+per kind of result. Trust is applied in code — never by the model. Each item also records what
+the source says: *hit*, *miss*, *pending* (a result exists but is not final yet), *irrelevant* (the
+source does not answer the question) or *entity gone*; only hit and miss count toward an outcome.
+Evidence is either a **record** (the source shows a result) or an **absence** (the result is not in a
+source the contract marks as exhaustive, checked on or after the deadline). Gates: the source is official or trusted; the quote the model cites really appears in
+the fetched page; the event date is inside the evaluation window (for absence evidence: the source was read on or
+after the deadline and is marked exhaustive); the result is final, not a
+projection; and it is independent of the other evidence (not the same story copied). Only evidence
+that passes every gate counts.
+
+**Resolution** (one per claim), from the evidence that passed:
+
+| Passed evidence | Resolution |
+|---|---|
+| at least 1 official, none contradicting | final (one official source is enough) |
+| no official, 2 or more trusted agree, none contradicting | final |
+| they contradict | an **arbiter model** reads them (official outweighs trusted) and decides, with notes; if it cannot decide, the resolution is flagged **needs human review** |
+| only 1 trusted, no official | flagged **needs human review** |
+| none, though sources were checked | final: VOID, insufficient evidence |
+| an official source shows the entity no longer exists | final: VOID, unresolvable |
+| an official source says the result is pending | wait and retry; still pending 30 days after the deadline → flagged **needs human review** |
+
+- A source that cannot be reached produces no evidence; the claim waits for the next run.
+- A claim flagged for human review stays open and is listed for the operator (command line in Stage
+  0, an admin panel later). The human's decision and notes become the final resolution.
 
 ### Edge Cases
 
@@ -213,17 +334,23 @@ listed element is present.
 
 **Contracts and checks**
 
-- **FR-001**: System MUST turn a prediction text plus today's UTC date into a proposed contract with:
-  subject, criterion (what must happen), UTC deadline, evaluation window, named authoritative source,
-  how "no" is established, resolution method (price feed or model), and a list of what is unclear.
+- **FR-001**: System MUST turn a prediction text plus today's UTC date into a proposed contract with
+  exactly the fields of the **Contract model** (including the structured source), plus a list of
+  what is unclear. The displayed statement MUST be rendered from those fields, never generated
+  separately.
 - **FR-002**: Any topic MUST be accepted if it yields a contract that passes the checks; there is no
   category allow-list and no topic exclusion.
 - **FR-003**: After every proposal the system MUST apply these checks, and the checks — not the
   proposal — decide the outcome: the text is a prediction; it complies with X's rules for content
-  the bot republishes; deadline present; deadline more than 24 h away; deadline within 18 months;
-  nothing unclear; proposal confidence at least 0.7; criterion is objectively decidable (a yes/no
-  that two independent readers of the source would agree on); a source is named; how "no" is
-  established is stated; source post not already claimed.
+  the bot republishes; an explicit deadline present (MVP: the author states it; it is never
+  derived from an event); deadline more than 24 h away; deadline within 10 years;
+  nothing unclear; criterion is objectively decidable (a yes/no that two independent readers of the
+  source would agree on); a structured source is present; the negative condition is stated;
+  source post not already claimed. The model's self-reported confidence is recorded for analysis
+  but is not a check.
+- **FR-003a**: One source post MUST map to at most one claim. Concurrent or repeated summons for
+  the same post MUST result in exactly one claim; later ones are rejected as duplicates pointing
+  to it.
 - **FR-004**: For crypto price contracts the system MUST support UTC daily close above/below a
   threshold, at the deadline or on any day before it, and MUST confirm the price feed answers for
   the asset before recording.
@@ -236,7 +363,10 @@ listed element is present.
 
 - **FR-007**: A needs-info outcome MUST produce one reply in a fixed frame: what is unclear, one or
   two example rewrites tailored to the topic, and the format `amend <what happens> by <YYYY-MM-DD>`.
-- **FR-008**: Every suggested example MUST itself pass the checks when evaluated as an amend.
+- **FR-008**: Every suggested example MUST itself pass the checks: each generated example is
+  evaluated through the same proposal and checks as a real amend; failing ones are discarded and
+  regenerated once; if none survive, the reply uses a fixed generic example. An unchecked example
+  is never sent.
 - **FR-009**: All replies MUST fit within X's post length limit and contain no link card; the public
   page link is plain text.
 - **FR-010**: Amends from the claim's author MUST be accepted in needs info and in draft; the first
@@ -245,72 +375,98 @@ listed element is present.
 - **FR-011**: A claim in needs info with no valid amend within 24 hours MUST expire with no reply.
 - **FR-012**: The system MUST NOT hold a multi-turn clarifying conversation (case B is out of scope).
 
-**Lifecycle and history**
+**Lifecycle**
 
-- **FR-013**: Claims MUST move only through the defined states and transitions; forbidden
-  transitions MUST be refused.
-- **FR-014**: Contract fields MUST be immutable after lock, and the locked source-post version MUST be
-  recorded at lock and never change.
-- **FR-015**: Every state change and contract version MUST be appended to a history that cannot be
-  edited or deleted.
-- **FR-016**: Lock MUST NOT happen before both the challenge window (15 minutes after
-  acknowledgement) and the source post's edit window (plus 60 seconds) have passed.
+- **FR-013**: Claims MUST move only through the transitions in the **Lifecycle** table; every other
+  transition MUST be refused, and terminal states MUST never change.
+- **FR-014**: The contract and deadline MUST be immutable after lock, enforced by the database. At
+  lock the system MUST record the exact version of the user's tweet the contract was built from —
+  its version ID and a hash of its text (never the text itself) — and these MUST never change.
+- **FR-015**: An edit of the original tweet found before lock MUST be handled as an amend (new
+  contract, new `[AMENDED]` reply, lock time restarted, counts toward the limit); after lock, edits
+  MUST NOT change anything. The bot MUST NOT edit its own earlier replies.
+- **FR-016**: Lock MUST happen at the **Lock time** defined in Lifecycle, never earlier.
 - **FR-017**: A deadline that passes before lock MUST end in expired, never in resolution.
 - **FR-018**: Each claim MUST have a short public identifier (5 characters from an unambiguous
   alphabet, widened to 6 after repeated collisions).
 
 **Resolution**
 
-- **FR-019**: Crypto price claims MUST be resolved only by comparing the price feed with the
-  contract; for "any day before deadline" the full daily series from lock to deadline MUST be checked.
-- **FR-020**: All other claims MUST be resolved by the language model against the contract's
-  criterion, named source and "no" condition, with no human confirmation step.
-- **FR-021**: A model verdict of HIT MUST cite positive evidence that the event occurred between lock
-  and deadline; MISS MUST cite evidence that it did not occur (the source's record or a final
-  result); if neither can be established the verdict MUST be VOID with reason "insufficient evidence".
-- **FR-022**: Multiple reports tracing back to one original report MUST count as one source.
-- **FR-023**: Every verdict MUST store its evidence: sources consulted, what each showed, the event
-  date, when it was observed, and the method (price feed or model, with model identity).
-- **FR-024**: An unreachable, erroring or malformed feed, model or search MUST produce no verdict and
-  MUST NOT change the claim's undecided count; the claim is retried on the next run.
-- **FR-025**: A source that answers but no longer has the entity (e.g. delisted asset) MUST increment
-  the undecided count; at 3 the verdict MUST be VOID with reason "unresolvable".
-- **FR-026**: A manual override of a verdict MUST be possible for the operator and MUST be recorded
-  in the history as an override.
+- **FR-019**: After the deadline the system MUST gather evidence from several sources as in the
+  **Resolution model**. The price feed compares daily closes with the contract; for "any day before
+  deadline" it checks every daily close in the evaluation window, fetched in full at resolution.
+- **FR-020**: Every evidence item MUST be put through the gates (trusted, quote found, in window,
+  final, independent); only items passing every gate count toward the resolution. Gate results are
+  stored with the item.
+- **FR-021**: HIT requires passed record evidence that the event occurred inside the evaluation
+  window. MISS requires passed record evidence of a final result contradicting the criterion, or
+  passed absence evidence: the result is missing from a source the contract marks "absence is
+  meaningful", read on or after the deadline. Absence anywhere else (e.g. "no news found")
+  MUST NOT produce MISS.
+- **FR-022**: Multiple reports tracing back to one original report MUST count as one source
+  (independence gate).
+- **FR-023**: Every evidence item MUST store a pointer to its proof, not the content: link, retrieval
+  time, a fingerprint of the retrieved content, the price value where applicable, the search query,
+  the event date, the resolver run it belongs to, and the model identity and instruction version.
+  Each run's evidence is kept; the resolution uses the latest run. The model's quote is used only to
+  run the quote gate and MUST NOT be stored.
+- **FR-024**: An unreachable, erroring or malformed feed, model or search MUST produce no evidence;
+  the claim is retried on the next run.
+- **FR-025**: Each claim MUST have exactly one resolution, reached by the table in **Resolution
+  model**: one passed official item, or two or more passed trusted items agreeing → final;
+  contradicting → arbiter model decides with notes, or flags the resolution for human review if it
+  cannot; a single passed trusted item without an official one → flagged for human review; none →
+  VOID (insufficient evidence); entity gone → VOID (unresolvable). Every evidence item MUST carry a
+  trust level (official, trusted, other) set in code — official from the contract's own source
+  link, aliases and trusted sites from the source policy — and what it says (hit, miss, pending,
+  irrelevant, entity gone). Every HIT or MISS resolution MUST name the evidence item that
+  established it and the source-policy version used.
+- **FR-026**: Resolutions flagged for human review MUST be listed for the operator; the operator
+  decides from the command line (admin panel later), and the decision and notes become the final
+  resolution. The operator can also override any final resolution the same way.
 
 **Public pages**
 
-- **FR-027**: A public claim page MUST show statement, criterion, source, "no" condition, lock time,
-  deadline with countdown, status, verdict with method and evidence, a link to the original post,
-  and the full history timeline.
-- **FR-028**: A public author page MUST be addressed by the author's permanent ID, show the current
-  handle as display text only, and list claims with raw counts (recorded, resolved, hit, miss, void)
-  — no percentages, rankings or comparisons.
+- **FR-027**: A public claim page MUST show statement, criterion, source, "no" condition, created,
+  lock and resolve times, deadline with countdown, status, every evidence item with its link, trust
+  level and whether it passed the gates, the resolution with how it was reached (evidence, arbiter or
+  human) and its notes, and a link to the original post.
+- **FR-028**: A public author page MUST be addressed by the author's permanent X user ID and list
+  the claims the person holds a position on with raw counts
+  (recorded, resolved, right, wrong, void — derived from verdict and stance) — no percentages,
+  rankings or comparisons.
+- **FR-028a**: Every claim MUST have exactly one author position (agree), created with the claim;
+  positions MUST be immutable.
 
 **Data and compliance**
 
-- **FR-029**: The system MUST NOT store or log the text of X posts — only post and user IDs and the
-  system's own derived contract. Fixture texts are test inputs, not stored claim data.
+- **FR-029**: The system MUST NOT store or log content: not the text of X posts, and not quotes,
+  excerpts or snapshots of external sources. It stores only IDs, links, hashes and its own derived
+  contract. Fixture texts and recorded test responses are test inputs, not stored claim data.
 - **FR-030**: All times MUST be stored and compared in UTC.
 - **FR-031**: Every model, search and data-feed call MUST be recorded with its cost, per claim.
 
 ### Key Entities
 
-- **Author (subject)**: an X user. Permanent user ID; handle as refreshable display name; opt-out
-  flag and time.
-- **Claim**: one prediction from one source post. Post and conversation IDs (never text); the
-  contract (statement, criterion, deadline, window, source, "no" condition, resolution method); state;
-  reject reason; amend and undecided counts; lock time and locked source-post version.
-- **Claim event**: append-only history entry (created, needs info, amended, locked, resolve
-  attempted, resolved, voided, expired, posted, post failed, manual override) with payload and time.
-- **Resolution**: the single verdict — hit, miss or void — with method (price feed, model, manual),
-  evidence list, notes and reply delivery state.
+- **Claim**: one prediction from one source post. Post IDs and the author's X user ID (never text);
+  the tweet version and text hash at lock; the contract (the Contract model fields; the statement is
+  rendered from them); state; reject reason; amend count; lock and deadline times. Its verdict lives
+  in its Resolution.
+- **Position**: a person's stance on a claim — agree or disagree — with when they took it. The
+  contract belongs to the claim, not to a person. In the MVP the only position is the author's
+  (agree); others joining is deferred. A person's result is derived from the claim's verdict and
+  their stance.
+- **Evidence**: what one source said about a claim — hit, miss, pending or irrelevant — with a link to
+  it and a fingerprint of what was read (FR-023), its trust level (official, trusted, other) and the result of each gate; only fully
+  passed evidence counts.
+- **Resolution**: exactly one per claim — the final outcome (hit, miss, void), how it was reached
+  (evidence, arbiter, human), the evidence item that established it, the arbiter's or human's notes,
+  and whether it needs human review.
 - **Fixture**: a test prediction text with its expected outcome and, where applicable, expected
   contract essentials; grouped by the failure mode it probes.
 - **Seeded claim**: a historical locked claim with a known correct verdict (and frozen data for
   price claims), used to prove the resolver.
 - **Cost event**: one billable call — provider, operation, units, cost — linked to a claim.
-- **Page view**: an anonymous visit to a claim page (for hypothesis B), with referrer.
 
 ## Success Criteria *(mandatory)*
 
@@ -319,18 +475,38 @@ listed element is present.
 - **SC-001**: At least 90% of a 100-example fixture corpus in real X language, spanning crypto,
   sports, health, science, tech, business, politics and culture, produces the expected outcome.
 - **SC-002**: 100% of 60 seeded historical crypto claims resolve correctly, covering exact-threshold
-  values, UTC day boundaries, series gaps, retroactive corrections and a delisted asset.
+  values, UTC day boundaries, series gaps and a delisted asset.
 - **SC-003**: On a set of at least 60 seeded historical open-topic claims with known outcomes, model
   verdicts agree with the known answer at least 95% of the time, with fewer than 5% wrong HIT/MISS
-  (a VOID where the answer was knowable counts as disagreement, not as a wrong HIT/MISS).
-- **SC-004**: Every model verdict in the seeded set cites evidence that, on inspection, supports it.
+  (a VOID where the answer was knowable counts as disagreement, not as a wrong HIT/MISS). The set
+  is built to this minimum mix, so the score reflects the failure modes rather than easy cases:
+
+  | Category | Min seeds |
+  |---|---|
+  | clear HIT | 8 |
+  | clear MISS from a final result | 6 |
+  | MISS from absence in a source where absence is meaningful | 5 |
+  | correct answer is VOID (nothing knowable) | 5 |
+  | event before lock (must not be HIT) | 4 |
+  | event after deadline (must not be HIT) | 4 |
+  | announcement before lock, event after lock | 4 |
+  | conflicting reports | 4 |
+  | copied wire stories (one source, many sites) | 4 |
+  | source page changed after publication | 4 |
+  | partial outcome | 4 |
+  | ambiguous entity name | 4 |
+  | technically true under another reading | 4 |
+- **SC-004**: Every model answer in the seeded set cites proof that, on inspection, supports it.
 - **SC-005**: 100% of needs-info replies name what is unclear, include at least one example that
   itself passes the checks, use the amend format and fit the length limit.
 - **SC-006**: Zero verdicts are produced during a simulated feed, model or search outage.
-- **SC-007**: Zero attempts to change a locked contract or a history entry succeed.
-- **SC-008**: Zero copies of post text exist in stored data or logs after running the full corpus.
+- **SC-007**: Zero attempts to change a locked contract, a terminal state or a position succeed.
+- **SC-008**: Zero copies of content — X post text, quotes, excerpts or page snapshots — exist in
+  stored data or logs after running the full corpus and seeds.
 - **SC-009**: Every claim and author page for the seed data shows all required elements, and no page
   shows a percentage or ranking.
+- **SC-010**: Every seeded case with contradicting passed evidence ends with either an arbiter
+  decision with notes or a human-review flag; none is decided silently.
 
 ## Assumptions
 
@@ -345,19 +521,34 @@ listed element is present.
   historical data so results never drift.
 - Model-written NEEDS INFO text and model-decided verdicts make Vaticeno an AI reply bot under X's
   developer rules; written approval from X is required before these replies go live (Stage 1+).
-- Reply delivery, live lock timing against real edit windows, mention polling and rate caps are
-  Stage 1+ concerns; Stage 0 models the fields and rules and exercises them with simulated times.
-- Out of scope: case B (clarifying conversation), accuracy percentages, leaderboards, payments.
+- Reply delivery, mention polling, rate caps, opt-out and display names fetched from X are Stage 1+
+  concerns; Stage 0 exercises lock and expiry timing with simulated times.
+- Edits to the original tweet count as amends before lock and are ignored after it. In Stage 0 the
+  re-read is simulated from fixtures.
+- Deadlines may be up to 10 years out (INIT_SPEC's 18-month cap is dropped).
+- Out of scope: case B (clarifying conversation), accuracy percentages, leaderboards, payments,
+  page-view tracking (hypothesis B, added when pages go public).
 
 ## Deferred (post-MVP, revisit after real-usage feedback on complex cases)
 
-In the MVP the language model decides every non-price verdict on its own (FR-020). These are
+In the MVP evidence gates, the arbiter model and a human-review flag decide verdicts (FR-020–026). These are
 deliberately left for later, to be designed from what real complex cases (e.g. elections) show:
 
 - **Resolution tiers** assigned at recording: feed (prices) / official result (match results,
   regulatory approvals) / contested (elections, legal rulings, appointments).
 - **"Final result" condition** for contested topics: the contract names what counts as final
   (e.g. a certified result), and resolution waits for it instead of reading projections.
-- **Verdict checks before posting**: evidence cites the named source, event dated between lock and
-  deadline, result is final, independent confirmation, two runs agree, confidence above threshold.
-- **Operator review queue** for verdicts that fail those checks, targeting under 10% of verdicts.
+- **Admin panel** for resolutions flagged for human review (MVP: listed and decided from the
+  command line), targeting under 10% of resolutions.
+- **Joining a claim**: anyone may reply in the thread to agree or disagree with a locked claim
+  (e.g. "2 agree, 3 disagree"). One immutable position per person per claim; joins only on locked
+  contracts (nobody bets on a contract that can still change); join time shown publicly. Author
+  and claim pages then show every position and each person's derived result. Whether late joins
+  need a cutoff is decided then. The data model already holds positions.
+- **Early resolution**: in the MVP every claim is judged only after its deadline. Later, a trigger
+  may re-check open claims periodically and declare HIT as soon as it happens (MISS still waits
+  for the deadline).
+- **Event-derived deadlines**: when a prediction names a scheduled event without a date ("next
+  president"), the model derives the date and writes a "check from" (scheduled date) and a
+  "check until" (latest date; still unknown then → VOID) into the contract, re-checking in
+  between until the result is known. In the MVP the author must state the date (FR-003).

@@ -3,8 +3,11 @@ Sync Impact Report
 - Version change: (template) → 1.0.0
 - Principles defined (all new):
   I. The Lock Is Immutable
-  II. Checkable by Construction (open topics; feed-deterministic for crypto, model-decided
-      elsewhere; no evidence = VOID). Supersedes INIT_SPEC 1.1.1's deterministic-only scope.
+  II. Checkable by Construction (open topics; gated evidence from several sources; one resolution
+      per claim — agree, arbiter, or human review; proof checked in code; no evidence = VOID). Supersedes INIT_SPEC 1.1.1's
+      deterministic-only scope.
+  I. amended in draft: lock = 15 min after last reply; before lock, amends and tweet edits replace
+     the contract with a new [AMENDED] reply; after lock nothing changes.
   III. An Outage Is Never a Verdict
   IV. Speak Only When Spoken To
   V. IDs, Not Text
@@ -34,14 +37,17 @@ until one of them is amended.
 
 ### I. The Lock Is Immutable
 
-- After `locked_at`, contract fields MUST NOT change. Any change is a new claim.
-- The exact source-post version judged (`locked_source_tweet_id`, `locked_source_edit_count`)
-  MUST be persisted at lock and never mutated.
-- A claim MUST NOT lock before X's post edit window has passed (`editable_until`) and the
-  challenge window has ended. Any pre-lock contract change MUST be announced
-  (`CONTRACT UPDATED BEFORE LOCK`) and shown on the claim timeline — never silent.
-- A deadline that passes before lock MUST end in `expired`. An unlocked contract is never judged.
-- `claim_events` is append-only, enforced in the database.
+- Once `lock_at` has passed, the contract and deadline MUST NOT change, enforced in the database. Any change
+  is a new claim.
+- Before lock, an amend or an edit of the original tweet replaces the contract of the same claim and
+  is announced in a new `[AMENDED]` reply (the bot never edits its own replies). After lock, nothing
+  changes it.
+- At lock, the exact version of the user's tweet (version ID + hash of its text, never the text) is
+  recorded and never changes, so "which version did you lock?" always has an answer.
+- A claim locks 15 minutes after the last contract reply to its author; a valid amend restarts the
+  wait. A deadline that passes before lock MUST end in `expired`. An unlocked contract is never
+  judged.
+- State transitions are enforced by the database; terminal states never change.
 
 Rationale: if the question can move after it is asked, no verdict means anything.
 
@@ -52,23 +58,33 @@ Rationale: if the question can move after it is asked, no verdict means anything
   is established. The model proposes it; deterministic checks accept or reject it.
 - Ambiguous meaning is `needs_info`, never a guess (e.g. intraday "touches" MUST NOT be mapped onto
   a daily-close check).
-- Where an exact data feed exists (crypto prices), the verdict MUST be a deterministic comparison.
-  Everywhere else a language model decides, and only against the locked contract.
-- A model verdict MUST cite its evidence. HIT needs positive evidence the event occurred after lock
-  and by the deadline; MISS needs evidence it did not; otherwise the verdict is VOID. Absence of
-  evidence MUST NOT become MISS. Repeated copies of one report count as one source.
-- Every verdict stores its method (feed, model identity, manual) and evidence, and says on the
-  public page how it was decided.
+- Every claim is judged from evidence (for prices, the deterministic feed comparison alone;
+  otherwise several web sources). Each evidence item must pass gates — trusted source, quote found
+  in the fetched page, event inside the window, final result, independent — or it does not count.
+- Evidence has a trust level — official (the contract's source, the same issuer's record, the price
+  feed), trusted (curated list) or other (never counts) — official recognised from the contract's
+  own source link, aliases and trusted lists from the versioned source policy, applied in code,
+  never by a model. One resolution per claim: one passed
+  official item, or two passed trusted items agreeing, is final; contradictions go to a model
+  arbiter, which decides with notes or flags the claim for human review; a single trusted item
+  without an official one is flagged for human review. Models judge only against the locked contract.
+- Evidence MUST point to its proof (link + fingerprint of what was read), and the proof is checked
+  in code (the model's quote must exist in the fetched page; the quote itself is not kept). HIT needs positive evidence the event occurred after lock and by the deadline;
+  MISS needs a final contradicting result or absence from a source where absence is meaningful;
+  otherwise VOID. Absence of evidence elsewhere MUST NOT become MISS. Repeated copies of one report
+  count as one source.
+- Every evidence item stores its source, proof, gate results and model identity; the resolution
+  stores how it was reached and its notes; the public page shows both.
 
 Rationale: a referee is trusted for the question it fixed in advance and the evidence it shows,
 not for the confidence of its answer.
 
 ### III. An Outage Is Never a Verdict
 
-- A source that is unreachable, erroring or malformed yields no verdict: retry on the next run.
-  It MUST NOT void a claim or count as an undecided attempt.
-- Only a source that answers but no longer has the entity (delisted coin, deleted fixture) counts
-  toward `void`, and only after repeated confirmation.
+- A source that is unreachable, erroring or malformed yields no answer: retry on the next run.
+  It MUST NOT void a claim.
+- Only a source that answers but no longer has the entity (delisted coin, deleted fixture) may
+  answer VOID ("unresolvable").
 - A failed existence check MUST NOT trigger a retried post. Unknown state means wait, not act.
 - Failures MUST be visible: retryable errors back off, exhausted ones alert. Nothing is dropped
   silently.
@@ -93,8 +109,8 @@ keeps the account alive.
 
 ### V. IDs, Not Text
 
-- No copy of X post text is stored — not in the database, not in logs. Only IDs and our own
-  derived statement are kept.
+- No content is stored — not X post text, not quotes or snapshots of external sources; not in the
+  database, not in logs. Only IDs, links, hashes and our own derived contract are kept.
 - `x_user_id` is identity; a handle is a display cache refreshed from API responses.
 - Official API only. No scraping, no bulk export, no training on or redistribution of X content.
 
