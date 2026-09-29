@@ -1,6 +1,6 @@
 # Implementation Plan: Stage 0 — Contract Core (offline)
 
-**Branch**: `001-stage0-contract-core` | **Date**: 2026-09-29 | **Spec**: [spec.md](spec.md)
+**Date**: 2026-09-29 | **Spec**: [spec.md](spec.md)
 
 **Input**: Feature specification from `specs/001-stage0-contract-core/spec.md`
 

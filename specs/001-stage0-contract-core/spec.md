@@ -1,7 +1,5 @@
 # Feature Specification: Stage 0 — Contract Core (offline)
 
-**Feature Branch**: `001-stage0-contract-core`
-
 **Created**: 2026-09-28
 
 **Status**: Draft
