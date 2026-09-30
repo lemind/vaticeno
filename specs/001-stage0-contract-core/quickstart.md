@@ -6,7 +6,7 @@
 npm install
 docker compose up -d          # local Postgres 16 (compose.yaml), db "vaticeno", password "dev"
 cp .env.example .env
-#   DATABASE_URL=postgres://postgres:dev@localhost:5432/vaticeno
+#   DATABASE_URL=postgres://postgres:dev@localhost:5433/vaticeno
 #   GEMINI_API_KEY=...          (only for LLM_MODE=live|record)
 #   NORMALIZER_MODEL=... JUDGE_MODEL_A=... JUDGE_MODEL_B=... ARBITER_MODEL=...   LLM_MODE=replay
 npm run db:migrate
@@ -42,6 +42,8 @@ Pick the cheapest tier that meets SC-001 / SC-003; set it in `.env`; recordings 
 
 ## Production (droplet)
 
-- Supabase project in Frankfurt; `DATABASE_URL` = session pooler string; run migrations once.
+- Supabase project `vaticeno` (Frankfurt). `DATABASE_URL` = session pooler string
+  (`aws-1-eu-central-1.pooler.supabase.com:5432`, user `postgres.<project-ref>`), kept in the
+  gitignored `.env.production`. Migrate: `node --env-file=.env.production --import tsx src/cli/db-migrate.ts`.
 - Droplet resized to 1 GB; `deploy/deploy.sh` as today; Caddy in front for `vaticeno.app`.
 - Nightly `pg_dump` cron on the droplet to off-box storage; test one restore before launch.

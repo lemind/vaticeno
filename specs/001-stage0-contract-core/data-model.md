@@ -53,7 +53,7 @@ browser → Fastify (server-rendered pages) → backend DB role → Postgres
 | created_at | timestamptz default now() | |
 
 **Triggers (the database is the authority)**
-- `claims_contract_frozen` — BEFORE UPDATE: once `OLD.status` is locked, resolving, resolved or void,
+- `claims_contract_frozen` — BEFORE UPDATE: once `OLD.status` is locked, resolving, resolved, void, expired or rejected,
   reject changes to `contract`, `deadline_at`, `resolution_method`, `lock_at`,
   `locked_source_version`, `locked_source_hash`.
 - `claims_status_transition` — BEFORE UPDATE OF status: reject any (old, new) pair not in the

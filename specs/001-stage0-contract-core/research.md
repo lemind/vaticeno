@@ -128,11 +128,11 @@ a claim that waits 30 days costs ~6 runs, not 720.
     `event` and correlation IDs (`claim_id`, `slug`, `run_id`), never content.
   - **On the server**: stdout → journald (`journalctl -u vaticeno`), retention capped
     (`SystemMaxUse=500M`). Always there, even when Sentry is down.
-  - **Off the server**: the same `log()` call also forwards to **Sentry Logs** (`enableLogs`, via
+  - **Off the server**: the same `log()` call also forwards to **Sentry Logs** (on by default in Sentry 11, via
     the already-listed `@sentry/node`) when `SENTRY_DSN` is set — searchable in the browser, no
     agent, no extra package.
   - **Errors**: Sentry error tracking for the server and every CLI (flush before exit).
-    `sendDefaultPii: false`; a `beforeSend`/`beforeSendLog` scrubber drops any field named
+    `dataCollection` turns off user info, headers, bodies, gen-AI inputs, DB params and stack variables; a `beforeSend`/`beforeSendLog` scrubber drops any field named
     `text`, `quote`, `body` or `prompt`.
   - **Alerts that need a human**: a `needs_human` resolution, a claim over $0.30, the reply cap
     breached, or a job failing N times raise a Sentry event (→ email).
