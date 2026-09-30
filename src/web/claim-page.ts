@@ -67,13 +67,14 @@ ${resolution ? html`
 <h2>Evidence</h2>
 ${items.length === 0 ? html`<p class="muted">Nothing checked yet.</p>` : html`
 <div class="scroll"><table>
-<tr><th>Checked</th><th>Source</th><th>Trust</th><th>Says</th><th>Event</th><th>Gates</th></tr>
+<tr><th>Run</th><th>Source</th><th>Trust</th><th>Says</th><th>Event</th><th>Read at</th><th>Gates</th></tr>
 ${items.map((e) => html`<tr id="e-${e.id}"${e.id === resolution?.decidingEvidenceId ? html` style="font-weight:600"` : ''}>
   <td>${utc(e.runAt)}</td>
   <td>${e.url ? link(e.url, e.sourceName) : e.sourceName}${e.value ? html`<br><span class="muted">close ${e.value}</span>` : ''}</td>
   <td>${e.trustLevel}${e.trustReason ? html`<br><span class="muted">${e.trustReason}</span>` : ''}</td>
   <td class="${e.says}">${e.says.replace('_', ' ')}</td>
   <td>${e.eventDate ?? '—'}</td>
+  <td>${utc(e.retrievedAt)}</td>
   <td>${gatesText(e.gates, e.passed)}</td>
 </tr>`)}
 </table></div>`}

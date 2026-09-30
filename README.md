@@ -16,9 +16,11 @@ An X bot that puts predictions **on the record** and checks them automatically o
 
 | Done | Next |
 |---|---|
-| Mention polling, `ping` → `pong` on X | Turning predictions into contracts |
-| Database: tables, lock and verdict rules enforced by Postgres, locally and on Supabase | Resolving claims after the deadline |
-| Contract schema, AI model client with offline replay, cost tracking | Public claim and author pages |
+| Mention polling, `ping` → `pong` on X | Scheduled jobs inside the server, backups, HTTPS (Phase 8) |
+| Database: tables, lock and verdict rules enforced by Postgres, locally and on Supabase | Replies on X (Stage 1, after X approval) |
+| Predictions → contracts, unclear ones get a checked example, fixes before lock | |
+| Resolving claims after the deadline (price feed, AI reading web sources), human review | |
+| Public claim and author pages (`npm run dev`) | |
 | Error tracking, logs and alerts (Sentry); tests on every pull request | |
 
 ## Commands (on X)
@@ -48,13 +50,14 @@ Reply caps (`.env`): 3 per author per hour, 300 per day. Logs never contain post
 | `npm run poc:poll` | the bot: poll mentions, reply to `ping` |
 | `npm run poc:parse -- "<text>"` | see how a mention is parsed, offline |
 | `npm run poc:whoami` / `poc:auth` | bot user ID / one-time browser login for posting |
+| `npm run dev` | public pages on `PORT` (default 3000): `/c/<slug>`, `/u/<x_user_id>`, `/healthz` |
 | `npm run db:migrate` | apply database migrations (uses `DATABASE_URL`) |
 | `npm run db:generate` / `db:studio` | new migration from schema changes / browse tables |
 | `npm test` / `test:integration` | unit tests / database tests (needs Docker Postgres) |
 | `npm run test:coverage` / `typecheck` | coverage report (~55% is a cap, not a goal) / type check |
 
 Stage 0 commands (`corpus`, `seeds:*`, `claim:*`, `jobs:tick`, `review:list`, `resolve:manual`) are
-listed in [contracts/cli.md](specs/001-stage0-contract-core/contracts/cli.md) and arrive with their tasks.
+listed in [contracts/cli.md](specs/001-stage0-contract-core/contracts/cli.md).
 
 ## Deploy (VPS)
 
@@ -92,4 +95,4 @@ Code follows a light "pure core, I/O at the edges" structure — see
 ## Stack
 
 Node 22 · TypeScript (strict) · Zod · PostgreSQL (Supabase) + Drizzle · Gemini · Sentry · X API v2.
-Coming with later tasks: Fastify pages, node-cron jobs.
+Fastify (server-rendered pages, no client JS). Coming in Phase 8: node-cron jobs.

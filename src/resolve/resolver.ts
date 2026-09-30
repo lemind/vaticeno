@@ -38,13 +38,16 @@ const OUTAGE_LIMIT_MS = 30 * DAY_MS;
 let lastRunAt: Date | null = null;
 export const lastResolverRunAt = () => lastRunAt; // for /healthz (one process)
 
+// Claims the resolver may look at now: locked/resolving, due, and no resolution yet (needs_human has one).
+export const dueClaims = (now: Date) => and(
+  inArray(claims.status, ['locked', 'resolving']),
+  lte(claims.nextCheckAt, now),
+  sql`not exists (select 1 from ${resolutions} r where r.claim_id = ${claims.id})`,
+);
+
 export async function resolveDueClaims(deps: ResolverDeps, now: Date): Promise<Record<ClaimRunOutcome, number>> {
   const due = await deps.db.select().from(claims)
-    .where(and(
-      inArray(claims.status, ['locked', 'resolving']),
-      lte(claims.nextCheckAt, now),
-      sql`not exists (select 1 from ${resolutions} r where r.claim_id = ${claims.id})`,
-    ))
+    .where(dueClaims(now))
     .orderBy(asc(claims.nextCheckAt))
     .limit(MAX_CLAIMS_PER_RUN);
 

@@ -2,13 +2,13 @@
 // `npm run dev` starts it; tests build it with `buildServer` and use `inject`.
 import { pathToFileURL } from 'node:url';
 import Fastify, { type FastifyReply } from 'fastify';
-import { and, count, eq, inArray, lte, min, sql } from 'drizzle-orm';
+import { count, eq, min } from 'drizzle-orm';
 import { loadCoreConfig } from '../config.js';
 import { closeDb, type Db, getDb } from '../db/client.js';
 import { claims, resolutions } from '../db/schema.js';
 import { log } from '../log.js';
 import { captureError, initObservability } from '../observe.js';
-import { lastResolverRunAt } from '../resolve/resolver.js';
+import { dueClaims, lastResolverRunAt } from '../resolve/resolver.js';
 import { authorPage } from './author-page.js';
 import { claimPage } from './claim-page.js';
 import { html, layout } from './html.js';
@@ -30,9 +30,7 @@ export function buildServer(deps: { db: Db; now?: () => Date }) {
   app.get('/healthz', async (_request, reply) => {
     try {
       const at = now();
-      const due = and(inArray(claims.status, ['locked', 'resolving']), lte(claims.nextCheckAt, at),
-        sql`not exists (select 1 from ${resolutions} r where r.claim_id = ${claims.id})`);
-      const [dueRow] = await deps.db.select({ n: count(), oldest: min(claims.nextCheckAt) }).from(claims).where(due);
+      const [dueRow] = await deps.db.select({ n: count(), oldest: min(claims.nextCheckAt) }).from(claims).where(dueClaims(at));
       const [humanRow] = await deps.db.select({ n: count() }).from(resolutions).where(eq(resolutions.reviewStatus, 'needs_human'));
       const oldest = dueRow?.oldest ? new Date(dueRow.oldest) : null;
       return {

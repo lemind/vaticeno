@@ -1,7 +1,7 @@
 // Server-rendered HTML with escaping by default: every interpolated value is escaped unless it is itself
 // an `html` fragment. No client JS (contracts/http.md).
 
-export class Html {
+class Html {
   constructor(readonly value: string) {}
   toString(): string {
     return this.value;
@@ -10,7 +10,7 @@ export class Html {
 
 type Part = Html | string | number | null | undefined | false | readonly Part[];
 
-export function escapeHtml(text: string): string {
+function escapeHtml(text: string): string {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 

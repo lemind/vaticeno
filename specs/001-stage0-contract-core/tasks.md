@@ -182,7 +182,7 @@ that itself passes the checks, use the amend format and fit 280 chars (SC-005).
 element, no percentage or ranking, no content (SC-009).
 
 - [x] T069 [P] [US5] Create `src/web/html.ts`: `html` tagged template with escaping, `layout(title, body)`
-- [x] T070 [US5] Create `src/web/claim-page.ts` per `contracts/http.md`: rendered statement, criterion, source, negative condition, status, created/lock/resolve times, deadline countdown, evidence items (source, trust level, says, link, value, event date, gates), resolution (decided_by, notes, deciding evidence), link to the X post, positions
+- [x] T070 [US5] Create `src/web/claim-page.ts` per `contracts/http.md`: rendered statement, criterion, source, negative condition, status, created/lock/resolve times, deadline countdown, evidence items (source, trust level, says, link, value, event date, read at, gates), resolution (decided_by, notes, deciding evidence), link to the X post, positions
 - [x] T071 [US5] Create `src/web/author-page.ts`: claims the user holds a position on, derived right/wrong/void, raw counts only
 - [x] T072 [US5] Create `src/web/server.ts` (Fastify): `GET /c/:slug`, `GET /u/:x_user_id`, `GET /healthz`; 404s; no admin routes; `npm run dev` starts it
 - [x] T073 [US5] Write `tests/integration/pages.test.ts` using Fastify `inject`: one claim page and one author page render required elements, no `%`, no fixture text, `<script>` in a contract field comes out escaped

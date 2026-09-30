@@ -29,8 +29,11 @@ describe('claim page', () => {
     const page = res.body;
     for (const needed of [
       VALID_CONTRACT.criterion, VALID_CONTRACT.negative_condition, VALID_CONTRACT.source.name, '2026-12-31 23:59 UTC',
-      'Recorded', 'Locks', 'Resolved', '/i/status/', 'coinbase', 'primary', 'passed', '150001', 'HIT', 'the evidence', '/u/200', 'author',
+      'Recorded', 'Locks', '/i/status/', 'coinbase', 'primary', 'passed', '150001', 'HIT', 'the evidence', '/u/200', 'author',
+      '2026-11-03', '2027-01-01 01:00 UTC', // event date, read at
     ]) assert.ok(page.includes(needed), `missing: ${needed}`);
+    assert.match(page, /<dt>Resolved<\/dt><dd>2027-01-02 00:00 UTC<\/dd>/);
+    assert.match(page, /href="#e-[0-9a-f-]+">see below/, 'links to the deciding answer');
     assert.ok(!visible(page).includes('%'), 'no percentages');
     assert.ok(!page.includes('<script'), 'no client JS');
   });
@@ -41,6 +44,14 @@ describe('claim page', () => {
     const page = (await app().inject(`/c/${claim.slug}`)).body;
     assert.ok(page.includes('&lt;script&gt;alert(1)&lt;/script&gt; &amp; &quot;quotes&quot;'));
     assert.ok(!page.includes('<script>alert'));
+  });
+
+  test('a non-web evidence link is shown as text, never as a link (contract links are https-only by schema)', async () => {
+    const claim = await insertClaim(t.sql, 'locked');
+    await insertEvidence(t.sql, claim.id, { url: 'javascript:alert(2)', source_kind: 'web', source_name: 'evil.example' });
+    const page = (await app().inject(`/c/${claim.slug}`)).body;
+    assert.ok(!/href="javascript:/i.test(page));
+    assert.ok(page.includes('evil.example'), 'shown as plain text');
   });
 
   test('an expired claim says it was never locked or judged', async () => {
@@ -75,10 +86,12 @@ describe('author page', () => {
 describe('health and routes', () => {
   test('/healthz reports the database, due claims and the review queue', async () => {
     await insertClaim(t.sql, 'locked', { next_check_at: '2027-01-01T00:00:00Z' });
+    const flagged = await insertClaim(t.sql, 'resolving', { next_check_at: '2027-01-01T00:00:00Z' });
+    await t.sql`insert into resolutions ${t.sql({ claim_id: flagged.id, review_status: 'needs_human' })}`;
     const res = await app().inject('/healthz');
     assert.equal(res.statusCode, 200);
     const body = res.json();
-    assert.deepEqual([body.ok, body.db, body.claims_due, body.oldest_due_age_min, body.needs_human], [true, 'up', 1, 1440, 0]);
+    assert.deepEqual([body.ok, body.db, body.claims_due, body.oldest_due_age_min, body.needs_human], [true, 'up', 1, 1440, 1]);
   });
 
   test('no admin or write routes', async () => {
