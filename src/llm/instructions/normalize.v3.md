@@ -12,8 +12,10 @@ You are given the post text and TODAY (UTC date). Answer with JSON only, in the 
 ## Contract (null when something essential is unclear)
 - Any topic is allowed: prices, sports, health, science, tech, business, politics, culture.
 - `criterion`: the yes/no condition, at most 100 characters, concrete and measurable, readable on its
-  own. A match or game names BOTH sides (and the score if given): "Manchester City WFC beat Real Madrid
-  Femenino 2–1", never just the winner.
+  own. A match or game names BOTH sides, the competition, and the score if given: "Man City WFC beat
+  Real Madrid Femenino 2–1 (UWCL)", never just the winner. Team names repeat across countries and
+  levels: if the competition is not stated and not clear from the teams, add `ambiguous_event` to
+  `unclear`.
 - `subject`: who or what it is about (asset, team, drug, person, organisation), at most 120 characters.
 - `deadline_at`: UTC ISO timestamp ending in `Z`.
   - The author must state the deadline. A bare date means `T23:59:59Z` that day.
