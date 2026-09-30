@@ -4,6 +4,21 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test \"src/**/*.test.ts\"",
+    "test:coverage": "node --import tsx --test --experimental-test-coverage --test-coverage-exclude=\"src/**/*.test.ts\" \"src/**/*.test.ts\"",
+    "test:integration": "node --env-file-if-exists=.env --import tsx --test --test-concurrency=1 \"tests/integration/**/*.test.ts\"",
+    "dev": "tsx --env-file-if-exists=.env src/web/server.ts",
+    "db:migrate": "tsx --env-file-if-exists=.env src/cli/db-migrate.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:studio": "drizzle-kit studio",
+    "corpus": "tsx --env-file-if-exists=.env src/cli/corpus.ts",
+    "seeds:crypto": "tsx --env-file-if-exists=.env src/cli/seeds.ts crypto",
+    "seeds:open": "tsx --env-file-if-exists=.env src/cli/seeds.ts open",
+    "claim:submit": "tsx --env-file-if-exists=.env src/cli/claim-submit.ts",
+    "claim:amend": "tsx --env-file-if-exists=.env src/cli/claim-amend.ts",
+    "claim:edit": "tsx --env-file-if-exists=.env src/cli/claim-edit.ts",
+    "jobs:tick": "tsx --env-file-if-exists=.env src/cli/jobs-tick.ts",
+    "review:list": "tsx --env-file-if-exists=.env src/cli/review-list.ts",
+    "resolve:manual": "tsx --env-file-if-exists=.env src/cli/resolve-manual.ts",
     "poc:whoami": "tsx --env-file=.env src/poc/whoami.ts",
     "poc:poll": "tsx --env-file=.env src/poc/poll.ts",
     "poc:parse": "tsx src/poc/parse-cli.ts",
@@ -19,16 +34,23 @@
   },
   "homepage": "https://github.com/lemind/vaticeno#readme",
   "dependencies": {
+    "@google/genai": "2.24.0",
+    "@sentry/node": "11.1.0",
+    "drizzle-orm": "0.45.3",
+    "fastify": "5.12.5",
+    "node-cron": "4.6.0",
+    "postgres": "3.4.9",
     "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/node": "^22.20.4",
+    "drizzle-kit": "0.31.11",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   },
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=22"
+    "node": ">=22.9"
   }
 }

@@ -28,3 +28,36 @@ export function loadConfig(): Config {
   }
   return parsed.data;
 }
+
+// Stage 0 core (DB, models, observability). Separate from the POC config so neither breaks the other.
+const optionalText = z.string().trim().transform((v) => v || undefined).optional();
+
+const CoreEnvSchema = z
+  .object({
+    DATABASE_URL: z.string().regex(/^postgres(ql)?:\/\//, 'DATABASE_URL must be a postgres:// URL'),
+    LLM_MODE: z.enum(['live', 'record', 'replay']).default('replay'),
+    GEMINI_API_KEY: optionalText,
+    NORMALIZER_MODEL: optionalText,
+    JUDGE_MODEL_A: optionalText,
+    JUDGE_MODEL_B: optionalText,
+    ARBITER_MODEL: optionalText,
+    SENTRY_DSN: optionalText,
+    PORT: z.coerce.number().int().min(1).max(65535).default(3000),
+  })
+  .superRefine((env, ctx) => {
+    if (env.LLM_MODE === 'replay') return;
+    const needed = ['GEMINI_API_KEY', 'NORMALIZER_MODEL', 'JUDGE_MODEL_A', 'JUDGE_MODEL_B', 'ARBITER_MODEL'] as const;
+    for (const key of needed) {
+      if (!env[key]) ctx.addIssue({ code: 'custom', path: [key], message: `${key} is required when LLM_MODE=${env.LLM_MODE}` });
+    }
+  });
+
+export type CoreConfig = z.infer<typeof CoreEnvSchema>;
+
+export function loadCoreConfig(env: NodeJS.ProcessEnv = process.env): CoreConfig {
+  const parsed = CoreEnvSchema.safeParse(env);
+  if (!parsed.success) {
+    throw new Error(`Invalid env: ${z.prettifyError(parsed.error)}`);
+  }
+  return parsed.data;
+}

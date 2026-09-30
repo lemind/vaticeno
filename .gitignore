@@ -1,4 +1,6 @@
 INIT_SPEC.md
 node_modules/
 .env
+.env.production
+supabase/.temp/
 .state/
