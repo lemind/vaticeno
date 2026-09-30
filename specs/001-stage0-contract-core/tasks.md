@@ -209,6 +209,7 @@ element, no percentage or ranking, no content (SC-009).
 - [x] T091 `src/bot/x-source-reader.ts` (current version = last id in edit history) and `src/bot/wire.ts` (X client, OAuth reply poster with one 401 refresh); `getTweet` in `src/x/client.ts`
 - [x] T092 Scheduler `mentions` job every minute behind `ENABLE_X=true`; the lock job reads posts from X; replies drop the page link (no domain yet)
 - [x] T093 `deploy/vaticeno.service` runs `src/web/server.ts` (pages on localhost, jobs, X); constitution VI 2.1.0; `tests/integration/bot.test.ts`
+- [x] T094 Fixes found by thread: every bot reply and fix id is kept on the claim (`drizzle/0004_thread_tweet_ids.sql`), so a reply under any bot answer is a fix even inside an older thread; `tests/integration/bot.test.ts`
 
 ---
 

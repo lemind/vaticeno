@@ -29,6 +29,13 @@
       "when": 1790751401190,
       "tag": "0003_earned_trust",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790774932010,
+      "tag": "0004_thread_tweet_ids",
+      "breakpoints": true
     }
   ]
 }

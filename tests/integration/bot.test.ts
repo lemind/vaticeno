@@ -104,6 +104,21 @@ describe('fixes from X', () => {
     assert.match(replies[1]!.text, /^RECORDED/);
     assert.equal((await t.sql`select status from claims`)[0]!.status, 'draft');
   });
+
+  test('a thread inside an older thread: replies under each bot answer fix the claim', async () => {
+    const summon = mention('55', '@vaticeno vague AAPL to the moon', { conversation_id: 'old-root', referenced_tweets: [{ type: 'replied_to', id: 'old-root' }] });
+    const under = (id: string, parent: string, text: string) => mention(id, text, { conversation_id: 'old-root', in_reply_to_user_id: BOT, referenced_tweets: [{ type: 'replied_to', id: parent }] });
+    const { deps, replies } = await bot([[summon], [under('56', 'r-55', '@vaticeno BTC daily close above $150,000 by 2026-12-31')], [under('57', 'r-56', '@vaticeno BTC daily close above $160,000 by 2026-12-31')]], { '55': { versionId: '55', text: 'vague AAPL to the moon' } });
+    await pollMentions(deps, NOW);
+    await pollMentions(deps, new Date(NOW.getTime() + 60_000));
+    await pollMentions(deps, new Date(NOW.getTime() + 120_000));
+    assert.match(replies[1]!.text, /^RECORDED/);
+    assert.match(replies[2]!.text, /^\[AMENDED\]/);
+    const rows = await t.sql`select slug, amend_count, thread_tweet_ids from claims`;
+    assert.equal(rows.length, 1, 'no second claim from the fixes');
+    assert.equal(rows[0]!.amend_count, 1);
+    assert.deepEqual([...rows[0]!.thread_tweet_ids].sort(), ['55', '56', '57', 'r-55', 'r-56', 'r-57']);
+  });
 });
 
 describe('failures and limits', () => {

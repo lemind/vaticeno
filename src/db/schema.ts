@@ -49,6 +49,7 @@ export const claims = pgTable(
     slug: text('slug').notNull().unique(),
     sourceTweetId: text('source_tweet_id').notNull().unique(),
     summonTweetId: text('summon_tweet_id').notNull(),
+    threadTweetIds: text('thread_tweet_ids').array().notNull().default(sql`'{}'`), // bot replies and fixes: a reply to any of them is a fix
     sourceVersion: text('source_version').notNull(),
     lockedSourceVersion: text('locked_source_version'),
     lockedSourceHash: text('locked_source_hash'),

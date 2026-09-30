@@ -1,6 +1,6 @@
 // X intake (Stage 1): each new mention of the bot becomes one engine call and at most one reply, in the same
 // thread (constitution IV). Mention and post text live in memory only — logs and DB get ids and lengths.
-import { and, desc, eq, inArray, or } from 'drizzle-orm';
+import { and, arrayOverlaps, desc, eq, inArray, or, sql } from 'drizzle-orm';
 import { claims } from '../db/schema.js';
 import { readIngestState, writeIngestState, type IngestState } from '../ingest/state.js';
 import { amendClaim, type ClaimDeps, submitClaim } from '../lifecycle/claims.js';
@@ -20,7 +20,7 @@ export type BotDeps = ClaimDeps & {
   statePath?: string;
 };
 
-type Routed = { action: string; reply: string | null };
+type Routed = { action: string; reply: string | null; slug?: string | null }; // slug: the claim this mention belongs to
 
 const HOUR_MS = 3_600_000;
 const DAY_MS = 24 * HOUR_MS;
@@ -43,7 +43,7 @@ export async function routeMention(deps: BotDeps, mention: Mention, now: Date): 
   const claim = body ? await openClaimInThread(deps, mention, repliedTo) : null;
   if (claim) {
     const fixed = await amendClaim({ ...deps, reader: deps.reader }, { slug: claim.slug, authorId: mention.author_id, text: body, now });
-    return { action: `fix_${fixed.outcome}`, reply: fixed.reply };
+    return { action: `fix_${fixed.outcome}`, reply: fixed.reply, slug: claim.slug };
   }
 
   // Empty mention (or "this") under a post: that post is the prediction — only if it is the summoner's own.
@@ -54,14 +54,14 @@ export async function routeMention(deps: BotDeps, mention: Mention, now: Date): 
     const result = await submitClaim(deps, {
       text: post.text, authorId: mention.author_id, sourceTweetId: repliedTo, summonTweetId: mention.id, sourceVersion: post.versionId, now,
     });
-    return { action: `record_parent_${result.outcome}`, reply: result.reply };
+    return { action: `record_parent_${result.outcome}`, reply: result.reply, slug: result.slug };
   }
 
   // Otherwise the mention itself is the prediction (or "help", or not a prediction → help reply).
   const result = await submitClaim(deps, {
     text: body, authorId: mention.author_id, sourceTweetId: mention.id, summonTweetId: mention.id, sourceVersion: mention.id, now,
   });
-  return { action: `record_inline_${result.outcome}`, reply: result.reply };
+  return { action: `record_inline_${result.outcome}`, reply: result.reply, slug: result.slug };
 }
 
 async function openClaimInThread(deps: BotDeps, mention: Mention, repliedTo: string | undefined) {
@@ -71,7 +71,7 @@ async function openClaimInThread(deps: BotDeps, mention: Mention, repliedTo: str
     .where(and(
       eq(claims.authorXUserId, mention.author_id),
       inArray(claims.status, ['needs_info', 'draft']),
-      or(inArray(claims.sourceTweetId, threadIds), inArray(claims.summonTweetId, threadIds)),
+      or(inArray(claims.sourceTweetId, threadIds), inArray(claims.summonTweetId, threadIds), arrayOverlaps(claims.threadTweetIds, threadIds)),
     ))
     .orderBy(desc(claims.createdAt)).limit(1);
   // The summon itself (re-read after a crash) is not a fix of its own claim.
@@ -97,7 +97,9 @@ export async function pollMentions(deps: BotDeps, now: Date): Promise<{ mentions
         break; // cursor stays before this mention: retried next poll
       }
       log('info', 'mention handled', { event: 'mention.handled', tweet_id: mention.id, author_id: mention.author_id, action: routed.action, text_chars: mention.text.length });
-      if (routed.reply && await sendReply(deps, state, mention, routed.reply, now)) replies++;
+      const replyId = routed.reply ? await sendReply(deps, state, mention, routed.reply, now) : null;
+      if (replyId) replies++;
+      if (routed.slug) await rememberThread(deps, routed.slug, [mention.id, replyId]);
     }
     state.mentions_since_id = mention.id;
     state.last_successful_poll_at = now.toISOString();
@@ -111,24 +113,39 @@ export async function pollMentions(deps: BotDeps, now: Date): Promise<{ mentions
   return { mentions: mentions.length, replies };
 }
 
-async function sendReply(deps: BotDeps, state: IngestState, mention: Mention, text: string, now: Date): Promise<boolean> {
+// The posted reply's id, or null when nothing was posted.
+async function sendReply(deps: BotDeps, state: IngestState, mention: Mention, text: string, now: Date): Promise<string | null> {
   const cap = capHit(deps, state, mention.author_id, now);
   if (cap) {
     alert('reply.cap_reached', { tweet_id: mention.id, cap });
-    return false;
+    return null;
   }
   try {
     const posted = await deps.postReply(mention.id, text);
     state.replied_tweet_ids = [...state.replied_tweet_ids, mention.id].slice(-REPLIED_IDS_KEPT);
     state.reply_log = [...state.reply_log, { author_id: mention.author_id, at: now.toISOString() }];
     log('info', 'reply posted', { event: 'reply.posted', tweet_id: mention.id, reply_tweet_id: posted.id, reply_chars: text.length });
-    return true;
+    return posted.id;
   } catch (error) {
     // Never retried: a failed post may still have landed, and a retry is how duplicates happen (INIT_SPEC §6.7).
     state.replied_tweet_ids = [...state.replied_tweet_ids, mention.id].slice(-REPLIED_IDS_KEPT);
     const detail = error instanceof XApiError ? { status: error.status } : {};
     captureError(error, { event: 'reply.failed', tweet_id: mention.id, ...detail });
-    return false;
+    return null;
+  }
+}
+
+// The mention and the bot's reply join the claim's thread, so a reply under either is a fix, however deep the
+// thread is (the conversation root can be an older, unrelated post).
+async function rememberThread(deps: BotDeps, slug: string, ids: Array<string | null>) {
+  const known = ids.filter((id): id is string => !!id);
+  try {
+    await deps.db.update(claims)
+      .set({ threadTweetIds: sql`array(select distinct unnest(${claims.threadTweetIds} || array[${sql.join(known.map((id) => sql`${id}`), sql`, `)}]::text[]))` })
+      .where(eq(claims.slug, slug));
+  } catch (error) {
+    // Never thrown: the reply is already posted, and a throw here would replay the mention (INIT_SPEC §6.7).
+    captureError(error, { event: 'thread.save_failed', slug });
   }
 }
 
