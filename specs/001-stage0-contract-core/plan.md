@@ -112,7 +112,7 @@ src/
 │   ├── client.ts                   # Gemini wrapper: live|record|replay, cost events
 │   ├── replay.ts                   # replay store (R5); refuses text/quote fields
 │   ├── prices.ts                   # model + search prices (UNRECONCILED)
-│   ├── instructions/               # normalize.v1, search.v1, judge.v1, arbitrate.v1
+│   ├── instructions/               # normalize.v2, search.v2, judge.v2, arbitrate.v1 (older versions kept)
 │   ├── instructions.ts             # loads versioned prompts
 │   ├── normalize.ts                # proposal + one retry
 │   └── judges.ts                   # grounded search → URLs; judge (one page); arbiter (contradictions)

@@ -16,14 +16,14 @@ ProposalSchema = {
 }
 ```
 
-## Search — `search.v1` (grounded, no verdict)
+## Search — `search.v2` (grounded, no verdict)
 
 Input: locked contract, lock and deadline, and the pass number (two passes, `JUDGE_MODEL_A` then
 `JUDGE_MODEL_B`). Output: grounding metadata only (`webSearchQueries`, `groundingChunks[].web.uri`) →
 candidate URLs. The model's prose is ignored. The contract's own locator is always read as well.
 Input also lists known sources (`sources.agreed_count ≥ 5`) as places to look first — a hint only.
 
-## Judge — `judge.v1` (no tools)
+## Judge — `judge.v2` (no tools)
 
 Input: locked contract, lock and deadline, and ONE page our code fetched (`{url, text}`). One call per
 page → one evidence row.

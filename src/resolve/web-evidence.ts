@@ -5,6 +5,7 @@ import { type CallCost, type LlmClient, LlmSchemaError } from '../llm/client.js'
 import { JUDGE_VERSION, judgePage, searchSources } from '../llm/judges.js';
 import { log } from '../log.js';
 import { type PageFetcher, SourceUnavailable } from './fetch.js';
+import { settles } from './decide.js';
 import { type EvidenceDraft, type Gates, runGates } from './gates.js';
 import { capTrust, hostOf, registrableDomain } from './trust.js';
 
@@ -47,7 +48,8 @@ export async function gatherWebEvidence(
   // The contract's own record is always read (also for absence evidence after the deadline).
   const urls = [...new Set([contract.source.locator, ...found])].slice(0, MAX_PAGES);
   const judged: Array<Omit<GatheredItem, 'gates' | 'passed'>> = [];
-  let failures = 0; // transient fetch errors and unusable judge answers: this run did not really look
+  let transientFailures = 0; // timeouts, 429, 5xx: the page may answer next time
+  let unreadable = 0; // any page that could not be fetched or judged
   const seen = new Set<string>(); // search redirect links often land on the same page: judge it once
   for (const url of urls) {
     let page;
@@ -55,7 +57,8 @@ export async function gatherWebEvidence(
       page = await deps.fetchPage(url);
     } catch (error) {
       if (!(error instanceof SourceUnavailable)) throw error; // replay misses and bugs fail loudly
-      if (error.transient) failures++;
+      if (error.transient) transientFailures++;
+      unreadable++;
       log('warn', 'source page unavailable', { event: 'evidence.fetch_failed', url, transient: error.transient, error: String(error) });
       continue;
     }
@@ -91,7 +94,7 @@ export async function gatherWebEvidence(
     } catch (error) {
       if (!(error instanceof LlmSchemaError)) throw error;
       costs.push(...error.costs);
-      failures++;
+      unreadable++;
       log('warn', 'judge answer unusable; page skipped', { event: 'evidence.judge_malformed', url: page.url });
     }
   }
@@ -105,9 +108,12 @@ export async function gatherWebEvidence(
     return { ...item, gates, passed };
   });
 
-  // A run with failures that settled nothing is an outage, never "nothing found" (constitution III).
-  if (failures > 0 && !items.some((item) => item.passed && (item.draft.says === 'hit' || item.draft.says === 'miss'))) {
-    throw new SourceUnavailable(`${failures} source pages could not be read or judged`);
+  // Never "nothing found" when we did not really look (constitution III): a timeout that might have held
+  // the answer, or not a single page read although there were pages to read, is an outage.
+  const settled = items.some((item) => settles({ ...item.draft, passed: item.passed, quoteFound: item.gates.quote_found }));
+  const readNothing = judged.length === 0 && unreadable > 0 && found.length > 0;
+  if (!settled && (transientFailures > 0 || readNothing)) {
+    throw new SourceUnavailable(`${unreadable} source pages could not be read or judged`);
   }
   // An empty search still writes one row, so "nothing found" runs can be counted (data-model evidences.run_at).
   if (items.length === 0) items.push(emptySearchItem(searchQuery, now));

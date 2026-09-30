@@ -8,7 +8,7 @@ import { z } from 'zod';
 import { ContractSchema } from '../contract/schema.js';
 import { newSlug } from '../contract/slug.js';
 import { createScratchDb } from '../db/scratch.js';
-import { claims, costEvents, evidences, resolutions } from '../db/schema.js';
+import { claims, costEvents, evidences, resolutions, sources } from '../db/schema.js';
 import type { Candle, Coinbase } from '../feeds/coinbase.js';
 import { createLlmClient } from '../llm/client.js';
 import { createReplayStore } from '../llm/replay.js';
@@ -89,6 +89,9 @@ await runCli('seeds', async (config) => {
 });
 
 async function runSeed(deps: ResolverDeps, seed: Seed): Promise<{ actual: Outcome; runs: number; usd: number; claimId: string }> {
+  // Known sources change the search input (and so the replay key): each seed starts with none, so results
+  // don't depend on which seeds ran before it.
+  await deps.db.delete(sources);
   const deadline = new Date(seed.contract.deadline_at);
   const slug = await newSlug(async () => false);
   const [claim] = await deps.db.insert(claims).values({

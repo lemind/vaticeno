@@ -33,6 +33,7 @@ const HOUR_MS = 3_600_000;
 const DAY_MS = 24 * HOUR_MS;
 const MAX_CLAIMS_PER_RUN = 50;
 const CLAIM_BUDGET_USD = 0.3;
+const OUTAGE_LIMIT_MS = 30 * DAY_MS;
 
 let lastRunAt: Date | null = null;
 export const lastResolverRunAt = () => lastRunAt; // for /healthz (one process)
@@ -89,8 +90,7 @@ export async function resolveClaim(deps: ResolverDeps, claim: ClaimRow, now: Dat
   } catch (error) {
     if (!isOutage(error)) throw error;
     if (error instanceof LlmSchemaError) costs.push(...error.costs);
-    await waitAfterOutage(db, claim, costs, now, error);
-    return 'outage';
+    return waitAfterOutage(db, claim, costs, now, error);
   }
 
   // Write this run's evidence (insert-only), then decide over all runs.
@@ -122,7 +122,7 @@ export async function resolveClaim(deps: ResolverDeps, claim: ClaimRow, now: Dat
 
   const history = await db.select({ id: evidences.id, runAt: evidences.runAt, trustLevel: evidences.trustLevel, says: evidences.says, passed: evidences.passed, gates: evidences.gates })
     .from(evidences).where(eq(evidences.claimId, claim.id));
-  const rows = history.map(({ gates, ...row }) => ({ ...row, quoteFound: (gates as { quote_found?: boolean | null }).quote_found ?? null }));
+  const rows = history.map(({ gates, ...row }) => ({ ...row, quoteFound: gates.quote_found ?? null }));
   const decision = decideResolution(rows, now, claim.deadlineAt);
   const outcome = await applyDecision(deps, claim, contract, window, decision, byId, now);
   await checkBudget(db, claim);
@@ -170,10 +170,7 @@ async function applyDecision(
     } catch (error) {
       // Arbiter down: an outage, retried with backoff. Arbiter answer unusable: a human decides, so a
       // broken arbiter never re-runs the paid pipeline every hour.
-      if (error instanceof LlmUnavailable) {
-        await waitAfterOutage(db, claim, [], now, error);
-        return 'outage';
-      }
+      if (error instanceof LlmUnavailable) return waitAfterOutage(db, claim, [], now, error);
       if (!(error instanceof LlmSchemaError)) throw error;
       await recordCosts(db, withClaim(error.costs, claim.id));
       await flagForHuman(db, claim, { ...base, arbiterModelId: deps.arbiterModel, arbiterNotes: 'arbiter answer unusable' }, 'arbiter_malformed');
@@ -194,14 +191,21 @@ async function applyDecision(
   return 'needs_human';
 }
 
-// Outage: no evidence, no verdict; look again soon, backing off as the claim ages (1 h … 24 h).
-async function waitAfterOutage(db: Db, claim: ClaimRow, costs: CallCost[], now: Date, error: unknown): Promise<void> {
+// Outage: no evidence, no verdict; look again soon, backing off as the claim ages (1 h … 24 h). Still
+// failing 30 days after the deadline: a human looks, instead of paid retries forever.
+async function waitAfterOutage(db: Db, claim: ClaimRow, costs: CallCost[], now: Date, error: unknown): Promise<'outage' | 'needs_human'> {
+  if (now.getTime() - claim.deadlineAt!.getTime() > OUTAGE_LIMIT_MS) {
+    await recordCosts(db, withClaim(costs, claim.id));
+    await flagForHuman(db, claim, { claimId: claim.id, arbiterNotes: 'sources unreadable for 30 days after the deadline' }, 'outage_too_long');
+    return 'needs_human';
+  }
   const wait = Math.min(DAY_MS, Math.max(HOUR_MS, now.getTime() - claim.deadlineAt!.getTime()));
   await db.transaction(async (tx) => {
     await tx.update(claims).set({ nextCheckAt: new Date(now.getTime() + wait) }).where(eq(claims.id, claim.id));
     await recordCosts(tx, withClaim(costs, claim.id));
   });
   log('warn', 'source unavailable; claim waits', { event: 'resolver.outage', claim_id: claim.id, slug: claim.slug, error: String(error) });
+  return 'outage';
 }
 
 async function finalize(db: Db, claim: ClaimRow, row: typeof resolutions.$inferInsert): Promise<void> {

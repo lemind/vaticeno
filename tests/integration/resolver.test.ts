@@ -32,7 +32,7 @@ function days(from: string, n: number, close: (i: number) => number): Candle[] {
 
 type WebPage = { says: string; quote: string | null; event_date: string | null; text: string; trust?: 'primary' | 'established' | 'weak' };
 
-function deps(options: { candles?: Candle[] | 'outage'; search?: string[]; pages?: Record<string, WebPage>; down?: string[]; arbiter?: 'malformed' } = {}) {
+function deps(options: { candles?: Candle[] | 'outage'; search?: string[]; pages?: Record<string, WebPage>; down?: string[]; blocked?: string[]; badJudge?: string[]; arbiter?: 'malformed' } = {}) {
   const calls = { web: 0 };
   const coinbase = {
     productStatus: async () => { if (options.candles === 'outage') throw new FeedUnavailable('down'); return 'online'; },
@@ -48,6 +48,7 @@ function deps(options: { candles?: Candle[] | 'outage'; search?: string[]; pages
         return { data: { decision: 'cannot_decide', deciding_index: null, outcome: null, notes: 'n' }, costs: [] };
       }
       const url = (JSON.parse(input) as { page: { url: string } }).page.url;
+      if (options.badJudge?.includes(url)) throw new LlmSchemaError('bad judge json', [{ provider: 'gemini', operation: 'judge', units: 1, usdCost: 0.001 }]);
       const page = options.pages![url]!;
       return {
         data: { says: page.says, basis: 'record', quote: page.quote, event_date: page.event_date, is_final_result: true, from_contract_source: false, source_trust: page.trust ?? 'primary', trust_reason: 'why', original_source: null, reasoning: 'r' },
@@ -57,6 +58,7 @@ function deps(options: { candles?: Candle[] | 'outage'; search?: string[]; pages
   } as unknown as LlmClient;
   const fetchPage = async (url: string) => {
     if (options.down?.includes(url)) throw new SourceUnavailable(`${url} timed out`);
+    if (options.blocked?.includes(url)) throw new SourceUnavailable(`${url}: HTTP 403`, { transient: false });
     const page = options.pages?.[url];
     if (!page) throw new SourceUnavailable(`${url}: HTTP 404`, { transient: false });
     return { url, text: page.text, sha256: `sha-${url}`, simhash: null, retrievedAt: AFTER };
@@ -118,21 +120,21 @@ describe('price claims', () => {
 });
 
 describe('web claims', () => {
-  const official = 'https://www.fda.gov/approvals';
-  const trusted = 'https://www.reuters.com/fda-approves-x';
+  const fda = 'https://www.fda.gov/approvals';
+  const reuters = 'https://www.reuters.com/fda-approves-x';
   const wire = 'https://apnews.com/fda-approves-x';
   const quote = 'FDA approved drug X for condition Y';
 
   test('the contract record (primary) confirming → final HIT', async () => {
     const claim = await lockedClaim(WEB_CONTRACT);
-    const pages = { [official]: { says: 'hit', quote, event_date: '2026-10-03', text: `Today the ${quote} in adults.` } };
+    const pages = { [fda]: { says: 'hit', quote, event_date: '2026-10-03', text: `Today the ${quote} in adults.` } };
     assert.equal((await resolveDueClaims(deps({ pages }).deps, AFTER)).final, 1);
     assert.equal((await resolutionRow(claim.id))!.outcome, 'hit');
   });
 
   test('a quote not on the page fails the gate and does not count', async () => {
     const claim = await lockedClaim(WEB_CONTRACT);
-    const pages = { [official]: { says: 'hit', quote, event_date: '2026-10-03', text: 'Nothing about that here.' } };
+    const pages = { [fda]: { says: 'hit', quote, event_date: '2026-10-03', text: 'Nothing about that here.' } };
     await resolveDueClaims(deps({ pages }).deps, AFTER);
     assert.equal(await resolutionRow(claim.id), undefined);
     const [evidence] = await t.sql`select passed, gates from evidences where claim_id = ${claim.id}`;
@@ -142,8 +144,8 @@ describe('web claims', () => {
 
   test('a lone established source → needs human; the claim stays open, is not re-run, and a human decides it', async () => {
     const claim = await lockedClaim(WEB_CONTRACT);
-    const pages = { [trusted]: { says: 'hit', quote, event_date: '2026-10-03', text: `Reuters: ${quote} on Saturday.`, trust: 'established' as const } };
-    const d = deps({ search: [trusted], pages });
+    const pages = { [reuters]: { says: 'hit', quote, event_date: '2026-10-03', text: `Reuters: ${quote} on Saturday.`, trust: 'established' as const } };
+    const d = deps({ search: [reuters], pages });
     assert.equal((await resolveDueClaims(d.deps, AFTER)).needs_human, 1);
     assert.equal((await claimRow(claim.id)).status, 'resolving');
     assert.equal((await resolutionRow(claim.id))!.review_status, 'needs_human');
@@ -160,19 +162,19 @@ describe('web claims', () => {
 
   test('a page rated primary off the contract source counts only as established', async () => {
     const claim = await lockedClaim(WEB_CONTRACT);
-    const pages = { [trusted]: { says: 'hit', quote, event_date: '2026-10-03', text: `Reuters: ${quote} on Saturday.`, trust: 'primary' as const } };
-    assert.equal((await resolveDueClaims(deps({ search: [trusted], pages }).deps, AFTER)).needs_human, 1);
-    const [evidence] = await t.sql`select trust_level, trust_reason from evidences where claim_id = ${claim.id} and url = ${trusted}`;
+    const pages = { [reuters]: { says: 'hit', quote, event_date: '2026-10-03', text: `Reuters: ${quote} on Saturday.`, trust: 'primary' as const } };
+    assert.equal((await resolveDueClaims(deps({ search: [reuters], pages }).deps, AFTER)).needs_human, 1);
+    const [evidence] = await t.sql`select trust_level, trust_reason from evidences where claim_id = ${claim.id} and url = ${reuters}`;
     assert.deepEqual([evidence!.trust_level, evidence!.trust_reason], ['established', 'why']);
   });
 
   test('a final verdict adds one confirmation per agreeing site; wrong sites and re-runs add nothing', async () => {
     const pages = {
-      [official]: { says: 'hit', quote, event_date: '2026-10-03', text: `Today the ${quote} in adults.` },
-      [trusted]: { says: 'hit', quote, event_date: '2026-10-03', text: `Reuters: ${quote} on Saturday.`, trust: 'established' as const },
+      [fda]: { says: 'hit', quote, event_date: '2026-10-03', text: `Today the ${quote} in adults.` },
+      [reuters]: { says: 'hit', quote, event_date: '2026-10-03', text: `Reuters: ${quote} on Saturday.`, trust: 'established' as const },
       [wire]: { says: 'miss', quote: 'rejected drug X', event_date: '2026-10-03', text: 'AP: FDA rejected drug X today.', trust: 'established' as const },
     };
-    const d = deps({ search: [trusted, wire], pages }).deps;
+    const d = deps({ search: [reuters, wire], pages }).deps;
     await lockedClaim(WEB_CONTRACT);
     await lockedClaim(WEB_CONTRACT);
     assert.equal((await resolveDueClaims(d, AFTER)).final, 2);
@@ -183,20 +185,48 @@ describe('web claims', () => {
 
   test('a page that times out while nothing else settles it is an outage, never a step toward VOID', async () => {
     const claim = await lockedClaim(WEB_CONTRACT);
-    const d = deps({ search: [], down: [official] }).deps;
+    const d = deps({ search: [], down: [fda] }).deps;
     assert.equal((await resolveDueClaims(d, AFTER)).outage, 1);
     assert.equal(await evidenceCount(claim.id), 0);
     assert.equal((await resolveDueClaims(d, new Date('2026-10-20T00:00:00Z'))).outage, 1);
     assert.equal(await resolutionRow(claim.id), undefined);
   });
 
+  test('every page blocked (403) although search found pages → outage, never "nothing found"', async () => {
+    const claim = await lockedClaim(WEB_CONTRACT);
+    assert.equal((await resolveDueClaims(deps({ search: [reuters], blocked: [fda, reuters] }).deps, AFTER)).outage, 1);
+    assert.equal(await evidenceCount(claim.id), 0);
+  });
+
+  test('one page with an unusable judge answer is skipped; the run still counts', async () => {
+    const claim = await lockedClaim(WEB_CONTRACT);
+    const pages = { [fda]: { says: 'irrelevant', quote: null, event_date: null, text: 'Unrelated page.' }, [reuters]: { says: 'hit', quote, event_date: '2026-10-03', text: 'x' } };
+    assert.equal((await resolveDueClaims(deps({ search: [reuters], pages, badJudge: [reuters] }).deps, AFTER)).waiting, 1);
+    assert.equal(await evidenceCount(claim.id), 1);
+  });
+
+  test('a timeout does not throw away a primary "entity gone" in the same run', async () => {
+    const claim = await lockedClaim(WEB_CONTRACT);
+    const pages = { [fda]: { says: 'entity_gone', quote: 'product withdrawn', event_date: null, text: 'The product withdrawn from the list.' } };
+    assert.equal((await resolveDueClaims(deps({ search: [reuters], pages, down: [reuters] }).deps, AFTER)).waiting, 1);
+    assert.equal(await evidenceCount(claim.id), 1);
+  });
+
+  test('still unreadable 30 days after the deadline → flagged for a human, no more paid retries', async () => {
+    const claim = await lockedClaim(WEB_CONTRACT);
+    const d = deps({ search: [], down: [fda] }).deps;
+    assert.equal((await resolveDueClaims(d, new Date('2026-11-06T00:00:00Z'))).needs_human, 1);
+    assert.equal((await resolutionRow(claim.id))!.review_status, 'needs_human');
+    assert.equal((await claimRow(claim.id)).status, 'resolving');
+  });
+
   test('an unusable arbiter answer flags the claim for a human and records the arbiter cost', async () => {
     const claim = await lockedClaim(WEB_CONTRACT);
     const pages = {
-      [trusted]: { says: 'hit', quote, event_date: '2026-10-03', text: `Reuters: ${quote} on Saturday.`, trust: 'established' as const },
+      [reuters]: { says: 'hit', quote, event_date: '2026-10-03', text: `Reuters: ${quote} on Saturday.`, trust: 'established' as const },
       [wire]: { says: 'miss', quote: 'rejected drug X', event_date: '2026-10-03', text: 'AP: FDA rejected drug X today.', trust: 'established' as const },
     };
-    assert.equal((await resolveDueClaims(deps({ search: [trusted, wire], pages, arbiter: 'malformed' }).deps, AFTER)).needs_human, 1);
+    assert.equal((await resolveDueClaims(deps({ search: [reuters, wire], pages, arbiter: 'malformed' }).deps, AFTER)).needs_human, 1);
     assert.equal((await resolutionRow(claim.id))!.review_status, 'needs_human');
     const [cost] = await t.sql`select count(*)::int as n from cost_events where claim_id = ${claim.id} and operation = 'arbitrate'`;
     assert.equal(cost!.n, 1);

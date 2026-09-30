@@ -71,12 +71,16 @@ function distinctRuns(evidences: readonly EvidenceRow[]): number[] {
 
 // pending / entity_gone fail the `final` gate by design, so they are read here without `passed`; they
 // still need the page to back them (quote found; price feed has no quote).
-function primarySays(e: EvidenceRow, says: 'pending' | 'entity_gone'): boolean {
+function primarySays(e: Pick<EvidenceRow, 'trustLevel' | 'says' | 'quoteFound'>, says: 'pending' | 'entity_gone'): boolean {
   return e.trustLevel === 'primary' && e.says === says && e.quoteFound !== false;
 }
 
-// A run that found a primary "pending" or "entity gone" was not empty: it must never help reach VOID.
+// Evidence that settles something: a passed HIT/MISS, or a primary "pending" / "entity gone". A run with
+// none is empty (it can count toward VOID); a run with some is never an outage.
+export function settles(e: Pick<EvidenceRow, 'trustLevel' | 'says' | 'passed' | 'quoteFound'>): boolean {
+  return (e.passed && (e.says === 'hit' || e.says === 'miss')) || primarySays(e, 'pending') || primarySays(e, 'entity_gone');
+}
+
 function runIsEmpty(evidences: readonly EvidenceRow[], run: number): boolean {
-  return !evidences.some((e) => e.runAt.getTime() === run
-    && ((e.passed && (e.says === 'hit' || e.says === 'miss')) || primarySays(e, 'pending') || primarySays(e, 'entity_gone')));
+  return !evidences.some((e) => e.runAt.getTime() === run && settles(e));
 }

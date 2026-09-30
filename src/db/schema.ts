@@ -117,7 +117,7 @@ export const evidences = pgTable(
     retrievedAt: utc('retrieved_at').notNull(),
     modelId: text('model_id'),
     instructionVersion: text('instruction_version'),
-    gates: jsonb('gates').notNull(),
+    gates: jsonb('gates').$type<Record<string, boolean | null>>().notNull(), // gate name → result (resolve/gates.ts)
     passed: boolean('passed').notNull(),
     createdAt: utc('created_at').notNull().defaultNow(),
   },
