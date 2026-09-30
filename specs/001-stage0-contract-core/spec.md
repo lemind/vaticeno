@@ -335,8 +335,9 @@ shown but never count as a contradiction.
   "next election", "after the merger") need a schedule to become a date, so they are needs info in
   the MVP. Both kinds are listed in the fixture corpus.
 - A bare date means 23:59:59 UTC; the recorded statement says so.
-- Intraday wording for prices ("wicks above", "touches") is needs info unless the author picks a
-  daily close — the system never silently maps it.
+- A crypto price target with a date is always recorded as a daily close (owner decision 2026-09-30):
+  "hits", "touches", "would be" included. The RECORDED reply shows the exact terms, so the author can fix
+  them within 15 min. Only a price without a date (or a date without a price) is needs info.
 - Several news sites repeating one wire story count as one source, not independent confirmation.
 - An announcement published before lock can still be valid evidence if the event itself happens
   after lock; what matters is when the event occurred, not when it was reported.

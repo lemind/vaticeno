@@ -7,7 +7,7 @@ import { runChecks } from '../contract/checks.js';
 import { renderStatement } from '../contract/render.js';
 import { createCoinbase } from '../feeds/coinbase.js';
 import { createLlmClient } from '../llm/client.js';
-import { proposeContract } from '../llm/normalize.js';
+import { CORPUS_NORMALIZE_VERSION, NORMALIZE_VERSION, proposeContract } from '../llm/normalize.js';
 import { createReplayStore } from '../llm/replay.js';
 import { CLAIM_BUDGET_USD } from '../llm/prices.js';
 import { buildNeedsInfoReply } from '../replies/needs-info.js';
@@ -34,13 +34,15 @@ await runCli('corpus', async (config) => {
   const store = createReplayStore();
   const llm = createLlmClient({ mode: config.LLM_MODE, apiKey: config.GEMINI_API_KEY, store });
   const coinbase = createCoinbase({ mode: config.LLM_MODE, store });
+  // Replay reads the answers recorded with v2; a new recording uses the current instructions.
+  const version = config.LLM_MODE === 'replay' ? CORPUS_NORMALIZE_VERSION : NORMALIZE_VERSION;
 
   const fixtures = (await loadFixtures()).filter((f) => !values.group || f.group === values.group);
   if (fixtures.length === 0) throw new Error('no fixtures matched');
 
   const results = await mapLimit(fixtures, CONCURRENCY, async (fixture) => {
     const now = new Date(`${fixture.today}T12:00:00Z`);
-    const proposed = await proposeContract(llm, model, fixture.text, fixture.today);
+    const proposed = await proposeContract(llm, model, fixture.text, fixture.today, version);
     const usd = proposed.costs.reduce((sum, c) => sum + c.usdCost, 0);
     if (proposed.kind === 'malformed') {
       return report(fixture, 'needs_info', [], weightedLength(needsInfoReply('', fallbackExample(now))), [], usd);
@@ -51,7 +53,7 @@ await runCli('corpus', async (config) => {
       return report(fixture, 'recorded', [], weightedLength(recordedReply('abcde', renderStatement(checked.contract))), mismatches, usd);
     }
     if (checked.outcome === 'needs_info') {
-      const built = await buildNeedsInfoReply({ llm, coinbase, normalizerModel: model }, { text: fixture.text, proposal: proposed.proposal, explanation: proposed.proposal.unclear_explanation, now });
+      const built = await buildNeedsInfoReply({ llm, coinbase, normalizerModel: model, normalizerVersion: version }, { text: fixture.text, proposal: proposed.proposal, explanation: proposed.proposal.unclear_explanation, now });
       const sc005 = needsInfoQuality(built.reply, proposed.proposal.unclear_explanation, built.example, now);
       const total = usd + built.costs.reduce((sum, c) => sum + c.usdCost, 0);
       return { ...report(fixture, 'needs_info', checked.unclear, weightedLength(built.reply), [], total), sc005 };
