@@ -6,11 +6,12 @@ import { captureError, flush, initObservability } from '../observe.js';
 
 export { buildDeps } from '../deps.js';
 
-// Runs one command: errors are logged and sent to Sentry, the exit code is set, connections close.
+// Runs one command: errors are logged (and sent to Sentry in live mode), the exit code is set, connections close.
 export async function runCli(name: string, main: (config: CoreConfig) => Promise<void>): Promise<void> {
   try {
     const config = loadCoreConfig();
-    initObservability(`cli:${name}`, config.SENTRY_DSN);
+    // Replay/record runs are local test runs over recordings: their failures are not production alerts.
+    if (config.LLM_MODE === 'live') initObservability(`cli:${name}`, config.SENTRY_DSN);
     await main(config);
   } catch (error) {
     captureError(error, { event: 'cli.failed', command: name });
