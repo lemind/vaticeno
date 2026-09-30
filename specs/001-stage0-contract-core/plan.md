@@ -152,6 +152,7 @@ fixtures/
 ├── seeds/open/*.json               # categorised per SC-003
 └── replay/                         # recorded model, search, fetch, feed responses — gitignored, local only
 tests/integration/                  # real Postgres: triggers, transitions, uniqueness, services
+deploy/                             # systemd units, backup.sh + nightly timer, journald cap, Caddyfile
 ```
 
 **Structure Decision**: single project extending the existing `src/`; unit tests colocated as

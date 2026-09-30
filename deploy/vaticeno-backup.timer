@@ -1,0 +1,11 @@
+# Install: cp deploy/vaticeno-backup.{service,timer} /etc/systemd/system/ && systemctl enable --now vaticeno-backup.timer
+[Unit]
+Description=Run the Vaticeno database dump nightly
+
+[Timer]
+OnCalendar=*-*-* 03:30:00 UTC
+Persistent=true
+RandomizedDelaySec=10m
+
+[Install]
+WantedBy=timers.target

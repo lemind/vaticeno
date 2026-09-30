@@ -1,0 +1,8 @@
+[Unit]
+Description=Vaticeno nightly database dump
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/vaticeno/deploy/backup.sh

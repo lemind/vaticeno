@@ -19,6 +19,7 @@ import { cliArgs, printJson, runCli } from './run.js';
 const SEEDS_DIR = fileURLToPath(new URL('../../fixtures/seeds', import.meta.url));
 const MAX_RUNS = 4;
 const HOUR_MS = 3_600_000;
+const CLAIM_BUDGET_USD = 0.3;
 
 // SC-003: the open-topic set must cover every failure mode at least this often.
 export const OPEN_CATEGORY_MINIMUMS: Record<string, number> = {
@@ -141,12 +142,14 @@ function summarize(set: 'crypto' | 'open', results: Result[]) {
     : [];
   const agreement = agreed / results.length;
   const wrongRate = wrong / results.length;
-  const ok = set === 'crypto' ? agreed === results.length : agreement >= 0.95 && wrongRate < 0.05 && short.length === 0;
+  const overBudget = results.filter((r) => r.usd_cost > CLAIM_BUDGET_USD).length; // constitution: > $0.30 → investigate
+  const accurate = set === 'crypto' ? agreed === results.length : agreement >= 0.95 && wrongRate < 0.05 && short.length === 0;
+  const ok = accurate && overBudget === 0;
   return {
     set, total: results.length, agreed, agreement: Number(agreement.toFixed(3)), wrong_hit_miss: wrong, wrong_rate: Number(wrongRate.toFixed(3)),
     needs_human: results.filter((r) => r.actual === 'needs_human').length,
     usd_cost: Number(results.reduce((sum, r) => sum + r.usd_cost, 0).toFixed(4)),
-    max_claim_usd: Math.max(...results.map((r) => r.usd_cost)),
+    max_claim_usd: Math.max(...results.map((r) => r.usd_cost)), claims_over_budget: overBudget,
     categories_below_minimum: short, by_category: byCategory, ok,
   };
 }

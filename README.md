@@ -16,12 +16,13 @@ An X bot that puts predictions **on the record** and checks them automatically o
 
 | Done | Next |
 |---|---|
-| Mention polling, `ping` → `pong` on X | Scheduled jobs inside the server, backups, HTTPS (Phase 8) |
-| Database: tables, lock and verdict rules enforced by Postgres, locally and on Supabase | Replies on X (Stage 1, after X approval) |
+| Mention polling, `ping` → `pong` on X | Replies on X (Stage 1, after X approval) |
+| Database: tables, lock and verdict rules enforced by Postgres, locally and on Supabase | |
 | Predictions → contracts, unclear ones get a checked example, fixes before lock | |
 | Resolving claims after the deadline (price feed, AI reading web sources), human review | |
 | Public claim and author pages (`npm run dev`) | |
 | Error tracking, logs and alerts (Sentry); tests on every pull request | |
+| Jobs inside the server (`ENABLE_JOBS=true`), nightly backups, HTTPS config (`deploy/`) | |
 
 ## Commands (on X)
 
@@ -95,4 +96,4 @@ Code follows a light "pure core, I/O at the edges" structure — see
 ## Stack
 
 Node 22 · TypeScript (strict) · Zod · PostgreSQL (Supabase) + Drizzle · Gemini · Sentry · X API v2.
-Fastify (server-rendered pages, no client JS). Coming in Phase 8: node-cron jobs.
+Fastify (server-rendered pages, no client JS) · node-cron (jobs in the same process).

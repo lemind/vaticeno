@@ -191,13 +191,13 @@ element, no percentage or ranking, no content (SC-009).
 
 ## Phase 8: Polish & Cross-Cutting
 
-- [ ] T074 Create `src/jobs/scheduler.ts`: node-cron calls `lockDueDrafts` every minute, `expireNeedsInfo` every 10 minutes, `resolveDueClaims` hourly — same functions as `jobs:tick`, each inside `withJobLock`; started from `src/web/server.ts` behind `ENABLE_JOBS=true`
-- [ ] T075 [P] Wire observability: `initObservability` in `src/web/server.ts` and every `src/cli/*` entry (uncaught errors captured, `flush()` before exit); `/healthz` reports `needs_human` and in-memory `last_resolver_run_at`; `deploy/journald-vaticeno.conf` (`SystemMaxUse=500M`); document in `quickstart.md` where to look (journalctl, Sentry Issues/Logs/Crons) and the uptime check on `/healthz`
-- [ ] T076 [P] Write `tests/integration/no-content.test.ts` for SC-008: after corpus + seeds, scan every text/jsonb column, captured logs and `fixtures/replay/` for any fixture text (DB/logs only), quote or page text
-- [ ] T077 [P] Add per-claim cost summary to `seeds:open` and `corpus` output; fail if any claim exceeds $0.30
-- [ ] T078 [P] Add `deploy/backup.sh` (nightly `pg_dump` of Supabase to off-box storage) and a systemd timer `deploy/vaticeno-backup.timer`; document one restore test in `quickstart.md`
-- [ ] T079 [P] Add `deploy/Caddyfile` for `vaticeno.app` → `localhost:3000`
-- [ ] T080 Update `README.md` (Stage 0 status, new scripts) and walk through `quickstart.md` end to end; fix any drift
+- [x] T074 Create `src/jobs/scheduler.ts`: node-cron calls `lockDueDrafts` every minute, `expireNeedsInfo` every 10 minutes, `resolveDueClaims` hourly — same functions as `jobs:tick`, each inside `withJobLock`; started from `src/web/server.ts` behind `ENABLE_JOBS=true`
+- [x] T075 [P] Wire observability: `initObservability` in `src/web/server.ts` and every `src/cli/*` entry (uncaught errors captured, `flush()` before exit); `/healthz` reports `needs_human` and in-memory `last_resolver_run_at`; `deploy/journald-vaticeno.conf` (`SystemMaxUse=500M`); document in `quickstart.md` where to look (journalctl, Sentry Issues/Logs/Crons) and the uptime check on `/healthz`
+- [x] T076 [P] Write `tests/integration/no-content.test.ts` for SC-008 (done with stub models — no paid runs: one claim through submit → fix → lock → web resolution): scan every text/jsonb column, captured logs and `fixtures/replay/` for any fixture text (DB/logs only), quote or page text
+- [x] T077 [P] Add per-claim cost summary to `seeds:open` and `corpus` output; fail if any claim exceeds $0.30
+- [x] T078 [P] Add `deploy/backup.sh` (nightly `pg_dump` of Supabase to off-box storage) and a systemd timer `deploy/vaticeno-backup.timer`; document one restore test in `quickstart.md`
+- [x] T079 [P] Add `deploy/Caddyfile` for `vaticeno.app` → `localhost:3000`
+- [x] T080 Update `README.md` (Stage 0 status, new scripts) and walk through `quickstart.md` end to end; fix any drift
 
 ---
 

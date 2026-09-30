@@ -4,10 +4,15 @@ import { pathToFileURL } from 'node:url';
 import Fastify, { type FastifyReply } from 'fastify';
 import { count, eq, min } from 'drizzle-orm';
 import { loadCoreConfig } from '../config.js';
-import { closeDb, type Db, getDb } from '../db/client.js';
+import { buildDeps } from '../cli/run.js';
+import { closeDb, type Db, getDb, getSql } from '../db/client.js';
+import { startScheduler } from '../jobs/scheduler.js';
+import { createFileSourceReader } from '../lifecycle/source-reader.js';
+import { createReplayStore } from '../llm/replay.js';
+import { createPageFetcher } from '../resolve/fetch.js';
 import { claims, resolutions } from '../db/schema.js';
 import { log } from '../log.js';
-import { captureError, initObservability } from '../observe.js';
+import { captureError, flush, initObservability } from '../observe.js';
 import { dueClaims, lastResolverRunAt } from '../resolve/resolver.js';
 import { authorPage } from './author-page.js';
 import { claimPage } from './claim-page.js';
@@ -60,10 +65,17 @@ function notFound(reply: FastifyReply) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const config = loadCoreConfig();
   initObservability('web', config.SENTRY_DSN);
+  process.on('unhandledRejection', (error) => captureError(error, { event: 'process.unhandled_rejection' }));
+  process.on('uncaughtException', (error) => captureError(error, { event: 'process.uncaught_exception' }));
   const app = buildServer({ db: getDb() });
+  const scheduler = config.ENABLE_JOBS ? startScheduler({
+    ...buildDeps(config), reader: createFileSourceReader(), sql: getSql(),
+    fetchPage: createPageFetcher({ mode: config.LLM_MODE, store: createReplayStore() }),
+    judgeModelA: config.JUDGE_MODEL_A, judgeModelB: config.JUDGE_MODEL_B, arbiterModel: config.ARBITER_MODEL,
+  }) : null;
   await app.listen({ port: config.PORT, host: '0.0.0.0' });
-  log('info', 'web server listening', { event: 'web.started', port: config.PORT });
-  const stop = async () => { await app.close(); await closeDb(); process.exit(0); };
+  log('info', 'web server listening', { event: 'web.started', port: config.PORT, jobs: config.ENABLE_JOBS });
+  const stop = async () => { await scheduler?.stop(); await app.close(); await flush(); await closeDb(); process.exit(0); };
   process.on('SIGINT', stop);
   process.on('SIGTERM', stop);
 }

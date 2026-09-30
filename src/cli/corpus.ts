@@ -15,6 +15,7 @@ import { cliArgs, printJson, runCli } from './run.js';
 
 const CORPUS_DIR = fileURLToPath(new URL('../../fixtures/corpus', import.meta.url));
 const PASS_RATE = 0.9;
+const CLAIM_BUDGET_USD = 0.3;
 const CONCURRENCY = 4;
 
 const FixtureSchema = z.object({
@@ -75,11 +76,13 @@ await runCli('corpus', async (config) => {
   };
   const passed = results.filter((r) => r.pass).length;
   const passRate = passed / results.length;
+  const overBudget = results.filter((r) => r.usd_cost > CLAIM_BUDGET_USD); // constitution: > $0.30 per claim → investigate
   printJson({
     total: results.length, passed, pass_rate: Number(passRate.toFixed(3)), model, mode: config.LLM_MODE,
-    usd_cost: Number(results.reduce((sum, r) => sum + r.usd_cost, 0).toFixed(4)), sc005, by_group: byGroup,
+    usd_cost: Number(results.reduce((sum, r) => sum + r.usd_cost, 0).toFixed(4)),
+    max_claim_usd: Math.max(...results.map((r) => r.usd_cost)), over_budget: overBudget.map((r) => r.fixture_id), sc005, by_group: byGroup,
   });
-  if (passRate < PASS_RATE || sc005.all_ok < sc005.replies) process.exitCode = 1;
+  if (passRate < PASS_RATE || sc005.all_ok < sc005.replies || overBudget.length > 0) process.exitCode = 1;
 });
 
 function report(fixture: Fixture, actual: string, unclear: string[], replyChars: number, mismatches: string[], usd: number, reason?: string) {
