@@ -84,19 +84,12 @@ export async function resolveClaim(deps: ResolverDeps, claim: ClaimRow, now: Dat
       const { gates, passed } = runGates(draft, { ...window, absenceIsMeaningful: false }, []);
       items = [{ draft, gates, passed, value, sourceName: 'coinbase', trustReason: null, contentSha256, searchQuery: null, modelId: null, instructionVersion: null, pageText: '' }];
     } else {
-      const gathered = await gatherWebEvidence(deps, contract, window, now, await knownSources(db));
-      items = gathered.items;
-      costs.push(...gathered.costs);
+      items = await gatherWebEvidence(deps, contract, window, now, await knownSources(db), costs);
     }
   } catch (error) {
     if (!isOutage(error)) throw error;
-    // Outage: no evidence, no verdict; look again soon, backing off as the claim ages (1 h … 24 h).
-    const wait = Math.min(DAY_MS, Math.max(HOUR_MS, now.getTime() - claim.deadlineAt.getTime()));
-    await db.transaction(async (tx) => {
-      await tx.update(claims).set({ nextCheckAt: new Date(now.getTime() + wait) }).where(eq(claims.id, claim.id));
-      await recordCosts(tx, withClaim(costs, claim.id));
-    });
-    log('warn', 'source unavailable; claim waits', { event: 'resolver.outage', claim_id: claim.id, slug: claim.slug, error: String(error) });
+    if (error instanceof LlmSchemaError) costs.push(...error.costs);
+    await waitAfterOutage(db, claim, costs, now, error);
     return 'outage';
   }
 
@@ -127,9 +120,10 @@ export async function resolveClaim(deps: ResolverDeps, claim: ClaimRow, now: Dat
   });
   const byId = new Map(inserted.map((row, i) => [row.id, items[i]!]));
 
-  const history = await db.select({ id: evidences.id, runAt: evidences.runAt, trustLevel: evidences.trustLevel, says: evidences.says, passed: evidences.passed })
+  const history = await db.select({ id: evidences.id, runAt: evidences.runAt, trustLevel: evidences.trustLevel, says: evidences.says, passed: evidences.passed, gates: evidences.gates })
     .from(evidences).where(eq(evidences.claimId, claim.id));
-  const decision = decideResolution(history, now, claim.deadlineAt);
+  const rows = history.map(({ gates, ...row }) => ({ ...row, quoteFound: (gates as { quote_found?: boolean | null }).quote_found ?? null }));
+  const decision = decideResolution(rows, now, claim.deadlineAt);
   const outcome = await applyDecision(deps, claim, contract, window, decision, byId, now);
   await checkBudget(db, claim);
   return outcome;
@@ -165,11 +159,26 @@ async function applyDecision(
 
   if (decision.kind === 'needs_arbiter') {
     const candidates = decision.candidateIds.map((id) => ({ id, item: thisRun.get(id)! }));
-    const { answer, costs } = await arbitrate(deps.llm, deps.arbiterModel, contract, window, candidates.map(({ item }) => ({
-      sourceName: item.sourceName, trustLevel: item.draft.trustLevel, says: item.draft.says, eventDate: item.draft.eventDate,
-      url: item.draft.url ?? '', sha256: item.contentSha256 ?? '', text: item.pageText,
-    })));
-    await recordCosts(db, withClaim(costs, claim.id));
+    let answer;
+    try {
+      const arbitrated = await arbitrate(deps.llm, deps.arbiterModel, contract, window, candidates.map(({ item }) => ({
+        sourceName: item.sourceName, trustLevel: item.draft.trustLevel, says: item.draft.says, eventDate: item.draft.eventDate,
+        url: item.draft.url ?? '', sha256: item.contentSha256 ?? '', text: item.pageText,
+      })));
+      answer = arbitrated.answer;
+      await recordCosts(db, withClaim(arbitrated.costs, claim.id));
+    } catch (error) {
+      // Arbiter down: an outage, retried with backoff. Arbiter answer unusable: a human decides, so a
+      // broken arbiter never re-runs the paid pipeline every hour.
+      if (error instanceof LlmUnavailable) {
+        await waitAfterOutage(db, claim, [], now, error);
+        return 'outage';
+      }
+      if (!(error instanceof LlmSchemaError)) throw error;
+      await recordCosts(db, withClaim(error.costs, claim.id));
+      await flagForHuman(db, claim, { ...base, arbiterModelId: deps.arbiterModel, arbiterNotes: 'arbiter answer unusable' }, 'arbiter_malformed');
+      return 'needs_human';
+    }
     if (answer.decision === 'decided' && answer.deciding_index !== null && answer.outcome) {
       await finalize(db, claim, {
         ...base, outcome: answer.outcome, decidedBy: 'arbiter', reviewStatus: 'final', decidedAt: now,
@@ -183,6 +192,16 @@ async function applyDecision(
 
   await flagForHuman(db, claim, base, decision.reason);
   return 'needs_human';
+}
+
+// Outage: no evidence, no verdict; look again soon, backing off as the claim ages (1 h … 24 h).
+async function waitAfterOutage(db: Db, claim: ClaimRow, costs: CallCost[], now: Date, error: unknown): Promise<void> {
+  const wait = Math.min(DAY_MS, Math.max(HOUR_MS, now.getTime() - claim.deadlineAt!.getTime()));
+  await db.transaction(async (tx) => {
+    await tx.update(claims).set({ nextCheckAt: new Date(now.getTime() + wait) }).where(eq(claims.id, claim.id));
+    await recordCosts(tx, withClaim(costs, claim.id));
+  });
+  log('warn', 'source unavailable; claim waits', { event: 'resolver.outage', claim_id: claim.id, slug: claim.slug, error: String(error) });
 }
 
 async function finalize(db: Db, claim: ClaimRow, row: typeof resolutions.$inferInsert): Promise<void> {

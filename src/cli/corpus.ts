@@ -5,11 +5,12 @@ import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import { runChecks } from '../contract/checks.js';
 import { renderStatement } from '../contract/render.js';
+import { createCoinbase } from '../feeds/coinbase.js';
 import { createLlmClient } from '../llm/client.js';
 import { proposeContract } from '../llm/normalize.js';
 import { createReplayStore } from '../llm/replay.js';
 import { buildNeedsInfoReply } from '../replies/needs-info.js';
-import { FALLBACK_EXAMPLE, needsInfoReply, recordedReply, weightedLength, X_MAX_CHARS } from '../replies/templates.js';
+import { fallbackExample, needsInfoReply, recordedReply, weightedLength, X_MAX_CHARS } from '../replies/templates.js';
 import { cliArgs, printJson, runCli } from './run.js';
 
 const CORPUS_DIR = fileURLToPath(new URL('../../fixtures/corpus', import.meta.url));
@@ -29,7 +30,9 @@ type Fixture = z.infer<typeof FixtureSchema>;
 await runCli('corpus', async (config) => {
   const { values } = cliArgs({ group: { type: 'string' }, model: { type: 'string' } });
   const model = values.model ?? config.NORMALIZER_MODEL;
-  const llm = createLlmClient({ mode: config.LLM_MODE, apiKey: config.GEMINI_API_KEY, store: createReplayStore() });
+  const store = createReplayStore();
+  const llm = createLlmClient({ mode: config.LLM_MODE, apiKey: config.GEMINI_API_KEY, store });
+  const coinbase = createCoinbase({ mode: config.LLM_MODE, store });
 
   const fixtures = (await loadFixtures()).filter((f) => !values.group || f.group === values.group);
   if (fixtures.length === 0) throw new Error('no fixtures matched');
@@ -39,7 +42,7 @@ await runCli('corpus', async (config) => {
     const proposed = await proposeContract(llm, model, fixture.text, fixture.today);
     const usd = proposed.costs.reduce((sum, c) => sum + c.usdCost, 0);
     if (proposed.kind === 'malformed') {
-      return report(fixture, 'needs_info', [], weightedLength(needsInfoReply('')), [], usd);
+      return report(fixture, 'needs_info', [], weightedLength(needsInfoReply('', fallbackExample(now))), [], usd);
     }
     const checked = runChecks(proposed.proposal, now, { sourcePostClaimed: false });
     if (checked.outcome === 'recorded') {
@@ -47,8 +50,8 @@ await runCli('corpus', async (config) => {
       return report(fixture, 'recorded', [], weightedLength(recordedReply('abcde', renderStatement(checked.contract))), mismatches, usd);
     }
     if (checked.outcome === 'needs_info') {
-      const built = await buildNeedsInfoReply({ llm, normalizerModel: model }, { text: fixture.text, proposal: proposed.proposal, now });
-      const sc005 = needsInfoQuality(built.reply, proposed.proposal.unclear_explanation, built.example);
+      const built = await buildNeedsInfoReply({ llm, coinbase, normalizerModel: model }, { text: fixture.text, proposal: proposed.proposal, explanation: proposed.proposal.unclear_explanation, now });
+      const sc005 = needsInfoQuality(built.reply, proposed.proposal.unclear_explanation, built.example, now);
       const total = usd + built.costs.reduce((sum, c) => sum + c.usdCost, 0);
       return { ...report(fixture, 'needs_info', checked.unclear, weightedLength(built.reply), [], total), sc005 };
     }
@@ -88,10 +91,10 @@ function report(fixture: Fixture, actual: string, unclear: string[], replyChars:
   };
 }
 
-function needsInfoQuality(reply: string, explanation: string, example: string | null) {
+function needsInfoQuality(reply: string, explanation: string, example: string | null, now: Date) {
   return {
     names_unclear: explanation.trim().length > 0,
-    checked_example: reply.includes(`e.g. amend ${example ?? FALLBACK_EXAMPLE}`), // generated ones passed the checks
+    checked_example: reply.includes(`e.g. amend ${example ?? fallbackExample(now)}`), // generated ones passed the checks
     generated_example: example !== null,
     amend_format: reply.includes('amend <what happens> by <YYYY-MM-DD>'),
     fits: weightedLength(reply) <= X_MAX_CHARS,

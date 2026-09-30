@@ -8,12 +8,18 @@ const TIMEOUT_MS = 15_000;
 const MAX_BYTES = 3_000_000;
 export const MAX_TEXT_CHARS = 40_000; // what the judge reads; keeps a judge call around a cent
 
+// transient = network error, timeout, 429 or 5xx: retry later. Otherwise the page answered but can't be
+// read (404, 403, not HTML, empty) — a real "nothing here", not an outage.
 export class SourceUnavailable extends Error {
-  constructor(message: string, options?: { cause?: unknown }) {
+  readonly transient: boolean;
+  constructor(message: string, options?: { cause?: unknown; transient?: boolean }) {
     super(message, options);
     this.name = 'SourceUnavailable';
+    this.transient = options?.transient ?? true;
   }
 }
+
+const isTransientStatus = (status: number) => status === 0 || status === 429 || status >= 500;
 
 export type FetchedPage = {
   url: string; // final URL after redirects
@@ -29,8 +35,9 @@ export function createPageFetcher(options: { mode: 'live' | 'record' | 'replay';
   return async function fetchPage(url: string): Promise<FetchedPage> {
     if (mode === 'replay') {
       const entry = await store.get('fetch', { url });
-      if (entry.kind !== 'fetch' || entry.status < 200 || entry.status >= 300 || !entry.sha256) {
-        throw new SourceUnavailable(`recorded fetch of ${url} failed`);
+      if (entry.kind !== 'fetch') throw new Error(`replay entry for fetch ${url} has kind ${entry.kind}`);
+      if (entry.status < 200 || entry.status >= 300 || !entry.sha256) {
+        throw new SourceUnavailable(`recorded fetch of ${url}: HTTP ${entry.status}`, { transient: isTransientStatus(entry.status) });
       }
       return { url: entry.url, text: '', sha256: entry.sha256, simhash: entry.simhash, retrievedAt: new Date(entry.retrieved_at) };
     }
@@ -64,7 +71,7 @@ export function createPageFetcher(options: { mode: 'live' | 'record' | 'replay';
     if (mode === 'record') {
       await store.put('fetch', { url }, { kind: 'fetch', url: finalUrl, sha256, simhash: fingerprint, retrieved_at: retrievedAt.toISOString(), status });
     }
-    if (!ok || !sha256) throw new SourceUnavailable(`fetch ${url}: HTTP ${status}`);
+    if (!ok || !sha256) throw new SourceUnavailable(`fetch ${url}: HTTP ${status}`, { transient: isTransientStatus(status) });
     return { url: finalUrl, text: text.slice(0, MAX_TEXT_CHARS), sha256, simhash: fingerprint, retrievedAt };
   };
 }

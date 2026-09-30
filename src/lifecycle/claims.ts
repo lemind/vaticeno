@@ -13,6 +13,7 @@ import type { CallCost, LlmClient } from '../llm/client.js';
 import { proposeContract } from '../llm/normalize.js';
 import { log } from '../log.js';
 import { buildNeedsInfoReply } from '../replies/needs-info.js';
+import { NEEDS_INFO_WINDOW_MS } from './expire.js';
 import { alreadyRecordedReply, assertReplyFits, recordedReply, rejectedReply } from '../replies/templates.js';
 import type { SourceReader } from './source-reader.js';
 
@@ -109,6 +110,10 @@ export async function amendClaim(deps: ClaimDeps & { reader: SourceReader }, inp
     if (claim.status === 'draft') throw new Error('amending a draft arrives with US4 (tasks T063)');
     return refused(claim.id, 'not_amendable', `#${claim.slug} can no longer be amended.`);
   }
+  // Past the 24 h window it is expired even if the expiry job has not run yet (FR-011).
+  if (claim.needsInfoSince && input.now.getTime() - claim.needsInfoSince.getTime() >= NEEDS_INFO_WINDOW_MS) {
+    return refused(claim.id, 'expired', `#${claim.slug} expired: no valid amend within 24 hours.`);
+  }
 
   const { decision, modelId, selfConfidence, costs } = await evaluate(deps, input.text, input.now);
 
@@ -116,7 +121,7 @@ export async function amendClaim(deps: ClaimDeps & { reader: SourceReader }, inp
     const why = decision.outcome === 'rejected' ? rejectedReply(decision.reason).replace(/^NOT RECORDED — /, '') : decision.explanation;
     await db.transaction(async (tx) => {
       if (decision.outcome === 'needs_info') {
-        await tx.update(claims).set({ status: 'needs_info', unclear: decision.unclear }).where(eq(claims.id, claim.id));
+        await tx.update(claims).set({ unclear: decision.unclear }).where(and(eq(claims.id, claim.id), eq(claims.status, 'needs_info')));
       }
       await recordCosts(tx, costs.map((cost) => ({ ...cost, claimId: claim.id })));
     });
@@ -186,7 +191,7 @@ function claimRow(decision: Decision, slug: string, input: SubmitInput, modelId:
 async function replyFor(deps: ClaimDeps, decision: Decision, slug: string, text: string, now: Date, costs: CallCost[]): Promise<string> {
   if (decision.outcome === 'recorded') return recordedReply(slug, renderStatement(decision.contract));
   if (decision.outcome === 'rejected') return rejectedReply(decision.reason);
-  const built = await buildNeedsInfoReply(deps, { text, proposal: decision.proposal && { ...decision.proposal, unclear_explanation: decision.explanation }, now });
+  const built = await buildNeedsInfoReply(deps, { text, proposal: decision.proposal, explanation: decision.explanation, now });
   costs.push(...built.costs);
   return built.reply;
 }

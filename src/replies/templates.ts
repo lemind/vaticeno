@@ -15,10 +15,13 @@ export function recordedReply(slug: string, statement: string): string {
 }
 
 // Used when no generated example survives the checks (FR-008): an example that is known to record.
-export const FALLBACK_EXAMPLE = 'BTC daily close above $150,000 by 2026-12-31';
+// The deadline is the end of next year, so it is always inside the allowed range.
+export function fallbackExample(now: Date): string {
+  return `BTC daily close above $150,000 by ${now.getUTCFullYear() + 1}-12-31`;
+}
 
-// NEEDS INFO (case A). `example` must already have passed the checks — never an unchecked one.
-export function needsInfoReply(explanation: string, checkedExample: string = FALLBACK_EXAMPLE): string {
+// NEEDS INFO (case A). `checkedExample` must already have passed the checks — never an unchecked one.
+export function needsInfoReply(explanation: string, checkedExample: string): string {
   const why = explanation.trim() || 'Something essential is missing.';
   return assertReplyFits(
     `NOT RECORDED — I can't judge this as written.\n\n${why}\n\nReply: amend <what happens> by <YYYY-MM-DD>\ne.g. amend ${checkedExample}`,

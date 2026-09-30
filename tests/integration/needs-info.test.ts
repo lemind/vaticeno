@@ -6,7 +6,7 @@ import { amendClaim, type ClaimDeps, submitClaim } from '../../src/lifecycle/cla
 import { expireNeedsInfo } from '../../src/lifecycle/expire.js';
 import { createMemorySourceReader } from '../../src/lifecycle/source-reader.js';
 import type { LlmClient } from '../../src/llm/client.js';
-import { FALLBACK_EXAMPLE } from '../../src/replies/templates.js';
+import { fallbackExample } from '../../src/replies/templates.js';
 import { setupTestDb, type TestDb, VALID_CONTRACT } from './helpers.js';
 
 let t: TestDb;
@@ -19,7 +19,7 @@ const clear: Partial<Proposal> = {};
 const unclear: Partial<Proposal> = { contract: null, unclear: ['deadline'], unclear_explanation: 'No date given.', examples: ['BTC daily close above $150,000 by 2026-12-31', 'too vague'] };
 
 // Model stub: answers by matching the input text; anything unmatched is "clear".
-function deps(answers: Record<string, Partial<Proposal>>): ClaimDeps {
+function deps(answers: Record<string, Partial<Proposal>>, productStatus = 'online'): ClaimDeps {
   const llm = {
     mode: 'replay',
     generateJson: async ({ input }: { input: string }) => {
@@ -32,7 +32,7 @@ function deps(answers: Record<string, Partial<Proposal>>): ClaimDeps {
       return { data, costs: [{ provider: 'gemini' as const, operation: 'normalize' as const, units: 1, usdCost: 0.001 }] };
     },
   } as unknown as LlmClient;
-  return { db: t.db, llm, coinbase: { productStatus: async () => 'online' } as unknown as Coinbase, normalizerModel: 'm' };
+  return { db: t.db, llm, coinbase: { productStatus: async () => productStatus } as unknown as Coinbase, normalizerModel: 'm' };
 }
 
 const submit = (d: ClaimDeps, text: string) =>
@@ -52,7 +52,15 @@ describe('NEEDS INFO reply', () => {
     const bad = { contract: null, unclear: ['threshold' as const], examples: ['nope 1', 'nope 2'] };
     const d = deps({ 'moon soon': { ...unclear, examples: ['nope 1'] }, nope: bad });
     const result = await submit(d, 'moon soon');
-    assert.match(result.reply, new RegExp(`e\\.g\\. amend ${FALLBACK_EXAMPLE.replace('$', '\\$')}`));
+    assert.match(result.reply, new RegExp(`e\\.g\\. amend ${fallbackExample(NOW).replace('$', '\\$')}`));
+    assert.match(fallbackExample(NOW), /by 2027-12-31$/);
+  });
+
+  test('a price example is not offered when the feed has no such market', async () => {
+    const d = deps({ 'moon soon': unclear }, 'delisted');
+    const result = await submit(d, 'moon soon');
+    assert.equal(result.outcome, 'needs_info');
+    assert.doesNotMatch(result.reply, /by 2026-12-31/);
   });
 });
 
@@ -84,6 +92,18 @@ describe('amend from needs info', () => {
     assert.match(result.reply, /^STILL NOT RECORDED — Which price\?/);
     const [claim] = await t.sql`select status, unclear from claims where slug = ${slug}`;
     assert.deepEqual([claim!.status, claim!.unclear], ['needs_info', ['threshold', 'deadline']]); // no contract → deadline too
+  });
+});
+
+describe('amend window', () => {
+  test('an amend 24 h after the needs-info reply is refused, even before the expiry job runs', async () => {
+    const d = deps({ 'moon soon': unclear });
+    const { slug } = await submit(d, 'moon soon');
+    const reader = createMemorySourceReader();
+    const late = await amendClaim({ ...d, reader }, { slug, authorId: '200', text: 'BTC daily close above $150,000 by 2026-12-31', now: new Date('2026-10-01T12:00:00Z') });
+    assert.equal(late.outcome, 'refused');
+    const [claim] = await t.sql`select status from claims where slug = ${slug}`;
+    assert.equal(claim!.status, 'needs_info');
   });
 });
 

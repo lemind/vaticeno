@@ -8,8 +8,8 @@ const RUN2 = new Date('2027-06-02T01:00:00Z'); // 24 h after RUN1
 const RUN3 = new Date('2027-06-04T01:00:00Z');
 
 let n = 0;
-const row = (trustLevel: EvidenceRow['trustLevel'], says: EvidenceRow['says'], runAt = RUN1, passed = true): EvidenceRow =>
-  ({ id: `e${++n}`, runAt, trustLevel, says, passed });
+const row = (trustLevel: EvidenceRow['trustLevel'], says: EvidenceRow['says'], runAt = RUN1, passed = true, quoteFound: boolean | null = true): EvidenceRow =>
+  ({ id: `e${++n}`, runAt, trustLevel, says, passed, quoteFound });
 
 const decide = (rows: EvidenceRow[], now = RUN1) => decideResolution(rows, now, DEADLINE);
 
@@ -71,6 +71,19 @@ test('primary entity_gone: wait on runs 1 and 2, VOID unresolvable on the 3rd se
   const three = [...two, row('primary', 'entity_gone', RUN3)];
   assert.deepEqual(decide(three, RUN3), { kind: 'final', outcome: 'void', voidReason: 'unresolvable' });
   assert.deepEqual(decide([row('established', 'entity_gone', RUN1)]), { kind: 'wait', reason: 'insufficient_once' }, 'only primary counts');
+});
+
+test('a run with a primary pending or entity_gone is never an empty run on the way to VOID', () => {
+  const rows = [row('primary', 'pending', RUN1, false), row('established', 'irrelevant', RUN2)];
+  assert.deepEqual(decide(rows, RUN2), { kind: 'wait', reason: 'insufficient_once' });
+  const gone = [row('primary', 'entity_gone', RUN1, false), row('established', 'irrelevant', RUN2)];
+  assert.deepEqual(decide(gone, RUN2), { kind: 'wait', reason: 'insufficient_once' });
+});
+
+test('primary pending / entity_gone without the quote on the page are ignored', () => {
+  assert.deepEqual(decide([row('primary', 'pending', RUN1, false, false)]), { kind: 'wait', reason: 'insufficient_once' });
+  assert.deepEqual(decide([row('primary', 'entity_gone', RUN1, false, false)]), { kind: 'wait', reason: 'insufficient_once' });
+  assert.deepEqual(decide([row('primary', 'entity_gone', RUN1, false, null)]), { kind: 'wait', reason: 'entity_gone' }, 'price feed: no quote gate');
 });
 
 test('primary pending: wait; more than 30 days after the deadline → human', () => {

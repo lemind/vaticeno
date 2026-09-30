@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { after, before, beforeEach, describe, test } from 'node:test';
 import { type Candle, type Coinbase, FeedUnavailable } from '../../src/feeds/coinbase.js';
-import type { LlmClient } from '../../src/llm/client.js';
+import { type LlmClient, LlmSchemaError } from '../../src/llm/client.js';
+import { SourceUnavailable } from '../../src/resolve/fetch.js';
 import { decideByHuman, listNeedsHuman } from '../../src/resolve/manual.js';
 import { type ResolverDeps, resolveDueClaims } from '../../src/resolve/resolver.js';
 import { insertClaim, setupTestDb, type TestDb, VALID_CONTRACT } from './helpers.js';
@@ -31,7 +32,7 @@ function days(from: string, n: number, close: (i: number) => number): Candle[] {
 
 type WebPage = { says: string; quote: string | null; event_date: string | null; text: string; trust?: 'primary' | 'established' | 'weak' };
 
-function deps(options: { candles?: Candle[] | 'outage'; search?: string[]; pages?: Record<string, WebPage> } = {}) {
+function deps(options: { candles?: Candle[] | 'outage'; search?: string[]; pages?: Record<string, WebPage>; down?: string[]; arbiter?: 'malformed' } = {}) {
   const calls = { web: 0 };
   const coinbase = {
     productStatus: async () => { if (options.candles === 'outage') throw new FeedUnavailable('down'); return 'online'; },
@@ -40,8 +41,12 @@ function deps(options: { candles?: Candle[] | 'outage'; search?: string[]; pages
   const llm = {
     mode: 'replay',
     groundedSearch: async () => { calls.web++; return { queries: ['q'], urls: options.search ?? [], costs: [] }; },
-    generateJson: async ({ input }: { input: string }) => {
+    generateJson: async ({ input, operation }: { input: string; operation: string }) => {
       calls.web++;
+      if (operation === 'arbitrate') {
+        if (options.arbiter === 'malformed') throw new LlmSchemaError('bad arbiter json', [{ provider: 'gemini', operation: 'arbitrate', units: 1, usdCost: 0.002 }]);
+        return { data: { decision: 'cannot_decide', deciding_index: null, outcome: null, notes: 'n' }, costs: [] };
+      }
       const url = (JSON.parse(input) as { page: { url: string } }).page.url;
       const page = options.pages![url]!;
       return {
@@ -51,8 +56,9 @@ function deps(options: { candles?: Candle[] | 'outage'; search?: string[]; pages
     },
   } as unknown as LlmClient;
   const fetchPage = async (url: string) => {
+    if (options.down?.includes(url)) throw new SourceUnavailable(`${url} timed out`);
     const page = options.pages?.[url];
-    if (!page) throw new Error('not found');
+    if (!page) throw new SourceUnavailable(`${url}: HTTP 404`, { transient: false });
     return { url, text: page.text, sha256: `sha-${url}`, simhash: null, retrievedAt: AFTER };
   };
   const resolverDeps: ResolverDeps = {
@@ -173,6 +179,27 @@ describe('web claims', () => {
     await resolveDueClaims(d, new Date('2026-10-20T00:00:00Z'));
     const rows = await t.sql`select domain, agreed_count from sources order by domain`;
     assert.deepEqual(rows.map((r) => [r.domain, r.agreed_count]), [['fda.gov', 2], ['reuters.com', 2]]);
+  });
+
+  test('a page that times out while nothing else settles it is an outage, never a step toward VOID', async () => {
+    const claim = await lockedClaim(WEB_CONTRACT);
+    const d = deps({ search: [], down: [official] }).deps;
+    assert.equal((await resolveDueClaims(d, AFTER)).outage, 1);
+    assert.equal(await evidenceCount(claim.id), 0);
+    assert.equal((await resolveDueClaims(d, new Date('2026-10-20T00:00:00Z'))).outage, 1);
+    assert.equal(await resolutionRow(claim.id), undefined);
+  });
+
+  test('an unusable arbiter answer flags the claim for a human and records the arbiter cost', async () => {
+    const claim = await lockedClaim(WEB_CONTRACT);
+    const pages = {
+      [trusted]: { says: 'hit', quote, event_date: '2026-10-03', text: `Reuters: ${quote} on Saturday.`, trust: 'established' as const },
+      [wire]: { says: 'miss', quote: 'rejected drug X', event_date: '2026-10-03', text: 'AP: FDA rejected drug X today.', trust: 'established' as const },
+    };
+    assert.equal((await resolveDueClaims(deps({ search: [trusted, wire], pages, arbiter: 'malformed' }).deps, AFTER)).needs_human, 1);
+    assert.equal((await resolutionRow(claim.id))!.review_status, 'needs_human');
+    const [cost] = await t.sql`select count(*)::int as n from cost_events where claim_id = ${claim.id} and operation = 'arbitrate'`;
+    assert.equal(cost!.n, 1);
   });
 
   test('nothing found twice, 24 h apart → VOID insufficient evidence, never MISS', async () => {

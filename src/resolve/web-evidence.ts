@@ -33,12 +33,13 @@ export async function gatherWebEvidence(
   window: { lockAt: Date; deadlineAt: Date },
   now: Date,
   knownSources: readonly string[],
-): Promise<{ items: GatheredItem[]; costs: CallCost[] }> {
-  const costs: CallCost[] = [];
+  costs: CallCost[], // filled as calls are paid, so an outage part-way still records its spend
+): Promise<GatheredItem[]> {
   // Two independent search passes (outages propagate: no evidence, retry next run).
   const passA = await searchSources(deps.llm, deps.judgeModelA, contract, window, 1, knownSources);
+  costs.push(...passA.costs);
   const passB = await searchSources(deps.llm, deps.judgeModelB, contract, window, 2, knownSources);
-  costs.push(...passA.costs, ...passB.costs);
+  costs.push(...passB.costs);
   const queries = [...new Set([...passA.queries, ...passB.queries])];
   const searchQuery = queries.join(' | ').slice(0, 500) || null;
   const found = [...new Set([...passA.urls, ...passB.urls])];
@@ -46,15 +47,16 @@ export async function gatherWebEvidence(
   // The contract's own record is always read (also for absence evidence after the deadline).
   const urls = [...new Set([contract.source.locator, ...found])].slice(0, MAX_PAGES);
   const judged: Array<Omit<GatheredItem, 'gates' | 'passed'>> = [];
-  let fetchFailures = 0;
+  let failures = 0; // transient fetch errors and unusable judge answers: this run did not really look
   const seen = new Set<string>(); // search redirect links often land on the same page: judge it once
   for (const url of urls) {
     let page;
     try {
       page = await deps.fetchPage(url);
     } catch (error) {
-      fetchFailures++;
-      log('warn', 'source page unavailable', { event: 'evidence.fetch_failed', url, error: String(error) });
+      if (!(error instanceof SourceUnavailable)) throw error; // replay misses and bugs fail loudly
+      if (error.transient) failures++;
+      log('warn', 'source page unavailable', { event: 'evidence.fetch_failed', url, transient: error.transient, error: String(error) });
       continue;
     }
     if (seen.has(page.url)) continue;
@@ -89,13 +91,9 @@ export async function gatherWebEvidence(
     } catch (error) {
       if (!(error instanceof LlmSchemaError)) throw error;
       costs.push(...error.costs);
+      failures++;
       log('warn', 'judge answer unusable; page skipped', { event: 'evidence.judge_malformed', url: page.url });
     }
-  }
-
-  // Every page failed to load: treat as an outage and retry later, rather than "nothing found".
-  if (judged.length === 0 && fetchFailures > 0 && found.length > 0) {
-    throw new SourceUnavailable(`all ${fetchFailures} source pages failed to load`);
   }
 
   // Gate the strongest sources first, so a primary page wins the independence check over its copies.
@@ -107,9 +105,13 @@ export async function gatherWebEvidence(
     return { ...item, gates, passed };
   });
 
+  // A run with failures that settled nothing is an outage, never "nothing found" (constitution III).
+  if (failures > 0 && !items.some((item) => item.passed && (item.draft.says === 'hit' || item.draft.says === 'miss'))) {
+    throw new SourceUnavailable(`${failures} source pages could not be read or judged`);
+  }
   // An empty search still writes one row, so "nothing found" runs can be counted (data-model evidences.run_at).
   if (items.length === 0) items.push(emptySearchItem(searchQuery, now));
-  return { items, costs };
+  return items;
 }
 
 function emptySearchItem(searchQuery: string | null, now: Date): GatheredItem {
