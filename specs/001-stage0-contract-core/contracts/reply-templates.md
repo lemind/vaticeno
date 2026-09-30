@@ -46,7 +46,8 @@ vaticeno.app/c/{slug}
 
 **REJECTED**
 - deadline out of range: `NOT RECORDED — {reason_in_words}.`
-- not a prediction (anything else, e.g. "@vaticeno cancel"): the help reply — no other commands exist yet
+- not a prediction (e.g. "@vaticeno cancel"): the help reply, same as `@vaticeno help` (no model call for
+  `help`) — no other commands exist yet
   ```
   I record predictions and check them at the deadline.
   • Tag me under your prediction → recorded

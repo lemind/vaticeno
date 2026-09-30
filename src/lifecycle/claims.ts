@@ -14,7 +14,7 @@ import { proposeContract } from '../llm/normalize.js';
 import { log } from '../log.js';
 import { buildNeedsInfoReply } from '../replies/needs-info.js';
 import { NEEDS_INFO_WINDOW_MS } from './expire.js';
-import { alreadyRecordedReply, assertReplyFits, recordedReply, rejectedReply, rejectReasonWords } from '../replies/templates.js';
+import { alreadyRecordedReply, assertReplyFits, HELP_REPLY, recordedReply, rejectedReply, rejectReasonWords } from '../replies/templates.js';
 import type { SourceReader } from './source-reader.js';
 
 export const LOCK_DELAY_MS = 15 * 60 * 1000;
@@ -31,8 +31,8 @@ export type SubmitInput = {
 };
 
 export type SubmitResult = {
-  outcome: 'recorded' | 'needs_info' | 'rejected' | 'duplicate';
-  slug: string;
+  outcome: 'recorded' | 'needs_info' | 'rejected' | 'duplicate' | 'help';
+  slug: string | null; // null for help: no claim is created
   rejectReason?: RejectReason;
   reply: string;
 };
@@ -63,6 +63,10 @@ async function evaluate(deps: ClaimDeps, text: string, now: Date): Promise<Evalu
 
 export async function submitClaim(deps: ClaimDeps, input: SubmitInput): Promise<SubmitResult> {
   const { db } = deps;
+
+  // "@vaticeno help": the list of actions, no model call, no claim. Stage 1 must test the mention's own
+  // text here, not the prediction post's.
+  if (/^\s*help[!?.]*\s*$/i.test(input.text.replace(/@\w+/g, ''))) return { outcome: 'help', slug: null, reply: HELP_REPLY };
 
   // A re-summon of a claimed post is a cheap duplicate: no model call (data-model "claims").
   const existing = await findSlugBySourceTweet(db, input.sourceTweetId);

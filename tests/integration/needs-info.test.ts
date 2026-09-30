@@ -35,8 +35,10 @@ function deps(answers: Record<string, Partial<Proposal>>, productStatus = 'onlin
   return { db: t.db, llm, coinbase: { productStatus: async () => productStatus } as unknown as Coinbase, normalizerModel: 'm' };
 }
 
-const submit = (d: ClaimDeps, text: string) =>
-  submitClaim(d, { text, authorId: '200', sourceTweetId: '77', summonTweetId: '78', sourceVersion: 'v1', now: NOW });
+const submit = async (d: ClaimDeps, text: string) => {
+  const result = await submitClaim(d, { text, authorId: '200', sourceTweetId: '77', summonTweetId: '78', sourceVersion: 'v1', now: NOW });
+  return { ...result, slug: result.slug! };
+};
 
 describe('NEEDS INFO reply', () => {
   test('uses the first example that itself records, never an unchecked one', async () => {
@@ -93,6 +95,17 @@ describe('amend from needs info', () => {
     assert.match(result.reply, /^STILL NOT RECORDED — Which price\?/);
     const [claim] = await t.sql`select status, unclear from claims where slug = ${slug}`;
     assert.deepEqual([claim!.status, claim!.unclear], ['needs_info', ['threshold', 'deadline']]); // no contract → deadline too
+  });
+});
+
+describe('help', () => {
+  test('"@vaticeno help" lists the actions without a model call or a claim', async () => {
+    const d = deps({});
+    (d.llm as { generateJson: unknown }).generateJson = async () => { throw new Error('no model call expected'); };
+    const result = await submitClaim(d, { text: '@vaticeno help', authorId: '200', sourceTweetId: '90', summonTweetId: '91', sourceVersion: 'v1', now: NOW });
+    assert.deepEqual([result.outcome, result.slug], ['help', null]);
+    assert.match(result.reply, /Tag me under your prediction/);
+    assert.equal((await t.sql`select count(*)::int as n from claims`)[0]!.n, 0);
   });
 });
 
