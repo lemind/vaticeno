@@ -295,3 +295,12 @@ the claim's author can amend.
 ## Not in Stage 0
 
 Mention ingestion state, reply delivery, opt-out and display names (Stage 1).
+
+## opt_outs
+
+Authors who sent `@vaticeno STOP` (constitution IV). Never replied to again; their locked claims still resolve.
+
+| Field | Type | Notes |
+|---|---|---|
+| x_user_id | text PK | X user id |
+| created_at | timestamptz NOT NULL | when STOP was received |

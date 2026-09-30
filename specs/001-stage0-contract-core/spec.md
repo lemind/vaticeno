@@ -388,7 +388,8 @@ shown but never count as a contradiction.
   is never sent.
 - **FR-009**: All replies MUST fit within X's post length limit and contain no link card; the public
   page link is plain text.
-- **FR-010**: Amends — any reply from the claim's author under the bot's reply, no command word —
+- **FR-010**: Amends — any reply from the claim's author directly under the bot's reply, the claim's post,
+  the summon or an earlier fix (however deep the thread), no command word —
   MUST be accepted in needs info and in draft; replies from anyone else are ignored; the first
   successful amend from needs info MUST NOT count against the limit; at most two successful amends
   from draft; a failed amend MUST NOT consume an attempt.
@@ -567,8 +568,8 @@ shown but never count as a contradiction.
   that gap counts as before lock. Stage 1's X reader must use each version's creation time and ignore
   versions created after `lock_at`. A draft that still can't be locked a day after `lock_at` expires with an
   alert.
-- Opt-out (`STOP`) is not built and not offered in replies for now (owner decision 2026-09-30).
-  Constitution IV and X's approval checklist (INIT_SPEC §10) still require it before live replies.
+- Opt-out: `@vaticeno STOP` gets one STOPPED reply, then the author is never answered again; their locked
+  claims still resolve (constitution IV). Listed in the help reply.
 - Edits to the original tweet count as amends before lock and are ignored after it. In Stage 0 the
   re-read is simulated from fixtures.
 - Deadlines may be up to 10 years out (INIT_SPEC's 18-month cap is dropped).

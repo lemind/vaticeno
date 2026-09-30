@@ -35,7 +35,11 @@ const REJECT_WORDS: Record<Exclude<RejectReason, 'x_rules' | 'duplicate'>, strin
 // Anything that isn't a prediction ("@vaticeno cancel", "hi", …) gets what the bot can do.
 export const HELP_REPLY = 'I record predictions and check them at the deadline.\n'
   + '• Tag me under your prediction → recorded\n'
-  + '• Reply with a fix (within 15 min) → updated';
+  + '• Reply with a fix (within 15 min) → updated\n'
+  + '• STOP → I never reply to you again';
+
+// Sent once, on STOP; after it the author gets no reply at all (constitution IV).
+export const STOPPED_REPLY = "STOPPED — I won't reply to you again. Your locked predictions are still checked.";
 
 export function rejectedReply(reason: Exclude<RejectReason, 'duplicate'>): string {
   // X rules: no quote, no explanation.

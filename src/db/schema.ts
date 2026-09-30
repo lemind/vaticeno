@@ -190,3 +190,9 @@ export const sources = pgTable(
   },
   (t) => [check('sources_agreed_count_check', sql`${t.agreedCount} >= 1`)],
 );
+
+// Authors who sent STOP: never replied to again (constitution IV). Their locked claims still resolve.
+export const optOuts = pgTable('opt_outs', {
+  xUserId: text('x_user_id').primaryKey(),
+  createdAt: utc('created_at').notNull().defaultNow(),
+});

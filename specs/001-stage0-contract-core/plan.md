@@ -157,8 +157,8 @@ deploy/                             # systemd units, backup.sh + nightly timer, 
 
 **Structure Decision**: single project extending the existing `src/`; unit tests colocated as
 `*.test.ts`, DB-backed tests in `tests/integration/`. The core runs as CLI → service → DB; cron and
-the web server are thin callers of the same services. The POC poller keeps running on the droplet
-unchanged; Stage 0 code is not wired to X and Stage 0 tasks do not edit the POC directories.
+the web server are thin callers of the same services. Phase 9 wires X: the service runs the web server,
+whose scheduler polls mentions (`src/bot/`, `ENABLE_X`); the POC poller (`src/poc/`) is no longer run.
 
 ## Architecture
 

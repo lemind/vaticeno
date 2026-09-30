@@ -119,6 +119,35 @@ describe('fixes from X', () => {
     assert.equal(rows[0]!.amend_count, 1);
     assert.deepEqual([...rows[0]!.thread_tweet_ids].sort(), ['55', '56', '57', 'r-55', 'r-56', 'r-57']);
   });
+
+  test('someone else replying under the bot answer is ignored: no claim, no reply, no model call', async () => {
+    const summon = mention('58', '@vaticeno BTC daily close above $150,000 by 2026-12-31');
+    const stranger = mention('59', '@vaticeno lol no way', { author_id: '300', conversation_id: '58', in_reply_to_user_id: BOT, referenced_tweets: [{ type: 'replied_to', id: 'r-58' }] });
+    const { deps, replies } = await bot([[summon], [stranger]]);
+    await pollMentions(deps, NOW);
+    await pollMentions(deps, NOW);
+    assert.equal(replies.length, 1);
+    assert.equal((await t.sql`select count(*)::int as n from claims`)[0]!.n, 1);
+  });
+
+  test('a new prediction elsewhere in the thread of an open claim is a new claim, not a fix', async () => {
+    const summon = mention('60a', '@vaticeno vague BTC to the moon');
+    const other = mention('61a', '@vaticeno BTC daily close above $150,000 by 2026-12-31', { conversation_id: '60a', referenced_tweets: [{ type: 'replied_to', id: 'someone-else-in-thread' }] });
+    const { deps } = await bot([[summon], [other]]);
+    await pollMentions(deps, NOW);
+    await pollMentions(deps, NOW);
+    assert.equal((await t.sql`select count(*)::int as n from claims`)[0]!.n, 2);
+  });
+});
+
+describe('STOP', () => {
+  test('STOP gets one confirmation, then that author is never answered again', async () => {
+    const { deps, replies } = await bot([[mention('100', '@vaticeno STOP')], [mention('101', '@vaticeno ping'), mention('102', '@vaticeno ping', { author_id: '201' })]]);
+    await pollMentions(deps, NOW);
+    await pollMentions(deps, NOW);
+    assert.match(replies[0]!.text, /^STOPPED/);
+    assert.deepEqual(replies.map((r) => r.to), ['100', '102'], 'others are still answered');
+  });
 });
 
 describe('failures and limits', () => {
@@ -137,10 +166,31 @@ describe('failures and limits', () => {
     assert.equal((await t.sql`select count(*)::int as n from claims`)[0]!.n, 0);
   });
 
-  test('the per-author hourly cap stops replies', async () => {
+  test('the per-author hourly cap stops replies — and nothing is recorded past it', async () => {
     const ms = ['80', '81', '82', '83'].map((id) => mention(id, '@vaticeno ping'));
-    const { deps, replies } = await bot([ms]);
+    const { deps, replies } = await bot([[...ms, mention('84', '@vaticeno BTC daily close above $150,000 by 2026-12-31')]]);
     await pollMentions(deps, NOW);
     assert.equal(replies.length, 3);
+    assert.equal((await t.sql`select count(*)::int as n from claims`)[0]!.n, 0, 'no silent claim past the cap');
+  });
+
+  test('a mention that keeps failing is skipped after 3 polls, then the next one is handled', async () => {
+    const bad = mention('90', '@vaticeno down: BTC above 150k by 2026-12-31');
+    const good = mention('91', '@vaticeno ping');
+    const { deps, replies } = await bot([[bad, good], [bad, good], [bad, good]]);
+    for (let i = 0; i < 3; i++) await pollMentions(deps, NOW);
+    assert.deepEqual(replies.map((r) => r.to), ['91']);
+    assert.equal((await readIngestState(deps.statePath)).mentions_since_id, '91');
+  });
+
+  test('a mention is saved as answered before the post: a failed post is never retried', async () => {
+    const m = mention('95', '@vaticeno ping');
+    const { deps, replies } = await bot([[m], [m]]);
+    let calls = 0;
+    deps.postReply = async () => { calls++; throw new Error('network'); };
+    await pollMentions(deps, NOW);
+    await pollMentions(deps, NOW);
+    assert.equal(calls, 1);
+    assert.equal(replies.length, 0);
   });
 });

@@ -10,7 +10,7 @@ An X bot that puts predictions **on the record** and checks them automatically o
 
 ## Status
 
-**Live on X:** a proof of concept that reads mentions and answers `ping`.
+**Live on X:** tag the bot under your prediction (or put it in the mention): it records it and answers once in the thread; reply under its answer to fix it within 15 min.
 **In progress:** Stage 0, the offline core ([spec](specs/001-stage0-contract-core/spec.md),
 [tasks](specs/001-stage0-contract-core/tasks.md)).
 
@@ -40,7 +40,7 @@ npm run db:migrate
 npm test && npm run test:integration
 ```
 
-The bot itself: `npm run poc:whoami` (prints the bot's user ID for `.env`), then `npm run poc:poll`.
+The bot itself: `npm run poc:whoami` (prints the bot's user ID for `.env`), then run the server with `ENABLE_JOBS=true ENABLE_X=true`.
 Only one copy may run at a time — two would double-reply and break each other's login token.
 Reply caps (`.env`): 3 per author per hour, 300 per day. Logs never contain post text.
 
@@ -48,7 +48,7 @@ Reply caps (`.env`): 3 per author per hour, 300 per day. Logs never contain post
 
 | Script | Purpose |
 |---|---|
-| `npm run poc:poll` | the bot: poll mentions, reply to `ping` |
+| `npm run poc:poll` | old proof-of-concept poller (ping only); do not run next to the service |
 | `npm run poc:parse -- "<text>"` | see how a mention is parsed, offline |
 | `npm run poc:whoami` / `poc:auth` | bot user ID / one-time browser login for posting |
 | `npm run dev` | public pages on `PORT` (default 3000): `/c/<slug>`, `/u/<x_user_id>`, `/healthz` |

@@ -22,7 +22,8 @@ export function buildBotDeps(claimDeps: ClaimDeps): BotDeps {
     botUserId: config.X_BOT_USER_ID,
     allowAuthor: (authorId) => allow.has('*') || allow.has(authorId),
     caps: { perAuthorPerHour: config.REPLY_MAX_PER_AUTHOR_PER_HOUR, perDay: config.REPLY_MAX_PER_DAY },
-    // A 401 can mean a stale stored expiry: refresh once and retry (the token rotates, see x/oauth.ts).
+    // HACK(x): SPECULATIVE — a 401 can mean a stale stored expiry: refresh once and retry (the token rotates). See src/x/oauth.ts.
+    // REVISIT: if 401s after a refresh show up in Sentry, the stored token is broken, not stale.
     postReply: async (inReplyTo, text) => {
       try {
         return await postReply(await getValidAccessToken(creds), inReplyTo, text);
