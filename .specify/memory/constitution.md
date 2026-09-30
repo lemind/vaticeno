@@ -1,6 +1,8 @@
 <!--
 Sync Impact Report
-- Version change: 2.0.0 → 2.1.0 (2026-09-30, MINOR): VI — mention-triggered replies need no separate X
+- Version change: 2.1.0 → 2.2.0 (2026-09-30, MINOR): IV — STOP lasts until the author tags the bot again
+  (owner decision), not permanently.
+- Earlier: 2.0.0 → 2.1.0 (2026-09-30, MINOR): VI — mention-triggered replies need no separate X
   approval (owner decision); unsolicited replies stay forbidden.
 - Earlier: 1.1.0 → 2.0.0 (2026-09-30, MAJOR): II redefined — no curated site list; the
   judge model rates each page primary/established/weak, code caps primary to the price feed and
@@ -115,7 +117,7 @@ Rationale: our downtime must never cost a user their verdict, and a guess is wor
   rejected.
 - Self-imposed rate caps MUST be enforced in code: 3 replies per author per hour and 300 per day,
   halting and alerting on breach.
-- Opt-out (`STOP`) is honored permanently; the author's locked claims still resolve, to the page
+- Opt-out (`STOP`) is honored until the author tags the bot again (owner decision 2026-09-30); the author's locked claims still resolve, to the page
   only.
 - Mention processing uses a guarded lease: a worker that lost its lease MUST NOT cause side
   effects.
@@ -193,4 +195,4 @@ Rationale: a one-person proto survives on code it can read in one sitting.
 - Every plan passes the Constitution Check before design and again after it. A justified violation
   is recorded in the plan's Complexity Tracking table; an unjustified one blocks the work.
 
-**Version**: 2.1.0 | **Ratified**: 2026-09-28 | **Last Amended**: 2026-09-30
+**Version**: 2.2.0 | **Ratified**: 2026-09-28 | **Last Amended**: 2026-09-30

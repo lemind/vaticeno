@@ -141,12 +141,14 @@ describe('fixes from X', () => {
 });
 
 describe('STOP', () => {
-  test('STOP gets one confirmation, then that author is never answered again', async () => {
-    const { deps, replies } = await bot([[mention('100', '@vaticeno STOP')], [mention('101', '@vaticeno ping'), mention('102', '@vaticeno ping', { author_id: '201' })]]);
-    await pollMentions(deps, NOW);
+  test('STOP is confirmed and recorded; tagging the bot again resumes', async () => {
+    const { deps, replies } = await bot([[mention('100', '@vaticeno STOP')], [mention('101', '@vaticeno ping')]]);
     await pollMentions(deps, NOW);
     assert.match(replies[0]!.text, /^STOPPED/);
-    assert.deepEqual(replies.map((r) => r.to), ['100', '102'], 'others are still answered');
+    assert.equal((await t.sql`select count(*)::int as n from opt_outs`)[0]!.n, 1);
+    await pollMentions(deps, NOW);
+    assert.match(replies[1]!.text, /^pong/);
+    assert.equal((await t.sql`select count(*)::int as n from opt_outs`)[0]!.n, 0);
   });
 });
 

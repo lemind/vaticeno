@@ -1,7 +1,7 @@
 @AGENTS.md
 
 <!-- SPECKIT START -->
-**Constitution**: `.specify/memory/constitution.md` (v1.1.0) — principles every plan must pass.
+**Constitution**: `.specify/memory/constitution.md` (v2.2.0) — principles every plan must pass.
 
 **Active plan**: `specs/001-stage0-contract-core/plan.md` (research, data-model, contracts/, quickstart alongside).
 

@@ -568,8 +568,8 @@ shown but never count as a contradiction.
   that gap counts as before lock. Stage 1's X reader must use each version's creation time and ignore
   versions created after `lock_at`. A draft that still can't be locked a day after `lock_at` expires with an
   alert.
-- Opt-out: `@vaticeno STOP` gets one STOPPED reply, then the author is never answered again; their locked
-  claims still resolve (constitution IV). Listed in the help reply.
+- Opt-out: `@vaticeno STOP` gets a STOPPED reply; the author stays opted out until they tag the bot again
+  (owner decision 2026-09-30); their locked claims still resolve (constitution IV). Listed in the help reply.
 - Edits to the original tweet count as amends before lock and are ignored after it. In Stage 0 the
   re-read is simulated from fixtures.
 - Deadlines may be up to 10 years out (INIT_SPEC's 18-month cap is dropped).

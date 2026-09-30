@@ -38,13 +38,15 @@ export async function routeMention(deps: BotDeps, mention: Mention, now: Date): 
   if (mention.referenced_tweets?.some((ref) => ref.type === 'retweeted')) return { action: 'ignored_repost', reply: null };
 
   const body = mention.text.replace(/@\w+/g, ' ').replace(/\s+/g, ' ').trim();
-  // HACK(x): SPECULATIVE (carried from the POC) — X rejects a post identical to a recent one, so pong carries the time. See src/poc/poll.ts.
-  // REVISIT: if a repeated pong without the time is ever accepted.
-  if (/^ping\b/i.test(body)) return { action: 'ping', reply: `pong · ${now.toISOString().slice(11, 19)} UTC` };
   if (/^stop[!.]*$/i.test(body)) {
     await deps.db.insert(optOuts).values({ xUserId: mention.author_id }).onConflictDoNothing();
     return { action: 'stop', reply: STOPPED_REPLY };
   }
+  // Tagging the bot again after STOP resumes (owner decision 2026-09-30, constitution IV).
+  await deps.db.delete(optOuts).where(eq(optOuts.xUserId, mention.author_id));
+  // HACK(x): SPECULATIVE (carried from the POC) — X rejects a post identical to a recent one, so pong carries the time. See src/poc/poll.ts.
+  // REVISIT: if a repeated pong without the time is ever accepted.
+  if (/^ping\b/i.test(body)) return { action: 'ping', reply: `pong · ${now.toISOString().slice(11, 19)} UTC` };
   const repliedTo = mention.referenced_tweets?.find((ref) => ref.type === 'replied_to')?.id;
 
   // A reply in a claim's thread is the author's fix (FR-010, no keyword); anyone else is ignored, and a closed
@@ -96,8 +98,6 @@ export async function pollMentions(deps: BotDeps, now: Date): Promise<{ mentions
     const cap = capHit(deps, state, mention.author_id, now);
     if (!deps.allowAuthor(mention.author_id)) {
       log('info', 'mention from an author outside the allowlist; skipped', { event: 'mention.skipped', tweet_id: mention.id });
-    } else if (await optedOut(deps, mention.author_id)) {
-      log('info', 'mention from an author who sent STOP; skipped', { event: 'mention.opted_out', tweet_id: mention.id });
     } else if (state.replied_tweet_ids.includes(mention.id)) {
       // already answered (or a post was attempted): never again
     } else if (cap) {
@@ -163,10 +163,6 @@ async function rememberThread(deps: BotDeps, slug: string, known: string[]) {
     // Never thrown: the reply is already posted, and a throw here would replay the mention (INIT_SPEC §6.7).
     captureError(error, { event: 'thread.save_failed', slug });
   }
-}
-
-async function optedOut(deps: BotDeps, authorId: string): Promise<boolean> {
-  return (await deps.db.select({ id: optOuts.xUserId }).from(optOuts).where(eq(optOuts.xUserId, authorId)).limit(1)).length > 0;
 }
 
 // Self-imposed caps (constitution IV): per author per hour, and per day overall.

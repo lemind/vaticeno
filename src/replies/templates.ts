@@ -36,10 +36,10 @@ const REJECT_WORDS: Record<Exclude<RejectReason, 'x_rules' | 'duplicate'>, strin
 export const HELP_REPLY = 'I record predictions and check them at the deadline.\n'
   + '• Tag me under your prediction → recorded\n'
   + '• Reply with a fix (within 15 min) → updated\n'
-  + '• STOP → I never reply to you again';
+  + '• STOP → I stop replying to you (tag me again to resume)';
 
-// Sent once, on STOP; after it the author gets no reply at all (constitution IV).
-export const STOPPED_REPLY = "STOPPED — I won't reply to you again. Your locked predictions are still checked.";
+// Sent on STOP; the bot stays silent to the author until they tag it again (constitution IV).
+export const STOPPED_REPLY = "STOPPED — I won't reply to you until you tag me again. Your locked predictions are still checked.";
 
 export function rejectedReply(reason: Exclude<RejectReason, 'duplicate'>): string {
   // X rules: no quote, no explanation.

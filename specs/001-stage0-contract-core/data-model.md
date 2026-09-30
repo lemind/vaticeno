@@ -298,7 +298,7 @@ Mention ingestion state, reply delivery, opt-out and display names (Stage 1).
 
 ## opt_outs
 
-Authors who sent `@vaticeno STOP` (constitution IV). Never replied to again; their locked claims still resolve.
+Authors who sent `@vaticeno STOP` (constitution IV); the row is removed when they tag the bot again. Their locked claims still resolve.
 
 | Field | Type | Notes |
 |---|---|---|

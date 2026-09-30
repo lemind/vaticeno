@@ -211,7 +211,7 @@ element, no percentage or ranking, no content (SC-009).
 - [x] T093 `deploy/vaticeno.service` runs `src/web/server.ts` (pages on localhost, jobs, X); constitution VI 2.1.0; `tests/integration/bot.test.ts`
 - [x] T094 Fixes found by thread: every bot reply and fix id is kept on the claim (`drizzle/0004_thread_tweet_ids.sql`), so a reply under any bot answer is a fix even inside an older thread; `tests/integration/bot.test.ts`
 - [x] T095 Review high: fixes matched by the direct parent only; others' replies ignored without a model call; cap checked before recording; a mention saved as answered before the post; a mention failing 3 polls is skipped with an alert; page-limit alert; docs synced
-- [x] T096 STOP opt-out: one STOPPED reply, then no reply ever to that author (`opt_outs` table, `drizzle/0005_opt_outs.sql`); statement drops the source name; `tests/integration/bot.test.ts`
+- [x] T096 STOP opt-out: a STOPPED reply, opted out until the author tags the bot again (`opt_outs` table, `drizzle/0005_opt_outs.sql`); statement drops the source name; `tests/integration/bot.test.ts`
 
 ---
 

@@ -68,11 +68,11 @@ Reply with the prediction and a date.
   I record predictions and check them at the deadline.
   • Tag me under your prediction → recorded
   • Reply with a fix (within 15 min) → updated
-  • STOP → I never reply to you again
+  • STOP → I stop replying to you (tag me again to resume)
   ```
 - X rules: `NOT RECORDED — I can't record this one.` (no quote, no explanation)
 - duplicate: `ALREADY RECORDED · #{existing_slug}`
-- STOP: `STOPPED — I won't reply to you again. Your locked predictions are still checked.` (then silence for that author)
+- STOP: `STOPPED — I won't reply to you until you tag me again. Your locked predictions are still checked.`
 - someone else's post: `NOT RECORDED — I only record your own predictions. Tag me under your post.`
 
 **RESOLVED** — `HIT · #{slug}` / `MISS · #{slug}` / `VOID · #{slug}`, then the statement, the deciding
