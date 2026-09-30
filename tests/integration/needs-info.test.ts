@@ -44,15 +44,16 @@ describe('NEEDS INFO reply', () => {
     const result = await submit(d, 'moon soon');
     assert.equal(result.outcome, 'needs_info');
     assert.match(result.reply, /No date given\./);
-    assert.match(result.reply, /e\.g\. amend BTC daily close above \$150,000 by 2026-12-31/);
-    assert.match(result.reply, /Reply: amend <what happens> by <YYYY-MM-DD>/);
+    assert.match(result.reply, /e\.g\.\nBTC daily close above \$150,000 by 2026-12-31/);
+    assert.match(result.reply, /Reply with the prediction and a date, e\.g\./);
+    assert.doesNotMatch(result.reply, /amend/);
   });
 
   test('falls back to the fixed example when no generated example records', async () => {
     const bad = { contract: null, unclear: ['threshold' as const], examples: ['nope 1', 'nope 2'] };
     const d = deps({ 'moon soon': { ...unclear, examples: ['nope 1'] }, nope: bad });
     const result = await submit(d, 'moon soon');
-    assert.match(result.reply, new RegExp(`e\\.g\\. amend ${fallbackExample(NOW).replace('$', '\\$')}`));
+    assert.match(result.reply, new RegExp(`e\\.g\\.\\n${fallbackExample(NOW).replace('$', '\\$')}`));
     assert.match(fallbackExample(NOW), /by 2027-12-31$/);
   });
 

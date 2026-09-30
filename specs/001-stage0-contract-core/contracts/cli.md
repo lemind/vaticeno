@@ -10,7 +10,7 @@ All commands: `npm run <script> -- [options]`. Output is structured JSON lines u
 | `seeds:crypto` | resolve the 60 frozen crypto seeds | — | 0 only if 100% correct |
 | `seeds:open` | resolve the seeded open-topic set with the model judge | `--model <id>` | 0 if agreement ≥ 95% and wrong HIT/MISS < 5% |
 | `claim:submit` | create a claim from text as if summoned | `--text`, `--author`, `--post` | 0 |
-| `claim:amend` | apply an amend | `--slug`, `--text` | 0 |
+| `claim:reply` | the author's reply under the bot's reply (an amend; no command word) | `--slug`, `--text` | 0 |
 | `claim:edit` | simulate an edit of the original tweet (picked up at lock time) | `--slug`, `--text` | 0 |
 | `jobs:tick` | run lock sweeper, needs-info expiry and resolver once (same service functions cron calls) | `--now` | 0 |
 | `review:list` | resolutions flagged for human review, with their evidence | — | 0 |

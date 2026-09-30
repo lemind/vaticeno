@@ -6,7 +6,7 @@ Only the parts in `{…}` vary. `{statement}` is rendered from the contract, nev
 ```
 RECORDED · #{slug}
 "{statement}"
-Fix in 15 min: reply "amend <what> by <YYYY-MM-DD>"
+Fix in 15 min: reply with the corrected prediction
 vaticeno.app/c/{slug}
 ```
 The statement already names the deadline and, for model claims, the source; the page shows the rest.
@@ -19,11 +19,14 @@ NOT RECORDED — I can't judge this as written.
 
 {unclear_explanation}
 
-Reply: amend <what happens> by <YYYY-MM-DD>
-e.g. amend {example_1}
+Reply with the prediction and a date, e.g.
+{example_1}
 ```
 Fallback example when no generated example survives the checks:
-`amend BTC daily close above $150,000 by 2026-12-31`.
+`BTC daily close above $150,000 by <next year>-12-31`.
+
+No command word anywhere: any reply from the author under a bot reply is the corrected prediction
+(an amend). Replies from anyone else are ignored.
 
 **AMENDED** — a new reply, never an edit of the earlier one
 ```

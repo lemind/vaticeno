@@ -68,26 +68,27 @@ reported.
 When a prediction cannot be judged as written — the deadline, the measurable threshold, the exact
 subject, what counts as success or an authoritative source is missing or ambiguous — the system
 does not guess and does not start a conversation. It sends one NEEDS INFO reply: what is unclear,
-one or two concrete example rewrites tailored to the author's topic, and the one format that fixes
-it: `amend <what happens> by <YYYY-MM-DD>`.
+one or two concrete example rewrites tailored to the author's topic, and how to fix it: reply with
+the prediction and a date. There is no command word — any reply from the author under the bot's
+reply is the fix (an **amend**).
 
 **Why this priority**: Most real predictions are vague. With open topics, vagueness is the norm
 ("cancer treatment by 2030"); if this reply is confusing, strangers never record (hypothesis A).
 
 **Independent Test**: Feed vague fixtures; check each reply names what is unclear, includes
-topic-specific examples that would themselves pass the checks, uses the amend format and fits the
-length limit; then feed a valid amend and check the claim becomes a draft contract.
+topic-specific examples that would themselves pass the checks, says to reply with a date and fits
+the length limit; then feed a valid author reply and check the claim becomes a draft contract.
 
 **Acceptance Scenarios**:
 
 1. **Given** "cancer treatment by 2030", **When** it is evaluated, **Then** the outcome is needs info
    stating that the cancer type and what counts as a treatment are unclear, with examples such as
-   "amend FDA approves a drug for pancreatic cancer by 2030-12-31".
+   "FDA approves a drug for pancreatic cancer by 2030-12-31".
 2. **Given** "Musk lands on Mars soon", **When** it is evaluated, **Then** the reply says the
    deadline and the exact event are unclear and gives an example with both.
 3. **Given** "I bet Trump gonna be next president", **When** it is evaluated, **Then** the outcome
    is needs info (no explicit date; "next president" is ambiguous) with an example that pins the
-   event and date, such as "amend Donald Trump is sworn in as US President by 2029-01-20".
+   event and date, such as "Donald Trump is sworn in as US President by 2029-01-20".
 4. **Given** each example the system suggests, **When** it is evaluated as an amend, **Then** it
    would be recorded (examples must be valid contracts, not just prose).
 5. **Given** a claim in needs info, **When** its author sends a valid amend, **Then** the claim
@@ -274,7 +275,8 @@ early for clearer errors, and a test checks the two never differ.
 **Lock time** = 15 minutes after the most recent contract reply to the author (acknowledgement or
 `[AMENDED]` reply). A valid amend restarts it.
 
-**Amends and edits before lock.** An `amend` reply from the author, or an edit of the original tweet,
+**Amends and edits before lock.** A reply from the author under the bot's reply (no command word:
+the reply text is the corrected prediction), or an edit of the original tweet,
 before lock time produces a new contract for the **same claim** (same slug): the bot never edits its
 earlier reply, it posts a new reply marked `[AMENDED] #slug` with the new statement, the claim's
 contract is replaced, and lock time restarts. Both count toward the limit of two. Edits are detected
@@ -378,14 +380,16 @@ shown but never count as a contradiction.
 **Unclear predictions (case A)**
 
 - **FR-007**: A needs-info outcome MUST produce one reply in a fixed frame: what is unclear, one or
-  two example rewrites tailored to the topic, and the format `amend <what happens> by <YYYY-MM-DD>`.
+  two example rewrites tailored to the topic, and the instruction to reply with the prediction and a
+  date.
 - **FR-008**: Every suggested example MUST itself pass the checks: each generated example is
   evaluated through the same proposal and checks as a real amend; failing ones are discarded and
   regenerated once; if none survive, the reply uses a fixed generic example. An unchecked example
   is never sent.
 - **FR-009**: All replies MUST fit within X's post length limit and contain no link card; the public
   page link is plain text.
-- **FR-010**: Amends from the claim's author MUST be accepted in needs info and in draft; the first
+- **FR-010**: Amends — any reply from the claim's author under the bot's reply, no command word —
+  MUST be accepted in needs info and in draft; replies from anyone else are ignored; the first
   successful amend from needs info MUST NOT count against the limit; at most two successful amends
   from draft; a failed amend MUST NOT consume an attempt.
 - **FR-011**: A claim in needs info with no valid amend within 24 hours MUST expire with no reply.

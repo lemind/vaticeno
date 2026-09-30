@@ -126,7 +126,7 @@ export async function amendClaim(deps: ClaimDeps & { reader: SourceReader }, inp
       await recordCosts(tx, costs.map((cost) => ({ ...cost, claimId: claim.id })));
     });
     log('info', 'amend still unclear', { event: 'claim.amend_unclear', claim_id: claim.id, slug: claim.slug, usd_cost: sumUsd(costs) });
-    return { outcome: 'still_needs_info', reply: assertReplyFits(`STILL NOT RECORDED — ${why.trim() || 'Something essential is still missing.'}\nReply: amend <what happens> by <YYYY-MM-DD>`) };
+    return { outcome: 'still_needs_info', reply: assertReplyFits(`STILL NOT RECORDED — ${why.trim() || 'Something essential is still missing.'}\nReply with the prediction and a date.`) };
   }
 
   // Record the tweet version the amend applies to, so an earlier edit is not replayed at lock.

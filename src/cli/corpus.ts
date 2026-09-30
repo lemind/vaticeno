@@ -70,7 +70,7 @@ await runCli('corpus', async (config) => {
   const needsInfo = results.flatMap((r) => ('sc005' in r && r.sc005 ? [r.sc005] : []));
   const sc005 = {
     replies: needsInfo.length,
-    all_ok: needsInfo.filter((q) => q.names_unclear && q.checked_example && q.amend_format && q.fits).length,
+    all_ok: needsInfo.filter((q) => q.names_unclear && q.checked_example && q.reply_hint && q.fits).length,
     generated_example: needsInfo.filter((q) => q.generated_example).length,
   };
   const passed = results.filter((r) => r.pass).length;
@@ -94,9 +94,9 @@ function report(fixture: Fixture, actual: string, unclear: string[], replyChars:
 function needsInfoQuality(reply: string, explanation: string, example: string | null, now: Date) {
   return {
     names_unclear: explanation.trim().length > 0,
-    checked_example: reply.includes(`e.g. amend ${example ?? fallbackExample(now)}`), // generated ones passed the checks
+    checked_example: reply.includes(`e.g.\n${example ?? fallbackExample(now)}`), // generated ones passed the checks
     generated_example: example !== null,
-    amend_format: reply.includes('amend <what happens> by <YYYY-MM-DD>'),
+    reply_hint: reply.includes('Reply with the prediction and a date'),
     fits: weightedLength(reply) <= X_MAX_CHARS,
   };
 }

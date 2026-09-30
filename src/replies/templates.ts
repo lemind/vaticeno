@@ -10,7 +10,7 @@ export const pageLink = (slug: string) => `${PAGE_HOST}/c/${slug}`;
 
 export function recordedReply(slug: string, statement: string): string {
   return assertReplyFits(
-    `RECORDED · #${slug}\n"${statement}"\nFix in 15 min: reply "amend <what> by <YYYY-MM-DD>"\n${pageLink(slug)}`,
+    `RECORDED · #${slug}\n"${statement}"\nFix in 15 min: reply with the corrected prediction\n${pageLink(slug)}`,
   );
 }
 
@@ -24,7 +24,7 @@ export function fallbackExample(now: Date): string {
 export function needsInfoReply(explanation: string, checkedExample: string): string {
   const why = explanation.trim() || 'Something essential is missing.';
   return assertReplyFits(
-    `NOT RECORDED — I can't judge this as written.\n\n${why}\n\nReply: amend <what happens> by <YYYY-MM-DD>\ne.g. amend ${checkedExample}`,
+    `NOT RECORDED — I can't judge this as written.\n\n${why}\n\nReply with the prediction and a date, e.g.\n${checkedExample}`,
   );
 }
 
