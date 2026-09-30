@@ -7,6 +7,7 @@ import { claims, evidences, positions, resolutions } from '../db/schema.js';
 import { html, layout, safeHref, utc } from './html.js';
 
 const DAY_MS = 86_400_000;
+const MAX_ROWS = 500;
 
 const STATUS_WORDS: Record<string, string> = {
   draft: 'recorded — can still be fixed until it locks',
@@ -21,9 +22,12 @@ export async function claimPage(db: Db, slug: string, now: Date): Promise<string
   const [claim] = await db.select().from(claims).where(eq(claims.slug, slug)).limit(1);
   if (!claim?.contract) return null; // needs info / rejected: no contract to show
   const contract = ContractSchema.parse(claim.contract);
-  const [resolution] = await db.select().from(resolutions).where(eq(resolutions.claimId, claim.id)).limit(1);
-  const items = await db.select().from(evidences).where(eq(evidences.claimId, claim.id)).orderBy(desc(evidences.runAt), asc(evidences.createdAt));
-  const people = await db.select().from(positions).where(eq(positions.claimId, claim.id)).orderBy(asc(positions.joinedAt));
+  // Bounded: a public URL never reads without limit (the resolver's backoff keeps evidence small anyway).
+  const [[resolution], items, people] = await Promise.all([
+    db.select().from(resolutions).where(eq(resolutions.claimId, claim.id)).limit(1),
+    db.select().from(evidences).where(eq(evidences.claimId, claim.id)).orderBy(desc(evidences.runAt), asc(evidences.createdAt)).limit(MAX_ROWS),
+    db.select().from(positions).where(eq(positions.claimId, claim.id)).orderBy(asc(positions.joinedAt)).limit(MAX_ROWS),
+  ]);
 
   const statement = renderStatement(contract);
   const deadline = new Date(contract.deadline_at);
@@ -57,7 +61,7 @@ ${resolution && !final ? html` <span class="muted">waiting for a human decision<
 ${resolution ? html`
 <h2>Verdict</h2>
 <dl>
-  <dt>Outcome</dt><dd>${final ? (final.outcome ?? '').toUpperCase() : 'not decided yet — flagged for a human'}${final?.voidReason ? html` <span class="muted">(${final.voidReason.replace('_', ' ')})</span>` : ''}</dd>
+  <dt>Outcome</dt><dd>${final ? (final.outcome ?? '').toUpperCase() : 'not decided yet — flagged for a human'}${final?.voidReason ? html` <span class="muted">(${final.voidReason.replaceAll('_', ' ')})</span>` : ''}</dd>
   <dt>Decided by</dt><dd>${final ? DECIDED_WORDS[final.decidedBy ?? ''] ?? final.decidedBy : '—'}</dd>
   ${resolution.decidingEvidenceId ? html`<dt>Deciding answer</dt><dd><a href="#e-${resolution.decidingEvidenceId}">see below</a></dd>` : ''}
   ${resolution.arbiterNotes ? html`<dt>Arbiter's reason</dt><dd>${resolution.arbiterNotes}</dd>` : ''}
@@ -72,7 +76,7 @@ ${items.map((e) => html`<tr id="e-${e.id}"${e.id === resolution?.decidingEvidenc
   <td>${utc(e.runAt)}</td>
   <td>${e.url ? link(e.url, e.sourceName) : e.sourceName}${e.value ? html`<br><span class="muted">close ${e.value}</span>` : ''}</td>
   <td>${e.trustLevel}${e.trustReason ? html`<br><span class="muted">${e.trustReason}</span>` : ''}</td>
-  <td class="${e.says}">${e.says.replace('_', ' ')}</td>
+  <td class="${e.says}">${e.says.replaceAll('_', ' ')}</td>
   <td>${e.eventDate ?? '—'}</td>
   <td>${utc(e.retrievedAt)}</td>
   <td>${gatesText(e.gates, e.passed)}</td>
@@ -99,6 +103,6 @@ function countdown(deadline: Date, now: Date): string {
 
 function gatesText(gates: Record<string, boolean | null>, passed: boolean) {
   if (passed) return html`<span class="hit">passed</span>`;
-  const failed = Object.entries(gates).filter(([, ok]) => ok === false).map(([name]) => name.replace('_', ' '));
+  const failed = Object.entries(gates).filter(([, ok]) => ok === false).map(([name]) => name.replaceAll('_', ' '));
   return html`<span class="muted">failed: ${failed.join(', ') || '—'}</span>`;
 }

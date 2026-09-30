@@ -1,6 +1,6 @@
 // Resolver service: due claims → evidence → rule table → one resolution per claim (data-model
 // "resolutions", "Resolver schedule"). An outage is never a verdict (constitution III).
-import { and, asc, eq, inArray, lte, sql } from 'drizzle-orm';
+import { and, asc, count, eq, inArray, lte, min, sql } from 'drizzle-orm';
 import { ContractSchema } from '../contract/schema.js';
 import type { Db } from '../db/client.js';
 import { recordCosts } from '../db/costs.js';
@@ -8,6 +8,7 @@ import { type ClaimRow, claims, costEvents, evidences, resolutions } from '../db
 import { type Coinbase, FeedUnavailable } from '../feeds/coinbase.js';
 import { type CallCost, type LlmClient, LlmSchemaError, LlmUnavailable } from '../llm/client.js';
 import { arbitrate } from '../llm/judges.js';
+import { CLAIM_BUDGET_USD } from '../llm/prices.js';
 import { log } from '../log.js';
 import { alert, captureError } from '../observe.js';
 import { decideResolution, type Decision } from './decide.js';
@@ -32,7 +33,6 @@ export type ClaimRunOutcome = 'final' | 'needs_human' | 'waiting' | 'outage' | '
 const HOUR_MS = 3_600_000;
 const DAY_MS = 24 * HOUR_MS;
 const MAX_CLAIMS_PER_RUN = 50;
-const CLAIM_BUDGET_USD = 0.3;
 const OUTAGE_LIMIT_MS = 30 * DAY_MS;
 
 let lastRunAt: Date | null = null;
@@ -44,6 +44,21 @@ export const dueClaims = (now: Date) => and(
   lte(claims.nextCheckAt, now),
   sql`not exists (select 1 from ${resolutions} r where r.claim_id = ${claims.id})`,
 );
+
+// What /healthz reports about the resolver's queue (contracts/http.md).
+export async function resolverHealth(db: Db, now: Date) {
+  const [[due], [human]] = await Promise.all([
+    db.select({ n: count(), oldest: min(claims.nextCheckAt) }).from(claims).where(dueClaims(now)),
+    db.select({ n: count() }).from(resolutions).where(eq(resolutions.reviewStatus, 'needs_human')),
+  ]);
+  const oldest = due?.oldest ? new Date(due.oldest) : null;
+  return {
+    claims_due: due?.n ?? 0,
+    oldest_due_age_min: oldest ? Math.floor((now.getTime() - oldest.getTime()) / 60_000) : null,
+    needs_human: human?.n ?? 0,
+    last_resolver_run_at: lastRunAt?.toISOString() ?? null,
+  };
+}
 
 export async function resolveDueClaims(deps: ResolverDeps, now: Date): Promise<Record<ClaimRunOutcome, number>> {
   const due = await deps.db.select().from(claims)

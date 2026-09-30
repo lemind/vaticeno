@@ -62,17 +62,21 @@ export function expiredReply(slug: string): string {
 }
 
 // A fix that is refused outright (contracts/reply-templates.md "REFUSED").
-export type RefusalReason = 'not_author' | 'locked' | 'closed' | 'expired' | 'limit' | 'conflict';
+export type RefusalReason = 'locked' | 'closed' | 'expired' | 'limit' | 'conflict';
 
 export function refusedReply(reason: RefusalReason, slug: string): string {
   switch (reason) {
-    case 'not_author': return 'Only the author can change this prediction.';
     case 'locked': return `#${slug} is locked and can't change.`;
     case 'closed': return `#${slug} can no longer be changed.`;
     case 'expired': return `#${slug} expired: no fix within 24 hours.`;
     case 'limit': return `#${slug} can't be changed again (2 fixes used).`;
     case 'conflict': return `#${slug} changed meanwhile; nothing was changed.`;
   }
+}
+
+// A fix to a needs-info claim that is still not recordable; the 24 h clock keeps running.
+export function stillNotRecordedReply(why: string): string {
+  return assertReplyFits(`STILL NOT RECORDED — ${why.trim() || 'Something essential is still missing.'}\nReply with the prediction and a date.`);
 }
 
 // A fix that can't be applied: the recorded version stands.

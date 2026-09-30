@@ -12,6 +12,7 @@ import { claims, costEvents, evidences, resolutions, sources } from '../db/schem
 import type { Candle, Coinbase } from '../feeds/coinbase.js';
 import { createLlmClient } from '../llm/client.js';
 import { createReplayStore } from '../llm/replay.js';
+import { CLAIM_BUDGET_USD } from '../llm/prices.js';
 import { createPageFetcher } from '../resolve/fetch.js';
 import { type ResolverDeps, resolveClaim } from '../resolve/resolver.js';
 import { cliArgs, printJson, runCli } from './run.js';
@@ -19,7 +20,6 @@ import { cliArgs, printJson, runCli } from './run.js';
 const SEEDS_DIR = fileURLToPath(new URL('../../fixtures/seeds', import.meta.url));
 const MAX_RUNS = 4;
 const HOUR_MS = 3_600_000;
-const CLAIM_BUDGET_USD = 0.3;
 
 // SC-003: the open-topic set must cover every failure mode at least this often.
 export const OPEN_CATEGORY_MINIMUMS: Record<string, number> = {

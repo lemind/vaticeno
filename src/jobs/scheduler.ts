@@ -11,12 +11,13 @@ import { type ResolverDeps, resolveDueClaims } from '../resolve/resolver.js';
 import type { ClaimDeps } from '../lifecycle/claims.js';
 import { withJobLock } from './lock.js';
 
-export type SchedulerDeps = ClaimDeps & ResolverDeps & { reader: SourceReader; sql: Sql; now?: () => Date };
+export type SchedulerDeps = ClaimDeps & ResolverDeps & { reader: SourceReader; sql: Sql };
 
-export const SCHEDULES = { lock: '* * * * *', expire: '*/10 * * * *', resolve: '0 * * * *' } as const;
+const SCHEDULES = { lock: '* * * * *', expire: '*/10 * * * *', resolve: '0 * * * *' } as const;
 
 export function startScheduler(deps: SchedulerDeps): { stop: () => Promise<void> } {
-  const now = deps.now ?? (() => new Date());
+  const now = () => new Date();
+  const running = new Set<Promise<void>>();
   const jobs: Record<keyof typeof SCHEDULES, () => Promise<unknown>> = {
     // The lock job carries the free plan's one cron monitor: it runs every minute, so silence means down.
     lock: () => withCronMonitor('vaticeno-lock', SCHEDULES.lock, () => lockDueDrafts(deps, now())),
@@ -25,12 +26,18 @@ export function startScheduler(deps: SchedulerDeps): { stop: () => Promise<void>
   };
 
   const tasks = (Object.keys(jobs) as Array<keyof typeof SCHEDULES>).map((name) =>
-    cron.schedule(SCHEDULES[name], () => runJob(deps.sql, name, jobs[name]), { name, timezone: 'Etc/UTC', noOverlap: true }));
+    cron.schedule(SCHEDULES[name], () => {
+      const run = runJob(deps.sql, name, jobs[name]).finally(() => running.delete(run));
+      running.add(run);
+      return run;
+    }, { name, timezone: 'Etc/UTC', noOverlap: true }));
   log('info', 'scheduler started', { event: 'scheduler.started', jobs: SCHEDULES });
 
   return {
+    // Stops future runs and waits for the ones in flight, so a resolver run is never cut off halfway.
     stop: async () => {
       await Promise.all(tasks.map((task) => task.stop()));
+      await Promise.all(running);
       log('info', 'scheduler stopped', { event: 'scheduler.stopped' });
     },
   };

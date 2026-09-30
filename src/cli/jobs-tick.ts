@@ -4,9 +4,7 @@ import { getSql } from '../db/client.js';
 import { expireNeedsInfo } from '../lifecycle/expire.js';
 import { lockDueDrafts } from '../lifecycle/lock.js';
 import { createFileSourceReader } from '../lifecycle/source-reader.js';
-import { createReplayStore } from '../llm/replay.js';
 import { withJobLock } from '../jobs/lock.js';
-import { createPageFetcher } from '../resolve/fetch.js';
 import { resolveDueClaims } from '../resolve/resolver.js';
 import { buildDeps, cliArgs, nowFrom, printJson, runCli } from './run.js';
 
@@ -18,11 +16,7 @@ await runCli('jobs-tick', async (config) => {
 
   const lock = await withJobLock(sql, 'lock', () => lockDueDrafts({ ...deps, reader: createFileSourceReader() }, now));
   const expire = await withJobLock(sql, 'expire', () => expireNeedsInfo(deps.db, now));
-  const resolve = await withJobLock(sql, 'resolve', () => resolveDueClaims({
-    ...deps,
-    fetchPage: createPageFetcher({ mode: config.LLM_MODE, store: createReplayStore() }),
-    judgeModelA: config.JUDGE_MODEL_A, judgeModelB: config.JUDGE_MODEL_B, arbiterModel: config.ARBITER_MODEL,
-  }, now));
+  const resolve = await withJobLock(sql, 'resolve', () => resolveDueClaims(deps, now));
 
   printJson({
     now: now.toISOString(),

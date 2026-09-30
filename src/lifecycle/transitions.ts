@@ -17,6 +17,8 @@ export const TRANSITIONS: Readonly<Record<ClaimStatus, readonly ClaimStatus[]>> 
 };
 
 export const TERMINAL_STATES: readonly ClaimStatus[] = ['rejected', 'expired', 'resolved', 'void'];
+// States a claim is in once it has locked: its contract can never change again.
+export const REACHED_LOCK: ReadonlySet<string> = new Set<ClaimStatus>(['locked', 'resolving', 'resolved', 'void']);
 
 export function canTransition(from: ClaimStatus, to: ClaimStatus): boolean {
   return TRANSITIONS[from].includes(to);

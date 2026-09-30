@@ -563,6 +563,10 @@ shown but never count as a contradiction.
   mention's own text, since the prediction is usually a different post.
 - No paid live runs of the corpus or open-topic seeds (owner decision 2026-09-30): SC-001, SC-003 and
   SC-005 rest on the last recorded runs; the owner checks accuracy with a few real claims at release.
+- Stage 0 reads the post at lock *time of the job* (usually within a minute of `lock_at`); an edit made in
+  that gap counts as before lock. Stage 1's X reader must use each version's creation time and ignore
+  versions created after `lock_at`. A draft that still can't be locked a day after `lock_at` expires with an
+  alert.
 - Opt-out (`STOP`) is not built and not offered in replies for now (owner decision 2026-09-30).
   Constitution IV and X's approval checklist (INIT_SPEC §10) still require it before live replies.
 - Edits to the original tweet count as amends before lock and are ignored after it. In Stage 0 the

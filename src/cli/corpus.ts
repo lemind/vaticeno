@@ -9,13 +9,13 @@ import { createCoinbase } from '../feeds/coinbase.js';
 import { createLlmClient } from '../llm/client.js';
 import { proposeContract } from '../llm/normalize.js';
 import { createReplayStore } from '../llm/replay.js';
+import { CLAIM_BUDGET_USD } from '../llm/prices.js';
 import { buildNeedsInfoReply } from '../replies/needs-info.js';
 import { fallbackExample, needsInfoReply, recordedReply, weightedLength, X_MAX_CHARS } from '../replies/templates.js';
 import { cliArgs, printJson, runCli } from './run.js';
 
 const CORPUS_DIR = fileURLToPath(new URL('../../fixtures/corpus', import.meta.url));
 const PASS_RATE = 0.9;
-const CLAIM_BUDGET_USD = 0.3;
 const CONCURRENCY = 4;
 
 const FixtureSchema = z.object({

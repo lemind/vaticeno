@@ -66,9 +66,10 @@ describe('fixes before lock (scenario 3, 4)', () => {
     assert.deepEqual([row.amend_count, row.contract.price.threshold], [2, 170000]);
   });
 
-  test('only the author can fix it', async () => {
+  test('a reply from someone else is ignored: no reply, nothing changes', async () => {
     const { d, slug } = await recorded();
-    assert.equal((await amendClaim(d, { slug, authorId: '999', text: 'BTC above 160k by end of 2026', now: at(5) })).outcome, 'refused');
+    assert.deepEqual(await amendClaim(d, { slug, authorId: '999', text: 'BTC above 160k by end of 2026', now: at(5) }), { outcome: 'ignored', reply: null });
+    assert.equal((await claimRow(slug)).amend_count, 0);
   });
 
   test('locks 15 min after the last reply; a fix restarts the 15 min; a fix at exactly lock time is refused', async () => {
@@ -124,11 +125,13 @@ describe('edits of the post found at lock (scenario 5)', () => {
     assert.deepEqual(results.map((r) => [r.slug, r.outcome]), [[a.slug, 'waiting'], [b.slug, 'locked']]);
   });
 
-  test('a post that cannot be read at lock time is not locked blind: it waits', async () => {
+  test('a post that cannot be read is never locked blind: it waits, and a day later expires', async () => {
     const { d, slug } = await recorded();
     const blind = { ...d, reader: createMemorySourceReader() };
     assert.equal((await lockDueDrafts(blind, at(15)))[0]!.outcome, 'waiting');
     assert.equal((await claimRow(slug)).status, 'draft');
+    assert.equal((await lockDueDrafts(blind, at(15 + 24 * 60)))[0]!.outcome, 'expired', 'gave up after 24 h');
+    assert.equal((await claimRow(slug)).locked_source_version, null);
   });
 });
 

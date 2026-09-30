@@ -193,7 +193,7 @@ element, no percentage or ranking, no content (SC-009).
 
 - [x] T074 Create `src/jobs/scheduler.ts`: node-cron calls `lockDueDrafts` every minute, `expireNeedsInfo` every 10 minutes, `resolveDueClaims` hourly — same functions as `jobs:tick`, each inside `withJobLock`; started from `src/web/server.ts` behind `ENABLE_JOBS=true`
 - [x] T075 [P] Wire observability: `initObservability` in `src/web/server.ts` and every `src/cli/*` entry (uncaught errors captured, `flush()` before exit); `/healthz` reports `needs_human` and in-memory `last_resolver_run_at`; `deploy/journald-vaticeno.conf` (`SystemMaxUse=500M`); document in `quickstart.md` where to look (journalctl, Sentry Issues/Logs/Crons) and the uptime check on `/healthz`
-- [x] T076 [P] Write `tests/integration/no-content.test.ts` for SC-008 (done with stub models — no paid runs: one claim through submit → fix → lock → web resolution): scan every text/jsonb column, captured logs and `fixtures/replay/` for any fixture text (DB/logs only), quote or page text
+- [x] T076 [P] Write `tests/integration/no-content.test.ts` for SC-008 with stub models (no paid runs): one claim through submit → fix → lock → web resolution, then scan every text/jsonb column and the captured logs for the post text, fix text, page text and quote (recorded answers are local only, research R5, so `fixtures/replay/` is not scanned)
 - [x] T077 [P] Add per-claim cost summary to `seeds:open` and `corpus` output; fail if any claim exceeds $0.30
 - [x] T078 [P] Add `deploy/backup.sh` (nightly `pg_dump` of Supabase to off-box storage) and a systemd timer `deploy/vaticeno-backup.timer`; document one restore test in `quickstart.md`
 - [x] T079 [P] Add `deploy/Caddyfile` for `vaticeno.app` → `localhost:3000`

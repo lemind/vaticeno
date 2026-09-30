@@ -14,8 +14,9 @@ import { proposeContract } from '../llm/normalize.js';
 import { log } from '../log.js';
 import { buildNeedsInfoReply } from '../replies/needs-info.js';
 import { NEEDS_INFO_WINDOW_MS } from './expire.js';
+import { REACHED_LOCK } from './transitions.js';
 import {
-  alreadyRecordedReply, amendedReply, assertReplyFits, HELP_REPLY, notChangedReply, recordedReply, type RefusalReason, refusedReply, rejectedReply, rejectReasonWords,
+  alreadyRecordedReply, amendedReply, HELP_REPLY, notChangedReply, recordedReply, stillNotRecordedReply, type RefusalReason, refusedReply, rejectedReply, rejectReasonWords,
 } from '../replies/templates.js';
 import type { SourceReader } from './source-reader.js';
 
@@ -44,15 +45,16 @@ type Decision =
   | { outcome: 'needs_info'; unclear: UnclearItem[]; explanation: string; proposal: Proposal | null }
   | { outcome: 'rejected'; reason: Exclude<RejectReason, 'duplicate'> };
 
-type Evaluation = { decision: Decision; modelId: string; selfConfidence: number | null; costs: CallCost[] };
+type Evaluation = { decision: Decision; modelId: string; selfConfidence: number | null };
 
-// Proposal → checks → price feed confirmation. Shared by submit, fixes and edits found at lock.
-export async function evaluate(deps: ClaimDeps, text: string, now: Date): Promise<Evaluation> {
+// Proposal → checks → price feed confirmation. Shared by submit, fixes and edits found at lock. Paid calls go
+// into `costs` as they happen, so a feed outage after the model call still leaves its cost to record.
+export async function evaluateClaimText(deps: ClaimDeps, text: string, now: Date, costs: CallCost[]): Promise<Evaluation> {
   const proposed = await proposeContract(deps.llm, deps.normalizerModel, text, now.toISOString().slice(0, 10));
-  const costs = [...proposed.costs];
+  costs.push(...proposed.costs);
   if (proposed.kind === 'malformed') {
     const explanation = "I couldn't turn this into a checkable prediction.";
-    return { decision: { outcome: 'needs_info', unclear: [], explanation, proposal: null }, modelId: proposed.modelId, selfConfidence: null, costs };
+    return { decision: { outcome: 'needs_info', unclear: [], explanation, proposal: null }, modelId: proposed.modelId, selfConfidence: null };
   }
   const { proposal } = proposed;
   const checked = runChecks(proposal, now, { sourcePostClaimed: false });
@@ -60,7 +62,17 @@ export async function evaluate(deps: ClaimDeps, text: string, now: Date): Promis
   if (checked.outcome === 'rejected') decision = { outcome: 'rejected', reason: checked.reason as Exclude<RejectReason, 'duplicate'> };
   else if (checked.outcome === 'needs_info') decision = { outcome: 'needs_info', unclear: checked.unclear, explanation: proposal.unclear_explanation, proposal };
   else decision = await confirmPriceFeed(deps.coinbase, checked.contract, proposal);
-  return { decision, modelId: proposed.modelId, selfConfidence: proposal.self_confidence, costs };
+  return { decision, modelId: proposed.modelId, selfConfidence: proposal.self_confidence };
+}
+
+// A step that throws after paid calls (feed outage, unreadable post) still records what was spent (FR-031).
+export async function recordingCostsOnFailure<T>(db: Db, claimId: string | null, costs: CallCost[], step: () => Promise<T>): Promise<T> {
+  try {
+    return await step();
+  } catch (error) {
+    await recordCosts(db, costs.map((cost) => ({ ...cost, claimId })));
+    throw error;
+  }
 }
 
 export async function submitClaim(deps: ClaimDeps, input: SubmitInput): Promise<SubmitResult> {
@@ -74,9 +86,12 @@ export async function submitClaim(deps: ClaimDeps, input: SubmitInput): Promise<
   const existing = await findSlugBySourceTweet(db, input.sourceTweetId);
   if (existing) return duplicate(existing, input);
 
-  const { decision, modelId, selfConfidence, costs } = await evaluate(deps, input.text, input.now);
-  const slug = await newSlug(async (candidate) => (await db.select({ id: claims.id }).from(claims).where(eq(claims.slug, candidate)).limit(1)).length > 0);
-  const reply = await replyFor(deps, decision, slug, input.text, input.now, costs);
+  const costs: CallCost[] = [];
+  const { decision, modelId, selfConfidence, slug, reply } = await recordingCostsOnFailure(db, null, costs, async () => {
+    const evaluated = await evaluateClaimText(deps, input.text, input.now, costs);
+    const newSlugValue = await newSlug(async (candidate) => (await db.select({ id: claims.id }).from(claims).where(eq(claims.slug, candidate)).limit(1)).length > 0);
+    return { ...evaluated, slug: newSlugValue, reply: await replyFor(deps, evaluated.decision, newSlugValue, input.text, input.now, costs) };
+  });
 
   const inserted = await db.transaction(async (tx) => {
     const row = claimRow(decision, slug, input, modelId, selfConfidence);
@@ -103,7 +118,10 @@ export async function submitClaim(deps: ClaimDeps, input: SubmitInput): Promise<
 }
 
 export type AmendInput = { slug: string; authorId: string; text: string; now: Date };
-export type AmendResult = { outcome: 'recorded' | 'amended' | 'still_needs_info' | 'not_changed' | 'refused'; reply: string };
+// `ignored` (someone other than the author): no reply at all (FR-010).
+export type AmendResult =
+  | { outcome: 'recorded' | 'amended' | 'still_needs_info' | 'not_changed' | 'refused'; reply: string }
+  | { outcome: 'ignored'; reply: null };
 
 export const MAX_AMENDS = 2;
 
@@ -113,17 +131,21 @@ export async function amendClaim(deps: ClaimDeps & { reader: SourceReader }, inp
   const { db } = deps;
   const [claim] = await db.select().from(claims).where(eq(claims.slug, input.slug)).limit(1);
   if (!claim) throw new Error(`no claim ${input.slug}`);
-  if (claim.authorXUserId !== input.authorId) return refused(claim, 'not_author');
+  if (claim.authorXUserId !== input.authorId) {
+    log('info', 'reply from someone else ignored', { event: 'claim.amend_ignored', claim_id: claim.id });
+    return { outcome: 'ignored', reply: null };
+  }
   if (claim.status === 'draft') return amendDraft(deps, claim, input);
   if (claim.status !== 'needs_info') {
-    return refused(claim, ['locked', 'resolving', 'resolved', 'void'].includes(claim.status) ? 'locked' : 'closed');
+    return refused(claim, REACHED_LOCK.has(claim.status) ? 'locked' : 'closed');
   }
   // Past the 24 h window it is expired even if the expiry job has not run yet (FR-011).
   if (claim.needsInfoSince && input.now.getTime() - claim.needsInfoSince.getTime() >= NEEDS_INFO_WINDOW_MS) {
     return refused(claim, 'expired');
   }
 
-  const { decision, modelId, selfConfidence, costs } = await evaluate(deps, input.text, input.now);
+  const costs: CallCost[] = [];
+  const { decision, modelId, selfConfidence } = await recordingCostsOnFailure(db, claim.id, costs, () => evaluateClaimText(deps, input.text, input.now, costs));
 
   if (decision.outcome !== 'recorded') {
     const why = decision.outcome === 'rejected' ? rejectReasonWords(decision.reason) : decision.explanation;
@@ -134,11 +156,15 @@ export async function amendClaim(deps: ClaimDeps & { reader: SourceReader }, inp
       await recordCosts(tx, costs.map((cost) => ({ ...cost, claimId: claim.id })));
     });
     log('info', 'amend still unclear', { event: 'claim.amend_unclear', claim_id: claim.id, slug: claim.slug, usd_cost: sumUsd(costs) });
-    return { outcome: 'still_needs_info', reply: assertReplyFits(`STILL NOT RECORDED — ${why.trim() || 'Something essential is still missing.'}\nReply with the prediction and a date.`) };
+    return { outcome: 'still_needs_info', reply: stillNotRecordedReply(why) };
   }
 
   // Record the tweet version the amend applies to, so an earlier edit is not replayed at lock.
-  const { versionId } = await deps.reader.readVersion(claim.sourceTweetId);
+  // The reply is built before any write: a fix is never saved with a reply that can't be posted.
+  const { reply, versionId } = await recordingCostsOnFailure(db, claim.id, costs, async () => ({
+    reply: recordedReply(claim.slug, renderStatement(decision.contract)),
+    versionId: (await deps.reader.readVersion(claim.sourceTweetId)).versionId,
+  }));
   const updated = await db.transaction(async (tx) => {
     const rows = await tx.update(claims).set({
       status: 'draft',
@@ -157,7 +183,7 @@ export async function amendClaim(deps: ClaimDeps & { reader: SourceReader }, inp
   if (!updated) return refused(claim, 'conflict');
 
   log('info', 'claim amended', { event: 'claim.amended', claim_id: claim.id, slug: claim.slug, from: 'needs_info', usd_cost: sumUsd(costs) });
-  return { outcome: 'recorded', reply: recordedReply(claim.slug, renderStatement(decision.contract)) };
+  return { outcome: 'recorded', reply };
 }
 
 async function amendDraft(deps: ClaimDeps & { reader: SourceReader }, claim: ClaimRow, input: AmendInput): Promise<AmendResult> {
@@ -165,7 +191,8 @@ async function amendDraft(deps: ClaimDeps & { reader: SourceReader }, claim: Cla
   if (!claim.lockAt || input.now.getTime() >= claim.lockAt.getTime()) return refused(claim, 'locked');
   if (claim.amendCount >= MAX_AMENDS) return refused(claim, 'limit');
 
-  const { decision, modelId, selfConfidence, costs } = await evaluate(deps, input.text, input.now);
+  const costs: CallCost[] = [];
+  const { decision, modelId, selfConfidence } = await recordingCostsOnFailure(deps.db, claim.id, costs, () => evaluateClaimText(deps, input.text, input.now, costs));
   if (decision.outcome !== 'recorded') {
     await recordCosts(deps.db, costs.map((cost) => ({ ...cost, claimId: claim.id })));
     const why = decision.outcome === 'rejected' ? rejectReasonWords(decision.reason) : decision.explanation;
@@ -174,10 +201,13 @@ async function amendDraft(deps: ClaimDeps & { reader: SourceReader }, claim: Cla
   }
 
   // The version the fix applies to, so an earlier edit of the post is not replayed at lock.
-  const { versionId } = await deps.reader.readVersion(claim.sourceTweetId);
+  const { reply, versionId } = await recordingCostsOnFailure(deps.db, claim.id, costs, async () => ({
+    reply: amendedReply(claim.slug, renderStatement(decision.contract), MAX_AMENDS - claim.amendCount - 1), // before any write
+    versionId: (await deps.reader.readVersion(claim.sourceTweetId)).versionId,
+  }));
   const applied = await replaceDraftContract(deps.db, claim, { contract: decision.contract, modelId, selfConfidence, versionId, now: input.now, costs, lockNotReached: true });
   if (!applied) return refused(claim, 'conflict');
-  return { outcome: 'amended', reply: amendedReply(claim.slug, renderStatement(decision.contract), MAX_AMENDS - claim.amendCount - 1) };
+  return { outcome: 'amended', reply };
 }
 
 // A fix or an edit found at lock: new contract, +1 fix, lock restarts. 0 rows (a concurrent change won, or

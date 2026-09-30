@@ -1,23 +1,10 @@
 // Shared entrypoint plumbing: config, observability, dependencies, clean exit (plan.md "Architecture").
 import { parseArgs, type ParseArgsConfig } from 'node:util';
 import { type CoreConfig, loadCoreConfig } from '../config.js';
-import { closeDb, getDb } from '../db/client.js';
-import { createCoinbase } from '../feeds/coinbase.js';
-import { createLlmClient } from '../llm/client.js';
-import { createReplayStore } from '../llm/replay.js';
+import { closeDb } from '../db/client.js';
 import { captureError, flush, initObservability } from '../observe.js';
 
-export function buildDeps(config: CoreConfig) {
-  const store = createReplayStore();
-  return {
-    db: getDb(),
-    llm: createLlmClient({ mode: config.LLM_MODE, apiKey: config.GEMINI_API_KEY, store }),
-    coinbase: createCoinbase({ mode: config.LLM_MODE, store }),
-    normalizerModel: config.NORMALIZER_MODEL,
-  };
-}
-
-export type CliDeps = ReturnType<typeof buildDeps>;
+export { buildDeps } from '../deps.js';
 
 // Runs one command: errors are logged and sent to Sentry, the exit code is set, connections close.
 export async function runCli(name: string, main: (config: CoreConfig) => Promise<void>): Promise<void> {

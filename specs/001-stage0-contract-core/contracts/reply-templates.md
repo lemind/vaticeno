@@ -50,8 +50,13 @@ NOT CHANGED — {reason or unclear_explanation}
 #{slug} stays as recorded.
 ```
 
+**STILL NOT RECORDED** — a fix to a needs-info claim that still can't be recorded (24 h clock keeps running)
+```
+STILL NOT RECORDED — {reason or unclear_explanation}
+Reply with the prediction and a date.
+```
+
 **REFUSED** — a fix that can't be considered at all (fixed texts, `refusedReply`)
-- not the author: `Only the author can change this prediction.`
 - locked or later: `#{slug} is locked and can't change.` · expired/rejected: `#{slug} can no longer be changed.`
 - needs info past 24 h: `#{slug} expired: no fix within 24 hours.`
 - two fixes used: `#{slug} can't be changed again (2 fixes used).`
