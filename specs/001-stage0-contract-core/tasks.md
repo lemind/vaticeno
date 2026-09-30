@@ -142,6 +142,15 @@ that itself passes the checks, use the amend format and fit 280 chars (SC-005).
 - [ ] T061 [US3] Run `LLM_MODE=record npm run seeds:open` to choose `JUDGE_MODEL_A/B` and `ARBITER_MODEL`; recordings stay local in `fixtures/replay/` (research R5); inspect every model-decided seed's evidence link (SC-004) — **recorded 2026-09-30, SC-003 NOT met**: 61 seeds, 59% agreement, 0 wrong HIT/MISS, $5.43 list price. 24 of 25 misses had the right answer from sources outside the trust policy (see `seeds:open -- --verbose`); owner decision pending on trust breadth / search quality
 - [x] T062 [US3] Write `tests/integration/resolver.test.ts`: outage → no evidence, claim stays resolving; needs_human keeps resolving; manual decision finalises; one resolution per claim across repeated runs; price claims never call the web path
 
+### Phase 5a: Earned trust instead of a fixed site list (constitution 2.0.0)
+
+- [ ] T081 [US3] Migration: `evidences.trust_level` CHECK → (primary, established, weak), add `evidences.trust_reason text`; drop `resolutions.policy_version`; create `sources` (domain PK, agreed_count ≥ 1, first_agreed_at, last_agreed_at), RLS on with no policies; update `src/db/schema.ts` and the DB tests' table list
+- [ ] T082 [US3] Judge `judge.v2` (`src/llm/instructions/judge.v2.md`, `src/llm/judges.ts`): add `source_trust` + `trust_reason` per `contracts/llm-schemas.md`; recorded shape keeps both
+- [ ] T083 [US3] Replace `src/resolve/trust.ts` with pure `capTrust(rated, url, contract)` (price feed → primary; primary only on the locator's registrable domain, else established); rewrite `trust.test.ts` exhaustively; delete `config/source-policy.json` and `loadSourcePolicy`; move the closed `source.kind` list into `src/contract/schema.ts`
+- [ ] T084 [US3] Rename trust levels through gates, decide, web-evidence, price-evidence, resolver, review CLIs and their tests (official → primary, trusted → established, other → weak); absence evidence only from a primary page
+- [ ] T085 [US3] Create `src/resolve/sources.ts`: `knownSources(db)` (agreed_count ≥ 5) passed to `search.v2`; `recordSourceStanding(tx, claimId, outcome)` upserting once per registrable domain whose found-quote evidence matched the outcome, called in the transaction that writes a final HIT/MISS (resolver and `resolve-manual`); integration test: re-runs and several pages from one site count once, wrong sites, VOID and needs_human count nothing
+- [ ] T086 [US3] Re-record `seeds:open` live (~$5) and report agreement and wrong HIT/MISS against SC-003
+
 **Checkpoint**: seeds pass; hypothesis D answered on historical data.
 
 ---

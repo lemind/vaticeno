@@ -6,14 +6,16 @@
 
 ## Summary
 
-Build the offline core on five tables (claims, positions, evidences, resolutions, cost_events). A prediction
+Build the offline core on six tables (claims, positions, evidences, resolutions, cost_events, sources). A prediction
 text becomes a structured contract (any topic): the contract proposal uses one model call plus one
 retry, and deterministic checks decide whether it can be recorded; the statement is rendered from
 the contract, never model-authored. Unclear predictions get a checked NEEDS INFO reply (case A).
 After the deadline evidence is gathered — for prices, Coinbase daily candles compared in code (the
 feed alone); otherwise web pages our code fetched and fingerprinted, read by a model — and every item passes code gates
 (trusted, quote found, in window, final, independent). One resolution per claim: only the highest
-trust level present decides; one official item, or two trusted items agreeing, is final;
+trust level present decides (rated per page by the judge, capped in code: primary only on the
+contract's own source domain; no fixed site list); one primary item, or two established items
+agreeing, is final; sites that agreed with 5+ final verdicts are searched first;
 disagreement within that level goes to an arbiter model, which decides with notes or flags the
 claim for human review (CLI now, admin panel later). Proven by a 100-fixture corpus, 60 crypto seeds and a categorised
 open-topic seed set, all replayable at zero cost. Before lock, amends and tweet edits replace the
@@ -27,7 +29,7 @@ the claim); after lock nothing changes. No X calls (edits simulated).
 **Primary Dependencies**: Zod (existing), Fastify 5, Drizzle ORM + drizzle-kit, postgres.js,
 node-cron, @google/genai, @sentry/node — new ones need owner approval (see research.md)
 
-**Storage**: PostgreSQL — Supabase (Frankfurt, DB only, 5 tables). Backend connects as the owner
+**Storage**: PostgreSQL — Supabase (Frankfurt, DB only, 6 tables). Backend connects as the owner
 role via the session pooler; RLS on with no policies blocks Supabase's public API; browsers reach
 only Fastify. Local Postgres 16 in Docker for dev/test
 
@@ -63,7 +65,7 @@ search cost per claim; Coinbase candles ≤ 300 per request (≈ 13 requests for
 | IV. Speak only when spoken to | Stage 0 posts nothing; reply templates fixed; one reply per interaction (replies produced and checked by the CLI) | ✅ (n/a live) |
 | V. IDs, not text | only IDs + our contract stored; fixture texts stay in fixture files; logs carry lengths, not text | ✅ |
 | VI. Platform policy gates live behavior | no X calls; model-written replies only produced, never posted | ✅ |
-| VII. Boring by design | 5 tables; one process; jobs are plain services called by CLI and cron; no admin web surface; no Redis/broker/frontend framework; Zod on every boundary (env, model output, Coinbase, fetched pages, HTTP); CHECK on every enum; 6 new deps listed for approval | ✅ pending dep approval |
+| VII. Boring by design | 6 tables; one process; jobs are plain services called by CLI and cron; no admin web surface; no Redis/broker/frontend framework; Zod on every boundary (env, model output, Coinbase, fetched pages, HTTP); CHECK on every enum; 6 new deps listed for approval | ✅ pending dep approval |
 
 Post-design re-check (after Phase 1): unchanged — ✅. No violations; Complexity Tracking empty.
 
@@ -93,7 +95,6 @@ specs/001-stage0-contract-core/
 src/
 ├── config.ts, log.ts               # existing — extended (DB, model env; log → stdout + Sentry Logs, R11)
 ├── observe.ts                      # Sentry init, scrubber, cron monitors, alert(), flush (R11)
-├── ../config/source-policy.json    # curated official domains per issuer + trusted sites per kind
 ├── commands/, ingest/, x/, poc/    # existing POC — NOT touched by Stage 0 tasks
 ├── db/
 │   ├── schema.ts                   # Drizzle: claims, positions, evidences, resolutions, cost_events
@@ -128,7 +129,8 @@ src/
 │   ├── price-evidence.ts           # Coinbase candles over (lock_at, deadline] → evidence
 │   ├── web-evidence.ts             # search → fetch → judge per snapshot → evidence
 │   ├── fetch.ts                    # snapshot, sha256, retrieved_at
-│   ├── trust.ts                    # trustLevel(url, contract, policy): official only from policy list — pure
+│   ├── trust.ts                    # capTrust(rated, url, contract): primary only on the locator domain — pure
+│   ├── sources.ts                  # known sources (agreed ≥ 5) + per-claim upsert at final verdict
 │   ├── gates.ts                    # trusted, quote_found, in_window, final, independent — pure
 │   ├── similarity.ts               # quote check, simhash near-duplicates — pure
 │   ├── decide.ts                   # rule table → final | needs_arbiter | needs_human | wait — pure

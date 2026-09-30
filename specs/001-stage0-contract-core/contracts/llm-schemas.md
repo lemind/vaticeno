@@ -21,6 +21,7 @@ ProposalSchema = {
 Input: locked contract, lock and deadline, and the pass number (two passes, `JUDGE_MODEL_A` then
 `JUDGE_MODEL_B`). Output: grounding metadata only (`webSearchQueries`, `groundingChunks[].web.uri`) →
 candidate URLs. The model's prose is ignored. The contract's own locator is always read as well.
+Input also lists known sources (`sources.agreed_count ≥ 5`) as places to look first — a hint only.
 
 ## Judge — `judge.v1` (no tools)
 
@@ -34,12 +35,16 @@ JudgeSchema = {
   quote: string | null,                  // verbatim from the page; checked in code, then dropped
   event_date: string | null,             // YYYY-MM-DD of the event itself, not of publication
   is_final_result: boolean,
-  from_contract_source: boolean,        // informational only; trust comes from the source policy
+  from_contract_source: boolean,        // informational only
+  source_trust: 'primary' | 'established' | 'weak',  // primary = the body that decides/records the outcome;
+                                         // established = outlet with own reporting; weak = anything else
+  trust_reason: string,                  // ≤ 200 chars; stored on the evidence row
   original_source: string | null,       // who first reported it if the page credits one (e.g. "AP"); independence gate
   reasoning: string                      // ≤ 400 chars; not stored in the database
 }
 ```
-Code then runs the gates (trusted, quote_found, in_window, final, independent) and stores the
+Code caps `source_trust` with `capTrust` (primary only for the contract's own source domain, else
+at most established), then runs the gates (trusted, quote_found, in_window, final, independent) and stores the
 evidence row with `gates` and `passed`. Model flags (`is_final_result`, `from_contract_source`) are
 inputs to the gates, never the final word.
 

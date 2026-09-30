@@ -1,6 +1,6 @@
 # Data Model: Stage 0 — Contract Core
 
-Postgres (Supabase). Five tables. All timestamps `timestamptz`, stored UTC. Every enum column has a
+Postgres (Supabase). Six tables. All timestamps `timestamptz`, stored UTC. Every enum column has a
 CHECK constraint. No content is stored: not the X post text, not quotes or snapshots of external
 sources — only links, IDs, hashes and our own contract (FR-029). Visual version: the "Vaticeno Data
 Model" artifact.
@@ -14,6 +14,7 @@ Model" artifact.
 | evidences | what each checked source said, with its proof and gate results | the receipts; only evidence that passes every gate counts |
 | resolutions | one per claim: final outcome, how it was reached, arbiter notes, human-review flag | the verdict and its explanation; flags the cases a human must decide |
 | cost_events | every paid call and its cost | keeps spend under $0.30 per claim |
+| sources | per site: how many final verdicts its evidence agreed with | sites earn "known" standing (≥ 5) instead of a fixed list; known sites are searched first |
 
 ## Access model
 
@@ -22,7 +23,7 @@ browser → Fastify (server-rendered pages) → backend DB role → Postgres
 ```
 - The backend connects with the **database owner role** (`postgres`) through the Supabase session
   pooler; RLS does not restrict the owner role, so the application works normally.
-- RLS is **enabled with no policies** on all five tables, so Supabase's public REST/GraphQL API
+- RLS is **enabled with no policies** on all six tables, so Supabase's public REST/GraphQL API
   (anon/authenticated roles) sees nothing. The browser never talks to the database.
 - The connection string lives only in the droplet's `.env`.
 
@@ -79,11 +80,11 @@ Contract = {
   deadline_at: ISODateTime,           // UTC; bare date → 23:59:59Z
   source: {
     name: string,                     // issuing body + record
-    kind: string,                     // key in source-policy.trusted (for "trusted")
-    locator: string,                  // URL of the record the contract names; trusted unless its domain is on the official list
+    kind: string,                     // label only (closed list in src/contract/schema.ts); never grants trust
+    locator: string,                  // URL of the record the contract names; the only domain besides the price feed whose pages can be primary
     scope: string,
     entity_id: string,
-    absence_is_meaningful: boolean,   // true only for exhaustive official records
+    absence_is_meaningful: boolean,   // true only for exhaustive records at the locator
     fallback: 'same_issuer_only'
   },
   negative_condition: string,
@@ -128,7 +129,8 @@ One row per source checked. Rows are written as sources are checked, before the 
 | source_kind | text CHECK (price_feed, web) | |
 | basis | text CHECK (record, absence) | `record` = the source shows a result; `absence` = the result is not in a source whose contract marks `absence_is_meaningful`, checked on or after the deadline |
 | source_name | text | e.g. `coinbase`, `premierleague.com`, `bbc.co.uk/sport` |
-| trust_level | text CHECK (official, trusted, other) | set in code from the **source policy** (below), never by the model |
+| trust_level | text CHECK (primary, established, weak) | rated by the judge model, capped in code (below) |
+| trust_reason | text null | the judge's one-line reason for the rating (≤ 200 chars, our derived text, not page content) |
 | says | text CHECK (hit, miss, pending, irrelevant, entity_gone) | `hit` / `miss` = the source settles it; `pending` = the result exists but is not final yet (e.g. awaiting certification); `irrelevant` = the source does not answer the question (nothing relevant, too little data); `entity_gone` = the source answers but the entity no longer exists (delisted asset, deleted fixture) |
 | event_date | date null | the date the source establishes |
 | value | numeric null | price feed answers |
@@ -141,39 +143,28 @@ One row per source checked. Rows are written as sources are checked, before the 
 | passed | bool | true only if every applicable gate passed |
 | created_at | timestamptz default now() | |
 
-**Trust level** is computed in code by `trustLevel(url, contract, policy)`. Naming a source in the
-contract (which a model writes) never makes it official:
-- `official`: price-feed evidence; or the URL's registrable domain is listed in the source policy's
-  `official` list (curated, versioned).
-- `trusted`: the domain is listed under the contract's `source.kind` in the policy; **or** it is the
-  domain of the contract's own `source.locator` but not on the official list (so any topic works,
-  yet the contract's own link always needs one more agreeing source).
-- `other`: anything else. The model's `from_contract_source` flag is ignored for trust.
+**Trust level** — no fixed site list. The judge model rates each page it reads:
+- `primary`: the body that decides or records the outcome itself (the regulator, the league, the
+  company, the electoral authority);
+- `established`: an outlet with its own reporting and editorial standards;
+- `weak`: anything else (blogs, aggregators, user-edited or video sites, unclear origin). Never counts.
 
-One rule, no exceptions: **only the curated policy grants trust on its own.** The contract's locator
-is trusted as a fallback — a single domain the model chose, so it can supply at most one agreeing
-item and can never make a claim final alone. `source.kind` only selects which curated list applies;
-an unknown kind selects nothing.
+Code then caps the rating by `capTrust(rated, url, contract)` (pure, exhaustively tested):
+- price-feed evidence is always `primary` (set in code, no model);
+- `primary` stands only when the page's registrable domain equals the contract's `source.locator`
+  domain — the source fixed at lock. Any other page rated `primary` is stored as `established`, so a
+  model can never make an arbitrary site decide a claim alone;
+- `established` and `weak` are kept as rated.
 
-**Source policy** (`config/source-policy.json`, versioned; grows as real cases appear):
-
-```json
-{ "version": 1,
-  "official": {                       // issuer → its domains; only these can be "official"
-    "us_fda":         ["fda.gov", "accessdata.fda.gov"],
-    "premier_league": ["premierleague.com"] },
-  "trusted": {                        // per kind of result
-    "football_results": ["bbc.co.uk", "espn.com", "uefa.com"],
-    "regulatory":       ["reuters.com", "apnews.com"] } }
-```
+Known sources (`sources` table, below) never change a trust level; they only shape the search.
 
 **Evidence gates** (evaluated in code; model flags are inputs, never the final word):
 
 | Gate | Passes when |
 |---|---|
-| trusted | `trust_level` is `official` or `trusted` (`other` never counts) |
+| trusted | `trust_level` is `primary` or `established` (`weak` never counts) |
 | quote_found | the model's quote occurs in the fetched page (checked in memory; the quote is then discarded, never stored). Not applicable to `basis = absence` and price feeds |
-| in_window | the event date is inside `(lock_at, deadline_at]`. For `basis = absence`: instead, the source was read on or after the deadline and the contract marks it `absence_is_meaningful` |
+| in_window | the event date is inside `(lock_at, deadline_at]`. For `basis = absence`: instead, the page is `primary` (the contract's own source), was read on or after the deadline, and the contract marks it `absence_is_meaningful` |
 | final | the result is final, not a projection or preliminary figure |
 | independent | not a copy of another item in the same run: different registrable domain **and** page text not near-identical (word-shingle similarity of the extracted text, computed in memory during the run; the text is then dropped) **and** not attributed to the same original report (the judge's `original_source`, e.g. "AP"). Copies count once |
 
@@ -189,9 +180,8 @@ Insert-only.
 | decided_by | text CHECK (evidence, arbiter, human) null | `evidence` = decided directly by passed evidence |
 | review_status | text CHECK (final, needs_human) | |
 | void_reason | text CHECK (insufficient_evidence, unresolvable) null | |
-| deciding_evidence_id | uuid FK evidences null | the evidence that established the outcome: the official item, the first of the agreeing trusted items, or the one the arbiter/human sided with. Required when outcome is hit or miss; null only for VOID |
+| deciding_evidence_id | uuid FK evidences null | the evidence that established the outcome: the primary item, the first of the agreeing established items, or the one the arbiter/human sided with. Required when outcome is hit or miss; null only for VOID |
 | arbiter_model_id | text null | |
-| policy_version | int | source-policy version used for trust levels |
 | arbiter_notes | text null | why the arbiter decided (or why it could not) |
 | human_notes | text null | set when a human decides (CLI now, admin panel later) |
 | decided_at | timestamptz null | |
@@ -201,22 +191,22 @@ Insert-only.
 
 HIT/MISS/contradiction use the latest `run_at` only; the waiting rows below (entity_gone, nothing
 found, pending) count earlier runs as well. `pending`, `irrelevant` and `entity_gone` items never count as HIT
-or MISS. An `official` item saying `pending` (it fails the `final` gate, so `passed = false`, but
+or MISS. A `primary` item saying `pending` (it fails the `final` gate, so `passed = false`, but
 this rule reads it anyway) makes the claim wait for the next run; still pending 30 days after the
 deadline → `needs_human`.
 
-Only the **highest trust level present** decides: if any `official` item passed, `trusted` items are
-ignored (shown on the page, never a contradiction). A contradiction is a hit/miss disagreement
+Only the **highest trust level present** decides: if any `primary` item passed, `established` items
+are ignored (shown on the page, never a contradiction). A contradiction is a hit/miss disagreement
 **within** that level.
 
 | Passed evidence | Result |
 |---|---|
-| 1 or more `official`, all agree | final — `decided_by = evidence` (trusted items don't matter) |
-| no `official`, 2 or more `trusted` agree, none contradicting | final — `decided_by = evidence` |
-| `official` items disagree, or (no official) `trusted` items disagree | LLM arbiter reads them: decides → final, `decided_by = arbiter` with notes; can't decide → `needs_human` |
-| exactly 1 `trusted`, no `official` | `needs_human` (one non-official source is not enough) |
+| 1 or more `primary`, all agree | final — `decided_by = evidence` (established items don't matter) |
+| no `primary`, 2 or more `established` agree, none contradicting | final — `decided_by = evidence` |
+| `primary` items disagree, or (no primary) `established` items disagree | LLM arbiter reads them: decides → final, `decided_by = arbiter` with notes; can't decide → `needs_human` |
+| exactly 1 `established`, no `primary` | `needs_human` (one secondary source is not enough) |
 | none, but sources were checked (an empty search counts as checked; an error does not) — in 2 runs at least 24 h apart | final VOID, `insufficient_evidence`; after only one such run → wait (late reporting) |
-| an `official` item says `entity_gone` in 3 separate runs (counted from `run_at`) | final VOID, `unresolvable`; fewer runs → wait for the next run |
+| a `primary` item says `entity_gone` in 3 separate runs (counted from `run_at`) | final VOID, `unresolvable`; fewer runs → wait for the next run |
 
 **Price feed gaps.** HIT may come from any observed close that meets the criterion. MISS needs a
 close for **every** day the contract depends on (every day in the window for `any_time_before`, the
@@ -256,6 +246,30 @@ with the claim insert in the same transaction; for a duplicate summon they are w
 | units | int default 1 | |
 | usd_cost | numeric(10,5) | |
 | created_at | timestamptz default now() | |
+
+## sources — sites earn standing by agreeing with final verdicts
+
+One row per site, created the first time the site **confirms** a final verdict (its answer matched
+it). Sites that were only mentioned or were wrong get no row. A counter, not a scan: nothing ever
+re-reads `evidences` to count. Claims and evidences hold no reference to this table; the domain
+comes from `evidences.url`.
+
+| Column | Type | Notes |
+|---|---|---|
+| domain | text PK | registrable domain, e.g. `reuters.com` |
+| agreed_count | int NOT NULL CHECK (≥ 1) | final HIT/MISS claims this site confirmed |
+| first_agreed_at | timestamptz default now() | |
+| last_agreed_at | timestamptz default now() | |
+
+**How it counts.** In the same transaction that writes a final HIT/MISS resolution (by evidence,
+arbiter or human), for each distinct domain among that claim's evidence whose quote was found and
+whose `says` equals the outcome: `INSERT (domain, 1) ON CONFLICT (domain) DO UPDATE SET
+agreed_count = agreed_count + 1, last_agreed_at = now()`. Once per domain per claim, so re-runs and
+several pages from one site count once. VOID and `needs_human` update nothing.
+
+**Known source** = `agreed_count ≥ 5` (computed when read, not a stored flag). The resolver passes
+known domains to the search step as places to look first. Standing never changes a trust level or
+decides a claim. Plain table, no triggers; RLS on with no policies.
 
 ## Lifecycle (enforced by trigger)
 

@@ -1,6 +1,10 @@
 <!--
 Sync Impact Report
-- Version change: 1.0.0 → 1.1.0 (2026-09-29, MINOR): I — lock version + hash recorded, edited
+- Version change: 1.1.0 → 2.0.0 (2026-09-30, MAJOR): II redefined — no curated site list; the
+  judge model rates each page primary/established/weak, code caps primary to the price feed and
+  the contract's own source domain; sites earn "known" standing after 5 agreeing final verdicts
+  (search hint only). III — entity_gone from a primary source.
+- Earlier: 1.0.0 → 1.1.0 (2026-09-29, MINOR): I — lock version + hash recorded, edited
   posts re-checked, never locked against a version they weren't built from; II — official only
   from the curated source policy, highest trust level decides; III — entity_gone needs 3 runs;
   coverage cap 55%.
@@ -64,15 +68,20 @@ Rationale: if the question can move after it is asked, no verdict means anything
 - Ambiguous meaning is `needs_info`, never a guess (e.g. intraday "touches" MUST NOT be mapped onto
   a daily-close check).
 - Every claim is judged from evidence (for prices, the deterministic feed comparison alone;
-  otherwise several web sources). Each evidence item must pass gates — trusted source, quote found
+  otherwise several web sources). Each evidence item must pass gates — source not weak, quote found
   in the fetched page, event inside the window, final result, independent — or it does not count.
-- Evidence has a trust level — official (the price feed or a domain on the curated official list),
-  trusted (curated list) or other (never counts) — from the curated, versioned source policy,
-  applied in code, never by a model. A source named in a model-written contract is at most trusted
-  unless the policy lists it as official. One resolution per claim: one passed official item, or
-  two passed trusted items agreeing, is final; only the highest trust level present decides;
-  disagreement within it goes to a model arbiter, which decides with notes or flags the claim for human review; a single trusted item
-  without an official one is flagged for human review. Models judge only against the locked contract.
+- There is no fixed list of sites. Each evidence item has a trust level — primary (the body that
+  decides the outcome), established (an outlet with its own reporting) or weak (never counts) —
+  rated by the judge model per page, with its reason stored. Code caps it: primary only for the
+  price feed or a page on the contract's own source domain (fixed at lock); any other page is at
+  most established. One resolution per claim: one passed primary item, or two passed established
+  items agreeing, is final; only the highest trust level present decides; disagreement within it
+  goes to a model arbiter, which decides with notes or flags the claim for human review; a single
+  established item without a primary one is flagged for human review. Models judge only against
+  the locked contract.
+- Sources earn standing, they are not granted it: a site whose evidence agreed with 5 or more final
+  verdicts becomes a known source and is searched first. Standing guides search only; it never
+  raises a trust level or decides a claim.
 - Evidence MUST point to its proof (link + fingerprint of what was read), and the proof is checked
   in code (the model's quote must exist in the fetched page; the quote itself is not kept). HIT needs positive evidence the event occurred after lock and by the deadline;
   MISS needs a final contradicting result or absence from a source where absence is meaningful;
@@ -88,7 +97,7 @@ not for the confidence of its answer.
 
 - A source that is unreachable, erroring or malformed yields no answer: retry on the next run.
   It MUST NOT void a claim.
-- Only an official source that answers but no longer has the entity (delisted coin, deleted
+- Only a primary source that answers but no longer has the entity (delisted coin, deleted
   fixture), confirmed in 3 separate runs, may make a claim VOID ("unresolvable").
 - A failed existence check MUST NOT trigger a retried post. Unknown state means wait, not act.
 - Failures MUST be visible: retryable errors back off, exhausted ones alert. Nothing is dropped
@@ -183,4 +192,4 @@ Rationale: a one-person proto survives on code it can read in one sitting.
 - Every plan passes the Constitution Check before design and again after it. A justified violation
   is recorded in the plan's Complexity Tracking table; an unjustified one blocks the work.
 
-**Version**: 1.1.0 | **Ratified**: 2026-09-28 | **Last Amended**: 2026-09-29
+**Version**: 2.0.0 | **Ratified**: 2026-09-28 | **Last Amended**: 2026-09-30
