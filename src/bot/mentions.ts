@@ -103,6 +103,11 @@ export async function pollMentions(deps: BotDeps, now: Date): Promise<{ mentions
     state.last_successful_poll_at = now.toISOString();
     await writeIngestState(state, deps.statePath); // persisted per mention: a crash never replays a handled one
   }
+  if (mentions.length === 0) {
+    state.last_successful_poll_at = now.toISOString(); // a quiet poll still proves X answered
+    await writeIngestState(state, deps.statePath);
+  }
+  log('info', 'mentions poll', { event: 'mentions.polled', mentions: mentions.length, replies });
   return { mentions: mentions.length, replies };
 }
 
