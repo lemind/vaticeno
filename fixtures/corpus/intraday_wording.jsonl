@@ -1,0 +1,4 @@
+{"id": "iw-001", "group": "intraday_wording", "today": "2026-09-30", "text": "BTC touches 150k by 2026-12-31", "expected": "needs_info"}
+{"id": "iw-002", "group": "intraday_wording", "today": "2026-09-30", "text": "ETH wicks above $8,000 before 2027-03-31", "expected": "needs_info"}
+{"id": "iw-003", "group": "intraday_wording", "today": "2026-09-30", "text": "SOL hits $400 intraday by 2027-01-31", "expected": "needs_info"}
+{"id": "iw-004", "group": "intraday_wording", "today": "2026-09-30", "text": "DOGE spikes to $1 at some point by 2027-12-31", "expected": "needs_info"}

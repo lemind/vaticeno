@@ -1,0 +1,23 @@
+{
+ "id": "op-036",
+ "category": "announcement_before_lock_event_after",
+ "expected_outcome": "hit",
+ "note": "Announced 2024-02-04; released 2024-04-19.",
+ "lock_at": "2024-03-01T12:00:00Z",
+ "contract": {
+  "subject": "Taylor Swift",
+  "criterion": "Taylor Swift releases the album The Tortured Poets Department",
+  "deadline_at": "2024-04-30T23:59:59Z",
+  "source": {
+   "name": "Taylor Swift official site",
+   "kind": "entertainment_releases",
+   "locator": "https://www.taylorswift.com/",
+   "scope": "Taylor Swift",
+   "entity_id": "The Tortured Poets Department",
+   "absence_is_meaningful": false,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "the album is not released in the window",
+  "resolution_method": "model"
+ }
+}

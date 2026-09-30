@@ -12,11 +12,16 @@ cp .env.example .env
 npm run db:migrate
 ```
 
-## Prove the core (all offline, replay mode, zero cost)
+## Prove the core
+
+Recorded model answers are local only (`fixtures/replay/`, gitignored). On a fresh clone, record them
+once with a key; after that, replay runs are offline and free.
 
 ```bash
+LLM_MODE=record npm run corpus     # first time only (~$0.06)
+LLM_MODE=record npm run seeds:open # first time only (~$5)
 npm run corpus            # proposal + checks over 100 fixtures → pass rate (≥ 90%)
-npm run seeds:crypto      # 60 frozen crypto claims → must be 100%
+npm run seeds:crypto      # 60 frozen crypto claims → must be 100% (no recordings needed)
 npm run seeds:open        # seeded open-topic claims (SC-003 mix) → agreement ≥ 95%, wrong HIT/MISS < 5%
 npm test                  # unit tests
 npm run test:integration  # DB integration tests (needs `docker compose up -d`; each run creates its own scratch database)
@@ -38,7 +43,7 @@ npm run dev                                            # open http://localhost:3
 LLM_MODE=record npm run corpus -- --model <cheapest-flash-tier>
 LLM_MODE=record npm run seeds:open     # uses JUDGE_MODEL_A/B and ARBITER_MODEL from .env
 ```
-Pick the cheapest tier that meets SC-001 / SC-003; set it in `.env`; recordings become the new replay set.
+Pick the cheapest tier that meets SC-001 / SC-003; set it in `.env`; recordings become your local replay set (not committed).
 
 ## Production (droplet)
 

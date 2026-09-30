@@ -1,0 +1,120 @@
+{
+ "id": "cr-014",
+ "category": "clear_miss",
+ "contract": {
+  "subject": "LTC",
+  "criterion": "LTC-USD daily close above 69.37",
+  "deadline_at": "2024-09-15T23:59:59Z",
+  "source": {
+   "name": "Coinbase LTC-USD daily candles",
+   "kind": "crypto_price",
+   "locator": "https://api.exchange.coinbase.com/products/LTC-USD/candles",
+   "scope": "LTC-USD",
+   "entity_id": "LTC-USD",
+   "absence_is_meaningful": false,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "no qualifying daily close above 69.37 in the window",
+  "resolution_method": "price_feed",
+  "price": {
+   "provider": "coinbase",
+   "product_id": "LTC-USD",
+   "comparison": "CLOSE_ABOVE",
+   "threshold": 69.37,
+   "window_mode": "any_time_before"
+  }
+ },
+ "lock_at": "2024-09-05T12:00:00Z",
+ "expected_outcome": "miss",
+ "note": "no close within 5% of the threshold",
+ "candles": [
+  [
+   1725494400,
+   64.42,
+   68.53,
+   65.42,
+   66.07,
+   203213.59919466
+  ],
+  [
+   1725580800,
+   61.17,
+   66.81,
+   66.06,
+   63.05,
+   185642.1601108
+  ],
+  [
+   1725667200,
+   61.65,
+   64.15,
+   63.05,
+   62.05,
+   127016.72078336
+  ],
+  [
+   1725753600,
+   59.92,
+   62.3,
+   62.06,
+   60.95,
+   142092.73889505
+  ],
+  [
+   1725840000,
+   59.66,
+   61.82,
+   60.95,
+   61.44,
+   208790.58847377
+  ],
+  [
+   1725926400,
+   60.34,
+   61.78,
+   61.43,
+   61.53,
+   132446.60204749
+  ],
+  [
+   1726012800,
+   60.11,
+   62.44,
+   61.53,
+   62.21,
+   128830.09926104
+  ],
+  [
+   1726099200,
+   61.43,
+   63.14,
+   62.21,
+   62.85,
+   94207.80425732
+  ],
+  [
+   1726185600,
+   62.41,
+   65.05,
+   62.85,
+   64.97,
+   109423.39643119
+  ],
+  [
+   1726272000,
+   64.9,
+   66.78,
+   64.98,
+   65.94,
+   89844.48431582
+  ],
+  [
+   1726358400,
+   62.91,
+   66.35,
+   65.95,
+   63.26,
+   69741.19985632
+  ]
+ ]
+}

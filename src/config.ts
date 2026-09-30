@@ -31,24 +31,27 @@ export function loadConfig(): Config {
 
 // Stage 0 core (DB, models, observability). Separate from the POC config so neither breaks the other.
 const optionalText = z.string().trim().transform((v) => v || undefined).optional();
+const DEFAULT_MODEL = 'gemini-3.1-flash-lite';
+// An empty `KEY=` line in .env means "use the default".
+const modelId = z.preprocess((v) => (typeof v === 'string' && v.trim() === '' ? undefined : v), z.string().trim().min(1).default(DEFAULT_MODEL));
 
 const CoreEnvSchema = z
   .object({
     DATABASE_URL: z.string().regex(/^postgres(ql)?:\/\//, 'DATABASE_URL must be a postgres:// URL'),
     LLM_MODE: z.enum(['live', 'record', 'replay']).default('replay'),
     GEMINI_API_KEY: optionalText,
-    NORMALIZER_MODEL: optionalText,
-    JUDGE_MODEL_A: optionalText,
-    JUDGE_MODEL_B: optionalText,
-    ARBITER_MODEL: optionalText,
+    // Model IDs are part of every replay key, so replay needs them too. Defaults = the tiers the
+    // corpus / seeds runs chose (T035, T060); override in .env to try another tier.
+    NORMALIZER_MODEL: modelId,
+    JUDGE_MODEL_A: modelId,
+    JUDGE_MODEL_B: modelId,
+    ARBITER_MODEL: modelId,
     SENTRY_DSN: optionalText,
     PORT: z.coerce.number().int().min(1).max(65535).default(3000),
   })
   .superRefine((env, ctx) => {
-    if (env.LLM_MODE === 'replay') return;
-    const needed = ['GEMINI_API_KEY', 'NORMALIZER_MODEL', 'JUDGE_MODEL_A', 'JUDGE_MODEL_B', 'ARBITER_MODEL'] as const;
-    for (const key of needed) {
-      if (!env[key]) ctx.addIssue({ code: 'custom', path: [key], message: `${key} is required when LLM_MODE=${env.LLM_MODE}` });
+    if (env.LLM_MODE !== 'replay' && !env.GEMINI_API_KEY) {
+      ctx.addIssue({ code: 'custom', path: ['GEMINI_API_KEY'], message: `GEMINI_API_KEY is required when LLM_MODE=${env.LLM_MODE}` });
     }
   });
 

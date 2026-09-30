@@ -1,0 +1,23 @@
+{
+ "id": "op-018",
+ "category": "miss_by_meaningful_absence",
+ "expected_outcome": "miss",
+ "note": "Awarded to Han Kang on 2024-10-10.",
+ "lock_at": "2024-09-01T12:00:00Z",
+ "contract": {
+  "subject": "Haruki Murakami",
+  "criterion": "Haruki Murakami is awarded the 2024 Nobel Prize in Literature",
+  "deadline_at": "2024-10-31T23:59:59Z",
+  "source": {
+   "name": "Nobel Prize in Literature 2024",
+   "kind": "culture_awards",
+   "locator": "https://www.nobelprize.org/prizes/literature/2024/summary/",
+   "scope": "Haruki Murakami",
+   "entity_id": "2024 Nobel Prize in Literature",
+   "absence_is_meaningful": true,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "he is not the 2024 Literature laureate",
+  "resolution_method": "model"
+ }
+}

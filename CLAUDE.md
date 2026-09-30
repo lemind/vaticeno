@@ -43,3 +43,5 @@ Before changing a provider or model, `grep -rn "HACK(" src/` and re-validate eve
 **Unverified numbers stay labelled**: prices, rate limits and API behavior not yet measured (e.g. the §9 summoned-reply rate) are marked UNRECONCILED until measured. A documented number is not a verified one.
 
 **Tests**: ~55% repo-wide coverage is the MVP target and a cap, not a floor — default to NOT adding a test. The exceptions are the gates, the resolver and the mention/posting lifecycle — keep those exhaustive, because the §12 acceptance criteria (60 seeded claims at 100%, crash-window and lease-race tests, 100-example fixture corpus) are the product's proof it can referee.
+
+**Fixtures**: commit the cases (corpus, seeds with expected answers), never recorded model/search/fetch answers — `fixtures/replay/` is gitignored and regenerated with `LLM_MODE=record` (research R5). Tests use stub models, not recordings.

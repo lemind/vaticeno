@@ -1,0 +1,23 @@
+{
+ "id": "op-057",
+ "category": "ambiguous_entity",
+ "expected_outcome": "hit",
+ "note": "Secured fourth place in 2024-05 (Villa, not Villarreal).",
+ "lock_at": "2024-04-01T12:00:00Z",
+ "contract": {
+  "subject": "Aston Villa",
+  "criterion": "Aston Villa secure a 2024-25 UEFA Champions League place",
+  "deadline_at": "2024-05-31T23:59:59Z",
+  "source": {
+   "name": "Premier League tables",
+   "kind": "football_results",
+   "locator": "https://www.premierleague.com/tables",
+   "scope": "Aston Villa",
+   "entity_id": "Aston Villa FC",
+   "absence_is_meaningful": false,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "Villa finish outside the Champions League places",
+  "resolution_method": "model"
+ }
+}

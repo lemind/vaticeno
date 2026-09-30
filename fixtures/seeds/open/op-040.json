@@ -1,0 +1,23 @@
+{
+ "id": "op-040",
+ "category": "conflicting_reports",
+ "expected_outcome": "miss",
+ "note": "Donald Trump won (called 2024-11-06).",
+ "lock_at": "2024-08-01T12:00:00Z",
+ "contract": {
+  "subject": "Kamala Harris",
+  "criterion": "Kamala Harris wins the 2024 US presidential election",
+  "deadline_at": "2024-12-31T23:59:59Z",
+  "source": {
+   "name": "US Federal Election Commission results",
+   "kind": "elections",
+   "locator": "https://www.fec.gov/",
+   "scope": "Kamala Harris",
+   "entity_id": "2024 US presidential election",
+   "absence_is_meaningful": false,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "another candidate wins the election",
+  "resolution_method": "model"
+ }
+}

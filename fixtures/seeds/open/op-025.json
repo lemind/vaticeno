@@ -1,0 +1,23 @@
+{
+ "id": "op-025",
+ "category": "void_nothing_knowable",
+ "expected_outcome": "void",
+ "note": "Fictional small company: nothing knowable.",
+ "lock_at": "2024-01-01T12:00:00Z",
+ "contract": {
+  "subject": "Kestrel Robotics Ltd (Leeds)",
+  "criterion": "Kestrel Robotics Ltd of Leeds ships its first warehouse robot to a customer",
+  "deadline_at": "2024-12-31T23:59:59Z",
+  "source": {
+   "name": "Kestrel Robotics news",
+   "kind": "company_news",
+   "locator": "https://kestrel-robotics-leeds.example/news",
+   "scope": "Kestrel Robotics Ltd (Leeds)",
+   "entity_id": "Kestrel Robotics Ltd",
+   "absence_is_meaningful": false,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "no first customer shipment in the window",
+  "resolution_method": "model"
+ }
+}

@@ -1,0 +1,23 @@
+{
+ "id": "op-061",
+ "category": "technically_true_other_reading",
+ "expected_outcome": "miss",
+ "note": "He won the 2024 primaries, not the election; Trump won.",
+ "lock_at": "2024-01-01T12:00:00Z",
+ "contract": {
+  "subject": "Joe Biden",
+  "criterion": "Joe Biden wins the 2024 US presidential election",
+  "deadline_at": "2024-12-31T23:59:59Z",
+  "source": {
+   "name": "US Federal Election Commission results",
+   "kind": "elections",
+   "locator": "https://www.fec.gov/",
+   "scope": "Joe Biden",
+   "entity_id": "2024 US presidential election",
+   "absence_is_meaningful": false,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "another candidate wins the election",
+  "resolution_method": "model"
+ }
+}

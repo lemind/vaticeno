@@ -1,0 +1,23 @@
+{
+ "id": "op-047",
+ "category": "source_page_changed",
+ "expected_outcome": "hit",
+ "note": "Champions on 2024-04-14; table page now shows a later season.",
+ "lock_at": "2024-02-01T12:00:00Z",
+ "contract": {
+  "subject": "Bayer Leverkusen",
+  "criterion": "Bayer Leverkusen win the 2023-24 Bundesliga title",
+  "deadline_at": "2024-05-31T23:59:59Z",
+  "source": {
+   "name": "Bundesliga table",
+   "kind": "football_results",
+   "locator": "https://www.bundesliga.com/en/bundesliga/table",
+   "scope": "Bayer Leverkusen",
+   "entity_id": "2023-24 Bundesliga",
+   "absence_is_meaningful": false,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "another club finishes first in the final 2023-24 table",
+  "resolution_method": "model"
+ }
+}

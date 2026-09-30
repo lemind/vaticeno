@@ -23,12 +23,7 @@ An X bot that puts predictions **on the record** and checks them automatically o
 
 ## Commands (on X)
 
-| Post | Bot does |
-|---|---|
-| `@vaticeno ping` (the word *ping* anywhere) | replies `pong · HH:MM:SS UTC` |
-| `@vaticeno record <prediction>` | logs it (recording not live yet) |
-| `@vaticeno amend <corrected text>` | logs it |
-| `@vaticeno STOP` | logs an opt-out |
+`@vaticeno help` lists what the bot does (not live on X yet). Live today: `@vaticeno ping` → `pong`.
 
 ## Run locally
 

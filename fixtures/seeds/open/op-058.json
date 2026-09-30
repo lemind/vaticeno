@@ -1,0 +1,23 @@
+{
+ "id": "op-058",
+ "category": "technically_true_other_reading",
+ "expected_outcome": "miss",
+ "note": "It won Best Motion Picture – Drama; Poor Things won Musical or Comedy.",
+ "lock_at": "2023-12-15T12:00:00Z",
+ "contract": {
+  "subject": "Oppenheimer (film)",
+  "criterion": "Oppenheimer wins the Golden Globe for Best Motion Picture – Musical or Comedy",
+  "deadline_at": "2024-01-31T23:59:59Z",
+  "source": {
+   "name": "Golden Globe Awards winners",
+   "kind": "culture_awards",
+   "locator": "https://goldenglobes.com/",
+   "scope": "Oppenheimer (film)",
+   "entity_id": "81st Golden Globes",
+   "absence_is_meaningful": false,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "another film wins that category",
+  "resolution_method": "model"
+ }
+}

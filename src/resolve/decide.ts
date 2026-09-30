@@ -1,0 +1,86 @@
+// The resolution rule table (data-model "How the resolution is reached"). Pure.
+// HIT/MISS/contradiction come from the latest run only; the waiting rules also count earlier runs.
+import type { TrustLevel } from './trust.js';
+
+export type EvidenceRow = {
+  id: string;
+  runAt: Date;
+  trustLevel: TrustLevel;
+  says: 'hit' | 'miss' | 'pending' | 'irrelevant' | 'entity_gone';
+  passed: boolean;
+  quoteFound: boolean | null; // the quote gate; null = not applicable (price feed)
+};
+
+export type Decision =
+  | { kind: 'final'; outcome: 'hit' | 'miss'; decidingEvidenceId: string }
+  | { kind: 'final'; outcome: 'void'; voidReason: 'insufficient_evidence' | 'unresolvable' }
+  | { kind: 'needs_arbiter'; candidateIds: string[] }
+  | { kind: 'needs_human'; reason: 'lone_established' | 'pending_too_long' }
+  | { kind: 'wait'; reason: 'no_evidence' | 'pending' | 'entity_gone' | 'insufficient_once' };
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const PENDING_LIMIT_MS = 30 * DAY_MS;
+const ENTITY_GONE_RUNS = 3;
+
+export function decideResolution(evidences: readonly EvidenceRow[], now: Date, deadlineAt: Date): Decision {
+  const runs = distinctRuns(evidences);
+  const latestRun = runs.at(-1);
+  if (latestRun === undefined) return { kind: 'wait', reason: 'no_evidence' }; // outage: nothing was written
+  const latest = evidences.filter((e) => e.runAt.getTime() === latestRun);
+
+  // A primary source says the entity no longer exists: VOID only after 3 separate runs say so.
+  if (latest.some((e) => primarySays(e, 'entity_gone'))) {
+    const goneRuns = distinctRuns(evidences.filter((e) => primarySays(e, 'entity_gone')));
+    if (goneRuns.length >= ENTITY_GONE_RUNS) return { kind: 'final', outcome: 'void', voidReason: 'unresolvable' };
+    return { kind: 'wait', reason: 'entity_gone' };
+  }
+
+  // A primary source says the result exists but is not final yet: wait; after 30 days a human decides.
+  if (latest.some((e) => primarySays(e, 'pending'))) {
+    if (now.getTime() - deadlineAt.getTime() > PENDING_LIMIT_MS) return { kind: 'needs_human', reason: 'pending_too_long' };
+    return { kind: 'wait', reason: 'pending' };
+  }
+
+  const counted = latest.filter((e) => e.passed && (e.says === 'hit' || e.says === 'miss'));
+
+  // Only the highest trust level present decides; disagreement within it goes to the arbiter.
+  const primary = counted.filter((e) => e.trustLevel === 'primary');
+  if (primary.length > 0) return agreeOrArbiter(primary);
+
+  const established = counted.filter((e) => e.trustLevel === 'established');
+  if (established.length >= 2) return agreeOrArbiter(established);
+  if (established.length === 1) return { kind: 'needs_human', reason: 'lone_established' };
+
+  // Nothing counts. VOID needs a second such run at least 24 h earlier (results may be reported late).
+  const earlierEmpty = runs.slice(0, -1).some((run) => latestRun - run >= DAY_MS && runIsEmpty(evidences, run));
+  if (earlierEmpty) return { kind: 'final', outcome: 'void', voidReason: 'insufficient_evidence' };
+  return { kind: 'wait', reason: 'insufficient_once' };
+}
+
+function agreeOrArbiter(items: readonly EvidenceRow[]): Decision {
+  const first = items[0]!;
+  if (items.every((e) => e.says === first.says)) {
+    return { kind: 'final', outcome: first.says as 'hit' | 'miss', decidingEvidenceId: first.id };
+  }
+  return { kind: 'needs_arbiter', candidateIds: items.map((e) => e.id) };
+}
+
+function distinctRuns(evidences: readonly EvidenceRow[]): number[] {
+  return [...new Set(evidences.map((e) => e.runAt.getTime()))].sort((a, b) => a - b);
+}
+
+// pending / entity_gone fail the `final` gate by design, so they are read here without `passed`; they
+// still need the page to back them (quote found; price feed has no quote).
+function primarySays(e: Pick<EvidenceRow, 'trustLevel' | 'says' | 'quoteFound'>, says: 'pending' | 'entity_gone'): boolean {
+  return e.trustLevel === 'primary' && e.says === says && e.quoteFound !== false;
+}
+
+// Evidence that settles something: a passed HIT/MISS, or a primary "pending" / "entity gone". A run with
+// none is empty (it can count toward VOID); a run with some is never an outage.
+export function settles(e: Pick<EvidenceRow, 'trustLevel' | 'says' | 'passed' | 'quoteFound'>): boolean {
+  return (e.passed && (e.says === 'hit' || e.says === 'miss')) || primarySays(e, 'pending') || primarySays(e, 'entity_gone');
+}
+
+function runIsEmpty(evidences: readonly EvidenceRow[], run: number): boolean {
+  return !evidences.some((e) => e.runAt.getTime() === run && settles(e));
+}

@@ -1,8 +1,8 @@
 // Integration-test database: a fresh, fully migrated database per test file, dropped afterwards.
 import { randomInt } from 'node:crypto';
-import postgres, { type Sql } from 'postgres';
-import { createDb, type Db } from '../../src/db/client.js';
-import { runMigrations } from '../../src/db/migrate.js';
+import type { Sql } from 'postgres';
+import type { Db } from '../../src/db/client.js';
+import { createScratchDb } from '../../src/db/scratch.js';
 import type { ClaimStatus } from '../../src/lifecycle/transitions.js';
 import { randomSlug } from '../../src/contract/slug.js';
 
@@ -11,28 +11,15 @@ export type TestDb = { db: Db; sql: Sql; truncateAll: () => Promise<void>; close
 export async function setupTestDb(): Promise<TestDb> {
   const adminUrl = process.env.DATABASE_URL;
   if (!adminUrl) throw new Error('DATABASE_URL is required for integration tests (docker compose up -d)');
-
-  const name = `vaticeno_test_${process.pid}_${Date.now()}`;
-  const admin = postgres(adminUrl, { max: 1, onnotice: () => {} });
-  await admin.unsafe(`create database "${name}"`);
-
-  const url = new URL(adminUrl);
-  url.pathname = `/${name}`;
-  await runMigrations(url.toString());
-  const { db, sql } = createDb(url.toString());
-
+  const { db, sql, close } = await createScratchDb(adminUrl, 'vaticeno_test');
   return {
     db,
     sql,
     // TRUNCATE does not fire the row-level insert-only triggers.
     truncateAll: async () => {
-      await sql`truncate cost_events, resolutions, evidences, positions, claims`;
+      await sql`truncate sources, cost_events, resolutions, evidences, positions, claims`;
     },
-    close: async () => {
-      await sql.end({ timeout: 5 });
-      await admin.unsafe(`drop database "${name}" with (force)`);
-      await admin.end({ timeout: 5 });
-    },
+    close,
   };
 }
 
@@ -101,7 +88,7 @@ export async function insertEvidence(sql: Sql, claimId: string, overrides: Recor
     source_kind: 'price_feed',
     basis: 'record',
     source_name: 'coinbase',
-    trust_level: 'official',
+    trust_level: 'primary',
     says: 'hit',
     retrieved_at: '2027-01-01T01:00:00Z',
     gates: JSON.stringify({ trusted: true, in_window: true, final: true, independent: true }),

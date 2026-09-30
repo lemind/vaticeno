@@ -1,0 +1,23 @@
+{
+ "id": "op-059",
+ "category": "technically_true_other_reading",
+ "expected_outcome": "miss",
+ "note": "He won singles gold, not doubles.",
+ "lock_at": "2024-07-01T12:00:00Z",
+ "contract": {
+  "subject": "Novak Djokovic",
+  "criterion": "Novak Djokovic wins a Paris 2024 Olympic gold medal in men's doubles",
+  "deadline_at": "2024-08-31T23:59:59Z",
+  "source": {
+   "name": "Olympics Paris 2024 tennis results",
+   "kind": "sports_results",
+   "locator": "https://www.olympics.com/en/paris-2024",
+   "scope": "Novak Djokovic",
+   "entity_id": "Paris 2024 men's doubles",
+   "absence_is_meaningful": false,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "he does not win men's doubles gold",
+  "resolution_method": "model"
+ }
+}

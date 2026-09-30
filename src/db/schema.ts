@@ -1,4 +1,4 @@
-// The five tables of specs/001-stage0-contract-core/data-model.md. Triggers and RLS live in hand-written
+// The six tables of specs/001-stage0-contract-core/data-model.md. Triggers and RLS live in hand-written
 // migrations (drizzle/0001_triggers.sql, drizzle/0002_rls.sql); the database is the authority.
 import { sql } from 'drizzle-orm';
 import {
@@ -26,7 +26,7 @@ export const RESOLUTION_METHODS = ['price_feed', 'model'] as const;
 export const STANCES = ['agree', 'disagree'] as const;
 export const SOURCE_KINDS = ['price_feed', 'web'] as const;
 export const EVIDENCE_BASES = ['record', 'absence'] as const;
-export const TRUST_LEVELS = ['official', 'trusted', 'other'] as const;
+export const TRUST_LEVELS = ['primary', 'established', 'weak'] as const;
 export const EVIDENCE_SAYS = ['hit', 'miss', 'pending', 'irrelevant', 'entity_gone'] as const;
 export const OUTCOMES = ['hit', 'miss', 'void'] as const;
 export const DECIDED_BY = ['evidence', 'arbiter', 'human'] as const;
@@ -107,6 +107,7 @@ export const evidences = pgTable(
     basis: text('basis', { enum: EVIDENCE_BASES }).notNull(),
     sourceName: text('source_name').notNull(),
     trustLevel: text('trust_level', { enum: TRUST_LEVELS }).notNull(),
+    trustReason: text('trust_reason'),
     says: text('says', { enum: EVIDENCE_SAYS }).notNull(),
     eventDate: date('event_date'),
     value: numeric('value'),
@@ -116,7 +117,7 @@ export const evidences = pgTable(
     retrievedAt: utc('retrieved_at').notNull(),
     modelId: text('model_id'),
     instructionVersion: text('instruction_version'),
-    gates: jsonb('gates').notNull(),
+    gates: jsonb('gates').$type<Record<string, boolean | null>>().notNull(), // gate name → result (resolve/gates.ts)
     passed: boolean('passed').notNull(),
     createdAt: utc('created_at').notNull().defaultNow(),
   },
@@ -140,7 +141,6 @@ export const resolutions = pgTable(
     voidReason: text('void_reason', { enum: VOID_REASONS }),
     decidingEvidenceId: uuid('deciding_evidence_id').references(() => evidences.id),
     arbiterModelId: text('arbiter_model_id'),
-    policyVersion: integer('policy_version').notNull(),
     arbiterNotes: text('arbiter_notes'),
     humanNotes: text('human_notes'),
     decidedAt: utc('decided_at'),
@@ -174,4 +174,16 @@ export const costEvents = pgTable(
     check('cost_events_operation_check', oneOf(t.operation, COST_OPERATIONS)),
     index('cost_events_claim_idx').on(t.claimId),
   ],
+);
+
+// Sites earn standing by confirming final verdicts; a row starts at the first confirmation (data-model "sources").
+export const sources = pgTable(
+  'sources',
+  {
+    domain: text('domain').primaryKey(),
+    agreedCount: integer('agreed_count').notNull(),
+    firstAgreedAt: utc('first_agreed_at').notNull().defaultNow(),
+    lastAgreedAt: utc('last_agreed_at').notNull().defaultNow(),
+  },
+  (t) => [check('sources_agreed_count_check', sql`${t.agreedCount} >= 1`)],
 );

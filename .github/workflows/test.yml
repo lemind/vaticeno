@@ -38,5 +38,5 @@ jobs:
       - run: npm run test:coverage
       - run: npm run db:migrate
       - run: npm run test:integration
-      # Added as their tasks land (specs/001-stage0-contract-core/tasks.md T008):
-      # `npm run corpus` and `npm run seeds:crypto` (replay mode, no secrets needed).
+      # 60 historical price claims on frozen candles (SC-002: must be 100%)
+      - run: npm run seeds:crypto

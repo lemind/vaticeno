@@ -1,0 +1,6 @@
+{"id": "po-001", "group": "politics", "today": "2026-09-30", "text": "Donald Trump is sworn in as US President by 2029-01-20", "expected": "recorded", "expect_contract": {"deadline_at": "2029-01-20T23:59:59Z", "resolution_method": "model"}}
+{"id": "po-002", "group": "politics", "today": "2026-09-30", "text": "The UK holds a general election by 2029-08-15", "expected": "recorded", "expect_contract": {"deadline_at": "2029-08-15T23:59:59Z", "resolution_method": "model"}}
+{"id": "po-003", "group": "politics", "today": "2026-09-30", "text": "France's National Rally wins an absolute majority in the National Assembly by 2027-12-31", "expected": "recorded", "expect_contract": {"deadline_at": "2027-12-31T23:59:59Z", "resolution_method": "model"}}
+{"id": "po-004", "group": "politics", "today": "2026-09-30", "text": "The left will win next time", "expected": "needs_info"}
+{"id": "po-005", "group": "politics", "today": "2026-09-30", "text": "Congress does something about crypto", "expected": "needs_info"}
+{"id": "po-006", "group": "politics", "today": "2026-09-30", "text": "The US Senate passes a stablecoin market-structure bill by 2027-06-30", "expected": "recorded", "expect_contract": {"deadline_at": "2027-06-30T23:59:59Z", "resolution_method": "model"}}

@@ -1,0 +1,23 @@
+{
+ "id": "op-022",
+ "category": "void_nothing_knowable",
+ "expected_outcome": "void",
+ "note": "Private sale of an obscure work: no public record.",
+ "lock_at": "2024-01-01T12:00:00Z",
+ "contract": {
+  "subject": "painting \"Blue Harbor\" by J. Keller",
+  "criterion": "The painting Blue Harbor by J. Keller is sold in a private sale",
+  "deadline_at": "2024-06-30T23:59:59Z",
+  "source": {
+   "name": "Keller studio news",
+   "kind": "culture_awards",
+   "locator": "https://jkeller-studio.example/",
+   "scope": "painting \"Blue Harbor\" by J. Keller",
+   "entity_id": "Blue Harbor (J. Keller)",
+   "absence_is_meaningful": false,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "no recorded sale in the window",
+  "resolution_method": "model"
+ }
+}

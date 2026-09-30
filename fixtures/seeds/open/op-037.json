@@ -1,0 +1,23 @@
+{
+ "id": "op-037",
+ "category": "announcement_before_lock_event_after",
+ "expected_outcome": "hit",
+ "note": "Date announced 2025-04-02; launched 2025-06-05.",
+ "lock_at": "2025-04-10T12:00:00Z",
+ "contract": {
+  "subject": "Nintendo Switch 2",
+  "criterion": "The Nintendo Switch 2 console goes on sale",
+  "deadline_at": "2025-06-30T23:59:59Z",
+  "source": {
+   "name": "Nintendo news",
+   "kind": "tech_releases",
+   "locator": "https://www.nintendo.com/us/whatsnew/",
+   "scope": "Nintendo Switch 2",
+   "entity_id": "Nintendo Switch 2",
+   "absence_is_meaningful": false,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "the console is not on sale in the window",
+  "resolution_method": "model"
+ }
+}

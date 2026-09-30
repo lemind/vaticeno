@@ -1,0 +1,23 @@
+{
+ "id": "op-043",
+ "category": "copied_wire_stories",
+ "expected_outcome": "hit",
+ "note": "Announced 2024-03-25; Ortberg succeeded him 2024-08-08.",
+ "lock_at": "2024-01-01T12:00:00Z",
+ "contract": {
+  "subject": "Dave Calhoun (Boeing)",
+  "criterion": "Dave Calhoun steps down as Boeing CEO",
+  "deadline_at": "2024-12-31T23:59:59Z",
+  "source": {
+   "name": "Boeing news releases",
+   "kind": "company_news",
+   "locator": "https://boeing.mediaroom.com/news-releases-statements",
+   "scope": "Dave Calhoun (Boeing)",
+   "entity_id": "Boeing CEO",
+   "absence_is_meaningful": false,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "Calhoun still CEO at the deadline",
+  "resolution_method": "model"
+ }
+}

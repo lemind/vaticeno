@@ -1,0 +1,5 @@
+{"id": "sc-001", "group": "science", "today": "2026-09-30", "text": "A room-temperature superconductor is confirmed in a Nature or Science paper by 2030-12-31", "expected": "recorded", "expect_contract": {"deadline_at": "2030-12-31T23:59:59Z", "resolution_method": "model"}}
+{"id": "sc-002", "group": "science", "today": "2026-09-30", "text": "NASA's Europa Clipper enters orbit around Jupiter by 2030-12-31", "expected": "recorded", "expect_contract": {"deadline_at": "2030-12-31T23:59:59Z", "resolution_method": "model"}}
+{"id": "sc-003", "group": "science", "today": "2026-09-30", "text": "Fusion power will be solved this decade", "expected": "needs_info"}
+{"id": "sc-004", "group": "science", "today": "2026-09-30", "text": "NOAA reports 2027 as the hottest year on record, by 2028-01-31", "expected": "recorded", "expect_contract": {"deadline_at": "2028-01-31T23:59:59Z", "resolution_method": "model"}}
+{"id": "sc-005", "group": "science", "today": "2026-09-30", "text": "Scientists will find aliens", "expected": "needs_info"}

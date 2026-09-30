@@ -1,0 +1,23 @@
+{
+ "id": "op-042",
+ "category": "copied_wire_stories",
+ "expected_outcome": "hit",
+ "note": "Cut 25bp on 2024-12-18; widely syndicated.",
+ "lock_at": "2024-11-15T12:00:00Z",
+ "contract": {
+  "subject": "federal funds rate",
+  "criterion": "The FOMC lowers the federal funds target range at its December 2024 meeting",
+  "deadline_at": "2024-12-31T23:59:59Z",
+  "source": {
+   "name": "FOMC meeting statements",
+   "kind": "monetary_policy",
+   "locator": "https://www.federalreserve.gov/monetarypolicy/openmarket.htm",
+   "scope": "federal funds rate",
+   "entity_id": "December 2024 FOMC decision",
+   "absence_is_meaningful": false,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "the FOMC holds or raises the range in December 2024",
+  "resolution_method": "model"
+ }
+}

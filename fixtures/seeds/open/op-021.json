@@ -1,0 +1,23 @@
+{
+ "id": "op-021",
+ "category": "void_nothing_knowable",
+ "expected_outcome": "void",
+ "note": "Fictional private company: nothing can be known.",
+ "lock_at": "2024-01-01T12:00:00Z",
+ "contract": {
+  "subject": "Acme Widgets GmbH (Bremen)",
+  "criterion": "Acme Widgets GmbH of Bremen closes a Series A funding round",
+  "deadline_at": "2024-06-30T23:59:59Z",
+  "source": {
+   "name": "Company announcements",
+   "kind": "company_news",
+   "locator": "https://acme-widgets-bremen.example/news",
+   "scope": "Acme Widgets GmbH (Bremen)",
+   "entity_id": "Acme Widgets GmbH",
+   "absence_is_meaningful": false,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "no announced Series A in the window",
+  "resolution_method": "model"
+ }
+}

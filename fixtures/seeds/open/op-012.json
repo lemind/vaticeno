@@ -1,0 +1,23 @@
+{
+ "id": "op-012",
+ "category": "clear_miss_final_result",
+ "expected_outcome": "miss",
+ "note": "Lost 1-4 to Boston, 2024-06-17.",
+ "lock_at": "2024-05-01T12:00:00Z",
+ "contract": {
+  "subject": "Dallas Mavericks",
+  "criterion": "The Dallas Mavericks win the 2024 NBA Finals",
+  "deadline_at": "2024-06-30T23:59:59Z",
+  "source": {
+   "name": "NBA Finals 2024",
+   "kind": "sports_results",
+   "locator": "https://www.nba.com/playoffs/2024/nba-finals",
+   "scope": "Dallas Mavericks",
+   "entity_id": "2024 NBA Finals",
+   "absence_is_meaningful": false,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "another team wins the 2024 NBA Finals",
+  "resolution_method": "model"
+ }
+}

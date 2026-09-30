@@ -5,15 +5,13 @@ Only the parts in `{…}` vary. `{statement}` is rendered from the contract, nev
 **RECORDED**
 ```
 RECORDED · #{slug}
-
 "{statement}"
-
-Source: {source.name}
-Locks: {lock_in} · Resolves: shortly after {deadline_date}
-
-Wrong wording? Reply "amend <corrected> by <YYYY-MM-DD>" before lock.
+Fix in 15 min: reply with the corrected prediction
 vaticeno.app/c/{slug}
 ```
+The statement already names the deadline and, for model claims, the source; the page shows the rest.
+Budget: the frame is ~100 weighted chars (X counts any link as 23), so the statement gets ~180 —
+hence `criterion` ≤ 100 and `source.name` ≤ 48 in the contract schema.
 
 **NEEDS INFO** (case A) — `{unclear_explanation}` and examples come from the model and are checked.
 ```
@@ -21,11 +19,14 @@ NOT RECORDED — I can't judge this as written.
 
 {unclear_explanation}
 
-Reply: amend <what happens> by <YYYY-MM-DD>
-e.g. amend {example_1}
+Reply with the prediction and a date, e.g.
+{example_1}
 ```
 Fallback example when no generated example survives the checks:
-`amend BTC daily close above $150,000 by 2026-12-31`.
+`BTC daily close above $150,000 by <next year>-12-31`.
+
+No command word anywhere: any reply from the author under a bot reply is the corrected prediction
+(an amend). Replies from anyone else are ignored.
 
 **AMENDED** — a new reply, never an edit of the earlier one
 ```
@@ -44,7 +45,14 @@ vaticeno.app/c/{slug}
 ```
 
 **REJECTED**
-- not a prediction / deadline out of range: `NOT RECORDED — {reason_in_words}.`
+- deadline out of range: `NOT RECORDED — {reason_in_words}.`
+- not a prediction (e.g. "@vaticeno cancel"): the help reply, same as `@vaticeno help` (no model call for
+  `help`) — no other commands exist yet
+  ```
+  I record predictions and check them at the deadline.
+  • Tag me under your prediction → recorded
+  • Reply with a fix (within 15 min) → updated
+  ```
 - X rules: `NOT RECORDED — I can't record this one.` (no quote, no explanation)
 - duplicate: `ALREADY RECORDED · vaticeno.app/c/{existing_slug}`
 

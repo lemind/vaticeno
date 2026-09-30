@@ -1,0 +1,23 @@
+{
+ "id": "op-003",
+ "category": "clear_hit",
+ "expected_outcome": "hit",
+ "note": "Beat Dortmund 2-0 on 2024-06-01.",
+ "lock_at": "2024-03-01T12:00:00Z",
+ "contract": {
+  "subject": "Real Madrid",
+  "criterion": "Real Madrid win the 2023-24 UEFA Champions League final",
+  "deadline_at": "2024-06-30T23:59:59Z",
+  "source": {
+   "name": "UEFA Champions League",
+   "kind": "football_results",
+   "locator": "https://www.uefa.com/uefachampionsleague/history/seasons/2024/",
+   "scope": "Real Madrid",
+   "entity_id": "2023-24 UCL",
+   "absence_is_meaningful": false,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "another club wins the 2023-24 final",
+  "resolution_method": "model"
+ }
+}

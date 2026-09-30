@@ -26,8 +26,13 @@ Each entry: Decision / Rationale / Alternatives.
 - **Decision**: contract proposal = **one model call, plus one retry** on schema failure (then
   needs info). Gemini Flash-class, JSON output validated by Zod. Tier = `NORMALIZER_MODEL`, the
   cheapest one that reaches SC-001 (≥ 90%) on the corpus. Deterministic checks decide the outcome.
+  **Chosen (T035, 2026-09-30): `gemini-3.1-flash-lite`**, 100/100, about $0.0006 per proposal. The
+  Gemini 2.5 Flash-Lite tier is closed to new API users. Live runs vary between calls (95–100% over
+  four runs while tuning the instructions); replay pins one recording.
   NEEDS INFO examples: each re-run through the same proposal + checks (FR-008), so a needs-info
-  reply costs 1 + up to 3 extra calls.
+  reply costs 1 + up to 4 extra calls (2 examples checked, then 1 regeneration + 1 check), and an
+  example must also fit the 280-character reply. Corpus: 39 of 44 needs-info replies carry a checked
+  model example, the rest the fixed fallback.
 - **Rationale**: needs world knowledge; ~500 calls/month ≈ $1; a 1 GB droplet can't host a model.
 
 ## R4. Resolution pipeline: gated evidence → one resolution
@@ -41,25 +46,36 @@ Each entry: Decision / Rationale / Alternatives.
   (wait, 30 days → needs_human). A gap never becomes MISS.
 - *Web* (non-price claims only; price claims use the feed alone):
 ```
-1. search     grounded model call → candidate URLs + queries (no verdict)
+1. search     grounded model call → candidate URLs + queries (no verdict); input includes the
+              contract locator and known sources (agreed_count ≥ 5) as places to look first
 2. fetch      code fetches each URL → text in memory, sha256, retrieved_at
-3. judge      no-tools model call per snapshot → JudgeSchema (says, quote, event_date, flags)
-4. gates      code: trust_level (official|trusted|other) + trusted · quote_found · in_window · final · independent
+3. judge      no-tools model call per snapshot → JudgeSchema (says, quote, event_date, flags,
+              source_trust primary|established|weak + trust_reason)
+4. gates      code: capTrust(rated, url, contract) + trusted · quote_found · in_window · final · independent
 5. store      one evidences row per snapshot
 ```
 **Resolution** (code, then arbiter only if needed): apply the table in data-model.md over the
-`passed` rows — only the highest trust level present decides: one official row is enough (trusted
-rows are then ignored); otherwise two trusted rows must agree. Disagreement within that level →
-arbiter (no tools, sees the contradicting rows, their trust levels and snapshots) → decided with
-notes, or `cannot_decide` → `needs_human`. A lone trusted row → `needs_human`.
+`passed` rows — only the highest trust level present decides: one primary row is enough
+(established rows are then ignored); otherwise two established rows must agree. Disagreement within
+that level → arbiter (no tools, sees the contradicting rows, their trust levels and snapshots) →
+decided with notes, or `cannot_decide` → `needs_human`. A lone established row → `needs_human`.
 
-**Trust**: pure function `trustLevel(url, contract, policy)`, exhaustively unit-tested. Official =
-price feed or a domain on the policy's curated `official` list — never granted because the
-(model-written) contract names it. Trusted = listed under `source.kind`, or the contract's own
-locator domain when not official. Each resolution records `policy_version`. **Entity gone** needs 3
-separate runs with official `entity_gone` (counted from `run_at`) before VOID.
-**Absence evidence**: for contracts with `absence_is_meaningful`, the resolver also reads the official
-record on or after the deadline; "not listed" becomes `basis = absence, says = miss`, gated on the
+**Trust** (2026-09-30, replaces the curated source policy): no fixed site list. The judge rates
+each page; pure `capTrust(rated, url, contract)`, exhaustively unit-tested, caps it — price feed →
+primary; `primary` stands only on the contract's `source.locator` registrable domain, otherwise
+becomes `established`; `established`/`weak` kept. Why: the curated lists blocked 24 of 25 failed
+open seeds (the right answer came from unlisted sites) and can't cover "any topic"; the cap keeps
+the one hard guarantee — a model can't make an arbitrary site decide alone.
+**Earned standing**: `sources` table, one row per registrable domain, created on its first
+confirmation of a final HIT/MISS and `agreed_count + 1` on each later one — once per domain per
+claim, in the transaction that writes the final verdict. Known = `agreed_count ≥ 5`; used only as a
+search hint. A counter, not a scan of `evidences`. Sites that were wrong are not tracked (being
+wrong never lowers trust, so the count would drive nothing). Alternatives: count from `evidences`
+at search time (a query over every row, grows with volume); let standing raise trust (rejected: one
+site could build a count and then decide claims alone).
+**Entity gone** needs 3 separate runs with primary `entity_gone` (counted from `run_at`) before VOID.
+**Absence evidence**: for contracts with `absence_is_meaningful`, the resolver also reads the
+contract's own record (primary) on or after the deadline; "not listed" becomes `basis = absence, says = miss`, gated on the
 read time instead of an event date or quote. Each resolver run stamps its rows with `run_at`.
 
 Any step failing (network, schema) → no evidence; retry next run (FR-024). An empty search is a
@@ -78,11 +94,19 @@ a claim that waits 30 days costs ~6 runs, not 720.
 - **Decision**: all external calls go through one client with `LLM_MODE=live|record|replay`. The
   replay store is **test tooling only** (`fixtures/replay/`, for the corpus and seed runs): request
   identity (keys are hashes), model id/version, search queries and URLs, per fetch only
-  `{url, sha256, retrieved_at, status}`, model responses with the quote replaced by its sha256 plus
-  the `quote_found` result computed at record time, Coinbase responses (numbers, not content).
+  `{final url, sha256, simhash, retrieved_at, status}` (simhash = 64-bit near-duplicate fingerprint for
+  the independence gate), model responses with the quote replaced by its sha256 plus the
+  `quote_found` result computed at record time, Coinbase responses (numbers, not content). Judge and
+  arbiter replay keys use page URL + sha256, never page text. The store refuses any `text`/`quote`
+  field outright.
   **Page text and quotes are never persisted anywhere** — not in the database, not in replay files;
   they live in memory for the duration of a resolution. In replay mode the quote gate uses the
   recorded `quote_found`.
+- **Local only, never committed** (`fixtures/replay/` is gitignored). The committed proof is the
+  cases themselves (`fixtures/corpus/`, `fixtures/seeds/`). Regenerate the recordings with
+  `LLM_MODE=record npm run corpus` (~$0.06) or `LLM_MODE=record npm run seeds:open` (~$5); later runs
+  on that machine replay them for free. CI needs none: tests use stub models, and the crypto seeds carry
+  frozen candles. Corpus and open-seed runs are hand-run checks, not CI steps.
 - **Rationale**: corpus and seeds re-run at zero cost with identical results; production stores no
   third-party or X content. The hash still proves what was read; if a source page changes later, we
   can show that it changed, not what it said.

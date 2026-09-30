@@ -1,0 +1,23 @@
+{
+ "id": "op-052",
+ "category": "partial_outcome",
+ "expected_outcome": "miss",
+ "note": "Reached space on 2024-03-14 but was lost on re-entry.",
+ "lock_at": "2024-03-01T12:00:00Z",
+ "contract": {
+  "subject": "Starship Flight 3",
+  "criterion": "Starship Flight 3 reaches space and its ship is recovered intact",
+  "deadline_at": "2024-03-31T23:59:59Z",
+  "source": {
+   "name": "SpaceX Starship flight updates",
+   "kind": "space",
+   "locator": "https://www.spacex.com/launches/",
+   "scope": "Starship Flight 3",
+   "entity_id": "Starship Flight 3",
+   "absence_is_meaningful": false,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "the ship is lost or not recovered",
+  "resolution_method": "model"
+ }
+}

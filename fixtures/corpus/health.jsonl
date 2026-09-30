@@ -1,0 +1,6 @@
+{"id": "he-001", "group": "health", "today": "2026-09-30", "text": "The FDA approves a vaccine for Lyme disease in humans by 2028-12-31", "expected": "recorded", "expect_contract": {"deadline_at": "2028-12-31T23:59:59Z", "resolution_method": "model"}}
+{"id": "he-002", "group": "health", "today": "2026-09-30", "text": "The WHO declares a new Public Health Emergency of International Concern by 2027-12-31", "expected": "recorded", "expect_contract": {"deadline_at": "2027-12-31T23:59:59Z", "resolution_method": "model"}}
+{"id": "he-003", "group": "health", "today": "2026-09-30", "text": "The EMA approves a new drug for ALS by 2028-12-31", "expected": "recorded", "expect_contract": {"deadline_at": "2028-12-31T23:59:59Z", "resolution_method": "model"}}
+{"id": "he-004", "group": "health", "today": "2026-09-30", "text": "Ozempic will change everything by 2030", "expected": "needs_info"}
+{"id": "he-005", "group": "health", "today": "2026-09-30", "text": "Someone cures cancer soon", "expected": "needs_info"}
+{"id": "he-006", "group": "health", "today": "2026-09-30", "text": "The FDA approves a CRISPR therapy for high cholesterol by 2029-12-31", "expected": "recorded", "expect_contract": {"deadline_at": "2029-12-31T23:59:59Z", "resolution_method": "model"}}

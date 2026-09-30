@@ -1,0 +1,23 @@
+{
+ "id": "op-005",
+ "category": "clear_hit",
+ "expected_outcome": "hit",
+ "note": "Approved 2024-01-10.",
+ "lock_at": "2023-12-01T12:00:00Z",
+ "contract": {
+  "subject": "spot bitcoin ETFs",
+  "criterion": "The SEC approves spot bitcoin exchange-traded products",
+  "deadline_at": "2024-01-31T23:59:59Z",
+  "source": {
+   "name": "SEC press releases and statements",
+   "kind": "regulatory",
+   "locator": "https://www.sec.gov/newsroom/speeches-statements",
+   "scope": "spot bitcoin ETFs",
+   "entity_id": "spot bitcoin ETPs",
+   "absence_is_meaningful": false,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "no SEC approval of spot bitcoin ETPs in the window",
+  "resolution_method": "model"
+ }
+}

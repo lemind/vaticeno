@@ -12,7 +12,7 @@ export const PriceSchema = z.object({
 });
 
 export const SourceSchema = z.object({
-  name: text(120),
+  name: text(48), // appears in the statement; the RECORDED reply must fit 280 (contracts/reply-templates.md)
   kind: text(60),
   locator: z.url({ protocol: /^https?$/ }),
   scope: text(160),
@@ -24,7 +24,7 @@ export const SourceSchema = z.object({
 export const ContractSchema = z
   .object({
     subject: text(120),
-    criterion: text(280),
+    criterion: text(100), // same reply budget as source.name
     deadline_at: z.iso.datetime(), // UTC only ("Z"); a bare date means 23:59:59Z
     source: SourceSchema,
     negative_condition: text(280),

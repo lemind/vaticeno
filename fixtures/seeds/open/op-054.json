@@ -1,0 +1,23 @@
+{
+ "id": "op-054",
+ "category": "ambiguous_entity",
+ "expected_outcome": "hit",
+ "note": "Qualified on 2025-06-05.",
+ "lock_at": "2025-01-01T12:00:00Z",
+ "contract": {
+  "subject": "Jordan national football team",
+  "criterion": "Jordan (the country) qualifies for the 2026 FIFA World Cup",
+  "deadline_at": "2025-06-30T23:59:59Z",
+  "source": {
+   "name": "FIFA World Cup 26 qualifiers",
+   "kind": "football_results",
+   "locator": "https://www.fifa.com/",
+   "scope": "Jordan national football team",
+   "entity_id": "Jordan men's national team",
+   "absence_is_meaningful": false,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "Jordan fails to qualify in the window",
+  "resolution_method": "model"
+ }
+}

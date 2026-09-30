@@ -1,0 +1,4 @@
+{"id": "dr-001", "group": "deadline_out_of_range", "today": "2026-09-30", "text": "BTC daily close above $110,000 on 2026-09-30", "expected": "rejected"}
+{"id": "dr-002", "group": "deadline_out_of_range", "today": "2026-09-30", "text": "Humans land on Mars by 2045-12-31", "expected": "rejected"}
+{"id": "dr-003", "group": "deadline_out_of_range", "today": "2026-09-30", "text": "ETH daily close above $5,000 tonight", "expected": "rejected"}
+{"id": "dr-004", "group": "deadline_out_of_range", "today": "2026-09-30", "text": "The first fusion power plant supplies the grid by 2040-12-31", "expected": "rejected"}

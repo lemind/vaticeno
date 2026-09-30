@@ -1,0 +1,23 @@
+{
+ "id": "op-045",
+ "category": "copied_wire_stories",
+ "expected_outcome": "hit",
+ "note": "Announced 2025-01-06.",
+ "lock_at": "2024-12-01T12:00:00Z",
+ "contract": {
+  "subject": "Justin Trudeau",
+  "criterion": "Justin Trudeau announces he will resign as Liberal Party leader",
+  "deadline_at": "2025-01-31T23:59:59Z",
+  "source": {
+   "name": "Prime Minister of Canada news",
+   "kind": "elections",
+   "locator": "https://www.pm.gc.ca/en/news",
+   "scope": "Justin Trudeau",
+   "entity_id": "Liberal Party leadership",
+   "absence_is_meaningful": false,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "no resignation announcement in the window",
+  "resolution_method": "model"
+ }
+}

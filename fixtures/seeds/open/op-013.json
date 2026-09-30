@@ -1,0 +1,23 @@
+{
+ "id": "op-013",
+ "category": "clear_miss_final_result",
+ "expected_outcome": "miss",
+ "note": "Lost 1-2 to Spain on 2024-07-14.",
+ "lock_at": "2024-06-01T12:00:00Z",
+ "contract": {
+  "subject": "England national football team",
+  "criterion": "England win the UEFA Euro 2024 final",
+  "deadline_at": "2024-07-31T23:59:59Z",
+  "source": {
+   "name": "UEFA EURO 2024",
+   "kind": "football_results",
+   "locator": "https://www.uefa.com/euro2024/",
+   "scope": "England national football team",
+   "entity_id": "UEFA EURO 2024 final",
+   "absence_is_meaningful": false,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "another team wins the Euro 2024 final",
+  "resolution_method": "model"
+ }
+}

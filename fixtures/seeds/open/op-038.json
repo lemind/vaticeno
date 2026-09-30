@@ -1,0 +1,23 @@
+{
+ "id": "op-038",
+ "category": "conflicting_reports",
+ "expected_outcome": "miss",
+ "note": "Withdrew 2024-07-21; Kamala Harris nominated in August.",
+ "lock_at": "2024-06-01T12:00:00Z",
+ "contract": {
+  "subject": "Joe Biden",
+  "criterion": "Joe Biden is formally nominated as the 2024 Democratic presidential candidate",
+  "deadline_at": "2024-08-31T23:59:59Z",
+  "source": {
+   "name": "Democratic National Convention",
+   "kind": "elections",
+   "locator": "https://www.demconvention.com/",
+   "scope": "Joe Biden",
+   "entity_id": "2024 Democratic nomination",
+   "absence_is_meaningful": false,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "another person is formally nominated",
+  "resolution_method": "model"
+ }
+}

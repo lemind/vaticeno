@@ -1,0 +1,23 @@
+{
+ "id": "op-008",
+ "category": "clear_hit",
+ "expected_outcome": "hit",
+ "note": "Beat England 2-1 on 2024-07-14.",
+ "lock_at": "2024-06-01T12:00:00Z",
+ "contract": {
+  "subject": "Spain national football team",
+  "criterion": "Spain win the UEFA Euro 2024 final",
+  "deadline_at": "2024-07-31T23:59:59Z",
+  "source": {
+   "name": "UEFA EURO 2024",
+   "kind": "football_results",
+   "locator": "https://www.uefa.com/euro2024/",
+   "scope": "Spain national football team",
+   "entity_id": "UEFA EURO 2024 final",
+   "absence_is_meaningful": false,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "another team wins the Euro 2024 final",
+  "resolution_method": "model"
+ }
+}

@@ -1,0 +1,23 @@
+{
+ "id": "op-015",
+ "category": "clear_miss_final_result",
+ "expected_outcome": "miss",
+ "note": "Verstappen champion, clinched 2024-11-23.",
+ "lock_at": "2024-03-01T12:00:00Z",
+ "contract": {
+  "subject": "Lewis Hamilton",
+  "criterion": "Lewis Hamilton wins the 2024 F1 Drivers' Championship",
+  "deadline_at": "2024-12-31T23:59:59Z",
+  "source": {
+   "name": "F1 2024 driver standings",
+   "kind": "sports_results",
+   "locator": "https://www.formula1.com/en/results/2024/drivers",
+   "scope": "Lewis Hamilton",
+   "entity_id": "2024 F1 Drivers' Championship",
+   "absence_is_meaningful": false,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "another driver wins the 2024 championship",
+  "resolution_method": "model"
+ }
+}

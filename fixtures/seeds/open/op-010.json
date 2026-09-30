@@ -1,0 +1,23 @@
+{
+ "id": "op-010",
+ "category": "clear_miss_final_result",
+ "expected_outcome": "miss",
+ "note": "Manchester City champions on 2024-05-19; Arsenal second.",
+ "lock_at": "2024-03-01T12:00:00Z",
+ "contract": {
+  "subject": "Arsenal",
+  "criterion": "Arsenal win the 2023-24 Premier League title",
+  "deadline_at": "2024-05-31T23:59:59Z",
+  "source": {
+   "name": "Premier League tables",
+   "kind": "football_results",
+   "locator": "https://www.premierleague.com/tables",
+   "scope": "Arsenal",
+   "entity_id": "2023-24 Premier League",
+   "absence_is_meaningful": false,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "another club finishes first in the final 2023-24 table",
+  "resolution_method": "model"
+ }
+}

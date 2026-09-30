@@ -1,0 +1,5 @@
+{"id": "te-001", "group": "tech", "today": "2026-09-30", "text": "Apple releases a Mac with an M6 chip by 2027-12-31", "expected": "recorded", "expect_contract": {"deadline_at": "2027-12-31T23:59:59Z", "resolution_method": "model"}}
+{"id": "te-002", "group": "tech", "today": "2026-09-30", "text": "Microsoft releases Windows 12 to the general public by 2027-12-31", "expected": "recorded", "expect_contract": {"deadline_at": "2027-12-31T23:59:59Z", "resolution_method": "model"}}
+{"id": "te-003", "group": "tech", "today": "2026-09-30", "text": "AGI by 2027", "expected": "needs_info"}
+{"id": "te-004", "group": "tech", "today": "2026-09-30", "text": "Tesla launches a paid robotaxi service without safety drivers in California by 2027-12-31", "expected": "recorded", "expect_contract": {"deadline_at": "2027-12-31T23:59:59Z", "resolution_method": "model"}}
+{"id": "te-005", "group": "tech", "today": "2026-09-30", "text": "Google search dies soon", "expected": "needs_info"}

@@ -1,0 +1,23 @@
+{
+ "id": "op-060",
+ "category": "technically_true_other_reading",
+ "expected_outcome": "miss",
+ "note": "2024 flights were suborbital, not full orbits.",
+ "lock_at": "2024-01-01T12:00:00Z",
+ "contract": {
+  "subject": "SpaceX Starship",
+  "criterion": "A SpaceX Starship completes at least one full orbit of Earth",
+  "deadline_at": "2024-12-31T23:59:59Z",
+  "source": {
+   "name": "SpaceX Starship flight updates",
+   "kind": "space",
+   "locator": "https://www.spacex.com/launches/",
+   "scope": "SpaceX Starship",
+   "entity_id": "Starship orbital flight",
+   "absence_is_meaningful": false,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "no Starship flight completes an orbit in the window",
+  "resolution_method": "model"
+ }
+}

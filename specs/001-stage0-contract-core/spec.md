@@ -68,26 +68,27 @@ reported.
 When a prediction cannot be judged as written — the deadline, the measurable threshold, the exact
 subject, what counts as success or an authoritative source is missing or ambiguous — the system
 does not guess and does not start a conversation. It sends one NEEDS INFO reply: what is unclear,
-one or two concrete example rewrites tailored to the author's topic, and the one format that fixes
-it: `amend <what happens> by <YYYY-MM-DD>`.
+one or two concrete example rewrites tailored to the author's topic, and how to fix it: reply with
+the prediction and a date. There is no command word — any reply from the author under the bot's
+reply is the fix (an **amend**).
 
 **Why this priority**: Most real predictions are vague. With open topics, vagueness is the norm
 ("cancer treatment by 2030"); if this reply is confusing, strangers never record (hypothesis A).
 
 **Independent Test**: Feed vague fixtures; check each reply names what is unclear, includes
-topic-specific examples that would themselves pass the checks, uses the amend format and fits the
-length limit; then feed a valid amend and check the claim becomes a draft contract.
+topic-specific examples that would themselves pass the checks, says to reply with a date and fits
+the length limit; then feed a valid author reply and check the claim becomes a draft contract.
 
 **Acceptance Scenarios**:
 
 1. **Given** "cancer treatment by 2030", **When** it is evaluated, **Then** the outcome is needs info
    stating that the cancer type and what counts as a treatment are unclear, with examples such as
-   "amend FDA approves a drug for pancreatic cancer by 2030-12-31".
+   "FDA approves a drug for pancreatic cancer by 2030-12-31".
 2. **Given** "Musk lands on Mars soon", **When** it is evaluated, **Then** the reply says the
    deadline and the exact event are unclear and gives an example with both.
 3. **Given** "I bet Trump gonna be next president", **When** it is evaluated, **Then** the outcome
    is needs info (no explicit date; "next president" is ambiguous) with an example that pins the
-   event and date, such as "amend Donald Trump is sworn in as US President by 2029-01-20".
+   event and date, such as "Donald Trump is sworn in as US President by 2029-01-20".
 4. **Given** each example the system suggests, **When** it is evaluated as an amend, **Then** it
    would be recorded (examples must be valid contracts, not just prose).
 5. **Given** a claim in needs info, **When** its author sends a valid amend, **Then** the claim
@@ -106,7 +107,7 @@ length limit; then feed a valid amend and check the claim becomes a draft contra
 
 When a locked claim's deadline has passed, sources are checked and each answer is stored as
 evidence that must pass the gates. One resolution per claim follows (see **Resolution model**):
-evidence decides (one official source, or two trusted ones agreeing), or an arbiter model decides,
+evidence decides (the contract's own primary source, or two established ones agreeing), or an arbiter model decides,
 or the claim is flagged for human review. Proven on
 seeded historical claims whose correct verdicts are known.
 
@@ -137,14 +138,18 @@ claims, whether cited evidence supports the verdict) with the known answers.
    **When** resolution runs, **Then** no verdict is recorded and the claim waits for the next run.
 9. **Given** a claim that was never locked when its deadline passed, **When** resolution runs,
    **Then** it is marked expired and never judged.
-10. **Given** two trusted results sites both show the same final match result, **When** resolution
-    runs, **Then** both pass the gates and the resolution is final without an arbiter.
+10. **Given** two established results sites both show the same final match result, **When**
+    resolution runs, **Then** both pass the gates and the resolution is final without an arbiter.
 11. **Given** passed evidence that contradicts, **When** resolution runs, **Then** the arbiter decides
     with notes, or, if it cannot, the resolution is flagged for human review and the claim stays open.
-12. **Given** one passed official item (e.g. the league's own final table) and nothing
-    contradicting, **When** resolution runs, **Then** the resolution is final.
-13. **Given** only one passed trusted item and no official one, **When** resolution runs, **Then** the
-    resolution is flagged for human review.
+12. **Given** one passed primary item from the contract's own source (e.g. the league's own final
+    table) and nothing contradicting, **When** resolution runs, **Then** the resolution is final.
+13. **Given** only one passed established item and no primary one, **When** resolution runs, **Then**
+    the resolution is flagged for human review.
+14. **Given** the judge rates a page "primary" that is not on the contract's own source domain,
+    **When** it is stored, **Then** it counts only as established.
+15. **Given** a site whose evidence agreed with 5 final verdicts, **When** a later claim is resolved,
+    **Then** that site is searched first, and its trust level is still rated per page.
 
 ---
 
@@ -230,11 +235,11 @@ what is judged.
 | Part | Meaning |
 |---|---|
 | Name and locator | the issuing body and its record (e.g. the regulator's approvals database, a league's official final table, a price feed) |
-| Kind | what kind of result it is (e.g. football results, regulatory decisions); picks the trusted sites in the source policy. The locator's own domain is trusted, and official only if the policy lists it |
+| Kind | what kind of result it is (e.g. football results, regulatory decisions); a label only, it grants no trust. The locator's domain is the only web domain whose pages can count as primary |
 | Scope | what the source covers (jurisdiction, competition, asset) |
 | Entity identifier | the exact entity in that source (asset ID, team and season, product name) |
 | Absence is meaningful | yes if "not listed in this source by the deadline" proves the criterion false (e.g. an official approvals register); no for sources that are not exhaustive (e.g. news) |
-| Fallback | only an official record from the same issuing body may replace the locator if it moves or disappears |
+| Fallback | only a record from the same issuing body may replace the locator if it moves or disappears |
 
 **Daily close** (price claims) = the closing price of the UTC calendar-day candle (00:00:00 to
 23:59:59 UTC) from the contract's named price feed. The closes considered are those whose day ends
@@ -270,7 +275,8 @@ early for clearer errors, and a test checks the two never differ.
 **Lock time** = 15 minutes after the most recent contract reply to the author (acknowledgement or
 `[AMENDED]` reply). A valid amend restarts it.
 
-**Amends and edits before lock.** An `amend` reply from the author, or an edit of the original tweet,
+**Amends and edits before lock.** A reply from the author under the bot's reply (no command word:
+the reply text is the corrected prediction), or an edit of the original tweet,
 before lock time produces a new contract for the **same claim** (same slug): the bot never edits its
 earlier reply, it posts a new reply marked `[AMENDED] #slug` with the new statement, the claim's
 contract is replaced, and lock time restarts. Both count toward the limit of two. Edits are detected
@@ -284,37 +290,38 @@ old contract is never locked against an edited post. After lock, edits and amend
 Two layers: **evidence** (what each source says) and one **resolution** (the verdict).
 
 **Evidence.** After the deadline the system checks sources — for price claims only the price feed
-(it is official and enough on its own); for other topics web sources found by search (e.g. for a
+(it is primary and enough on its own); for other topics web sources found by search (e.g. for a
 football result, the league's own site and major results sites). Each source's answer is stored as an evidence item with its proof and is put
-through **gates**, and gets a **trust level**: *official* (the price feed or a domain on the
-source policy's official list), *trusted* (listed for that kind of result) or *other*
-(never counts). Only domains on the curated, versioned **source policy** can be official; the
-contract's own source link counts as trusted when it is not on that list, so any topic works but
-the source a model named always needs a second agreeing source. Trust is applied in code — never by
-the model. Each item also records what
+through **gates**, and gets a **trust level**: *primary* (the body that decides or records the
+outcome), *established* (an outlet with its own reporting) or *weak* (never counts). There is no
+fixed list of sites: the judge model rates each page and gives its reason. Code caps the rating —
+only the price feed and pages on the contract's own source domain (fixed at lock) can be primary;
+any other page counts at most as established, so a model can never make an arbitrary site decide a
+claim alone. Sites **earn standing**: one whose evidence agreed with 5 or more final verdicts
+becomes a *known source* and is searched first; standing never raises a trust level. Each item also records what
 the source says: *hit*, *miss*, *pending* (a result exists but is not final yet), *irrelevant* (the
 source does not answer the question) or *entity gone*; only hit and miss count toward an outcome.
 Evidence is either a **record** (the source shows a result) or an **absence** (the result is not in a
-source the contract marks as exhaustive, checked on or after the deadline). Gates: the source is official or trusted; the quote the model cites really appears in
-the fetched page; the event date is inside the evaluation window (for absence evidence: the source was read on or
-after the deadline and is marked exhaustive); the result is final, not a
+source the contract marks as exhaustive, checked on or after the deadline). Gates: the source is not weak; the quote the model cites really appears in
+the fetched page; the event date is inside the evaluation window (for absence evidence: the page is
+the contract's own primary source, read on or after the deadline and marked exhaustive); the result is final, not a
 projection; and it is independent of the other evidence (not the same story copied). Only evidence
 that passes every gate counts.
 
 **Resolution** (one per claim), from the evidence that passed:
 
-Only the highest trust level present decides: when an official item passed, trusted items are shown
-but never count as a contradiction.
+Only the highest trust level present decides: when a primary item passed, established items are
+shown but never count as a contradiction.
 
 | Passed evidence | Resolution |
 |---|---|
-| at least 1 official, all official items agree | final (one official source is enough) |
-| no official, 2 or more trusted agree, none contradicting | final |
-| official items disagree, or (no official) trusted items disagree | an **arbiter model** reads them and decides, with notes; if it cannot decide, the resolution is flagged **needs human review** |
-| only 1 trusted, no official | flagged **needs human review** |
+| at least 1 primary, all primary items agree | final (one primary source is enough) |
+| no primary, 2 or more established agree, none contradicting | final |
+| primary items disagree, or (no primary) established items disagree | an **arbiter model** reads them and decides, with notes; if it cannot decide, the resolution is flagged **needs human review** |
+| only 1 established, no primary | flagged **needs human review** |
 | none, though sources were checked, in two runs at least 24 h apart | final: VOID, insufficient evidence (after one such run: wait, results may be reported late) |
-| an official source shows the entity no longer exists in 3 separate runs | final: VOID, unresolvable (fewer runs: wait) |
-| an official source says the result is pending | wait and retry; still pending 30 days after the deadline → flagged **needs human review** |
+| a primary source shows the entity no longer exists in 3 separate runs | final: VOID, unresolvable (fewer runs: wait) |
+| a primary source says the result is pending | wait and retry; still pending 30 days after the deadline → flagged **needs human review** |
 
 - A source that cannot be reached produces no evidence; the claim waits for the next run.
 - A claim flagged for human review stays open and is listed for the operator (command line in Stage
@@ -332,7 +339,7 @@ but never count as a contradiction.
 - Several news sites repeating one wire story count as one source, not independent confirmation.
 - An announcement published before lock can still be valid evidence if the event itself happens
   after lock; what matters is when the event occurred, not when it was reported.
-- The named source changes its URL or disappears: the model may use equivalent official records;
+- The named source changes its URL or disappears: the model may use equivalent records from the same issuing body;
   if none can establish the outcome, the verdict is VOID.
 - Subjective outcomes ("X will be the best", "Y will crush it") are needs info with examples of a
   measurable version.
@@ -373,14 +380,16 @@ but never count as a contradiction.
 **Unclear predictions (case A)**
 
 - **FR-007**: A needs-info outcome MUST produce one reply in a fixed frame: what is unclear, one or
-  two example rewrites tailored to the topic, and the format `amend <what happens> by <YYYY-MM-DD>`.
+  two example rewrites tailored to the topic, and the instruction to reply with the prediction and a
+  date.
 - **FR-008**: Every suggested example MUST itself pass the checks: each generated example is
   evaluated through the same proposal and checks as a real amend; failing ones are discarded and
   regenerated once; if none survive, the reply uses a fixed generic example. An unchecked example
   is never sent.
 - **FR-009**: All replies MUST fit within X's post length limit and contain no link card; the public
   page link is plain text.
-- **FR-010**: Amends from the claim's author MUST be accepted in needs info and in draft; the first
+- **FR-010**: Amends — any reply from the claim's author under the bot's reply, no command word —
+  MUST be accepted in needs info and in draft; replies from anyone else are ignored; the first
   successful amend from needs info MUST NOT count against the limit; at most two successful amends
   from draft; a failed amend MUST NOT consume an attempt.
 - **FR-011**: A claim in needs info with no valid amend within 24 hours MUST expire with no reply.
@@ -431,15 +440,19 @@ but never count as a contradiction.
 - **FR-024**: An unreachable, erroring or malformed feed, model or search MUST produce no evidence;
   the claim is retried on the next run.
 - **FR-025**: Each claim MUST have exactly one resolution, reached by the table in **Resolution
-  model**: one passed official item, or two or more passed trusted items agreeing → final; only the
-  highest trust level present decides; disagreement within it → arbiter model decides with notes, or flags the resolution for human review if it
-  cannot; a single passed trusted item without an official one → flagged for human review; none →
-  VOID (insufficient evidence); entity gone from an official source in 3 separate runs → VOID (unresolvable). Every evidence item MUST carry a
-  trust level (official, trusted, other) set in code — official only from the source policy's
-  official list; the contract's own link, if not listed, is trusted; trusted sites from the
-  policy — and what it says (hit, miss, pending,
-  irrelevant, entity gone). Every HIT or MISS resolution MUST name the evidence item that
-  established it and the source-policy version used.
+  model**: one passed primary item, or two or more passed established items agreeing → final; only
+  the highest trust level present decides; disagreement within it → arbiter model decides with notes, or flags the resolution for human review if it
+  cannot; a single passed established item without a primary one → flagged for human review; none →
+  VOID (insufficient evidence); entity gone from a primary source in 3 separate runs → VOID (unresolvable). Every evidence item MUST carry a
+  trust level (primary, established, weak) rated by the judge model with its reason, capped in
+  code: primary only for the price feed or a page on the contract's own source domain, any other
+  page at most established — and what it says (hit, miss, pending,
+  irrelevant, entity gone). There MUST be no fixed list of trusted sites. Every HIT or MISS
+  resolution MUST name the evidence item that established it.
+- **FR-025a**: Each final HIT or MISS MUST add one confirmation, once per site per claim, to every
+  site whose evidence matched it; a site's record starts at its first confirmation. A site with 5
+  or more confirmations is a known source and MUST be searched first; standing MUST NOT change a
+  trust level or decide a claim.
 - **FR-026**: Resolutions flagged for human review MUST be listed for the operator; the operator
   decides from the command line (admin panel later), and the decision and notes become the final
   resolution. A final resolution never changes (enforced by the database); correcting one is
@@ -478,8 +491,10 @@ but never count as a contradiction.
   (agree); others joining is deferred. A person's result is derived from the claim's verdict and
   their stance.
 - **Evidence**: what one source said about a claim — hit, miss, pending, irrelevant or entity gone — with a link to
-  it and a fingerprint of what was read (FR-023), its trust level (official, trusted, other) and the result of each gate; only fully
-  passed evidence counts.
+  it and a fingerprint of what was read (FR-023), its trust level (primary, established, weak) with
+  the judge's reason, and the result of each gate; only fully passed evidence counts.
+- **Source**: a site that confirmed at least one final verdict, and how many it confirmed; 5 make it
+  a known source (searched first).
 - **Resolution**: exactly one per claim — the final outcome (hit, miss, void), how it was reached
   (evidence, arbiter, human), the evidence item that established it, the arbiter's or human's notes,
   and whether it needs human review.
@@ -542,8 +557,14 @@ but never count as a contradiction.
   historical data so results never drift.
 - Model-written NEEDS INFO text and model-decided verdicts make Vaticeno an AI reply bot under X's
   developer rules; written approval from X is required before these replies go live (Stage 1+).
-- Reply delivery, mention polling, rate caps, opt-out and display names fetched from X are Stage 1+
+- Reply delivery, mention polling, rate caps and display names fetched from X are Stage 1+
   concerns; Stage 0 exercises lock and expiry timing with simulated times.
+- `@vaticeno help` is recognised in Stage 0 on the submitted text; the X intake (Stage 1) must test the
+  mention's own text, since the prediction is usually a different post.
+- No paid live runs of the corpus or open-topic seeds (owner decision 2026-09-30): SC-001, SC-003 and
+  SC-005 rest on the last recorded runs; the owner checks accuracy with a few real claims at release.
+- Opt-out (`STOP`) is not built and not offered in replies for now (owner decision 2026-09-30).
+  Constitution IV and X's approval checklist (INIT_SPEC §10) still require it before live replies.
 - Edits to the original tweet count as amends before lock and are ignored after it. In Stage 0 the
   re-read is simulated from fixtures.
 - Deadlines may be up to 10 years out (INIT_SPEC's 18-month cap is dropped).

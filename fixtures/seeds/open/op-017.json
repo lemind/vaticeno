@@ -1,0 +1,23 @@
+{
+ "id": "op-017",
+ "category": "miss_by_meaningful_absence",
+ "expected_outcome": "miss",
+ "note": "Awarded to Nihon Hidankyo on 2024-10-11.",
+ "lock_at": "2024-09-01T12:00:00Z",
+ "contract": {
+  "subject": "Volodymyr Zelensky",
+  "criterion": "Volodymyr Zelensky is awarded the 2024 Nobel Peace Prize",
+  "deadline_at": "2024-10-31T23:59:59Z",
+  "source": {
+   "name": "Nobel Peace Prize 2024",
+   "kind": "culture_awards",
+   "locator": "https://www.nobelprize.org/prizes/peace/2024/summary/",
+   "scope": "Volodymyr Zelensky",
+   "entity_id": "2024 Nobel Peace Prize",
+   "absence_is_meaningful": true,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "he is not among the 2024 Peace Prize laureates",
+  "resolution_method": "model"
+ }
+}
