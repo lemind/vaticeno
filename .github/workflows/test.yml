@@ -38,5 +38,6 @@ jobs:
       - run: npm run test:coverage
       - run: npm run db:migrate
       - run: npm run test:integration
-      # Added as their tasks land (specs/001-stage0-contract-core/tasks.md T008):
-      # `npm run corpus` and `npm run seeds:crypto` (replay mode, no secrets needed).
+      # Recorded model answers, no key needed (SC-001: ≥ 90%)
+      - run: npm run corpus
+      # Added when its task lands: `npm run seeds:crypto` (replay mode).

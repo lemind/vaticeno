@@ -27,8 +27,9 @@ const SearchEntry = z.object({
 });
 const FetchEntry = z.object({
   kind: z.literal('fetch'),
-  url: z.string(),
+  url: z.string(), // final URL after redirects
   sha256: z.string().nullable(),
+  simhash: z.string().nullable(), // near-duplicate fingerprint, not content
   retrieved_at: z.string(),
   status: z.number(),
 });

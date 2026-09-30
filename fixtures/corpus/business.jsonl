@@ -1,0 +1,5 @@
+{"id": "bu-001", "group": "business", "today": "2026-09-30", "text": "OpenAI files for an IPO by 2027-12-31", "expected": "recorded", "expect_contract": {"deadline_at": "2027-12-31T23:59:59Z", "resolution_method": "model"}}
+{"id": "bu-002", "group": "business", "today": "2026-09-30", "text": "Nvidia's market cap closes above $6 trillion on any trading day by 2027-06-30", "expected": "recorded", "expect_contract": {"deadline_at": "2027-06-30T23:59:59Z", "resolution_method": "model"}}
+{"id": "bu-003", "group": "business", "today": "2026-09-30", "text": "Twitter/X is sold to a new owner by 2028-12-31", "expected": "recorded", "expect_contract": {"deadline_at": "2028-12-31T23:59:59Z", "resolution_method": "model"}}
+{"id": "bu-004", "group": "business", "today": "2026-09-30", "text": "Amazon is in trouble", "expected": "rejected"}
+{"id": "bu-005", "group": "business", "today": "2026-09-30", "text": "Startups will struggle in 2027", "expected": "needs_info"}

@@ -17,12 +17,16 @@ export class LlmUnavailable extends Error {
   }
 }
 
+// The model answered, but not in the schema. Carries the cost of the (paid) call.
 export class LlmSchemaError extends Error {
-  constructor(message: string) {
+  constructor(message: string, readonly costs: CallCost[] = []) {
     super(message);
     this.name = 'LlmSchemaError';
   }
 }
+
+// Stored in place of a response that was not valid JSON, so replay reproduces the failure.
+const INVALID_JSON = { invalid_json: true } as const;
 
 type Usage = { input_tokens: number; output_tokens: number };
 
@@ -33,6 +37,12 @@ export type JsonCall<T> = {
   system: string;
   input: string;
   schema: z.ZodType<T>;
+  // Replay key when the input holds content that replay never has (page text): e.g. url + sha256.
+  replayIdentity?: unknown;
+  // What to record instead of the raw answer (e.g. a quote replaced by its hash + quote_found).
+  recordAs?: (raw: unknown) => unknown;
+  // Schema for the recorded shape, when recordAs changes it.
+  replaySchema?: z.ZodType<T>;
 };
 
 export type SearchResult = { queries: string[]; urls: string[] };
@@ -49,12 +59,12 @@ export function createLlmClient(options: { mode: LlmMode; apiKey?: string; store
   };
 
   async function generateJson<T>(call: JsonCall<T>): Promise<{ data: T; costs: CallCost[] }> {
-    const identity = { model: call.model, instruction: call.instructionVersion, input: call.input };
+    const identity = { model: call.model, instruction: call.instructionVersion, input: call.replayIdentity ?? call.input };
 
     if (mode === 'replay') {
       const entry = await store.get('model', identity);
       if (entry.kind !== 'model') throw new LlmSchemaError('replay entry is not a model response');
-      return { data: parseOutput(call.schema, entry.response), costs: [] };
+      return { data: parseOutput(call.replaySchema ?? call.schema, entry.response, []), costs: [] };
     }
 
     let raw: unknown;
@@ -70,19 +80,23 @@ export function createLlmClient(options: { mode: LlmMode; apiKey?: string; store
         },
       });
       usage = usageOf(response.usageMetadata);
-      raw = JSON.parse(response.text ?? '');
+      try {
+        raw = JSON.parse(response.text ?? '');
+      } catch {
+        raw = INVALID_JSON;
+      }
     } catch (error) {
-      if (error instanceof SyntaxError) throw new LlmSchemaError(`model returned invalid JSON: ${error.message}`);
       throw new LlmUnavailable(`model call failed: ${String(error)}`, { cause: error });
     }
 
-    const data = parseOutput(call.schema, raw);
+    // Record the raw answer, valid or not, so a replayed retry sees the same failure first.
     if (mode === 'record') {
       await store.put('model', identity, {
-        kind: 'model', model: call.model, instruction_version: call.instructionVersion, response: data, usage,
+        kind: 'model', model: call.model, instruction_version: call.instructionVersion, response: call.recordAs ? call.recordAs(raw) : raw, usage,
       });
     }
-    return { data, costs: [modelCost(call.model, call.operation, usage)] };
+    const costs = [modelCost(call.model, call.operation, usage)];
+    return { data: parseOutput(call.schema, raw, costs), costs };
   }
 
   // Grounded search: only the grounding metadata (queries + URLs) is used; the model's prose is ignored.
@@ -126,9 +140,10 @@ export function createLlmClient(options: { mode: LlmMode; apiKey?: string; store
 
 export type LlmClient = ReturnType<typeof createLlmClient>;
 
-function parseOutput<T>(schema: z.ZodType<T>, raw: unknown): T {
+function parseOutput<T>(schema: z.ZodType<T>, raw: unknown, costs: CallCost[]): T {
+  if (raw !== null && typeof raw === 'object' && 'invalid_json' in raw) throw new LlmSchemaError('model returned invalid JSON', costs);
   const parsed = schema.safeParse(raw);
-  if (!parsed.success) throw new LlmSchemaError(`model output failed validation: ${z.prettifyError(parsed.error)}`);
+  if (!parsed.success) throw new LlmSchemaError(`model output failed validation: ${z.prettifyError(parsed.error)}`, costs);
   return parsed.data;
 }
 

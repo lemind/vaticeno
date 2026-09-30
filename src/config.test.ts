@@ -11,12 +11,12 @@ test('replay mode needs only DATABASE_URL', () => {
   assert.equal(config.PORT, 3000);
 });
 
-test('live and record modes require the key and every model id', () => {
+test('live and record modes require the API key; model ids always have a default', () => {
   for (const mode of ['live', 'record']) {
-    assert.throws(() => loadCoreConfig({ DATABASE_URL: DB, LLM_MODE: mode, NORMALIZER_MODEL: 'm' }), /GEMINI_API_KEY/);
+    assert.throws(() => loadCoreConfig({ DATABASE_URL: DB, LLM_MODE: mode }), /GEMINI_API_KEY/);
   }
-  const full = { GEMINI_API_KEY: 'k', NORMALIZER_MODEL: 'a', JUDGE_MODEL_A: 'b', JUDGE_MODEL_B: 'c', ARBITER_MODEL: 'd' };
-  assert.equal(loadCoreConfig({ DATABASE_URL: DB, LLM_MODE: 'live', ...full }).ARBITER_MODEL, 'd');
+  assert.equal(loadCoreConfig({ DATABASE_URL: DB, LLM_MODE: 'live', GEMINI_API_KEY: 'k', ARBITER_MODEL: 'd' }).ARBITER_MODEL, 'd');
+  assert.equal(loadCoreConfig({ DATABASE_URL: DB, NORMALIZER_MODEL: '' }).NORMALIZER_MODEL, 'gemini-3.1-flash-lite');
 });
 
 test('DATABASE_URL is required and must be postgres', () => {

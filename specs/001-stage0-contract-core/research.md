@@ -26,8 +26,13 @@ Each entry: Decision / Rationale / Alternatives.
 - **Decision**: contract proposal = **one model call, plus one retry** on schema failure (then
   needs info). Gemini Flash-class, JSON output validated by Zod. Tier = `NORMALIZER_MODEL`, the
   cheapest one that reaches SC-001 (≥ 90%) on the corpus. Deterministic checks decide the outcome.
+  **Chosen (T035, 2026-09-30): `gemini-3.1-flash-lite`**, 100/100, about $0.0006 per proposal. The
+  Gemini 2.5 Flash-Lite tier is closed to new API users. Live runs vary between calls (95–100% over
+  four runs while tuning the instructions); replay pins one recording.
   NEEDS INFO examples: each re-run through the same proposal + checks (FR-008), so a needs-info
-  reply costs 1 + up to 3 extra calls.
+  reply costs 1 + up to 4 extra calls (2 examples checked, then 1 regeneration + 1 check), and an
+  example must also fit the 280-character reply. Corpus: 39 of 44 needs-info replies carry a checked
+  model example, the rest the fixed fallback.
 - **Rationale**: needs world knowledge; ~500 calls/month ≈ $1; a 1 GB droplet can't host a model.
 
 ## R4. Resolution pipeline: gated evidence → one resolution

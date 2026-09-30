@@ -1,0 +1,6 @@
+{"id": "cp-001", "group": "commitment_phrasing", "today": "2026-09-30", "text": "calling it now: ETH goes way higher 📸", "expected": "needs_info"}
+{"id": "cp-002", "group": "commitment_phrasing", "today": "2026-09-30", "text": "screenshot this tweet: BTC is going up", "expected": "needs_info"}
+{"id": "cp-003", "group": "commitment_phrasing", "today": "2026-09-30", "text": "Remember I said this: BTC will be much higher next year", "expected": "needs_info"}
+{"id": "cp-004", "group": "commitment_phrasing", "today": "2026-09-30", "text": "Screenshot this: BTC daily close above $250,000 by 2027-12-31", "expected": "recorded", "expect_contract": {"deadline_at": "2027-12-31T23:59:59Z", "resolution_method": "price_feed", "price.product_id": "BTC-USD", "price.comparison": "CLOSE_ABOVE", "price.threshold": 250000, "price.window_mode": "any_time_before"}}
+{"id": "cp-005", "group": "commitment_phrasing", "today": "2026-09-30", "text": "Bookmark this. The FDA approves an oral GLP-1 pill for weight loss by 2027-12-31", "expected": "recorded", "expect_contract": {"deadline_at": "2027-12-31T23:59:59Z", "resolution_method": "model"}}
+{"id": "cp-006", "group": "commitment_phrasing", "today": "2026-09-30", "text": "You heard it here first: Apple is cooked 👀", "expected": "rejected"}

@@ -1,0 +1,6 @@
+{"id": "ae-001", "group": "ambiguous_entity", "today": "2026-09-30", "text": "Ronaldo scores in the final by 2027-06-30", "expected": "needs_info"}
+{"id": "ae-002", "group": "ambiguous_entity", "today": "2026-09-30", "text": "Mercury will be visible from everywhere by 2027-01-31", "expected": "needs_info"}
+{"id": "ae-003", "group": "ambiguous_entity", "today": "2026-09-30", "text": "Jordan retires by 2027-12-31", "expected": "needs_info"}
+{"id": "ae-004", "group": "ambiguous_entity", "today": "2026-09-30", "text": "Paris wins by 2027-06-30", "expected": "needs_info"}
+{"id": "ae-005", "group": "ambiguous_entity", "today": "2026-09-30", "text": "The merger closes by 2027-03-31", "expected": "needs_info"}
+{"id": "ae-006", "group": "ambiguous_entity", "today": "2026-09-30", "text": "Python overtakes it by 2027-12-31", "expected": "needs_info"}

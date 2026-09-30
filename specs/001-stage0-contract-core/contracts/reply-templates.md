@@ -5,15 +5,13 @@ Only the parts in `{…}` vary. `{statement}` is rendered from the contract, nev
 **RECORDED**
 ```
 RECORDED · #{slug}
-
 "{statement}"
-
-Source: {source.name}
-Locks: {lock_in} · Resolves: shortly after {deadline_date}
-
-Wrong wording? Reply "amend <corrected> by <YYYY-MM-DD>" before lock.
+Fix in 15 min: reply "amend <what> by <YYYY-MM-DD>"
 vaticeno.app/c/{slug}
 ```
+The statement already names the deadline and, for model claims, the source; the page shows the rest.
+Budget: the frame is ~100 weighted chars (X counts any link as 23), so the statement gets ~180 —
+hence `criterion` ≤ 100 and `source.name` ≤ 48 in the contract schema.
 
 **NEEDS INFO** (case A) — `{unclear_explanation}` and examples come from the model and are checked.
 ```

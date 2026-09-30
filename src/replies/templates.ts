@@ -1,0 +1,56 @@
+// Fixed reply frames (contracts/reply-templates.md). Only the {…} parts vary; the statement is
+// always rendered from the contract. Replies are produced and checked here, never stored.
+import type { RejectReason } from '../contract/checks.js';
+
+export const X_MAX_CHARS = 280;
+const X_LINK_CHARS = 23; // X counts every link as 23 characters
+const PAGE_HOST = 'vaticeno.app';
+
+export const pageLink = (slug: string) => `${PAGE_HOST}/c/${slug}`;
+
+export function recordedReply(slug: string, statement: string): string {
+  return assertReplyFits(
+    `RECORDED · #${slug}\n"${statement}"\nFix in 15 min: reply "amend <what> by <YYYY-MM-DD>"\n${pageLink(slug)}`,
+  );
+}
+
+// Used when no generated example survives the checks (FR-008): an example that is known to record.
+export const FALLBACK_EXAMPLE = 'BTC daily close above $150,000 by 2026-12-31';
+
+// NEEDS INFO (case A). `example` must already have passed the checks — never an unchecked one.
+export function needsInfoReply(explanation: string, checkedExample: string = FALLBACK_EXAMPLE): string {
+  const why = explanation.trim() || 'Something essential is missing.';
+  return assertReplyFits(
+    `NOT RECORDED — I can't judge this as written.\n\n${why}\n\nReply: amend <what happens> by <YYYY-MM-DD>\ne.g. amend ${checkedExample}`,
+  );
+}
+
+const REJECT_WORDS: Record<Exclude<RejectReason, 'x_rules' | 'duplicate'>, string> = {
+  not_prediction: "that doesn't read as a prediction",
+  deadline_too_close: 'the deadline must be more than 24 hours away',
+  deadline_too_far: 'the deadline must be within 10 years',
+};
+
+export function rejectedReply(reason: Exclude<RejectReason, 'duplicate'>): string {
+  // X rules: no quote, no explanation.
+  if (reason === 'x_rules') return "NOT RECORDED — I can't record this one.";
+  return assertReplyFits(`NOT RECORDED — ${REJECT_WORDS[reason]}.`);
+}
+
+export function alreadyRecordedReply(existingSlug: string): string {
+  return `ALREADY RECORDED · ${pageLink(existingSlug)}`;
+}
+
+// Length as X counts it: links weigh 23, everything else one per character (code point).
+export function weightedLength(text: string): number {
+  const links = text.match(/\b[\w.-]+\.[a-z]{2,}\/\S*/gi) ?? [];
+  let length = [...text].length;
+  for (const link of links) length += X_LINK_CHARS - [...link].length;
+  return length;
+}
+
+export function assertReplyFits(text: string): string {
+  const length = weightedLength(text);
+  if (length > X_MAX_CHARS) throw new Error(`reply is ${length} characters as X counts them; the limit is ${X_MAX_CHARS}`);
+  return text;
+}

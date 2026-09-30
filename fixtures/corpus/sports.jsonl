@@ -1,0 +1,7 @@
+{"id": "sp-001", "group": "sports", "today": "2026-09-30", "text": "Arsenal win the 2026-27 Premier League, by 2027-05-31", "expected": "recorded", "expect_contract": {"deadline_at": "2027-05-31T23:59:59Z", "resolution_method": "model"}}
+{"id": "sp-002", "group": "sports", "today": "2026-09-30", "text": "Real Madrid win the 2026-27 UEFA Champions League, by 2027-06-15", "expected": "recorded", "expect_contract": {"deadline_at": "2027-06-15T23:59:59Z", "resolution_method": "model"}}
+{"id": "sp-003", "group": "sports", "today": "2026-09-30", "text": "The Boston Celtics win the 2027 NBA Finals, by 2027-06-30", "expected": "recorded", "expect_contract": {"deadline_at": "2027-06-30T23:59:59Z", "resolution_method": "model"}}
+{"id": "sp-004", "group": "sports", "today": "2026-09-30", "text": "Max Verstappen wins the 2027 F1 Drivers' Championship, by 2027-12-31", "expected": "recorded", "expect_contract": {"deadline_at": "2027-12-31T23:59:59Z", "resolution_method": "model"}}
+{"id": "sp-005", "group": "sports", "today": "2026-09-30", "text": "Carlos Alcaraz wins Wimbledon 2027 men's singles, by 2027-07-31", "expected": "recorded", "expect_contract": {"deadline_at": "2027-07-31T23:59:59Z", "resolution_method": "model"}}
+{"id": "sp-006", "group": "sports", "today": "2026-09-30", "text": "Messi scores a lot next season", "expected": "needs_info"}
+{"id": "sp-007", "group": "sports", "today": "2026-09-30", "text": "Liverpool will be great this year", "expected": "needs_info"}

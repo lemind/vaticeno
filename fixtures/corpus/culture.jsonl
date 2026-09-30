@@ -1,0 +1,4 @@
+{"id": "cu-001", "group": "culture", "today": "2026-09-30", "text": "Oppenheimer 2 is announced by Universal by 2027-12-31", "expected": "recorded", "expect_contract": {"deadline_at": "2027-12-31T23:59:59Z", "resolution_method": "model"}}
+{"id": "cu-002", "group": "culture", "today": "2026-09-30", "text": "Taylor Swift releases a new studio album by 2027-06-30", "expected": "recorded", "expect_contract": {"deadline_at": "2027-06-30T23:59:59Z", "resolution_method": "model"}}
+{"id": "cu-003", "group": "culture", "today": "2026-09-30", "text": "The next Marvel movie will flop", "expected": "needs_info"}
+{"id": "cu-004", "group": "culture", "today": "2026-09-30", "text": "GTA VI is released on PlayStation 5 by 2026-12-31", "expected": "recorded", "expect_contract": {"deadline_at": "2026-12-31T23:59:59Z", "resolution_method": "model"}}
