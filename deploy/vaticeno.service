@@ -1,5 +1,5 @@
 [Unit]
-Description=Vaticeno X bot (mention poller)
+Description=Vaticeno X bot (mentions, lock, resolver, pages on localhost)
 After=network-online.target
 Wants=network-online.target
 
@@ -7,14 +7,12 @@ Wants=network-online.target
 Type=simple
 User=vaticeno
 WorkingDirectory=/opt/vaticeno
-ExecStart=/usr/bin/node --env-file=.env --import tsx src/poc/poll.ts
+ExecStart=/usr/bin/node --env-file=.env --import tsx src/web/server.ts
 Restart=always
 RestartSec=10
-# Only one instance may ever run: two pollers double-reply and fight over the rotating refresh token.
+# Only one instance may ever run (ENABLE_JOBS): two would double-reply and fight over the rotating refresh token.
 KillSignal=SIGINT
 TimeoutStopSec=15
-# Exit 78 = fatal auth/config error (see src/poc/poll.ts): stay stopped instead of crash-looping.
-RestartPreventExitStatus=78
 NoNewPrivileges=true
 ProtectSystem=strict
 ReadWritePaths=/opt/vaticeno/.state

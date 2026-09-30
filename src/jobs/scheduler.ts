@@ -10,15 +10,18 @@ import { captureError, withCronMonitor } from '../observe.js';
 import { type ResolverDeps, resolveDueClaims } from '../resolve/resolver.js';
 import type { ClaimDeps } from '../lifecycle/claims.js';
 import { withJobLock } from './lock.js';
+import { type BotDeps, pollMentions } from '../bot/mentions.js';
 
-export type SchedulerDeps = ClaimDeps & ResolverDeps & { reader: SourceReader; sql: Sql };
+export type SchedulerDeps = ClaimDeps & ResolverDeps & { reader: SourceReader; sql: Sql; bot: BotDeps | null };
 
-const SCHEDULES = { lock: '* * * * *', expire: '*/10 * * * *', resolve: '0 * * * *' } as const;
+const SCHEDULES = { mentions: '* * * * *', lock: '* * * * *', expire: '*/10 * * * *', resolve: '0 * * * *' } as const;
 
 export function startScheduler(deps: SchedulerDeps): { stop: () => Promise<void> } {
   const now = () => new Date();
   const running = new Set<Promise<void>>();
   const jobs: Record<keyof typeof SCHEDULES, () => Promise<unknown>> = {
+    // X intake (ENABLE_X): new mentions → engine → one reply each.
+    mentions: async () => (deps.bot ? pollMentions(deps.bot, now()) : null),
     // The lock job carries the free plan's one cron monitor: it runs every minute, so silence means down.
     lock: () => withCronMonitor('vaticeno-lock', SCHEDULES.lock, () => lockDueDrafts(deps, now())),
     expire: () => expireNeedsInfo(deps.db, now()),

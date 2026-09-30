@@ -4,13 +4,11 @@ import type { RejectReason } from '../contract/checks.js';
 
 export const X_MAX_CHARS = 280;
 const X_LINK_CHARS = 23; // X counts every link as 23 characters
-const PAGE_HOST = 'vaticeno.app';
 
-export const pageLink = (slug: string) => `${PAGE_HOST}/c/${slug}`;
 
 export function recordedReply(slug: string, statement: string): string {
   return assertReplyFits(
-    `RECORDED · #${slug}\n"${statement}"\nFix in 15 min: reply with the corrected prediction\n${pageLink(slug)}`,
+    `RECORDED · #${slug}\n"${statement}"\nFix in 15 min: reply with the corrected prediction`,
   );
 }
 
@@ -53,7 +51,7 @@ export function rejectReasonWords(reason: Exclude<RejectReason, 'duplicate'>): s
 
 // A fix before lock (the author's reply or an edit of the post): a new reply, never an edit of the earlier one.
 export function amendedReply(slug: string, statement: string, amendsLeft: number): string {
-  return assertReplyFits(`[AMENDED] #${slug}\n\nNow judging:\n"${statement}"\n\nLocks in 15 min · fixes left: ${amendsLeft}\n${pageLink(slug)}`);
+  return assertReplyFits(`[AMENDED] #${slug}\n\nNow judging:\n"${statement}"\n\nLocks in 15 min · fixes left: ${amendsLeft}`);
 }
 
 // The post was edited before lock and the edit can't be recorded (or no fixes are left): nothing is locked.
@@ -84,8 +82,11 @@ export function notChangedReply(slug: string, why: string): string {
   return assertReplyFits(`NOT CHANGED — ${why.trim() || 'Something essential is missing.'}\n#${slug} stays as recorded.`);
 }
 
+// A summon under someone else's post: only the author can put a prediction on the record.
+export const THIRD_PARTY_REPLY = 'NOT RECORDED — I only record your own predictions. Tag me under your post.';
+
 export function alreadyRecordedReply(existingSlug: string): string {
-  return `ALREADY RECORDED · ${pageLink(existingSlug)}`;
+  return `ALREADY RECORDED · #${existingSlug}`;
 }
 
 // Length as X counts it: links weigh 23, everything else one per character (code point).

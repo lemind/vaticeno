@@ -1,6 +1,8 @@
 <!--
 Sync Impact Report
-- Version change: 1.1.0 → 2.0.0 (2026-09-30, MAJOR): II redefined — no curated site list; the
+- Version change: 2.0.0 → 2.1.0 (2026-09-30, MINOR): VI — mention-triggered replies need no separate X
+  approval (owner decision); unsolicited replies stay forbidden.
+- Earlier: 1.1.0 → 2.0.0 (2026-09-30, MAJOR): II redefined — no curated site list; the
   judge model rates each page primary/established/weak, code caps primary to the price feed and
   the contract's own source domain; sites earn "known" standing after 5 agreeing final verdicts
   (search hint only). III — entity_gone from a primary source.
@@ -29,7 +31,7 @@ Sync Impact Report
   ✅ .specify/templates/tasks-template.md — no new task category required
   ✅ CLAUDE.md — SPECKIT block now points at this constitution
   ✅ AGENTS.md, README.md — consistent; no edit needed
-- Known exception recorded: the POC `ping` → `pong` reply is live before X approval (Principle VI).
+- VI amended 2026-09-30: mention-triggered replies go live without separate X approval.
 - Deferred TODOs: none
 -->
 
@@ -133,12 +135,11 @@ entire class of problems, and it is what X's terms require.
 
 ### VI. Platform Policy Gates Live Behavior
 
-- No reply type goes live before the X policy checklist (INIT_SPEC §10) is complete and approval
-  is on file.
-- **Recorded exception:** the proof-of-concept `ping` → `pong` liveness reply runs before
-  approval. It is the only one; extending it or adding another requires amending this principle.
-- Model-written replies (tailored NEEDS INFO, model-decided verdicts) make this an AI reply bot;
-  X's written approval MUST be on file before they post.
+- Live replies are gated by `REPLY_ALLOWLIST_USER_IDS` (`*` = anyone) and the self-imposed caps.
+- Replies go only to people who mentioned the bot, in that thread, once per interaction. X allows
+  mention-triggered replies without separate approval (owner check of X's developer forum, 2026-09-30);
+  the account carries X's "Automated" label and names its operator in the bio. Anything unsolicited
+  (keyword search, replying where not mentioned) is forbidden.
 - There are no topic exclusions, but content the bot republishes MUST comply with X's rules.
 - Behavior that depends on X's answers (resolution delivery mode, third-party recording) MUST be
   configuration, not code, and MUST default to the most conservative option.
@@ -192,4 +193,4 @@ Rationale: a one-person proto survives on code it can read in one sitting.
 - Every plan passes the Constitution Check before design and again after it. A justified violation
   is recorded in the plan's Complexity Tracking table; an unjustified one blocks the work.
 
-**Version**: 2.0.0 | **Ratified**: 2026-09-28 | **Last Amended**: 2026-09-30
+**Version**: 2.1.0 | **Ratified**: 2026-09-28 | **Last Amended**: 2026-09-30

@@ -3,6 +3,7 @@
 import { pathToFileURL } from 'node:url';
 import Fastify, { type FastifyReply } from 'fastify';
 import { loadCoreConfig } from '../config.js';
+import { buildBotDeps } from '../bot/wire.js';
 import { buildDeps } from '../deps.js';
 import { closeDb, type Db, getDb, getSql } from '../db/client.js';
 import { startScheduler } from '../jobs/scheduler.js';
@@ -60,10 +61,13 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const app = buildServer({ db: getDb() });
   // Caddy in front terminates HTTPS; the app is never reachable directly from outside.
   await app.listen({ port: config.PORT, host: '127.0.0.1' });
+  const deps = buildDeps(config);
+  const bot = config.ENABLE_X ? buildBotDeps(deps) : null;
+  // On X the lock job re-reads the real post; without X, the Stage 0 simulation file.
   const scheduler = config.ENABLE_JOBS
-    ? startScheduler({ ...buildDeps(config), reader: createFileSourceReader(), sql: getSql() })
+    ? startScheduler({ ...deps, reader: bot?.reader ?? createFileSourceReader(), sql: getSql(), bot })
     : null; // started only once the server is up
-  log('info', 'web server listening', { event: 'web.started', port: config.PORT, jobs: config.ENABLE_JOBS });
+  log('info', 'web server listening', { event: 'web.started', port: config.PORT, jobs: config.ENABLE_JOBS, x: Boolean(bot) });
   const stop = async () => {
     try {
       await scheduler?.stop();

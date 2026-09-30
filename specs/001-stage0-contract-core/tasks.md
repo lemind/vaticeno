@@ -201,6 +201,17 @@ element, no percentage or ranking, no content (SC-009).
 
 ---
 
+## Phase 9: X connection (owner decision 2026-09-30: live on X now)
+
+**Goal**: real mentions go through the engine and get one reply each, in the thread.
+
+- [x] T090 `src/bot/mentions.ts`: `routeMention` (ping; help; a reply in the thread of the author's open claim = a fix, no keyword; empty mention under your own post records that post; under someone else's post → refused; otherwise the mention text is the prediction) and `pollMentions` (cursor moves per handled mention; an outage leaves the rest for the next poll; one reply per mention, never retried; allowlist and caps)
+- [x] T091 `src/bot/x-source-reader.ts` (current version = last id in edit history) and `src/bot/wire.ts` (X client, OAuth reply poster with one 401 refresh); `getTweet` in `src/x/client.ts`
+- [x] T092 Scheduler `mentions` job every minute behind `ENABLE_X=true`; the lock job reads posts from X; replies drop the page link (no domain yet)
+- [x] T093 `deploy/vaticeno.service` runs `src/web/server.ts` (pages on localhost, jobs, X); constitution VI 2.1.0; `tests/integration/bot.test.ts`
+
+---
+
 ## Dependencies & Execution Order
 
 - **Phase 1** → **Phase 2 (DB)** → user stories.
