@@ -74,7 +74,7 @@ Post-design re-check (after Phase 1): unchanged — ✅. No violations; Complexi
 specs/001-stage0-contract-core/
 ├── spec.md
 ├── plan.md              # this file
-├── research.md          # R1–R10 decisions
+├── research.md          # R1–R11 decisions
 ├── data-model.md        # tables, ContractSchema, triggers, lifecycle
 ├── quickstart.md
 ├── contracts/
@@ -83,7 +83,7 @@ specs/001-stage0-contract-core/
 │   ├── llm-schemas.md   # proposal + judge output shapes
 │   └── reply-templates.md
 ├── checklists/requirements.md
-└── tasks.md             # next: /speckit-tasks
+└── tasks.md             # task list and status
 ```
 
 ### Source Code (repository root)
@@ -96,7 +96,9 @@ src/
 ├── commands/, ingest/, x/, poc/    # existing POC — NOT touched by Stage 0 tasks
 ├── db/
 │   ├── schema.ts                   # Drizzle: claims, positions, evidences, resolutions, cost_events
-│   └── client.ts
+│   ├── client.ts                   # createDb (tests, scripts), getDb/getSql (entrypoints only)
+│   ├── migrate.ts                  # applies drizzle/ migrations
+│   └── costs.ts                    # recordCosts (db or transaction)
 ├── contract/
 │   ├── schema.ts                   # ContractSchema (Zod)
 │   ├── render.ts                   # statement from fields — the only statement source
@@ -104,7 +106,8 @@ src/
 │   └── slug.ts
 ├── llm/
 │   ├── client.ts                   # Gemini wrapper: live|record|replay, cost events
-│   ├── replay.ts                   # replay store (R5)
+│   ├── replay.ts                   # replay store (R5); refuses text/quote fields
+│   ├── prices.ts                   # model + search prices (UNRECONCILED)
 │   ├── instructions/               # normalize.v1, search.v1, judge.v1, arbitrate.v1
 │   ├── normalize.ts                # proposal + one retry
 │   ├── search.ts                   # grounded search → candidate URLs
@@ -113,7 +116,9 @@ src/
 ├── lifecycle/
 │   ├── transitions.ts              # early refusal; DB trigger is the authority
 │   ├── lock.ts                     # lock_at = last reply + 15 min; re-read at lock, edit → re-checked amend or expired
-│   └── claims.ts                   # submit, amend, lock, expire (services, take `now`)
+│   ├── expire.ts                   # needs_info older than 24 h → expired
+│   ├── source-reader.ts            # SourceReader port: fixture now, X in Stage 1
+│   └── claims.ts                   # submit, amend (services, take deps + `now`)
 ├── replies/
 │   ├── templates.ts
 │   └── needs-info.ts               # example generation + validation (FR-008)
@@ -126,7 +131,9 @@ src/
 │   ├── decide.ts                   # rule table → final | needs_arbiter | needs_human | wait — pure
 │   └── resolver.ts                 # passed evidence → agree | arbiter | needs_human (service, takes `now`)
 ├── feeds/coinbase.ts               # Zod-validated candles client
-├── jobs/scheduler.ts               # node-cron: only calls the service functions above
+├── jobs/
+│   ├── scheduler.ts                # node-cron: only calls the service functions above
+│   └── lock.ts                     # withJobLock: Postgres advisory lock per job
 ├── web/
 │   ├── server.ts                   # Fastify (public, read-only)
 │   ├── html.ts                     # escaping helper
@@ -138,13 +145,31 @@ fixtures/
 ├── seeds/crypto/*.json             # 60 claims with frozen Coinbase candles
 ├── seeds/open/*.json               # categorised per SC-003
 └── replay/                         # recorded model, search, fetch and feed responses
-tests/integration/                  # triggers, uniqueness, transitions against Postgres
+tests/integration/                  # real Postgres: triggers, transitions, uniqueness, services
 ```
 
 **Structure Decision**: single project extending the existing `src/`; unit tests colocated as
 `*.test.ts`, DB-backed tests in `tests/integration/`. The core runs as CLI → service → DB; cron and
 the web server are thin callers of the same services. The POC poller keeps running on the droplet
 unchanged; Stage 0 code is not wired to X and Stage 0 tasks do not edit the POC directories.
+
+## Architecture
+
+A light **functional core, imperative shell** (a cousin of Clean / hexagonal architecture, without
+its ceremony):
+
+- **Core — pure**: `contract/`, `resolve/{trust,gates,decide}`, `lifecycle/transitions`. No DB,
+  network, clock or logging; takes values, returns values. The exhaustive tests live here.
+- **Services**: `lifecycle/*`, `resolve/{resolver,web-evidence,price-evidence}`. Orchestrate and
+  do I/O; receive their dependencies as arguments (`{ db, llm, reader, now }`), never call
+  `getDb()` or `new Date()` themselves.
+- **Adapters**: `db/`, `llm/`, `feeds/`, `resolve/fetch`, `log`, `observe`.
+- **Entrypoints — thin**: `cli/`, `jobs/scheduler`, `web/` routes. Parse input, build the deps,
+  call one service, print or render.
+
+Imports only point inward (entrypoints → services → core/adapters; the core imports no adapter).
+No repository interfaces or DI container: Postgres is fixed and tests run against a real one. The
+one port is `SourceReader` (fixture now, X in Stage 1).
 
 ## Complexity Tracking
 

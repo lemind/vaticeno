@@ -25,13 +25,13 @@ model-decided) proven on seeded claims, public pages. Where INIT_SPEC (v1.1.1) i
 
 ## Conventions
 
-**Commit messages**: one line, `feat|fix|chore|docs(001-T001): <short desc>` — task ID is spec number + task (IDs restart per spec). Omit the task ref when there is no associated task. Never commit without explicit user request.
+**Commit messages**: one line, `feat|fix|chore|docs(001-T001): <short desc>` — task ID is spec number + task (IDs restart per spec); a commit covering several tasks names the range, `feat(001-T009-024): …`. Omit the task ref when there is no associated task. Never commit without explicit user request.
 
 **PR descriptions**: plain human language, no code identifiers, file paths, line numbers, or test/finding counts. Describe what changed for a person reading it, not what changed in the diff.
 
 **Code comments**: max ~200 chars per comment. State what/why in one line; point to the spec section (`INIT_SPEC §6.7`) or decision doc (`docs/decisions/0NN-*.md`) for rationale — never restate it inline.
 
-**Hack tagging**: code justified by a specific provider/environment quirk (X API, CoinGecko, sports API, Gemini) rather than general correctness must be tagged right above it:
+**Hack tagging**: code justified by a specific provider/environment quirk (X API, Coinbase, Supabase, Gemini) rather than general correctness must be tagged right above it:
 
 ```
 // HACK(<scope>): <OBSERVED w/ citation, or SPECULATIVE — say which>. See <doc path>.
