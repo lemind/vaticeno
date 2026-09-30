@@ -35,13 +35,19 @@ No command word anywhere: any reply from the author under a bot reply is the cor
 Now judging:
 "{statement}"
 
-Locks: {lock_in} · amends left: {amends_left}
+Locks in 15 min · fixes left: {amends_left}
 vaticeno.app/c/{slug}
 ```
 
 **EXPIRED** — the original post was edited before lock and the edit fails the checks or exceeds the amend limit
 ```
 [EXPIRED] #{slug} — the post changed after recording, so nothing was locked. Tag me on a new post to record it.
+```
+
+**NOT CHANGED** — a fix to a recorded (draft) claim that can't be applied; the recorded version stands
+```
+NOT CHANGED — {reason or unclear_explanation}
+#{slug} stays as recorded.
 ```
 
 **REJECTED**

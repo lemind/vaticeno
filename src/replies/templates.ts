@@ -51,6 +51,21 @@ export function rejectReasonWords(reason: Exclude<RejectReason, 'duplicate'>): s
   return reason === 'x_rules' ? "I can't record this one" : REJECT_WORDS[reason];
 }
 
+// A fix before lock (the author's reply or an edit of the post): a new reply, never an edit of the earlier one.
+export function amendedReply(slug: string, statement: string, amendsLeft: number): string {
+  return assertReplyFits(`[AMENDED] #${slug}\n\nNow judging:\n"${statement}"\n\nLocks in 15 min · fixes left: ${amendsLeft}\n${pageLink(slug)}`);
+}
+
+// The post was edited before lock and the edit can't be recorded (or no fixes are left): nothing is locked.
+export function expiredReply(slug: string): string {
+  return `[EXPIRED] #${slug} — the post changed after recording, so nothing was locked. Tag me on a new post to record it.`;
+}
+
+// A fix that can't be applied: the recorded version stands.
+export function notChangedReply(slug: string, why: string): string {
+  return assertReplyFits(`NOT CHANGED — ${why.trim() || 'Something essential is missing.'}\n#${slug} stays as recorded.`);
+}
+
 export function alreadyRecordedReply(existingSlug: string): string {
   return `ALREADY RECORDED · ${pageLink(existingSlug)}`;
 }

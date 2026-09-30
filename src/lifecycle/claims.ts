@@ -1,5 +1,5 @@
 // Claim services: take their dependencies and `now` as arguments (plan.md "Architecture").
-import { and, eq } from 'drizzle-orm';
+import { and, eq, gt } from 'drizzle-orm';
 import { type RejectReason, runChecks } from '../contract/checks.js';
 import type { Proposal, UnclearItem } from '../contract/proposal.js';
 import { renderStatement } from '../contract/render.js';
@@ -14,7 +14,9 @@ import { proposeContract } from '../llm/normalize.js';
 import { log } from '../log.js';
 import { buildNeedsInfoReply } from '../replies/needs-info.js';
 import { NEEDS_INFO_WINDOW_MS } from './expire.js';
-import { alreadyRecordedReply, assertReplyFits, HELP_REPLY, recordedReply, rejectedReply, rejectReasonWords } from '../replies/templates.js';
+import {
+  alreadyRecordedReply, amendedReply, assertReplyFits, HELP_REPLY, notChangedReply, recordedReply, rejectedReply, rejectReasonWords,
+} from '../replies/templates.js';
 import type { SourceReader } from './source-reader.js';
 
 export const LOCK_DELAY_MS = 15 * 60 * 1000;
@@ -44,8 +46,8 @@ type Decision =
 
 type Evaluation = { decision: Decision; modelId: string; selfConfidence: number | null; costs: CallCost[] };
 
-// Proposal → checks → price feed confirmation. Shared by submit and amend.
-async function evaluate(deps: ClaimDeps, text: string, now: Date): Promise<Evaluation> {
+// Proposal → checks → price feed confirmation. Shared by submit, fixes and edits found at lock.
+export async function evaluate(deps: ClaimDeps, text: string, now: Date): Promise<Evaluation> {
   const proposed = await proposeContract(deps.llm, deps.normalizerModel, text, now.toISOString().slice(0, 10));
   const costs = [...proposed.costs];
   if (proposed.kind === 'malformed') {
@@ -101,19 +103,19 @@ export async function submitClaim(deps: ClaimDeps, input: SubmitInput): Promise<
 }
 
 export type AmendInput = { slug: string; authorId: string; text: string; now: Date };
-export type AmendResult = { outcome: 'recorded' | 'still_needs_info' | 'refused'; reply: string };
+export type AmendResult = { outcome: 'recorded' | 'amended' | 'still_needs_info' | 'not_changed' | 'refused'; reply: string };
 
-// Amend from needs info (FR-010): a valid amend makes a draft and does NOT count against the limit.
-// Amends of a draft (counted, max 2) arrive with US4 (tasks T063).
+export const MAX_AMENDS = 2;
+
+// The author's reply under a bot reply = a fix (FR-010). From needs info: a valid fix makes a draft and does
+// NOT count. From draft (before lock): a valid fix replaces the contract and counts, max 2; a failed one doesn't.
 export async function amendClaim(deps: ClaimDeps & { reader: SourceReader }, input: AmendInput): Promise<AmendResult> {
   const { db } = deps;
   const [claim] = await db.select().from(claims).where(eq(claims.slug, input.slug)).limit(1);
   if (!claim) throw new Error(`no claim ${input.slug}`);
   if (claim.authorXUserId !== input.authorId) return refused(claim.id, 'not_author', 'Only the author can amend this prediction.');
-  if (claim.status !== 'needs_info') {
-    if (claim.status === 'draft') throw new Error('amending a draft arrives with US4 (tasks T063)');
-    return refused(claim.id, 'not_amendable', `#${claim.slug} can no longer be amended.`);
-  }
+  if (claim.status === 'draft') return amendDraft(deps, claim, input);
+  if (claim.status !== 'needs_info') return refused(claim.id, 'not_amendable', `#${claim.slug} is locked and can't change.`);
   // Past the 24 h window it is expired even if the expiry job has not run yet (FR-011).
   if (claim.needsInfoSince && input.now.getTime() - claim.needsInfoSince.getTime() >= NEEDS_INFO_WINDOW_MS) {
     return refused(claim.id, 'expired', `#${claim.slug} expired: no valid amend within 24 hours.`);
@@ -154,6 +156,56 @@ export async function amendClaim(deps: ClaimDeps & { reader: SourceReader }, inp
 
   log('info', 'claim amended', { event: 'claim.amended', claim_id: claim.id, slug: claim.slug, from: 'needs_info', usd_cost: sumUsd(costs) });
   return { outcome: 'recorded', reply: recordedReply(claim.slug, renderStatement(decision.contract)) };
+}
+
+type ClaimRow = typeof claims.$inferSelect;
+
+async function amendDraft(deps: ClaimDeps & { reader: SourceReader }, claim: ClaimRow, input: AmendInput): Promise<AmendResult> {
+  // The claim IS locked at lock_at, even before the job flips the status (data-model claims.lock_at).
+  if (!claim.lockAt || input.now.getTime() >= claim.lockAt.getTime()) return refused(claim.id, 'locked', `#${claim.slug} is locked and can't change.`);
+  if (claim.amendCount >= MAX_AMENDS) return refused(claim.id, 'limit', `#${claim.slug} can't be changed again (${MAX_AMENDS} fixes used).`);
+
+  const { decision, modelId, selfConfidence, costs } = await evaluate(deps, input.text, input.now);
+  if (decision.outcome !== 'recorded') {
+    await recordCosts(deps.db, costs.map((cost) => ({ ...cost, claimId: claim.id })));
+    const why = decision.outcome === 'rejected' ? rejectReasonWords(decision.reason) : decision.explanation;
+    log('info', 'fix not applied', { event: 'claim.amend_failed', claim_id: claim.id, slug: claim.slug, usd_cost: sumUsd(costs) });
+    return { outcome: 'not_changed', reply: notChangedReply(claim.slug, why) };
+  }
+
+  // The version the fix applies to, so an earlier edit of the post is not replayed at lock.
+  const { versionId } = await deps.reader.readVersion(claim.sourceTweetId);
+  const applied = await replaceDraftContract(deps.db, claim, { contract: decision.contract, modelId, selfConfidence, versionId, now: input.now, costs, lockNotReached: true });
+  if (!applied) return refused(claim.id, 'not_amendable', `#${claim.slug} changed meanwhile; nothing was changed.`);
+  return { outcome: 'amended', reply: amendedReply(claim.slug, renderStatement(decision.contract), MAX_AMENDS - claim.amendCount - 1) };
+}
+
+// Replaces a draft's contract (a fix, or an edit found at lock): +1 fix, lock restarts in 15 min. Guarded so a
+// concurrent change wins cleanly: 0 rows → nothing happened. `lockNotReached` also refuses at/after lock_at.
+export async function replaceDraftContract(
+  db: Db,
+  claim: ClaimRow,
+  fix: { contract: Contract; modelId: string; selfConfidence: number | null; versionId: string; now: Date; costs: CallCost[]; lockNotReached: boolean },
+): Promise<boolean> {
+  const applied = await db.transaction(async (tx) => {
+    const rows = await tx.update(claims).set({
+      contract: fix.contract,
+      resolutionMethod: fix.contract.resolution_method,
+      deadlineAt: new Date(fix.contract.deadline_at),
+      lockAt: new Date(fix.now.getTime() + LOCK_DELAY_MS),
+      sourceVersion: fix.versionId,
+      amendCount: claim.amendCount + 1,
+      contractModelId: fix.modelId,
+      selfConfidence: fix.selfConfidence,
+    }).where(and(
+      eq(claims.id, claim.id), eq(claims.status, 'draft'), eq(claims.amendCount, claim.amendCount),
+      ...(fix.lockNotReached ? [gt(claims.lockAt, fix.now)] : []),
+    )).returning({ id: claims.id });
+    await recordCosts(tx, fix.costs.map((cost) => ({ ...cost, claimId: claim.id })));
+    return rows.length > 0;
+  });
+  if (applied) log('info', 'claim amended', { event: 'claim.amended', claim_id: claim.id, slug: claim.slug, from: 'draft', amend_count: claim.amendCount + 1, usd_cost: sumUsd(fix.costs) });
+  return applied;
 }
 
 // FR-004: a price contract is recorded only if the feed answers for the asset. Outage → throws (retry later).
