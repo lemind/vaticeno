@@ -561,6 +561,8 @@ shown but never count as a contradiction.
   concerns; Stage 0 exercises lock and expiry timing with simulated times.
 - `@vaticeno help` is recognised in Stage 0 on the submitted text; the X intake (Stage 1) must test the
   mention's own text, since the prediction is usually a different post.
+- No paid live runs of the corpus or open-topic seeds (owner decision 2026-09-30): SC-001, SC-003 and
+  SC-005 rest on the last recorded runs; the owner checks accuracy with a few real claims at release.
 - Opt-out (`STOP`) is not built and not offered in replies for now (owner decision 2026-09-30).
   Constitution IV and X's approval checklist (INIT_SPEC §10) still require it before live replies.
 - Edits to the original tweet count as amends before lock and are ignored after it. In Stage 0 the
