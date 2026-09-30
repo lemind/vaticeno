@@ -23,12 +23,14 @@ An X bot that puts predictions **on the record** and checks them automatically o
 
 ## Commands (on X)
 
+Two actions for now; more come later.
+
 | Post | Bot does |
 |---|---|
-| `@vaticeno ping` (the word *ping* anywhere) | replies `pong · HH:MM:SS UTC` |
-| `@vaticeno record <prediction>` | logs it (recording not live yet) |
-| `@vaticeno amend <corrected text>` | logs it |
-| `@vaticeno STOP` | logs an opt-out |
+| `@vaticeno` under your own prediction | records it, or says what is missing (not live on X yet) |
+| a reply with the corrected prediction, within 15 min (24 h if something was missing) | updates it (not live on X yet) |
+| anything else, e.g. `@vaticeno cancel` | replies with the two actions above |
+| `@vaticeno ping` | replies `pong · HH:MM:SS UTC` (liveness test, live today) |
 
 ## Run locally
 

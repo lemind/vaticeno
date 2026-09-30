@@ -45,7 +45,13 @@ vaticeno.app/c/{slug}
 ```
 
 **REJECTED**
-- not a prediction / deadline out of range: `NOT RECORDED — {reason_in_words}.`
+- deadline out of range: `NOT RECORDED — {reason_in_words}.`
+- not a prediction (anything else, e.g. "@vaticeno cancel"): the help reply — no other commands exist yet
+  ```
+  I record predictions and check them at the deadline.
+  • Tag me under your prediction → recorded
+  • Reply with a fix (within 15 min) → updated
+  ```
 - X rules: `NOT RECORDED — I can't record this one.` (no quote, no explanation)
 - duplicate: `ALREADY RECORDED · vaticeno.app/c/{existing_slug}`
 

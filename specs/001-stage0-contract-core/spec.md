@@ -557,8 +557,10 @@ shown but never count as a contradiction.
   historical data so results never drift.
 - Model-written NEEDS INFO text and model-decided verdicts make Vaticeno an AI reply bot under X's
   developer rules; written approval from X is required before these replies go live (Stage 1+).
-- Reply delivery, mention polling, rate caps, opt-out and display names fetched from X are Stage 1+
+- Reply delivery, mention polling, rate caps and display names fetched from X are Stage 1+
   concerns; Stage 0 exercises lock and expiry timing with simulated times.
+- Opt-out (`STOP`) is not built and not offered in replies for now (owner decision 2026-09-30).
+  Constitution IV and X's approval checklist (INIT_SPEC §10) still require it before live replies.
 - Edits to the original tweet count as amends before lock and are ignored after it. In Stage 0 the
   re-read is simulated from fixtures.
 - Deadlines may be up to 10 years out (INIT_SPEC's 18-month cap is dropped).

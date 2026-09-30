@@ -14,7 +14,7 @@ import { proposeContract } from '../llm/normalize.js';
 import { log } from '../log.js';
 import { buildNeedsInfoReply } from '../replies/needs-info.js';
 import { NEEDS_INFO_WINDOW_MS } from './expire.js';
-import { alreadyRecordedReply, assertReplyFits, recordedReply, rejectedReply } from '../replies/templates.js';
+import { alreadyRecordedReply, assertReplyFits, recordedReply, rejectedReply, rejectReasonWords } from '../replies/templates.js';
 import type { SourceReader } from './source-reader.js';
 
 export const LOCK_DELAY_MS = 15 * 60 * 1000;
@@ -118,7 +118,7 @@ export async function amendClaim(deps: ClaimDeps & { reader: SourceReader }, inp
   const { decision, modelId, selfConfidence, costs } = await evaluate(deps, input.text, input.now);
 
   if (decision.outcome !== 'recorded') {
-    const why = decision.outcome === 'rejected' ? rejectedReply(decision.reason).replace(/^NOT RECORDED — /, '') : decision.explanation;
+    const why = decision.outcome === 'rejected' ? rejectReasonWords(decision.reason) : decision.explanation;
     await db.transaction(async (tx) => {
       if (decision.outcome === 'needs_info') {
         await tx.update(claims).set({ unclear: decision.unclear }).where(and(eq(claims.id, claim.id), eq(claims.status, 'needs_info')));

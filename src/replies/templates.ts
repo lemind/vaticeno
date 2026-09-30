@@ -34,10 +34,21 @@ const REJECT_WORDS: Record<Exclude<RejectReason, 'x_rules' | 'duplicate'>, strin
   deadline_too_far: 'the deadline must be within 10 years',
 };
 
+// Anything that isn't a prediction ("@vaticeno cancel", "hi", …) gets what the bot can do.
+export const HELP_REPLY = 'I record predictions and check them at the deadline.\n'
+  + '• Tag me under your prediction → recorded\n'
+  + '• Reply with a fix (within 15 min) → updated';
+
 export function rejectedReply(reason: Exclude<RejectReason, 'duplicate'>): string {
   // X rules: no quote, no explanation.
   if (reason === 'x_rules') return "NOT RECORDED — I can't record this one.";
+  if (reason === 'not_prediction') return HELP_REPLY;
   return assertReplyFits(`NOT RECORDED — ${REJECT_WORDS[reason]}.`);
+}
+
+// The reason alone, for the still-not-recorded reply to a fix.
+export function rejectReasonWords(reason: Exclude<RejectReason, 'duplicate'>): string {
+  return reason === 'x_rules' ? "I can't record this one" : REJECT_WORDS[reason];
 }
 
 export function alreadyRecordedReply(existingSlug: string): string {
