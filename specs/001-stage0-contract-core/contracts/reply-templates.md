@@ -50,6 +50,13 @@ NOT CHANGED — {reason or unclear_explanation}
 #{slug} stays as recorded.
 ```
 
+**REFUSED** — a fix that can't be considered at all (fixed texts, `refusedReply`)
+- not the author: `Only the author can change this prediction.`
+- locked or later: `#{slug} is locked and can't change.` · expired/rejected: `#{slug} can no longer be changed.`
+- needs info past 24 h: `#{slug} expired: no fix within 24 hours.`
+- two fixes used: `#{slug} can't be changed again (2 fixes used).`
+- lost a race with another change: `#{slug} changed meanwhile; nothing was changed.`
+
 **REJECTED**
 - deadline out of range: `NOT RECORDED — {reason_in_words}.`
 - not a prediction (e.g. "@vaticeno cancel"): the help reply, same as `@vaticeno help` (no model call for

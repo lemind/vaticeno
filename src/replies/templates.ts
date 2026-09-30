@@ -61,6 +61,20 @@ export function expiredReply(slug: string): string {
   return `[EXPIRED] #${slug} — the post changed after recording, so nothing was locked. Tag me on a new post to record it.`;
 }
 
+// A fix that is refused outright (contracts/reply-templates.md "REFUSED").
+export type RefusalReason = 'not_author' | 'locked' | 'closed' | 'expired' | 'limit' | 'conflict';
+
+export function refusedReply(reason: RefusalReason, slug: string): string {
+  switch (reason) {
+    case 'not_author': return 'Only the author can change this prediction.';
+    case 'locked': return `#${slug} is locked and can't change.`;
+    case 'closed': return `#${slug} can no longer be changed.`;
+    case 'expired': return `#${slug} expired: no fix within 24 hours.`;
+    case 'limit': return `#${slug} can't be changed again (2 fixes used).`;
+    case 'conflict': return `#${slug} changed meanwhile; nothing was changed.`;
+  }
+}
+
 // A fix that can't be applied: the recorded version stands.
 export function notChangedReply(slug: string, why: string): string {
   return assertReplyFits(`NOT CHANGED — ${why.trim() || 'Something essential is missing.'}\n#${slug} stays as recorded.`);

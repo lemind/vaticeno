@@ -79,6 +79,8 @@ export const claims = pgTable(
   ],
 );
 
+export type ClaimRow = typeof claims.$inferSelect;
+
 export const positions = pgTable(
   'positions',
   {

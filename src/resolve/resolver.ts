@@ -4,7 +4,7 @@ import { and, asc, eq, inArray, lte, sql } from 'drizzle-orm';
 import { ContractSchema } from '../contract/schema.js';
 import type { Db } from '../db/client.js';
 import { recordCosts } from '../db/costs.js';
-import { claims, costEvents, evidences, resolutions } from '../db/schema.js';
+import { type ClaimRow, claims, costEvents, evidences, resolutions } from '../db/schema.js';
 import { type Coinbase, FeedUnavailable } from '../feeds/coinbase.js';
 import { type CallCost, type LlmClient, LlmSchemaError, LlmUnavailable } from '../llm/client.js';
 import { arbitrate } from '../llm/judges.js';
@@ -66,7 +66,6 @@ export async function resolveDueClaims(deps: ResolverDeps, now: Date): Promise<R
   return summary;
 }
 
-type ClaimRow = typeof claims.$inferSelect;
 
 export async function resolveClaim(deps: ResolverDeps, claim: ClaimRow, now: Date): Promise<ClaimRunOutcome> {
   const { db } = deps;

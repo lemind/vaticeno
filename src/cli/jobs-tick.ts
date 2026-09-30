@@ -1,5 +1,5 @@
-// npm run jobs:tick -- [--now <ISO>] — one pass of every job, in order: lock due drafts, expire needs-info,
-// resolve due claims. Each runs under its own advisory lock, so a cron run and a manual tick never overlap.
+// npm run jobs:tick -- [--now <ISO>] — one pass of each job: lock, expire needs-info, resolve. Each runs
+// under its own advisory lock, so cron and a manual tick never overlap.
 import { getSql } from '../db/client.js';
 import { expireNeedsInfo } from '../lifecycle/expire.js';
 import { lockDueDrafts } from '../lifecycle/lock.js';

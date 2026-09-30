@@ -7,7 +7,7 @@ import type { Contract } from '../contract/schema.js';
 import { newSlug } from '../contract/slug.js';
 import type { Db } from '../db/client.js';
 import { recordCosts } from '../db/costs.js';
-import { claims, positions } from '../db/schema.js';
+import { type ClaimRow, claims, positions } from '../db/schema.js';
 import type { Coinbase } from '../feeds/coinbase.js';
 import type { CallCost, LlmClient } from '../llm/client.js';
 import { proposeContract } from '../llm/normalize.js';
@@ -15,7 +15,7 @@ import { log } from '../log.js';
 import { buildNeedsInfoReply } from '../replies/needs-info.js';
 import { NEEDS_INFO_WINDOW_MS } from './expire.js';
 import {
-  alreadyRecordedReply, amendedReply, assertReplyFits, HELP_REPLY, notChangedReply, recordedReply, rejectedReply, rejectReasonWords,
+  alreadyRecordedReply, amendedReply, assertReplyFits, HELP_REPLY, notChangedReply, recordedReply, type RefusalReason, refusedReply, rejectedReply, rejectReasonWords,
 } from '../replies/templates.js';
 import type { SourceReader } from './source-reader.js';
 
@@ -107,18 +107,20 @@ export type AmendResult = { outcome: 'recorded' | 'amended' | 'still_needs_info'
 
 export const MAX_AMENDS = 2;
 
-// The author's reply under a bot reply = a fix (FR-010). From needs info: a valid fix makes a draft and does
-// NOT count. From draft (before lock): a valid fix replaces the contract and counts, max 2; a failed one doesn't.
+// The author's reply under a bot reply = a fix (FR-010): from needs info it doesn't count; from draft
+// (before lock) it counts, max 2; a failed fix never counts.
 export async function amendClaim(deps: ClaimDeps & { reader: SourceReader }, input: AmendInput): Promise<AmendResult> {
   const { db } = deps;
   const [claim] = await db.select().from(claims).where(eq(claims.slug, input.slug)).limit(1);
   if (!claim) throw new Error(`no claim ${input.slug}`);
-  if (claim.authorXUserId !== input.authorId) return refused(claim.id, 'not_author', 'Only the author can amend this prediction.');
+  if (claim.authorXUserId !== input.authorId) return refused(claim, 'not_author');
   if (claim.status === 'draft') return amendDraft(deps, claim, input);
-  if (claim.status !== 'needs_info') return refused(claim.id, 'not_amendable', `#${claim.slug} is locked and can't change.`);
+  if (claim.status !== 'needs_info') {
+    return refused(claim, ['locked', 'resolving', 'resolved', 'void'].includes(claim.status) ? 'locked' : 'closed');
+  }
   // Past the 24 h window it is expired even if the expiry job has not run yet (FR-011).
   if (claim.needsInfoSince && input.now.getTime() - claim.needsInfoSince.getTime() >= NEEDS_INFO_WINDOW_MS) {
-    return refused(claim.id, 'expired', `#${claim.slug} expired: no valid amend within 24 hours.`);
+    return refused(claim, 'expired');
   }
 
   const { decision, modelId, selfConfidence, costs } = await evaluate(deps, input.text, input.now);
@@ -152,18 +154,16 @@ export async function amendClaim(deps: ClaimDeps & { reader: SourceReader }, inp
     await recordCosts(tx, costs.map((cost) => ({ ...cost, claimId: claim.id })));
     return rows.length > 0;
   });
-  if (!updated) return refused(claim.id, 'not_amendable', `#${claim.slug} changed meanwhile; nothing was amended.`);
+  if (!updated) return refused(claim, 'conflict');
 
   log('info', 'claim amended', { event: 'claim.amended', claim_id: claim.id, slug: claim.slug, from: 'needs_info', usd_cost: sumUsd(costs) });
   return { outcome: 'recorded', reply: recordedReply(claim.slug, renderStatement(decision.contract)) };
 }
 
-type ClaimRow = typeof claims.$inferSelect;
-
 async function amendDraft(deps: ClaimDeps & { reader: SourceReader }, claim: ClaimRow, input: AmendInput): Promise<AmendResult> {
   // The claim IS locked at lock_at, even before the job flips the status (data-model claims.lock_at).
-  if (!claim.lockAt || input.now.getTime() >= claim.lockAt.getTime()) return refused(claim.id, 'locked', `#${claim.slug} is locked and can't change.`);
-  if (claim.amendCount >= MAX_AMENDS) return refused(claim.id, 'limit', `#${claim.slug} can't be changed again (${MAX_AMENDS} fixes used).`);
+  if (!claim.lockAt || input.now.getTime() >= claim.lockAt.getTime()) return refused(claim, 'locked');
+  if (claim.amendCount >= MAX_AMENDS) return refused(claim, 'limit');
 
   const { decision, modelId, selfConfidence, costs } = await evaluate(deps, input.text, input.now);
   if (decision.outcome !== 'recorded') {
@@ -176,12 +176,12 @@ async function amendDraft(deps: ClaimDeps & { reader: SourceReader }, claim: Cla
   // The version the fix applies to, so an earlier edit of the post is not replayed at lock.
   const { versionId } = await deps.reader.readVersion(claim.sourceTweetId);
   const applied = await replaceDraftContract(deps.db, claim, { contract: decision.contract, modelId, selfConfidence, versionId, now: input.now, costs, lockNotReached: true });
-  if (!applied) return refused(claim.id, 'not_amendable', `#${claim.slug} changed meanwhile; nothing was changed.`);
+  if (!applied) return refused(claim, 'conflict');
   return { outcome: 'amended', reply: amendedReply(claim.slug, renderStatement(decision.contract), MAX_AMENDS - claim.amendCount - 1) };
 }
 
-// Replaces a draft's contract (a fix, or an edit found at lock): +1 fix, lock restarts in 15 min. Guarded so a
-// concurrent change wins cleanly: 0 rows → nothing happened. `lockNotReached` also refuses at/after lock_at.
+// A fix or an edit found at lock: new contract, +1 fix, lock restarts. 0 rows (a concurrent change won, or
+// `lockNotReached` and lock_at passed) → nothing happened.
 export async function replaceDraftContract(
   db: Db,
   claim: ClaimRow,
@@ -262,9 +262,9 @@ function duplicate(slug: string, input: SubmitInput): SubmitResult {
   return { outcome: 'duplicate', slug, rejectReason: 'duplicate', reply: alreadyRecordedReply(slug) };
 }
 
-function refused(claimId: string, reason: string, reply: string): AmendResult {
-  log('info', 'amend refused', { event: 'claim.amend_refused', claim_id: claimId, reason });
-  return { outcome: 'refused', reply };
+function refused(claim: ClaimRow, reason: RefusalReason): AmendResult {
+  log('info', 'amend refused', { event: 'claim.amend_refused', claim_id: claim.id, reason });
+  return { outcome: 'refused', reply: refusedReply(reason, claim.slug) };
 }
 
 const sumUsd = (costs: CallCost[]) => costs.reduce((sum, c) => sum + c.usdCost, 0);

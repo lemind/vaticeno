@@ -7,7 +7,7 @@ import type { Coinbase } from '../../src/feeds/coinbase.js';
 import { amendClaim, type ClaimDeps, submitClaim } from '../../src/lifecycle/claims.js';
 import { lockDueDrafts } from '../../src/lifecycle/lock.js';
 import { createMemorySourceReader } from '../../src/lifecycle/source-reader.js';
-import type { LlmClient } from '../../src/llm/client.js';
+import { type LlmClient, LlmUnavailable } from '../../src/llm/client.js';
 import { setupTestDb, type TestDb, VALID_CONTRACT } from './helpers.js';
 
 let t: TestDb;
@@ -26,6 +26,7 @@ function deps(): ClaimDeps {
     mode: 'replay',
     generateJson: async ({ input }: { input: string }) => {
       const { text } = JSON.parse(input) as { text: string };
+      if (text.startsWith('boom')) throw new LlmUnavailable('model down');
       const threshold = Number(/(\d+)k/.exec(text)?.[1] ?? 150) * 1000;
       const data: Proposal = text.startsWith('vague')
         ? { is_prediction: true, x_rules_ok: true, contract: null, unclear: ['deadline'], unclear_explanation: 'No date given.', examples: [], self_confidence: 0.4 }
@@ -111,6 +112,16 @@ describe('edits of the post found at lock (scenario 5)', () => {
     reader.edit(POST, { versionId: 'v2', text: 'BTC closes above 180k by end of 2026' });
     assert.equal((await lockDueDrafts(d, at(20)))[0]!.outcome, 'expired');
     assert.equal((await claimRow(slug)).locked_source_version, null);
+  });
+
+  test('a draft that fails at lock (model down) waits; the drafts after it still lock', async () => {
+    const d = deps();
+    const reader = createMemorySourceReader({ '1': { versionId: 'v1', text: ORIGINAL }, '2': { versionId: 'v1', text: ORIGINAL } });
+    const a = await submitClaim(d, { text: ORIGINAL, authorId: '200', sourceTweetId: '1', summonTweetId: 's1', sourceVersion: 'v1', now: T0 });
+    const b = await submitClaim(d, { text: ORIGINAL, authorId: '200', sourceTweetId: '2', summonTweetId: 's2', sourceVersion: 'v1', now: at(1) });
+    reader.edit('1', { versionId: 'v2', text: 'boom: edited' });
+    const results = await lockDueDrafts({ ...d, reader }, at(20));
+    assert.deepEqual(results.map((r) => [r.slug, r.outcome]), [[a.slug, 'waiting'], [b.slug, 'locked']]);
   });
 
   test('a post that cannot be read at lock time is not locked blind: it waits', async () => {

@@ -1,5 +1,5 @@
-// npm run claim:edit -- --slug <slug> --text "<edited post>" — Stage 0 stand-in for the author editing the
-// original post on X. The lock job re-reads the post and notices the new version (spec "Amends and edits").
+// npm run claim:edit -- --slug <slug> --text "<edited post>" — stands in for editing the post on X; the
+// lock job notices the new version (spec "Amends and edits").
 import { eq } from 'drizzle-orm';
 import { getDb } from '../db/client.js';
 import { claims } from '../db/schema.js';
