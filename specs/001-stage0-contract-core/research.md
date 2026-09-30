@@ -91,6 +91,11 @@ a claim that waits 30 days costs ~6 runs, not 720.
   **Page text and quotes are never persisted anywhere** — not in the database, not in replay files;
   they live in memory for the duration of a resolution. In replay mode the quote gate uses the
   recorded `quote_found`.
+- **Local only, never committed** (`fixtures/replay/` is gitignored). The committed proof is the
+  cases themselves (`fixtures/corpus/`, `fixtures/seeds/`). Regenerate the recordings with
+  `LLM_MODE=record npm run corpus` (~$0.06) or `LLM_MODE=record npm run seeds:open` (~$5); later runs
+  on that machine replay them for free. CI needs none: tests use stub models, and the crypto seeds carry
+  frozen candles. Corpus and open-seed runs are hand-run checks, not CI steps.
 - **Rationale**: corpus and seeds re-run at zero cost with identical results; production stores no
   third-party or X content. The hash still proves what was read; if a source page changes later, we
   can show that it changed, not what it said.

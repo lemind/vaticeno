@@ -4,3 +4,5 @@ node_modules/
 .env.production
 supabase/.temp/
 .state/
+# Recorded model/search/fetch answers: local only, regenerate with LLM_MODE=record (research R5)
+fixtures/replay/

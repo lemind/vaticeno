@@ -32,7 +32,8 @@ role via the session pooler; RLS on with no policies blocks Supabase's public AP
 only Fastify. Local Postgres 16 in Docker for dev/test
 
 **Testing**: node:test via tsx (unit); integration tests against local Postgres; corpus and seed
-CLIs as regression suites in replay mode
+CLIs as regression suites in replay mode (recordings local only, research R5; CI runs the crypto
+seeds, which need none)
 
 **Target Platform**: Linux (DigitalOcean droplet, 1 GB, systemd, Caddy for HTTPS)
 
@@ -147,7 +148,7 @@ fixtures/
 ├── corpus/*.jsonl                  # 100 fixtures by group
 ├── seeds/crypto/*.json             # 60 claims with frozen Coinbase candles
 ├── seeds/open/*.json               # categorised per SC-003
-└── replay/                         # recorded model, search, fetch and feed responses
+└── replay/                         # recorded model, search, fetch, feed responses — gitignored, local only
 tests/integration/                  # real Postgres: triggers, transitions, uniqueness, services
 ```
 
