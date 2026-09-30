@@ -1,11 +1,12 @@
-// Sentry: errors, logs, alerts and one cron monitor (research R11). Everything is a no-op without SENTRY_DSN.
+// Sentry: errors, logs, alerts and one cron monitor (research R11). Production only: a no-op without
+// SENTRY_DSN or unless NODE_ENV=production (set in the droplet's .env), so local runs never report.
 import * as Sentry from '@sentry/node';
 import { log, scrubFields } from './log.js';
 
 let enabled = false;
 
 export function initObservability(service: string, dsn: string | undefined): void {
-  if (!dsn || enabled) return;
+  if (!dsn || enabled || process.env.NODE_ENV !== 'production') return;
   Sentry.init({
     dsn,
     // FR-029: nothing that could carry post text, quotes or page text leaves the server.
