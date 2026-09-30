@@ -52,7 +52,8 @@ reported.
    **Then** it is recorded against that season and the official final table as the source. (The
    same text with "this season" and no date is needs info: the deadline would be derived from the
    league's schedule, which the MVP never does.)
-4. **Given** a prediction whose deadline is less than 24 hours away or more than 10 years away,
+4. **Given** a prediction whose deadline is less than 24 hours away (a sports match: before its 15 min
+   lock), or a deadline more than 10 years away,
    **When** it is evaluated, **Then** it is rejected with that reason.
 5. **Given** a text that is not a prediction ("love this thread"), **When** it is evaluated, **Then**
    it is rejected as not a prediction.
@@ -361,7 +362,8 @@ shown but never count as a contradiction.
 - **FR-003**: After every proposal the system MUST apply these checks, and the checks — not the
   proposal — decide the outcome: the text is a prediction; it complies with X's rules for content
   the bot republishes; an explicit deadline present (MVP: the author states it; it is never
-  derived from an event); deadline more than 24 h away; deadline within 10 years;
+  derived from an event); deadline more than 24 h away (a sports match: after the lock, and the match must
+  start after the claim's last change — checked on the evidence); deadline within 10 years;
   nothing unclear; criterion is objectively decidable (a yes/no that two independent readers of the
   source would agree on); a structured source is present; the negative condition is stated;
   source post not already claimed. The model's self-reported confidence is recorded for analysis

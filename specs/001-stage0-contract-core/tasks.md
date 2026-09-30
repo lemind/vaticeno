@@ -212,6 +212,7 @@ element, no percentage or ranking, no content (SC-009).
 - [x] T094 Fixes found by thread: every bot reply and fix id is kept on the claim (`drizzle/0004_thread_tweet_ids.sql`), so a reply under any bot answer is a fix even inside an older thread; `tests/integration/bot.test.ts`
 - [x] T095 Review high: fixes matched by the direct parent only; others' replies ignored without a model call; cap checked before recording; a mention saved as answered before the post; a mention failing 3 polls is skipped with an alert; page-limit alert; docs synced
 - [x] T096 STOP opt-out: a STOPPED reply, opted out until the author tags the bot again (`opt_outs` table, `drizzle/0005_opt_outs.sql`); statement drops the source name; `tests/integration/bot.test.ts`
+- [x] T097 Matches soon: sports claims only need the deadline after the lock; judge.v3 reports the kickoff (time zone stated), stored as `evidences.event_start` (`drizzle/0006_evidence_event_start.sql`); the evidence counts if the match began after the contract's last change and by the deadline (`src/resolve/gates.ts`, `src/contract/checks.ts`, `src/llm/instructions/judge.v3.md`); seeds replay with judge.v2 (no paid re-record). Known: open-topic seed recordings predate search.v2 and don't replay
 
 ---
 

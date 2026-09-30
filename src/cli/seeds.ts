@@ -1,6 +1,7 @@
 // npm run seeds:crypto | seeds:open — resolve seeded historical claims whose correct verdict is known
 // (SC-002 – SC-004, SC-010). Each seed gets a fresh claim in a scratch database; the resolver runs as of
 // just after the deadline and then follows its own schedule (up to MAX_RUNS), as time would.
+import { SEEDS_JUDGE_VERSION } from '../llm/judges.js';
 import { readdir, readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { eq, sql } from 'drizzle-orm';
@@ -66,6 +67,8 @@ await runCli('seeds', async (config) => {
     const base: Omit<ResolverDeps, 'coinbase'> = {
       db: scratch.db, llm, fetchPage: createPageFetcher({ mode: config.LLM_MODE, store }),
       judgeModelA: config.JUDGE_MODEL_A, judgeModelB: config.JUDGE_MODEL_B, arbiterModel: config.ARBITER_MODEL,
+      // Replay reads the answers recorded with the v2 judge (SEEDS_JUDGE_VERSION); a new recording uses the current one.
+      ...(config.LLM_MODE === 'replay' ? { judgeVersion: SEEDS_JUDGE_VERSION } : {}),
     };
 
     const results = [];

@@ -23,7 +23,7 @@ Input: locked contract, lock and deadline, and the pass number (two passes, `JUD
 candidate URLs. The model's prose is ignored. The contract's own locator is always read as well.
 Input also lists known sources (`sources.agreed_count ≥ 5`) as places to look first — a hint only.
 
-## Judge — `judge.v2` (no tools)
+## Judge — `judge.v3` (no tools; the seeded claims replay with `judge.v2`, which has no `event_start`)
 
 Input: locked contract, lock and deadline, and ONE page our code fetched (`{url, text}`). One call per
 page → one evidence row.
@@ -34,6 +34,7 @@ JudgeSchema = {
   basis: 'record' | 'absence',          // absence only when this page is the contract's exhaustive record
   quote: string | null,                  // verbatim from the page; checked in code, then dropped
   event_date: string | null,             // YYYY-MM-DD of the event itself, not of publication
+  event_start: string | null,            // UTC date-time the event began (kickoff), only if the page states it
   is_final_result: boolean,
   from_contract_source: boolean,        // informational only
   source_trust: 'primary' | 'established' | 'weak',  // primary = the body that decides/records the outcome;

@@ -63,6 +63,7 @@ export async function gatherPriceEvidence(
       trustLevel: 'primary',
       says: answer.says,
       eventDate: answer.eventDate,
+      eventStart: null,
       url: PRICE_FEED_SOURCE,
       retrievedAt: now,
       quoteFound: null,

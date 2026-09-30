@@ -113,6 +113,7 @@ export const evidences = pgTable(
     trustReason: text('trust_reason'),
     says: text('says', { enum: EVIDENCE_SAYS }).notNull(),
     eventDate: date('event_date'),
+    eventStart: utc('event_start'), // when a match began, if the page stated it (in_window, gates.ts)
     value: numeric('value'),
     url: text('url'),
     contentSha256: text('content_sha256'),

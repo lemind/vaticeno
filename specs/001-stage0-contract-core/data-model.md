@@ -165,7 +165,7 @@ Known sources (`sources` table, below) never change a trust level; they only sha
 |---|---|
 | trusted | `trust_level` is `primary` or `established` (`weak` never counts) |
 | quote_found | the model's quote occurs in the fetched page (checked in memory; the quote is then discarded, never stored). Not applicable to `basis = absence` and price feeds |
-| in_window | the event date is inside `(lock_at, deadline_at]`. For `basis = absence`: instead, the page is `primary` (the contract's own source), was read on or after the deadline, and the contract marks it `absence_is_meaningful` |
+| in_window | the event date is inside `(lock_at, deadline_at]` (day granularity: the lock day never counts). For a sports match (`football_results`, `sports_results`) whose page states the start time with its time zone (judge.v3 `event_start`, stored on the row), instead: it began after the contract's last change (`lock_at` − 15 min) and by the deadline, and agrees with the event date (±1 day) — so a game 10 min after recording counts, and a fix sent after kickoff makes it not count. For `basis = absence`: instead, the page is `primary` (the contract's own source), was read on or after the deadline, and the contract marks it `absence_is_meaningful` |
 | final | the result is final, not a projection or preliminary figure |
 | independent | not a copy of another item in the same run: different registrable domain **and** page text not near-identical (word-shingle similarity of the extracted text, computed in memory during the run; the text is then dropped) **and** not attributed to the same original report (the judge's `original_source`, e.g. "AP"). Copies count once |
 

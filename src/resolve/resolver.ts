@@ -26,6 +26,7 @@ export type ResolverDeps = {
   judgeModelA: string;
   judgeModelB: string;
   arbiterModel: string;
+  judgeVersion?: string; // default JUDGE_VERSION; the seeds replay with SEEDS_JUDGE_VERSION
 };
 
 export type ClaimRunOutcome = 'final' | 'needs_human' | 'waiting' | 'outage' | 'failed';
@@ -122,6 +123,7 @@ export async function resolveClaim(deps: ResolverDeps, claim: ClaimRow, now: Dat
       trustReason: item.trustReason,
       says: item.draft.says,
       eventDate: item.draft.eventDate,
+      eventStart: item.draft.eventStart && !Number.isNaN(Date.parse(item.draft.eventStart)) ? new Date(item.draft.eventStart) : null,
       value: item.value?.toString() ?? null,
       url: item.draft.url,
       contentSha256: item.contentSha256,

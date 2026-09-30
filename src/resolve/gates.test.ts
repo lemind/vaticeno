@@ -6,7 +6,7 @@ import { quoteInText, simhash } from './similarity.js';
 const window = { lockAt: new Date('2026-10-01T12:00:00Z'), deadlineAt: new Date('2027-05-31T23:59:59Z'), absenceIsMeaningful: false };
 
 const draft = (overrides: Partial<EvidenceDraft> = {}): EvidenceDraft => ({
-  sourceKind: 'web', basis: 'record', trustLevel: 'primary', says: 'hit', eventDate: '2027-05-20',
+  sourceKind: 'web', basis: 'record', trustLevel: 'primary', says: 'hit', eventDate: '2027-05-20', eventStart: null,
   url: 'https://www.premierleague.com/tables', retrievedAt: new Date('2027-06-01T02:00:00Z'),
   quoteFound: true, isFinalResult: true, originalSource: null, simhash: null, ...overrides,
 });
@@ -35,6 +35,18 @@ test('window boundaries: the lock day never counts; the deadline day does; the d
   assert.equal(gate(draft({ eventDate: '2027-05-31' })).gates.in_window, true, 'deadline day');
   assert.equal(gate(draft({ eventDate: '2027-06-01' })).gates.in_window, false);
   assert.equal(gate(draft({ eventDate: '2027-5-31' })).gates.in_window, false, 'malformed date');
+});
+
+test('a match with a start time counts if it began after the claim was set (lock − 15 min), even on the lock day', () => {
+  // lock 12:00 → contract last set 11:45
+  const sports = (d: Partial<EvidenceDraft>) => runGates(draft(d), { ...window, startTimeCounts: true }, []).gates.in_window;
+  assert.equal(sports({ eventDate: '2026-10-01', eventStart: '2026-10-01T11:55:00Z' }), true, 'kickoff 10 min after recording');
+  assert.equal(sports({ eventDate: '2026-10-01', eventStart: '2026-10-01T11:40:00Z' }), false, 'began before the claim was set');
+  assert.equal(sports({ eventDate: '2027-05-31', eventStart: '2027-06-01T00:15:00Z' }), false, 'began after the deadline');
+  assert.equal(sports({ eventDate: '2026-09-28', eventStart: '2026-10-01T11:55:00Z' }), false, 'start disagrees with the date: the date rule');
+  assert.equal(sports({ eventDate: '2026-10-01', eventStart: 'soon' }), false, 'unreadable time: the date rule');
+  assert.equal(sports({ eventDate: null, eventStart: '2026-10-01T11:55:00Z' }), false, 'no date');
+  assert.equal(gate(draft({ eventDate: '2026-10-01', eventStart: '2026-10-01T11:55:00Z' })).gates.in_window, false, 'not a match: the date rule');
 });
 
 test('absence evidence: only from the contract\'s own exhaustive (primary) source, read at or after the deadline, and only as a miss', () => {

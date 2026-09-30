@@ -28,7 +28,7 @@ export function needsInfoReply(explanation: string, checkedExample: string): str
 
 const REJECT_WORDS: Record<Exclude<RejectReason, 'x_rules' | 'duplicate'>, string> = {
   not_prediction: "that doesn't read as a prediction",
-  deadline_too_close: 'the deadline must be more than 24 hours away',
+  deadline_too_close: 'the deadline must be more than 24 hours away (a sports match: just before it starts)',
   deadline_too_far: 'the deadline must be within 10 years',
 };
 
