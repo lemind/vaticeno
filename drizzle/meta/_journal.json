@@ -50,6 +50,13 @@
       "when": 1790780267310,
       "tag": "0006_evidence_event_start",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790784044939,
+      "tag": "0007_event_not_found",
+      "breakpoints": true
     }
   ]
 }

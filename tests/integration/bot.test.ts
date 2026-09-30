@@ -22,11 +22,30 @@ const NOW = new Date('2026-09-30T12:00:00Z');
 const BOT = '1';
 const ME = '200';
 
-// Stub model: "vague…" is unclear, "down…" means the model is unavailable, anything else is the BTC contract.
+// A football claim; the stub's match search finds "Liverpool" fixtures only.
+const { price: _price, ...MODEL_BASE } = VALID_CONTRACT;
+const MATCH_CONTRACT = {
+  ...MODEL_BASE, subject: 'Liverpool', criterion: 'Liverpool beat Real Madrid 3–1', deadline_at: '2026-10-01T23:59:59Z',
+  source: { ...VALID_CONTRACT.source, name: 'UEFA results', kind: 'football_results', locator: 'https://www.uefa.com/', scope: 'UCL', entity_id: 'Liverpool' },
+  negative_condition: 'Liverpool do not win 3–1', resolution_method: 'model',
+};
+
+// Stub model: "vague…" is unclear, "down…" means the model is unavailable, "match…" is a football claim,
+// anything else is the BTC contract.
 const llm = {
   mode: 'replay',
-  generateJson: async ({ input }: { input: string }) => {
+  generateJson: async ({ input, instructionVersion }: { input: string; instructionVersion: string }) => {
+    if (instructionVersion.startsWith('fixture')) {
+      const { subject } = JSON.parse(input) as { subject: string };
+      const found = subject === 'Liverpool';
+      return { data: { found, home: found ? 'Liverpool' : null, away: found ? 'Real Madrid' : null, competition: found ? 'UEFA Champions League' : null,
+        kickoff_utc: found ? '2026-10-01T19:00:00Z' : null, criterion: found ? 'Liverpool beat Real Madrid 3–1 (UEFA Champions League)' : null }, costs: [] };
+    }
     const { text } = JSON.parse(input) as { text: string };
+    if (text.startsWith('match')) {
+      const subject = text.includes('Invented') ? 'Invented FC' : 'Liverpool';
+      return { data: { is_prediction: true, x_rules_ok: true, contract: { ...MATCH_CONTRACT, subject }, unclear: [], unclear_explanation: '', examples: [], self_confidence: 0.8 }, costs: [] };
+    }
     if (text.startsWith('down')) throw new LlmUnavailable('model down');
     const data: Proposal = text.startsWith('vague')
       ? { is_prediction: true, x_rules_ok: true, contract: null, unclear: ['deadline'], unclear_explanation: 'No date given.', examples: [], self_confidence: 0.3 }
@@ -88,6 +107,22 @@ describe('recording from X', () => {
     await pollMentions(deps, NOW);
     assert.match(replies[0]!.text, /^pong · /);
     assert.match(replies[1]!.text, /Tag me under your prediction/);
+  });
+});
+
+describe('sports matches', () => {
+  test('a real match is recorded with its competition filled in', async () => {
+    const { deps, replies } = await bot([[mention('110', '@vaticeno match Liverpool vs Madrid tomorrow 3:1')]]);
+    await pollMentions(deps, NOW);
+    assert.match(replies[0]!.text, /^RECORDED[\s\S]*Liverpool beat Real Madrid 3–1 \(UEFA Champions League\)/);
+  });
+
+  test('a match search cannot find is not recorded', async () => {
+    const { deps, replies } = await bot([[mention('111', '@vaticeno match Invented FC vs Nobody tomorrow 3:1')]]);
+    await pollMentions(deps, NOW);
+    assert.match(replies[0]!.text, /^NOT RECORDED — I can't find that match/);
+    const [claim] = await t.sql`select status, reject_reason from claims`;
+    assert.deepEqual([claim!.status, claim!.reject_reason], ['rejected', 'event_not_found']);
   });
 });
 

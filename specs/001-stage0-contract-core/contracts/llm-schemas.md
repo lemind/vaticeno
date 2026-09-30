@@ -68,3 +68,16 @@ ArbiterSchema = {
 ```
 An index (not an evidence id) keeps replay stable: ids are new on every run. `cannot_decide` →
 resolution `review_status = needs_human`.
+
+## Fixture check — `fixture.v1` (Google Search; sports claims only)
+
+Input: criterion, subject, deadline, now. Output (JSON read from the answer text):
+
+```ts
+{ found: boolean, home: string | null, away: string | null, competition: string | null,
+  kickoff_utc: string | null,  // YYYY-MM-DDTHH:MM:SSZ if a source states it
+  criterion: string | null }   // rewritten with both sides + competition, ≤ 100 chars
+```
+
+Not found → rejected `event_not_found`; kickoff already passed → `deadline_too_close`; a kickoff after the
+deadline moves the deadline to the end of the kickoff's UTC day.

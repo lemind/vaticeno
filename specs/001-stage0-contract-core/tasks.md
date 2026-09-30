@@ -214,6 +214,7 @@ element, no percentage or ranking, no content (SC-009).
 - [x] T096 STOP opt-out: a STOPPED reply, opted out until the author tags the bot again (`opt_outs` table, `drizzle/0005_opt_outs.sql`); statement drops the source name; `tests/integration/bot.test.ts`
 - [x] T097 Matches soon: sports claims only need the deadline after the lock; judge.v3 reports the kickoff (time zone stated), stored as `evidences.event_start` (`drizzle/0006_evidence_event_start.sql`); the evidence counts if the match began after the contract's last change and by the deadline (`src/resolve/gates.ts`, `src/contract/checks.ts`, `src/llm/instructions/judge.v3.md`); seeds replay with judge.v2 (no paid re-record). Known: open-topic seed recordings predate search.v2 and don't replay
 - [x] T098 normalize.v3: a crypto price target with a date is always a daily close (direction and window from the wording, "in a day" = TODAY + 1), never needs info for "close"; a match names both sides and the competition; the corpus replays with normalize.v2 (no paid re-record). Known: corpus replay already fails on a stale Coinbase recording
+- [x] T099 Sports claims: a grounded search (`fixture.v1`, `src/llm/fixture.ts`) confirms the match is scheduled, fills in both sides and the competition, and moves the deadline to the kickoff's UTC day; not found → NOT RECORDED `event_not_found` (`drizzle/0007_event_not_found.sql`); kickoff already passed → too close
 
 ---
 

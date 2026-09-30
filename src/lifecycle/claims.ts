@@ -3,13 +3,14 @@ import { and, eq, gt } from 'drizzle-orm';
 import { type RejectReason, runChecks } from '../contract/checks.js';
 import type { Proposal, UnclearItem } from '../contract/proposal.js';
 import { renderStatement } from '../contract/render.js';
-import type { Contract } from '../contract/schema.js';
+import { type Contract, ContractSchema, SCHEDULED_EVENT_KINDS } from '../contract/schema.js';
 import { newSlug } from '../contract/slug.js';
 import type { Db } from '../db/client.js';
 import { recordCosts } from '../db/costs.js';
 import { type ClaimRow, claims, positions } from '../db/schema.js';
 import type { Coinbase } from '../feeds/coinbase.js';
-import type { CallCost, LlmClient } from '../llm/client.js';
+import { type CallCost, type LlmClient, LlmSchemaError } from '../llm/client.js';
+import { findFixture } from '../llm/fixture.js';
 import { proposeContract } from '../llm/normalize.js';
 import { log } from '../log.js';
 import { buildNeedsInfoReply } from '../replies/needs-info.js';
@@ -61,6 +62,7 @@ export async function evaluateClaimText(deps: ClaimDeps, text: string, now: Date
   let decision: Decision;
   if (checked.outcome === 'rejected') decision = { outcome: 'rejected', reason: checked.reason as Exclude<RejectReason, 'duplicate'> };
   else if (checked.outcome === 'needs_info') decision = { outcome: 'needs_info', unclear: checked.unclear, explanation: proposal.unclear_explanation, proposal };
+  else if (SCHEDULED_EVENT_KINDS.includes(checked.contract.source.kind)) decision = await confirmFixture(deps, checked.contract, now, costs);
   else decision = await confirmPriceFeed(deps.coinbase, checked.contract, proposal);
   return { decision, modelId: proposed.modelId, selfConfidence: proposal.self_confidence };
 }
@@ -239,6 +241,33 @@ export async function replaceDraftContract(
 }
 
 // FR-004: a price contract is recorded only if the feed answers for the asset. Outage → throws (retry later).
+// A sports claim must name a real, scheduled match: search confirms it, fills in the competition, and moves
+// the deadline to the kickoff's UTC day when a local evening game starts after it (owner decision 2026-09-30).
+async function confirmFixture(deps: ClaimDeps, contract: Contract, now: Date, costs: CallCost[]): Promise<Decision> {
+  let fixture;
+  try {
+    const found = await findFixture(deps.llm, deps.normalizerModel, contract, now);
+    costs.push(...found.costs);
+    fixture = found.fixture;
+  } catch (error) {
+    if (!(error instanceof LlmSchemaError)) throw error; // an outage retries the mention later
+    costs.push(...error.costs);
+    return { outcome: 'rejected', reason: 'event_not_found' };
+  }
+  if (!fixture.found) return { outcome: 'rejected', reason: 'event_not_found' };
+
+  const kickoff = fixture.kickoff_utc ? Date.parse(fixture.kickoff_utc) : NaN;
+  if (!Number.isNaN(kickoff) && kickoff <= now.getTime()) return { outcome: 'rejected', reason: 'deadline_too_close' };
+  const kickoffDayEnd = Number.isNaN(kickoff) ? null : `${new Date(kickoff).toISOString().slice(0, 10)}T23:59:59Z`;
+  const confirmed = {
+    ...contract,
+    criterion: fixture.criterion && fixture.criterion.length <= 100 ? fixture.criterion : contract.criterion,
+    deadline_at: kickoffDayEnd && Date.parse(kickoffDayEnd) > Date.parse(contract.deadline_at) ? kickoffDayEnd : contract.deadline_at,
+  };
+  const valid = ContractSchema.safeParse(confirmed);
+  return { outcome: 'recorded', contract: valid.success ? valid.data : contract };
+}
+
 async function confirmPriceFeed(coinbase: Coinbase, contract: Contract, proposal: Proposal): Promise<Decision> {
   if (contract.resolution_method !== 'price_feed' || !contract.price) return { outcome: 'recorded', contract };
   const status = await coinbase.productStatus(contract.price.product_id);

@@ -21,7 +21,7 @@ import {
 export const CLAIM_STATUSES = [
   'parsing', 'needs_info', 'draft', 'locked', 'resolving', 'resolved', 'void', 'rejected', 'expired',
 ] as const;
-export const REJECT_REASONS = ['not_prediction', 'x_rules', 'deadline_too_close', 'deadline_too_far', 'duplicate'] as const;
+export const REJECT_REASONS = ['not_prediction', 'x_rules', 'deadline_too_close', 'deadline_too_far', 'duplicate', 'event_not_found'] as const;
 export const RESOLUTION_METHODS = ['price_feed', 'model'] as const;
 export const STANCES = ['agree', 'disagree'] as const;
 export const SOURCE_KINDS = ['price_feed', 'web'] as const;
