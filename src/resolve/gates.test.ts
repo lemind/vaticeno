@@ -6,7 +6,7 @@ import { quoteInText, simhash } from './similarity.js';
 const window = { lockAt: new Date('2026-10-01T12:00:00Z'), deadlineAt: new Date('2027-05-31T23:59:59Z'), absenceIsMeaningful: false };
 
 const draft = (overrides: Partial<EvidenceDraft> = {}): EvidenceDraft => ({
-  sourceKind: 'web', basis: 'record', trustLevel: 'official', says: 'hit', eventDate: '2027-05-20',
+  sourceKind: 'web', basis: 'record', trustLevel: 'primary', says: 'hit', eventDate: '2027-05-20',
   url: 'https://www.premierleague.com/tables', retrievedAt: new Date('2027-06-01T02:00:00Z'),
   quoteFound: true, isFinalResult: true, originalSource: null, simhash: null, ...overrides,
 });
@@ -18,13 +18,13 @@ test('a clean record passes every gate', () => {
 });
 
 test('each gate fails on its own', () => {
-  assert.equal(gate(draft({ trustLevel: 'other' })).gates.trusted, false);
+  assert.equal(gate(draft({ trustLevel: 'weak' })).gates.trusted, false);
   assert.equal(gate(draft({ quoteFound: false })).gates.quote_found, false);
   assert.equal(gate(draft({ quoteFound: null })).gates.quote_found, false);
   assert.equal(gate(draft({ eventDate: null })).gates.in_window, false);
   assert.equal(gate(draft({ isFinalResult: false })).gates.final, false);
   assert.equal(gate(draft({ says: 'pending' })).gates.final, false, 'pending is never final');
-  for (const failing of [{ trustLevel: 'other' as const }, { quoteFound: false }, { eventDate: '2020-01-01' }, { isFinalResult: false }]) {
+  for (const failing of [{ trustLevel: 'weak' as const }, { quoteFound: false }, { eventDate: '2020-01-01' }, { isFinalResult: false }]) {
     assert.equal(gate(draft(failing)).passed, false);
   }
 });
@@ -37,7 +37,7 @@ test('window boundaries: the lock day never counts; the deadline day does; the d
   assert.equal(gate(draft({ eventDate: '2027-5-31' })).gates.in_window, false, 'malformed date');
 });
 
-test('absence evidence: only from an exhaustive source, read at or after the deadline, and only as a miss', () => {
+test('absence evidence: only from the contract\'s own exhaustive (primary) source, read at or after the deadline, and only as a miss', () => {
   const absence = draft({ basis: 'absence', says: 'miss', eventDate: null, quoteFound: null });
   const exhaustive = { ...window, absenceIsMeaningful: true };
   assert.deepEqual(gate(absence, [], exhaustive).gates, { trusted: true, quote_found: null, in_window: true, final: true, independent: true });
@@ -45,6 +45,7 @@ test('absence evidence: only from an exhaustive source, read at or after the dea
   assert.equal(gate(draft({ ...absence, retrievedAt: new Date('2027-05-31T23:59:58Z') }), [], exhaustive).gates.in_window, false, 'read before the deadline');
   assert.equal(gate(draft({ ...absence, retrievedAt: new Date('2027-05-31T23:59:59Z') }), [], exhaustive).gates.in_window, true, 'read exactly at the deadline');
   assert.equal(gate(draft({ ...absence, says: 'hit' }), [], exhaustive).gates.in_window, false);
+  assert.equal(gate(draft({ ...absence, trustLevel: 'established' }), [], exhaustive).gates.in_window, false, 'not the contract source');
 });
 
 test('price feed evidence skips the quote and independence gates', () => {

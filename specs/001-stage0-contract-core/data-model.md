@@ -80,7 +80,7 @@ Contract = {
   deadline_at: ISODateTime,           // UTC; bare date → 23:59:59Z
   source: {
     name: string,                     // issuing body + record
-    kind: string,                     // label only (closed list in src/contract/schema.ts); never grants trust
+    kind: string,                     // label only (closed list in the normalize instruction); never grants trust
     locator: string,                  // URL of the record the contract names; the only domain besides the price feed whose pages can be primary
     scope: string,
     entity_id: string,

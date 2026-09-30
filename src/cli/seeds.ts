@@ -14,7 +14,6 @@ import { createLlmClient } from '../llm/client.js';
 import { createReplayStore } from '../llm/replay.js';
 import { createPageFetcher } from '../resolve/fetch.js';
 import { type ResolverDeps, resolveClaim } from '../resolve/resolver.js';
-import { loadSourcePolicy } from '../resolve/trust.js';
 import { cliArgs, printJson, runCli } from './run.js';
 
 const SEEDS_DIR = fileURLToPath(new URL('../../fixtures/seeds', import.meta.url));
@@ -64,7 +63,7 @@ await runCli('seeds', async (config) => {
     const store = createReplayStore();
     const llm = createLlmClient({ mode: config.LLM_MODE, apiKey: config.GEMINI_API_KEY, store });
     const base: Omit<ResolverDeps, 'coinbase'> = {
-      db: scratch.db, llm, fetchPage: createPageFetcher({ mode: config.LLM_MODE, store }), policy: loadSourcePolicy(),
+      db: scratch.db, llm, fetchPage: createPageFetcher({ mode: config.LLM_MODE, store }),
       judgeModelA: config.JUDGE_MODEL_A, judgeModelB: config.JUDGE_MODEL_B, arbiterModel: config.ARBITER_MODEL,
     };
 

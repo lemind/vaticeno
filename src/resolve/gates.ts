@@ -25,7 +25,7 @@ export type Window = { lockAt: Date; deadlineAt: Date; absenceIsMeaningful: bool
 export function runGates(draft: EvidenceDraft, window: Window, accepted: readonly EvidenceDraft[]): { gates: Gates; passed: boolean } {
   const isPrice = draft.sourceKind === 'price_feed';
   const gates: Gates = {
-    trusted: draft.trustLevel !== 'other',
+    trusted: draft.trustLevel !== 'weak',
     quote_found: isPrice || draft.basis === 'absence' ? null : draft.quoteFound === true,
     in_window: inWindow(draft, window),
     final: draft.isFinalResult && draft.says !== 'pending',
@@ -37,10 +37,10 @@ export function runGates(draft: EvidenceDraft, window: Window, accepted: readonl
 
 // Record evidence: the event day is inside (lock, deadline]. Day granularity is conservative: an event on
 // the lock day may have happened before lock, so it never counts. Absence evidence: read at/after the
-// deadline, and only from a source the contract marks exhaustive.
+// deadline, and only from the contract's own (primary) source when it marks it exhaustive.
 function inWindow(draft: EvidenceDraft, window: Window): boolean {
   if (draft.basis === 'absence') {
-    return window.absenceIsMeaningful && draft.says === 'miss' && draft.retrievedAt.getTime() >= window.deadlineAt.getTime();
+    return window.absenceIsMeaningful && draft.trustLevel === 'primary' && draft.says === 'miss' && draft.retrievedAt.getTime() >= window.deadlineAt.getTime();
   }
   if (!draft.eventDate || !/^\d{4}-\d{2}-\d{2}$/.test(draft.eventDate)) return false;
   const lockDay = window.lockAt.toISOString().slice(0, 10);

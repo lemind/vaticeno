@@ -17,65 +17,65 @@ test('no evidence at all (outage) → wait', () => {
   assert.deepEqual(decide([]), { kind: 'wait', reason: 'no_evidence' });
 });
 
-test('one official, nothing contradicting → final, decided by that item', () => {
-  const official = row('official', 'hit');
-  assert.deepEqual(decide([official, row('other', 'miss')]), { kind: 'final', outcome: 'hit', decidingEvidenceId: official.id });
+test('one primary, nothing contradicting → final, decided by that item', () => {
+  const primary = row('primary', 'hit');
+  assert.deepEqual(decide([primary, row('weak', 'miss')]), { kind: 'final', outcome: 'hit', decidingEvidenceId: primary.id });
 });
 
-test('official outranks trusted: official HIT + trusted MISS → final HIT', () => {
-  const official = row('official', 'hit');
-  assert.deepEqual(decide([row('trusted', 'miss'), official, row('trusted', 'miss')]), { kind: 'final', outcome: 'hit', decidingEvidenceId: official.id });
+test('primary outranks established: primary HIT + established MISS → final HIT', () => {
+  const primary = row('primary', 'hit');
+  assert.deepEqual(decide([row('established', 'miss'), primary, row('established', 'miss')]), { kind: 'final', outcome: 'hit', decidingEvidenceId: primary.id });
 });
 
-test('officials disagreeing → arbiter', () => {
-  const a = row('official', 'hit');
-  const b = row('official', 'miss');
-  assert.deepEqual(decide([a, b, row('trusted', 'hit')]), { kind: 'needs_arbiter', candidateIds: [a.id, b.id] });
+test('primary items disagreeing → arbiter', () => {
+  const a = row('primary', 'hit');
+  const b = row('primary', 'miss');
+  assert.deepEqual(decide([a, b, row('established', 'hit')]), { kind: 'needs_arbiter', candidateIds: [a.id, b.id] });
 });
 
-test('no official: 2+ trusted agreeing → final; disagreeing → arbiter; one → human', () => {
-  const t1 = row('trusted', 'miss');
-  assert.deepEqual(decide([t1, row('trusted', 'miss')]), { kind: 'final', outcome: 'miss', decidingEvidenceId: t1.id });
-  const [a, b] = [row('trusted', 'hit'), row('trusted', 'miss')];
+test('no primary: 2+ established agreeing → final; disagreeing → arbiter; one → human', () => {
+  const t1 = row('established', 'miss');
+  assert.deepEqual(decide([t1, row('established', 'miss')]), { kind: 'final', outcome: 'miss', decidingEvidenceId: t1.id });
+  const [a, b] = [row('established', 'hit'), row('established', 'miss')];
   assert.deepEqual(decide([a, b]), { kind: 'needs_arbiter', candidateIds: [a.id, b.id] });
-  assert.deepEqual(decide([row('trusted', 'hit')]), { kind: 'needs_human', reason: 'lone_trusted' });
+  assert.deepEqual(decide([row('established', 'hit')]), { kind: 'needs_human', reason: 'lone_established' });
 });
 
-test('contract locator alone (trusted) → human; locator + one trusted agreeing → final', () => {
-  const locator = row('trusted', 'hit');
-  assert.deepEqual(decide([locator]), { kind: 'needs_human', reason: 'lone_trusted' });
-  assert.equal(decide([locator, row('trusted', 'hit')]).kind, 'final');
+test('one established alone → human; plus a second established agreeing → final', () => {
+  const first = row('established', 'hit');
+  assert.deepEqual(decide([first]), { kind: 'needs_human', reason: 'lone_established' });
+  assert.equal(decide([first, row('established', 'hit')]).kind, 'final');
 });
 
-test('failed gates, pending, irrelevant and other-only never count', () => {
-  const rows = [row('official', 'hit', RUN1, false), row('trusted', 'irrelevant'), row('other', 'hit'), row('other', 'miss')];
+test('failed gates, pending, irrelevant and weak-only never count', () => {
+  const rows = [row('primary', 'hit', RUN1, false), row('established', 'irrelevant'), row('weak', 'hit'), row('weak', 'miss')];
   assert.deepEqual(decide(rows), { kind: 'wait', reason: 'insufficient_once' });
 });
 
 test('nothing counted: VOID only after two such runs at least 24 h apart', () => {
-  assert.deepEqual(decide([row('trusted', 'irrelevant', RUN1)], RUN1), { kind: 'wait', reason: 'insufficient_once' });
+  assert.deepEqual(decide([row('established', 'irrelevant', RUN1)], RUN1), { kind: 'wait', reason: 'insufficient_once' });
   const almost = new Date(RUN1.getTime() + 23 * 3600e3);
-  assert.deepEqual(decide([row('trusted', 'irrelevant', RUN1), row('trusted', 'irrelevant', almost)], almost), { kind: 'wait', reason: 'insufficient_once' });
-  assert.deepEqual(decide([row('trusted', 'irrelevant', RUN1), row('trusted', 'irrelevant', RUN2)], RUN2), { kind: 'final', outcome: 'void', voidReason: 'insufficient_evidence' });
+  assert.deepEqual(decide([row('established', 'irrelevant', RUN1), row('established', 'irrelevant', almost)], almost), { kind: 'wait', reason: 'insufficient_once' });
+  assert.deepEqual(decide([row('established', 'irrelevant', RUN1), row('established', 'irrelevant', RUN2)], RUN2), { kind: 'final', outcome: 'void', voidReason: 'insufficient_evidence' });
 });
 
 test('HIT and MISS use the latest run only: an earlier HIT does not decide a later empty run', () => {
-  const rows = [row('official', 'hit', RUN1), row('trusted', 'irrelevant', RUN2)];
+  const rows = [row('primary', 'hit', RUN1), row('established', 'irrelevant', RUN2)];
   assert.deepEqual(decide(rows, RUN2), { kind: 'wait', reason: 'insufficient_once' }, 'RUN1 counted, so it is not an empty earlier run');
 });
 
-test('official entity_gone: wait on runs 1 and 2, VOID unresolvable on the 3rd separate run', () => {
-  assert.deepEqual(decide([row('official', 'entity_gone', RUN1)]), { kind: 'wait', reason: 'entity_gone' });
-  const two = [row('official', 'entity_gone', RUN1), row('official', 'entity_gone', RUN2)];
+test('primary entity_gone: wait on runs 1 and 2, VOID unresolvable on the 3rd separate run', () => {
+  assert.deepEqual(decide([row('primary', 'entity_gone', RUN1)]), { kind: 'wait', reason: 'entity_gone' });
+  const two = [row('primary', 'entity_gone', RUN1), row('primary', 'entity_gone', RUN2)];
   assert.deepEqual(decide(two, RUN2), { kind: 'wait', reason: 'entity_gone' });
-  const three = [...two, row('official', 'entity_gone', RUN3)];
+  const three = [...two, row('primary', 'entity_gone', RUN3)];
   assert.deepEqual(decide(three, RUN3), { kind: 'final', outcome: 'void', voidReason: 'unresolvable' });
-  assert.deepEqual(decide([row('trusted', 'entity_gone', RUN1)]), { kind: 'wait', reason: 'insufficient_once' }, 'only official counts');
+  assert.deepEqual(decide([row('established', 'entity_gone', RUN1)]), { kind: 'wait', reason: 'insufficient_once' }, 'only primary counts');
 });
 
-test('official pending: wait; more than 30 days after the deadline → human', () => {
-  const pending = row('official', 'pending', RUN1, false);
-  assert.deepEqual(decide([pending, row('trusted', 'hit'), row('trusted', 'hit')]), { kind: 'wait', reason: 'pending' });
+test('primary pending: wait; more than 30 days after the deadline → human', () => {
+  const pending = row('primary', 'pending', RUN1, false);
+  assert.deepEqual(decide([pending, row('established', 'hit'), row('established', 'hit')]), { kind: 'wait', reason: 'pending' });
   const day30 = new Date(DEADLINE.getTime() + 30 * 86400e3);
   assert.deepEqual(decide([pending], day30), { kind: 'wait', reason: 'pending' });
   assert.deepEqual(decide([pending], new Date(day30.getTime() + 1000)), { kind: 'needs_human', reason: 'pending_too_long' });

@@ -6,12 +6,12 @@ import { JUDGE_VERSION, judgePage, searchSources } from '../llm/judges.js';
 import { log } from '../log.js';
 import { type PageFetcher, SourceUnavailable } from './fetch.js';
 import { type EvidenceDraft, type Gates, runGates } from './gates.js';
-import { hostOf, registrableDomain, type SourcePolicy, trustLevel } from './trust.js';
+import { capTrust, hostOf, registrableDomain } from './trust.js';
 
 const MAX_PAGES = 8;
-const TRUST_ORDER = { official: 0, trusted: 1, other: 2 } as const;
+const TRUST_ORDER = { primary: 0, established: 1, weak: 2 } as const;
 
-export type WebDeps = { llm: LlmClient; fetchPage: PageFetcher; judgeModelA: string; judgeModelB: string; policy: SourcePolicy };
+export type WebDeps = { llm: LlmClient; fetchPage: PageFetcher; judgeModelA: string; judgeModelB: string };
 
 export type GatheredItem = {
   draft: EvidenceDraft;
@@ -19,6 +19,7 @@ export type GatheredItem = {
   passed: boolean;
   value: number | null; // price feed answers only
   sourceName: string;
+  trustReason: string | null;
   contentSha256: string | null;
   searchQuery: string | null;
   modelId: string | null;
@@ -31,11 +32,12 @@ export async function gatherWebEvidence(
   contract: Contract,
   window: { lockAt: Date; deadlineAt: Date },
   now: Date,
+  knownSources: readonly string[],
 ): Promise<{ items: GatheredItem[]; costs: CallCost[] }> {
   const costs: CallCost[] = [];
   // Two independent search passes (outages propagate: no evidence, retry next run).
-  const passA = await searchSources(deps.llm, deps.judgeModelA, contract, window, 1);
-  const passB = await searchSources(deps.llm, deps.judgeModelB, contract, window, 2);
+  const passA = await searchSources(deps.llm, deps.judgeModelA, contract, window, 1, knownSources);
+  const passB = await searchSources(deps.llm, deps.judgeModelB, contract, window, 2, knownSources);
   costs.push(...passA.costs, ...passB.costs);
   const queries = [...new Set([...passA.queries, ...passB.queries])];
   const searchQuery = queries.join(' | ').slice(0, 500) || null;
@@ -65,7 +67,7 @@ export async function gatherWebEvidence(
         draft: {
           sourceKind: 'web',
           basis: judgement.basis,
-          trustLevel: trustLevel(page.url, contract, deps.policy),
+          trustLevel: capTrust(judgement.source_trust, page.url, contract),
           says: judgement.says,
           eventDate: judgement.event_date,
           url: page.url,
@@ -77,6 +79,7 @@ export async function gatherWebEvidence(
         },
         value: null,
         sourceName: host ? registrableDomain(host) : page.url,
+        trustReason: judgement.trust_reason,
         contentSha256: page.sha256,
         searchQuery,
         modelId: deps.judgeModelA,
@@ -95,7 +98,7 @@ export async function gatherWebEvidence(
     throw new SourceUnavailable(`all ${fetchFailures} source pages failed to load`);
   }
 
-  // Gate the strongest sources first, so an official page wins the independence check over its copies.
+  // Gate the strongest sources first, so a primary page wins the independence check over its copies.
   judged.sort((a, b) => TRUST_ORDER[a.draft.trustLevel] - TRUST_ORDER[b.draft.trustLevel]);
   const accepted: EvidenceDraft[] = [];
   const items: GatheredItem[] = judged.map((item) => {
@@ -111,9 +114,9 @@ export async function gatherWebEvidence(
 
 function emptySearchItem(searchQuery: string | null, now: Date): GatheredItem {
   const draft: EvidenceDraft = {
-    sourceKind: 'web', basis: 'record', trustLevel: 'other', says: 'irrelevant', eventDate: null, url: null,
+    sourceKind: 'web', basis: 'record', trustLevel: 'weak', says: 'irrelevant', eventDate: null, url: null,
     retrievedAt: now, quoteFound: null, isFinalResult: false, originalSource: null, simhash: null,
   };
   const gates: Gates = { trusted: false, quote_found: null, in_window: null, final: false, independent: null };
-  return { draft, gates, passed: false, value: null, sourceName: 'search', contentSha256: null, searchQuery, modelId: null, instructionVersion: null, pageText: '' };
+  return { draft, gates, passed: false, value: null, sourceName: 'search', trustReason: null, contentSha256: null, searchQuery, modelId: null, instructionVersion: null, pageText: '' };
 }

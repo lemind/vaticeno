@@ -14,7 +14,7 @@ export type Decision =
   | { kind: 'final'; outcome: 'hit' | 'miss'; decidingEvidenceId: string }
   | { kind: 'final'; outcome: 'void'; voidReason: 'insufficient_evidence' | 'unresolvable' }
   | { kind: 'needs_arbiter'; candidateIds: string[] }
-  | { kind: 'needs_human'; reason: 'lone_trusted' | 'pending_too_long' }
+  | { kind: 'needs_human'; reason: 'lone_established' | 'pending_too_long' }
   | { kind: 'wait'; reason: 'no_evidence' | 'pending' | 'entity_gone' | 'insufficient_once' };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -27,15 +27,15 @@ export function decideResolution(evidences: readonly EvidenceRow[], now: Date, d
   if (latestRun === undefined) return { kind: 'wait', reason: 'no_evidence' }; // outage: nothing was written
   const latest = evidences.filter((e) => e.runAt.getTime() === latestRun);
 
-  // An official source says the entity no longer exists: VOID only after 3 separate runs say so.
-  if (latest.some((e) => e.trustLevel === 'official' && e.says === 'entity_gone')) {
-    const goneRuns = distinctRuns(evidences.filter((e) => e.trustLevel === 'official' && e.says === 'entity_gone'));
+  // A primary source says the entity no longer exists: VOID only after 3 separate runs say so.
+  if (latest.some((e) => e.trustLevel === 'primary' && e.says === 'entity_gone')) {
+    const goneRuns = distinctRuns(evidences.filter((e) => e.trustLevel === 'primary' && e.says === 'entity_gone'));
     if (goneRuns.length >= ENTITY_GONE_RUNS) return { kind: 'final', outcome: 'void', voidReason: 'unresolvable' };
     return { kind: 'wait', reason: 'entity_gone' };
   }
 
-  // An official source says the result exists but is not final yet: wait; after 30 days a human decides.
-  if (latest.some((e) => e.trustLevel === 'official' && e.says === 'pending')) {
+  // A primary source says the result exists but is not final yet: wait; after 30 days a human decides.
+  if (latest.some((e) => e.trustLevel === 'primary' && e.says === 'pending')) {
     if (now.getTime() - deadlineAt.getTime() > PENDING_LIMIT_MS) return { kind: 'needs_human', reason: 'pending_too_long' };
     return { kind: 'wait', reason: 'pending' };
   }
@@ -43,12 +43,12 @@ export function decideResolution(evidences: readonly EvidenceRow[], now: Date, d
   const counted = latest.filter((e) => e.passed && (e.says === 'hit' || e.says === 'miss'));
 
   // Only the highest trust level present decides; disagreement within it goes to the arbiter.
-  const officials = counted.filter((e) => e.trustLevel === 'official');
-  if (officials.length > 0) return agreeOrArbiter(officials);
+  const primary = counted.filter((e) => e.trustLevel === 'primary');
+  if (primary.length > 0) return agreeOrArbiter(primary);
 
-  const trusted = counted.filter((e) => e.trustLevel === 'trusted');
-  if (trusted.length >= 2) return agreeOrArbiter(trusted);
-  if (trusted.length === 1) return { kind: 'needs_human', reason: 'lone_trusted' };
+  const established = counted.filter((e) => e.trustLevel === 'established');
+  if (established.length >= 2) return agreeOrArbiter(established);
+  if (established.length === 1) return { kind: 'needs_human', reason: 'lone_established' };
 
   // Nothing counts. VOID needs a second such run at least 24 h earlier (results may be reported late).
   const earlierEmpty = runs.slice(0, -1).some((run) => latestRun - run >= DAY_MS && !runHasCounted(evidences, run));

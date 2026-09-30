@@ -14,7 +14,7 @@ import { decideResolution, type Decision } from './decide.js';
 import { type PageFetcher, SourceUnavailable } from './fetch.js';
 import { runGates } from './gates.js';
 import { gatherPriceEvidence } from './price-evidence.js';
-import type { SourcePolicy } from './trust.js';
+import { knownSources, recordSourceStanding } from './sources.js';
 import { gatherWebEvidence, type GatheredItem } from './web-evidence.js';
 
 export type ResolverDeps = {
@@ -22,7 +22,6 @@ export type ResolverDeps = {
   llm: LlmClient;
   coinbase: Coinbase;
   fetchPage: PageFetcher;
-  policy: SourcePolicy;
   judgeModelA: string;
   judgeModelB: string;
   arbiterModel: string;
@@ -83,9 +82,9 @@ export async function resolveClaim(deps: ResolverDeps, claim: ClaimRow, now: Dat
     if (contract.resolution_method === 'price_feed' && contract.price) {
       const { draft, value, contentSha256 } = await gatherPriceEvidence(deps.coinbase, contract.price, window, now);
       const { gates, passed } = runGates(draft, { ...window, absenceIsMeaningful: false }, []);
-      items = [{ draft, gates, passed, value, sourceName: 'coinbase', contentSha256, searchQuery: null, modelId: null, instructionVersion: null, pageText: '' }];
+      items = [{ draft, gates, passed, value, sourceName: 'coinbase', trustReason: null, contentSha256, searchQuery: null, modelId: null, instructionVersion: null, pageText: '' }];
     } else {
-      const gathered = await gatherWebEvidence(deps, contract, window, now);
+      const gathered = await gatherWebEvidence(deps, contract, window, now, await knownSources(db));
       items = gathered.items;
       costs.push(...gathered.costs);
     }
@@ -110,6 +109,7 @@ export async function resolveClaim(deps: ResolverDeps, claim: ClaimRow, now: Dat
       basis: item.draft.basis,
       sourceName: item.sourceName,
       trustLevel: item.draft.trustLevel,
+      trustReason: item.trustReason,
       says: item.draft.says,
       eventDate: item.draft.eventDate,
       value: item.value?.toString() ?? null,
@@ -145,7 +145,7 @@ async function applyDecision(
   now: Date,
 ): Promise<ClaimRunOutcome> {
   const { db } = deps;
-  const base = { claimId: claim.id, policyVersion: deps.policy.version };
+  const base = { claimId: claim.id };
 
   if (decision.kind === 'wait') {
     const runs = await db.selectDistinct({ runAt: evidences.runAt }).from(evidences).where(eq(evidences.claimId, claim.id));
@@ -189,6 +189,7 @@ async function finalize(db: Db, claim: ClaimRow, row: typeof resolutions.$inferI
   await db.transaction(async (tx) => {
     await tx.insert(resolutions).values(row);
     await tx.update(claims).set({ status: row.outcome === 'void' ? 'void' : 'resolved', nextCheckAt: null }).where(eq(claims.id, claim.id));
+    if (row.outcome === 'hit' || row.outcome === 'miss') await recordSourceStanding(tx, claim.id, row.outcome, row.decidedAt ?? new Date());
   });
   log('info', 'claim resolved', { event: 'resolution.decided', claim_id: claim.id, slug: claim.slug, outcome: row.outcome, decided_by: row.decidedBy, void_reason: row.voidReason });
 }

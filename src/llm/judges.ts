@@ -7,8 +7,8 @@ import { quoteInText } from '../resolve/similarity.js';
 import type { CallCost, LlmClient } from './client.js';
 import { loadInstruction } from './instructions.js';
 
-export const SEARCH_VERSION = 'search.v1';
-export const JUDGE_VERSION = 'judge.v1';
+export const SEARCH_VERSION = 'search.v2';
+export const JUDGE_VERSION = 'judge.v2';
 export const ARBITRATE_VERSION = 'arbitrate.v1';
 
 type Window = { lockAt: Date; deadlineAt: Date };
@@ -19,13 +19,13 @@ const contractInput = (contract: Contract, window: Window) => ({
   deadline: window.deadlineAt.toISOString(),
 });
 
-export async function searchSources(llm: LlmClient, model: string, contract: Contract, window: Window, pass: number) {
+export async function searchSources(llm: LlmClient, model: string, contract: Contract, window: Window, pass: number, knownSources: readonly string[]) {
   // pass is part of the input so two passes are two recorded calls, even with the same model.
   return llm.groundedSearch({
     model,
     instructionVersion: SEARCH_VERSION,
     system: loadInstruction(SEARCH_VERSION),
-    input: JSON.stringify({ ...contractInput(contract, window), pass }),
+    input: JSON.stringify({ ...contractInput(contract, window), pass, known_sources: knownSources }),
   });
 }
 
@@ -36,6 +36,8 @@ const JudgeFields = {
   event_date: DATE.nullable(),
   is_final_result: z.boolean(),
   from_contract_source: z.boolean(),
+  source_trust: z.enum(['primary', 'established', 'weak']),
+  trust_reason: z.string().max(200),
   original_source: z.string().max(80).nullable(),
   reasoning: z.string().max(400),
 };
@@ -67,7 +69,8 @@ export async function judgePage(
   const quoteFound = data.quote_found ?? (data.quote ? quoteInText(data.quote, page.text) : null);
   const judgement: Judgement = {
     says: data.says, basis: data.basis, event_date: data.event_date, is_final_result: data.is_final_result,
-    from_contract_source: data.from_contract_source, original_source: data.original_source, reasoning: data.reasoning, quoteFound,
+    from_contract_source: data.from_contract_source, source_trust: data.source_trust, trust_reason: data.trust_reason,
+    original_source: data.original_source, reasoning: data.reasoning, quoteFound,
   };
   return { judgement, costs }; // the quote goes no further than this function
 }

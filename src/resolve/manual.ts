@@ -6,6 +6,7 @@ import { ContractSchema } from '../contract/schema.js';
 import type { Db } from '../db/client.js';
 import { claims, evidences, resolutions, VOID_REASONS } from '../db/schema.js';
 import { log } from '../log.js';
+import { recordSourceStanding } from './sources.js';
 
 export async function listNeedsHuman(db: Db) {
   const flagged = await db.select({ claim: claims, resolution: resolutions })
@@ -55,6 +56,7 @@ export async function decideByHuman(db: Db, input: ManualDecision): Promise<void
     }).where(and(eq(resolutions.claimId, claim.id), eq(resolutions.reviewStatus, 'needs_human'))).returning({ id: resolutions.id });
     if (updated.length === 0) throw new Error(`#${input.slug} has no resolution waiting for a human (final ones never change)`);
     await tx.update(claims).set({ status: input.outcome === 'void' ? 'void' : 'resolved' }).where(eq(claims.id, claim.id));
+    if (input.outcome !== 'void') await recordSourceStanding(tx, claim.id, input.outcome, input.now);
   });
   log('info', 'resolution decided by a human', { event: 'resolution.decided', slug: input.slug, outcome: input.outcome, decided_by: 'human' });
 }

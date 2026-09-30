@@ -1,41 +1,19 @@
-// Trust level of an evidence source, in code, from the curated source policy (data-model "Trust level").
-// Only the policy grants trust on its own; the contract's locator (model-chosen) is trusted at most. Pure.
-import { readFileSync } from 'node:fs';
-import { z } from 'zod';
+// Trust level of an evidence source (data-model "Trust level"). No fixed site list: the judge rates each
+// page, and code caps it — only the price feed and the contract's own source domain can be primary. Pure.
 import type { TRUST_LEVELS } from '../db/schema.js';
 
 export type TrustLevel = (typeof TRUST_LEVELS)[number];
 
-const domain = z.string().regex(/^[a-z0-9.-]+\.[a-z]{2,}$/, 'bare lowercase domain, no scheme or path');
-export const SourcePolicySchema = z.object({
-  version: z.number().int().positive(),
-  official: z.record(z.string(), z.array(domain).min(1)),
-  trusted: z.record(z.string(), z.array(domain)),
-});
-export type SourcePolicy = z.infer<typeof SourcePolicySchema>;
-
-export function loadSourcePolicy(path = new URL('../../config/source-policy.json', import.meta.url)): SourcePolicy {
-  return SourcePolicySchema.parse(JSON.parse(readFileSync(path, 'utf8')));
-}
-
 export const PRICE_FEED_SOURCE = 'coinbase-candles';
 
-export function trustLevel(url: string, contract: { source: { kind: string; locator: string } }, policy: SourcePolicy): TrustLevel {
-  if (url === PRICE_FEED_SOURCE) return 'official';
+export function capTrust(rated: TrustLevel, url: string, contract: { source: { locator: string } }): TrustLevel {
+  if (url === PRICE_FEED_SOURCE) return 'primary';
   const host = hostOf(url);
-  if (!host) return 'other';
-  if (Object.values(policy.official).some((domains) => domains.some((d) => onDomain(host, d)))) return 'official';
-  const trustedForKind = policy.trusted[contract.source.kind] ?? [];
-  if (trustedForKind.some((d) => onDomain(host, d))) return 'trusted';
-  // The contract's own link counts as trusted (never official), so it always needs a second source.
+  if (!host) return 'weak';
+  if (rated !== 'primary') return rated;
+  // A model can't make an arbitrary site decide alone: primary only on the source fixed at lock.
   const locatorHost = hostOf(contract.source.locator);
-  if (locatorHost && registrableDomain(host) === registrableDomain(locatorHost)) return 'trusted';
-  return 'other';
-}
-
-// host equals the domain or is a subdomain of it: fda.gov, www.fda.gov — never fda.gov.evil.com.
-export function onDomain(host: string, domain: string): boolean {
-  return host === domain || host.endsWith(`.${domain}`);
+  return locatorHost && registrableDomain(host) === registrableDomain(locatorHost) ? 'primary' : 'established';
 }
 
 export function hostOf(url: string): string | null {
@@ -50,7 +28,7 @@ export function hostOf(url: string): string | null {
 
 // Registrable domain without a public-suffix dependency: a generic second level under a country code
 // (com.tr, co.uk, gov.au, …) or a few known multi-part suffixes take three labels. Enough for the
-// independence gate and the locator rule; the curated policy itself matches by onDomain.
+// independence gate, the locator rule and source standing.
 const GENERIC_SECOND_LEVEL = new Set(['com', 'co', 'org', 'net', 'gov', 'gouv', 'ac', 'edu', 'or', 'ne', 'go', 'gob']);
 const MULTI_PART_SUFFIXES = new Set(['europa.eu']);
 

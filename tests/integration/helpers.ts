@@ -17,7 +17,7 @@ export async function setupTestDb(): Promise<TestDb> {
     sql,
     // TRUNCATE does not fire the row-level insert-only triggers.
     truncateAll: async () => {
-      await sql`truncate cost_events, resolutions, evidences, positions, claims`;
+      await sql`truncate sources, cost_events, resolutions, evidences, positions, claims`;
     },
     close,
   };
@@ -88,7 +88,7 @@ export async function insertEvidence(sql: Sql, claimId: string, overrides: Recor
     source_kind: 'price_feed',
     basis: 'record',
     source_name: 'coinbase',
-    trust_level: 'official',
+    trust_level: 'primary',
     says: 'hit',
     retrieved_at: '2027-01-01T01:00:00Z',
     gates: JSON.stringify({ trusted: true, in_window: true, final: true, independent: true }),

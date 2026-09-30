@@ -1,42 +1,42 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { loadSourcePolicy, PRICE_FEED_SOURCE, registrableDomain, trustLevel } from './trust.js';
+import { capTrust, PRICE_FEED_SOURCE, registrableDomain } from './trust.js';
 
-const policy = loadSourcePolicy();
-const contract = (kind: string, locator = 'https://www.accessdata.fda.gov/scripts/cder/daf/') => ({ source: { kind, locator } });
+const contract = (locator = 'https://www.accessdata.fda.gov/scripts/cder/daf/') => ({ source: { locator } });
 
-test('the committed policy file is valid', () => {
-  assert.ok(policy.version >= 1);
+test('the price feed is always primary', () => {
+  assert.equal(capTrust('weak', PRICE_FEED_SOURCE, contract()), 'primary');
 });
 
-test('official only from the policy list, including subdomains', () => {
-  assert.equal(trustLevel('https://www.fda.gov/news-events/x', contract('regulatory'), policy), 'official');
-  assert.equal(trustLevel('https://accessdata.fda.gov/scripts/x', contract('regulatory'), policy), 'official');
-  assert.equal(trustLevel(PRICE_FEED_SOURCE, contract('crypto_price'), policy), 'official');
+test('primary stands only on the contract source domain, including its subdomains', () => {
+  assert.equal(capTrust('primary', 'https://www.accessdata.fda.gov/x', contract()), 'primary');
+  assert.equal(capTrust('primary', 'https://fda.gov/news', contract()), 'primary');
+  assert.equal(capTrust('primary', 'https://www.fda.gov/news', contract()), 'primary');
 });
 
-test('lookalike domains are never official or trusted', () => {
-  assert.equal(trustLevel('https://fda.gov.evil.com/approval', contract('regulatory'), policy), 'other');
-  assert.equal(trustLevel('https://notfda.gov/approval', contract('regulatory'), policy), 'other');
-  assert.equal(trustLevel('https://reuters.com.fake.net/x', contract('regulatory'), policy), 'other');
+test('primary anywhere else is capped to established', () => {
+  assert.equal(capTrust('primary', 'https://www.reuters.com/x', contract()), 'established');
+  assert.equal(capTrust('primary', 'https://ema.europa.eu/x', contract()), 'established');
 });
 
-test('trusted sites depend on the contract kind; an unknown kind selects no list', () => {
-  assert.equal(trustLevel('https://www.reuters.com/x', contract('regulatory'), policy), 'trusted');
-  assert.equal(trustLevel('https://www.skysports.com/x', contract('regulatory'), policy), 'other');
-  assert.equal(trustLevel('https://www.skysports.com/x', contract('football_results'), policy), 'trusted');
-  assert.equal(trustLevel('https://www.reuters.com/x', contract('made_up_kind', 'https://example.org/'), policy), 'other');
+test('lookalike domains never get the contract source\'s primary', () => {
+  assert.equal(capTrust('primary', 'https://fda.gov.evil.com/approval', contract()), 'established');
+  assert.equal(capTrust('primary', 'https://notfda.gov/approval', contract()), 'established');
 });
 
-test('the contract locator not on the official list is trusted, never official', () => {
-  const c = contract('made_up_kind', 'https://records.some-league.org/table');
-  assert.equal(trustLevel('https://www.some-league.org/news', c, policy), 'trusted');
-  assert.equal(trustLevel('https://other-league.org/news', c, policy), 'other');
+test('established and weak are kept as rated, also on the contract source domain', () => {
+  assert.equal(capTrust('established', 'https://www.reuters.com/x', contract()), 'established');
+  assert.equal(capTrust('weak', 'https://www.reuters.com/x', contract()), 'weak');
+  assert.equal(capTrust('weak', 'https://www.fda.gov/x', contract()), 'weak');
 });
 
-test('garbage and non-web URLs are other', () => {
-  assert.equal(trustLevel('not a url', contract('regulatory'), policy), 'other');
-  assert.equal(trustLevel('ftp://fda.gov/x', contract('regulatory'), policy), 'other');
+test('garbage and non-web URLs are weak whatever the rating', () => {
+  assert.equal(capTrust('primary', 'not a url', contract()), 'weak');
+  assert.equal(capTrust('established', 'ftp://fda.gov/x', contract()), 'weak');
+});
+
+test('a broken contract locator makes nothing primary', () => {
+  assert.equal(capTrust('primary', 'https://www.fda.gov/x', contract('not a url')), 'established');
 });
 
 test('registrable domain handles two-part suffixes', () => {

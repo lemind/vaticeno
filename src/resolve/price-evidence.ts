@@ -60,7 +60,7 @@ export async function gatherPriceEvidence(
     draft: {
       sourceKind: 'price_feed',
       basis: 'record',
-      trustLevel: 'official',
+      trustLevel: 'primary',
       says: answer.says,
       eventDate: answer.eventDate,
       url: PRICE_FEED_SOURCE,

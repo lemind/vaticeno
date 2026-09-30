@@ -88,12 +88,12 @@ describe('insert-only and uniqueness', () => {
 });
 
 describe('resolutions', () => {
-  const final = { review_status: 'final', decided_by: 'evidence', decided_at: '2027-01-01T01:00:00Z', policy_version: 1 };
+  const final = { review_status: 'final', decided_by: 'evidence', decided_at: '2027-01-01T01:00:00Z' };
 
   test('one resolution per claim', async () => {
     const claim = await insertClaim(t.sql, 'resolving');
-    await t.sql`insert into resolutions ${t.sql({ claim_id: claim.id, review_status: 'needs_human', policy_version: 1 })}`;
-    await rejected(t.sql`insert into resolutions ${t.sql({ claim_id: claim.id, review_status: 'needs_human', policy_version: 1 })}`, /resolutions_claim_id_unique/);
+    await t.sql`insert into resolutions ${t.sql({ claim_id: claim.id, review_status: 'needs_human' })}`;
+    await rejected(t.sql`insert into resolutions ${t.sql({ claim_id: claim.id, review_status: 'needs_human' })}`, /resolutions_claim_id_unique/);
   });
 
   test('HIT needs a deciding evidence of the same claim; VOID needs a reason', async () => {
@@ -108,7 +108,7 @@ describe('resolutions', () => {
   test('a needs_human resolution can be decided once; a final one never changes', async () => {
     const claim = await insertClaim(t.sql, 'resolving');
     const evidence = await insertEvidence(t.sql, claim.id);
-    const [row] = await t.sql<{ id: string }[]>`insert into resolutions ${t.sql({ claim_id: claim.id, review_status: 'needs_human', policy_version: 1 })} returning id`;
+    const [row] = await t.sql<{ id: string }[]>`insert into resolutions ${t.sql({ claim_id: claim.id, review_status: 'needs_human' })} returning id`;
     await t.sql`update resolutions set ${t.sql({ outcome: 'hit', deciding_evidence_id: evidence.id, human_notes: 'checked', ...final, decided_by: 'human' })} where id = ${row!.id}`;
     await rejected(t.sql`update resolutions set outcome = 'miss' where id = ${row!.id}`, /is final/);
     await rejected(t.sql`delete from resolutions where id = ${row!.id}`, /is final/);
@@ -136,7 +136,7 @@ describe('row level security', () => {
   test('RLS is enabled on every table', async () => {
     const rows = await t.sql<{ tablename: string; rowsecurity: boolean }[]>`
       select tablename, rowsecurity from pg_tables where schemaname = 'public' and tablename not like '__drizzle%'`;
-    assert.equal(rows.length, 5);
+    assert.equal(rows.length, 6);
     for (const row of rows) assert.equal(row.rowsecurity, true, `${row.tablename} has RLS off`);
   });
 });
