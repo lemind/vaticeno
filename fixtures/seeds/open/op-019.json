@@ -1,0 +1,23 @@
+{
+ "id": "op-019",
+ "category": "miss_by_meaningful_absence",
+ "expected_outcome": "miss",
+ "note": "Oppenheimer won on 2024-03-10.",
+ "lock_at": "2024-01-24T12:00:00Z",
+ "contract": {
+  "subject": "Barbie (film)",
+  "criterion": "Barbie wins Best Picture at the 96th Academy Awards",
+  "deadline_at": "2024-03-31T23:59:59Z",
+  "source": {
+   "name": "96th Academy Awards winners",
+   "kind": "culture_awards",
+   "locator": "https://www.oscars.org/oscars/ceremonies/2024",
+   "scope": "Barbie (film)",
+   "entity_id": "96th Academy Awards, Best Picture",
+   "absence_is_meaningful": true,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "Barbie not listed as the Best Picture winner",
+  "resolution_method": "model"
+ }
+}

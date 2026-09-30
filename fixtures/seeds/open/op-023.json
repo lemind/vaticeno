@@ -1,0 +1,23 @@
+{
+ "id": "op-023",
+ "category": "void_nothing_knowable",
+ "expected_outcome": "void",
+ "note": "Obscure/fictional: nothing knowable.",
+ "lock_at": "2024-01-01T12:00:00Z",
+ "contract": {
+  "subject": "Luigi's Trattoria, Leeds",
+  "criterion": "Luigi's Trattoria in Leeds publishes its secret sauce recipe",
+  "deadline_at": "2024-12-31T23:59:59Z",
+  "source": {
+   "name": "Luigi's Trattoria website",
+   "kind": "company_news",
+   "locator": "https://luigis-trattoria-leeds.example/",
+   "scope": "Luigi's Trattoria, Leeds",
+   "entity_id": "Luigi's Trattoria recipe",
+   "absence_is_meaningful": false,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "no published recipe in the window",
+  "resolution_method": "model"
+ }
+}

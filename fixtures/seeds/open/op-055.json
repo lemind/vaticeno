@@ -1,0 +1,23 @@
+{
+ "id": "op-055",
+ "category": "ambiguous_entity",
+ "expected_outcome": "hit",
+ "note": "Won the play-off final on 2024-03-26.",
+ "lock_at": "2024-01-01T12:00:00Z",
+ "contract": {
+  "subject": "Georgia national football team",
+  "criterion": "Georgia (the country) qualifies for UEFA Euro 2024",
+  "deadline_at": "2024-03-31T23:59:59Z",
+  "source": {
+   "name": "UEFA EURO 2024 qualifying",
+   "kind": "football_results",
+   "locator": "https://www.uefa.com/euro2024/",
+   "scope": "Georgia national football team",
+   "entity_id": "Georgia men's national team",
+   "absence_is_meaningful": false,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "Georgia fails to qualify in the window",
+  "resolution_method": "model"
+ }
+}

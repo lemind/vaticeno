@@ -98,10 +98,12 @@ src/
 │   ├── schema.ts                   # Drizzle: claims, positions, evidences, resolutions, cost_events
 │   ├── client.ts                   # createDb (tests, scripts), getDb/getSql (entrypoints only)
 │   ├── migrate.ts                  # applies drizzle/ migrations
+│   ├── scratch.ts                  # throwaway migrated database (tests, seed runs)
 │   └── costs.ts                    # recordCosts (db or transaction)
 ├── contract/
 │   ├── schema.ts                   # ContractSchema (Zod)
 │   ├── render.ts                   # statement from fields — the only statement source
+│   ├── proposal.ts                 # ProposalSchema (what the model proposes)
 │   ├── checks.ts                   # FR-003 checks, pure
 │   └── slug.ts
 ├── llm/
@@ -109,10 +111,9 @@ src/
 │   ├── replay.ts                   # replay store (R5); refuses text/quote fields
 │   ├── prices.ts                   # model + search prices (UNRECONCILED)
 │   ├── instructions/               # normalize.v1, search.v1, judge.v1, arbitrate.v1
+│   ├── instructions.ts             # loads versioned prompts
 │   ├── normalize.ts                # proposal + one retry
-│   ├── search.ts                   # grounded search → candidate URLs
-│   ├── judge.ts                    # no-tools judge over fetched snapshots
-│   └── arbitrate.ts                # decides between contradicting evidence, or flags for human
+│   └── judges.ts                   # grounded search → URLs; judge (one page); arbiter (contradictions)
 ├── lifecycle/
 │   ├── transitions.ts              # early refusal; DB trigger is the authority
 │   ├── lock.ts                     # lock_at = last reply + 15 min; re-read at lock, edit → re-checked amend or expired
@@ -120,16 +121,18 @@ src/
 │   ├── source-reader.ts            # SourceReader port: fixture now, X in Stage 1
 │   └── claims.ts                   # submit, amend (services, take deps + `now`)
 ├── replies/
-│   ├── templates.ts
-│   └── needs-info.ts               # example generation + validation (FR-008)
+│   ├── templates.ts                # fixed frames, X-weighted length check
+│   └── needs-info.ts               # checked examples (FR-008)
 ├── resolve/
 │   ├── price-evidence.ts           # Coinbase candles over (lock_at, deadline] → evidence
 │   ├── web-evidence.ts             # search → fetch → judge per snapshot → evidence
 │   ├── fetch.ts                    # snapshot, sha256, retrieved_at
 │   ├── trust.ts                    # trustLevel(url, contract, policy): official only from policy list — pure
 │   ├── gates.ts                    # trusted, quote_found, in_window, final, independent — pure
+│   ├── similarity.ts               # quote check, simhash near-duplicates — pure
 │   ├── decide.ts                   # rule table → final | needs_arbiter | needs_human | wait — pure
-│   └── resolver.ts                 # passed evidence → agree | arbiter | needs_human (service, takes `now`)
+│   ├── resolver.ts                 # due claims → evidence → rule table → resolution (service, takes `now`)
+│   └── manual.ts                   # review list + human decision (the only operator write path)
 ├── feeds/coinbase.ts               # Zod-validated candles client
 ├── jobs/
 │   ├── scheduler.ts                # node-cron: only calls the service functions above

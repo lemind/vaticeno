@@ -1,0 +1,23 @@
+{
+ "id": "op-056",
+ "category": "ambiguous_entity",
+ "expected_outcome": "hit",
+ "note": "Beat Inter 5-0 on 2025-05-31 (not Paris FC).",
+ "lock_at": "2025-03-01T12:00:00Z",
+ "contract": {
+  "subject": "Paris Saint-Germain",
+  "criterion": "Paris Saint-Germain win the 2024-25 UEFA Champions League final",
+  "deadline_at": "2025-06-30T23:59:59Z",
+  "source": {
+   "name": "UEFA Champions League",
+   "kind": "football_results",
+   "locator": "https://www.uefa.com/uefachampionsleague/",
+   "scope": "Paris Saint-Germain",
+   "entity_id": "2024-25 UCL",
+   "absence_is_meaningful": false,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "another club wins the 2024-25 final",
+  "resolution_method": "model"
+ }
+}

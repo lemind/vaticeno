@@ -40,4 +40,5 @@ jobs:
       - run: npm run test:integration
       # Recorded model answers, no key needed (SC-001: ≥ 90%)
       - run: npm run corpus
-      # Added when its task lands: `npm run seeds:crypto` (replay mode).
+      # 60 historical price claims on frozen candles (SC-002: must be 100%)
+      - run: npm run seeds:crypto

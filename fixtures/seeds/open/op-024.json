@@ -1,0 +1,23 @@
+{
+ "id": "op-024",
+ "category": "void_nothing_knowable",
+ "expected_outcome": "void",
+ "note": "No public membership record.",
+ "lock_at": "2024-01-01T12:00:00Z",
+ "contract": {
+  "subject": "the \"Zephyr\" amateur chess club",
+  "criterion": "The Zephyr amateur chess club in Tallinn reaches 500 members",
+  "deadline_at": "2024-12-31T23:59:59Z",
+  "source": {
+   "name": "Zephyr chess club page",
+   "kind": "sports_results",
+   "locator": "https://zephyr-chess-tallinn.example/",
+   "scope": "the \"Zephyr\" amateur chess club",
+   "entity_id": "Zephyr chess club",
+   "absence_is_meaningful": false,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "fewer than 500 members at the deadline",
+  "resolution_method": "model"
+ }
+}

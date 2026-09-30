@@ -1,0 +1,23 @@
+{
+ "id": "op-039",
+ "category": "conflicting_reports",
+ "expected_outcome": "hit",
+ "note": "Closed as the most valuable company on 2024-06-18.",
+ "lock_at": "2024-05-01T12:00:00Z",
+ "contract": {
+  "subject": "Nvidia",
+  "criterion": "Nvidia's market cap ranks first among listed companies on a closing basis",
+  "deadline_at": "2024-06-30T23:59:59Z",
+  "source": {
+   "name": "Nvidia investor relations",
+   "kind": "company_news",
+   "locator": "https://investor.nvidia.com/",
+   "scope": "Nvidia",
+   "entity_id": "Nvidia market cap",
+   "absence_is_meaningful": false,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "Nvidia never closes as the most valuable company in the window",
+  "resolution_method": "model"
+ }
+}

@@ -1,0 +1,23 @@
+{
+ "id": "op-014",
+ "category": "clear_miss_final_result",
+ "expected_outcome": "miss",
+ "note": "Eagles won 40-22 on 2025-02-09.",
+ "lock_at": "2025-01-01T12:00:00Z",
+ "contract": {
+  "subject": "Kansas City Chiefs",
+  "criterion": "The Kansas City Chiefs win Super Bowl LIX",
+  "deadline_at": "2025-02-28T23:59:59Z",
+  "source": {
+   "name": "NFL Super Bowl LIX",
+   "kind": "sports_results",
+   "locator": "https://www.nfl.com/super-bowl/",
+   "scope": "Kansas City Chiefs",
+   "entity_id": "Super Bowl LIX",
+   "absence_is_meaningful": false,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "another team wins Super Bowl LIX",
+  "resolution_method": "model"
+ }
+}

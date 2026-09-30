@@ -4,6 +4,7 @@ import type { Proposal } from '../../src/contract/proposal.js';
 import type { Coinbase } from '../../src/feeds/coinbase.js';
 import { type ClaimDeps, submitClaim } from '../../src/lifecycle/claims.js';
 import type { LlmClient } from '../../src/llm/client.js';
+import { NORMALIZE_VERSION } from '../../src/llm/normalize.js';
 import { setupTestDb, type TestDb, VALID_CONTRACT } from './helpers.js';
 
 let t: TestDb;
@@ -48,7 +49,7 @@ describe('submitClaim', () => {
     assert.equal(new Date(claim!.lock_at).toISOString(), '2026-09-30T12:15:00.000Z');
     assert.equal(new Date(claim!.deadline_at).toISOString(), '2026-12-31T23:59:59.000Z');
     assert.equal(claim!.resolution_method, 'price_feed');
-    assert.equal(claim!.contract_model_id, 'test-model/normalize.v1');
+    assert.equal(claim!.contract_model_id, `test-model/${NORMALIZE_VERSION}`);
 
     const positions = await t.sql`select * from positions where claim_id = ${claim!.id}`;
     assert.deepEqual(positions.map((p) => [p.x_user_id, p.stance, p.is_author]), [['200', 'agree', true]]);

@@ -1,0 +1,23 @@
+{
+ "id": "op-041",
+ "category": "conflicting_reports",
+ "expected_outcome": "hit",
+ "note": "Won by 0.005s over Thompson on 2024-08-04.",
+ "lock_at": "2024-07-01T12:00:00Z",
+ "contract": {
+  "subject": "Noah Lyles",
+  "criterion": "Noah Lyles wins the men's 100m final at the Paris 2024 Olympics",
+  "deadline_at": "2024-08-31T23:59:59Z",
+  "source": {
+   "name": "Olympics Paris 2024 athletics results",
+   "kind": "sports_results",
+   "locator": "https://www.olympics.com/en/paris-2024",
+   "scope": "Noah Lyles",
+   "entity_id": "Paris 2024 men's 100m",
+   "absence_is_meaningful": false,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "another athlete wins the final",
+  "resolution_method": "model"
+ }
+}

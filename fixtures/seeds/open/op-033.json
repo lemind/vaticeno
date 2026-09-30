@@ -1,0 +1,23 @@
+{
+ "id": "op-033",
+ "category": "event_after_deadline",
+ "expected_outcome": "void",
+ "note": "Released 2024-05-13, after the deadline.",
+ "lock_at": "2024-03-01T12:00:00Z",
+ "contract": {
+  "subject": "GPT-4o",
+  "criterion": "OpenAI releases the GPT-4o model to the public",
+  "deadline_at": "2024-04-30T23:59:59Z",
+  "source": {
+   "name": "OpenAI news",
+   "kind": "tech_releases",
+   "locator": "https://openai.com/news/",
+   "scope": "GPT-4o",
+   "entity_id": "GPT-4o",
+   "absence_is_meaningful": false,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "GPT-4o not released in the window",
+  "resolution_method": "model"
+ }
+}

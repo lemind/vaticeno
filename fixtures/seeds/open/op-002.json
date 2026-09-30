@@ -1,0 +1,23 @@
+{
+ "id": "op-002",
+ "category": "clear_hit",
+ "expected_outcome": "hit",
+ "note": "Flight 5 catch on 2024-10-13.",
+ "lock_at": "2024-09-01T12:00:00Z",
+ "contract": {
+  "subject": "SpaceX Super Heavy",
+  "criterion": "SpaceX catches a Super Heavy booster with the launch tower arms",
+  "deadline_at": "2024-12-31T23:59:59Z",
+  "source": {
+   "name": "SpaceX Starship flight updates",
+   "kind": "space",
+   "locator": "https://www.spacex.com/launches/",
+   "scope": "SpaceX Super Heavy",
+   "entity_id": "Starship Flight 5",
+   "absence_is_meaningful": false,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "no tower catch of a Super Heavy booster in the window",
+  "resolution_method": "model"
+ }
+}

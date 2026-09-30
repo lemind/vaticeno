@@ -1,0 +1,23 @@
+{
+ "id": "op-011",
+ "category": "clear_miss_final_result",
+ "expected_outcome": "miss",
+ "note": "Leverkusen champions on 2024-04-14.",
+ "lock_at": "2024-02-01T12:00:00Z",
+ "contract": {
+  "subject": "Bayern Munich",
+  "criterion": "Bayern Munich win the 2023-24 Bundesliga title",
+  "deadline_at": "2024-05-31T23:59:59Z",
+  "source": {
+   "name": "Bundesliga table",
+   "kind": "football_results",
+   "locator": "https://www.bundesliga.com/en/bundesliga/table",
+   "scope": "Bayern Munich",
+   "entity_id": "2023-24 Bundesliga",
+   "absence_is_meaningful": false,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "another club finishes first in the final 2023-24 table",
+  "resolution_method": "model"
+ }
+}

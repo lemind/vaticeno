@@ -1,0 +1,23 @@
+{
+ "id": "op-032",
+ "category": "event_after_deadline",
+ "expected_outcome": "void",
+ "note": "Trailer 1 released 2023-12-05, after the deadline.",
+ "lock_at": "2023-10-01T12:00:00Z",
+ "contract": {
+  "subject": "GTA VI",
+  "criterion": "Rockstar releases the first official trailer for Grand Theft Auto VI",
+  "deadline_at": "2023-11-30T23:59:59Z",
+  "source": {
+   "name": "Rockstar Games Newswire",
+   "kind": "entertainment_releases",
+   "locator": "https://www.rockstargames.com/newswire",
+   "scope": "GTA VI",
+   "entity_id": "GTA VI Trailer 1",
+   "absence_is_meaningful": false,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "no official GTA VI trailer in the window",
+  "resolution_method": "model"
+ }
+}

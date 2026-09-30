@@ -18,40 +18,47 @@ ProposalSchema = {
 
 ## Search — `search.v1` (grounded, no verdict)
 
-Input: locked contract. Output: grounding metadata only (`webSearchQueries`,
-`groundingChunks[].web.uri`) → candidate URLs. The model's prose is ignored.
+Input: locked contract, lock and deadline, and the pass number (two passes, `JUDGE_MODEL_A` then
+`JUDGE_MODEL_B`). Output: grounding metadata only (`webSearchQueries`, `groundingChunks[].web.uri`) →
+candidate URLs. The model's prose is ignored. The contract's own locator is always read as well.
 
 ## Judge — `judge.v1` (no tools)
 
-Input: locked contract, `lock_at`, and the snapshots our code fetched (`[{snapshot_id, url, text}]`).
+Input: locked contract, lock and deadline, and ONE page our code fetched (`{url, text}`). One call per
+page → one evidence row.
 
 ```ts
-JudgeSchema = {                         // one call per snapshot → one evidence row
+JudgeSchema = {
   says: 'hit' | 'miss' | 'pending' | 'irrelevant' | 'entity_gone',
-  basis: 'record' | 'absence',          // absence only when reading the contract's exhaustive source
-  snapshot_id: string | null,            // must be one of the given snapshots
-  quote: string | null,                  // verbatim from that snapshot; used for the quote gate, never stored
-  event_date: string | null,             // YYYY-MM-DD
+  basis: 'record' | 'absence',          // absence only when this page is the contract's exhaustive record
+  quote: string | null,                  // verbatim from the page; checked in code, then dropped
+  event_date: string | null,             // YYYY-MM-DD of the event itself, not of publication
   is_final_result: boolean,
   from_contract_source: boolean,        // informational only; trust comes from the source policy
   original_source: string | null,       // who first reported it if the page credits one (e.g. "AP"); independence gate
-  reasoning: string                      // ≤ 400 chars, stored for audit
+  reasoning: string                      // ≤ 400 chars; not stored in the database
 }
 ```
 Code then runs the gates (trusted, quote_found, in_window, final, independent) and stores the
 evidence row with `gates` and `passed`. Model flags (`is_final_result`, `from_contract_source`) are
 inputs to the gates, never the final word.
 
+Replay: the key is the contract + the page's URL and sha256 (replay never has page text). The
+recorded answer has no `quote` field, only `quote_sha256` and `quote_found` (computed when recorded) —
+never the quote itself.
+
 ## Arbiter — `arbitrate.v1` (no tools)
 
-Input: locked contract and the contradicting passed evidence rows with their snapshots.
+Input: locked contract and the contradicting passed evidence items of this run, numbered from 0, each
+with its source, trust level, answer, event date and page text (in memory).
 
 ```ts
 ArbiterSchema = {
   decision: 'decided' | 'cannot_decide',
-  deciding_evidence_id: string | null,   // must be one of the given rows when decided
-  outcome: 'hit' | 'miss' | null,        // must match the confirmed evidence
+  deciding_index: number | null,         // one of the given items when decided
+  outcome: 'hit' | 'miss' | null,        // must equal that item's answer, or it is treated as cannot_decide
   notes: string                          // ≤ 400 chars, shown on the claim page
 }
 ```
-`cannot_decide` → resolution `review_status = needs_human`.
+An index (not an evidence id) keeps replay stable: ids are new on every run. `cannot_decide` →
+resolution `review_status = needs_human`.

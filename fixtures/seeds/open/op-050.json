@@ -1,0 +1,23 @@
+{
+ "id": "op-050",
+ "category": "partial_outcome",
+ "expected_outcome": "miss",
+ "note": "Starliner landed uncrewed on 2024-09-07; crew returned on Dragon in 2025.",
+ "lock_at": "2024-06-01T12:00:00Z",
+ "contract": {
+  "subject": "Boeing Starliner",
+  "criterion": "Boeing Starliner returns its first crew to Earth aboard Starliner",
+  "deadline_at": "2024-12-31T23:59:59Z",
+  "source": {
+   "name": "NASA Commercial Crew",
+   "kind": "space",
+   "locator": "https://www.nasa.gov/humans-in-space/commercial-space/commercial-crew-program/",
+   "scope": "Boeing Starliner",
+   "entity_id": "Starliner Crew Flight Test",
+   "absence_is_meaningful": false,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "Starliner lands without its crew, or not at all, in the window",
+  "resolution_method": "model"
+ }
+}

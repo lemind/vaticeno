@@ -1,0 +1,23 @@
+{
+ "id": "op-048",
+ "category": "source_page_changed",
+ "expected_outcome": "hit",
+ "note": "Happened on 2024-04-20 (block 840,000).",
+ "lock_at": "2024-03-01T12:00:00Z",
+ "contract": {
+  "subject": "Bitcoin",
+  "criterion": "The Bitcoin block subsidy halving occurs",
+  "deadline_at": "2024-04-30T23:59:59Z",
+  "source": {
+   "name": "Bitcoin halving coverage",
+   "kind": "company_news",
+   "locator": "https://www.coinbase.com/learn/crypto-basics/what-is-a-bitcoin-halving",
+   "scope": "Bitcoin",
+   "entity_id": "Bitcoin fourth halving",
+   "absence_is_meaningful": false,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "no halving in the window",
+  "resolution_method": "model"
+ }
+}

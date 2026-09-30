@@ -1,0 +1,23 @@
+{
+ "id": "op-044",
+ "category": "copied_wire_stories",
+ "expected_outcome": "hit",
+ "note": "Lost on 2024-12-16.",
+ "lock_at": "2024-11-10T12:00:00Z",
+ "contract": {
+  "subject": "Olaf Scholz",
+  "criterion": "Olaf Scholz loses a Bundestag vote of confidence",
+  "deadline_at": "2024-12-31T23:59:59Z",
+  "source": {
+   "name": "Bundestag plenary news",
+   "kind": "legislation",
+   "locator": "https://www.bundestag.de/en",
+   "scope": "Olaf Scholz",
+   "entity_id": "Bundestag confidence vote",
+   "absence_is_meaningful": false,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "no confidence vote lost in the window",
+  "resolution_method": "model"
+ }
+}

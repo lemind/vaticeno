@@ -1,0 +1,23 @@
+{
+ "id": "op-051",
+ "category": "partial_outcome",
+ "expected_outcome": "miss",
+ "note": "Won none of the four 2024 majors (won Olympic gold).",
+ "lock_at": "2024-01-01T12:00:00Z",
+ "contract": {
+  "subject": "Novak Djokovic",
+  "criterion": "Novak Djokovic wins all four tennis Grand Slam singles titles of 2024",
+  "deadline_at": "2024-12-31T23:59:59Z",
+  "source": {
+   "name": "ATP Tour results",
+   "kind": "sports_results",
+   "locator": "https://www.atptour.com/",
+   "scope": "Novak Djokovic",
+   "entity_id": "2024 Grand Slams",
+   "absence_is_meaningful": false,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "he fails to win at least one of the four 2024 majors",
+  "resolution_method": "model"
+ }
+}

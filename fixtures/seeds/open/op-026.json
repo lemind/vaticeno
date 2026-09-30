@@ -1,0 +1,23 @@
+{
+ "id": "op-026",
+ "category": "event_before_lock",
+ "expected_outcome": "void",
+ "note": "Approved 2024-07-02, before lock: must not be HIT.",
+ "lock_at": "2024-08-01T12:00:00Z",
+ "contract": {
+  "subject": "donanemab (Kisunla)",
+  "criterion": "The FDA approves donanemab for early Alzheimer's disease",
+  "deadline_at": "2024-12-31T23:59:59Z",
+  "source": {
+   "name": "FDA Novel Drug Approvals 2024",
+   "kind": "regulatory",
+   "locator": "https://www.fda.gov/drugs/novel-drug-approvals-fda/novel-drug-approvals-2024",
+   "scope": "donanemab (Kisunla)",
+   "entity_id": "Kisunla (donanemab-azbt)",
+   "absence_is_meaningful": false,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "no FDA approval of donanemab in the window",
+  "resolution_method": "model"
+ }
+}

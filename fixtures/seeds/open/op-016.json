@@ -1,0 +1,23 @@
+{
+ "id": "op-016",
+ "category": "miss_by_meaningful_absence",
+ "expected_outcome": "miss",
+ "note": "FDA issued a complete response letter in 2024-08; never approved.",
+ "lock_at": "2024-03-01T12:00:00Z",
+ "contract": {
+  "subject": "midomafetamine (MDMA)",
+  "criterion": "The FDA approves MDMA-assisted therapy for PTSD",
+  "deadline_at": "2024-12-31T23:59:59Z",
+  "source": {
+   "name": "FDA Novel Drug Approvals 2024",
+   "kind": "regulatory",
+   "locator": "https://www.fda.gov/drugs/novel-drug-approvals-fda/novel-drug-approvals-2024",
+   "scope": "midomafetamine (MDMA)",
+   "entity_id": "midomafetamine",
+   "absence_is_meaningful": true,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "midomafetamine absent from the FDA 2024 novel approvals list",
+  "resolution_method": "model"
+ }
+}

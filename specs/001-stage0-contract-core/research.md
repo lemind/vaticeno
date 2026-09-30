@@ -83,8 +83,11 @@ a claim that waits 30 days costs ~6 runs, not 720.
 - **Decision**: all external calls go through one client with `LLM_MODE=live|record|replay`. The
   replay store is **test tooling only** (`fixtures/replay/`, for the corpus and seed runs): request
   identity (keys are hashes), model id/version, search queries and URLs, per fetch only
-  `{url, sha256, retrieved_at, status}`, model responses with the quote replaced by its sha256 plus
-  the `quote_found` result computed at record time, Coinbase responses (numbers, not content).
+  `{final url, sha256, simhash, retrieved_at, status}` (simhash = 64-bit near-duplicate fingerprint for
+  the independence gate), model responses with the quote replaced by its sha256 plus the
+  `quote_found` result computed at record time, Coinbase responses (numbers, not content). Judge and
+  arbiter replay keys use page URL + sha256, never page text. The store refuses any `text`/`quote`
+  field outright.
   **Page text and quotes are never persisted anywhere** — not in the database, not in replay files;
   they live in memory for the duration of a resolution. In replay mode the quote gate uses the
   recorded `quote_found`.

@@ -1,0 +1,23 @@
+{
+ "id": "op-030",
+ "category": "event_after_deadline",
+ "expected_outcome": "void",
+ "note": "First catch 2024-10-13, after the deadline.",
+ "lock_at": "2024-06-01T12:00:00Z",
+ "contract": {
+  "subject": "SpaceX Super Heavy",
+  "criterion": "SpaceX catches a Super Heavy booster with the launch tower arms",
+  "deadline_at": "2024-09-30T23:59:59Z",
+  "source": {
+   "name": "SpaceX Starship flight updates",
+   "kind": "space",
+   "locator": "https://www.spacex.com/launches/",
+   "scope": "SpaceX Super Heavy",
+   "entity_id": "Super Heavy tower catch",
+   "absence_is_meaningful": false,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "no tower catch in the window",
+  "resolution_method": "model"
+ }
+}

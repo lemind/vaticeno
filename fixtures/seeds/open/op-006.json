@@ -1,0 +1,23 @@
+{
+ "id": "op-006",
+ "category": "clear_hit",
+ "expected_outcome": "hit",
+ "note": "Cut 50bp on 2024-09-18.",
+ "lock_at": "2024-08-01T12:00:00Z",
+ "contract": {
+  "subject": "federal funds rate",
+  "criterion": "The FOMC lowers the federal funds target range",
+  "deadline_at": "2024-09-30T23:59:59Z",
+  "source": {
+   "name": "FOMC meeting statements",
+   "kind": "monetary_policy",
+   "locator": "https://www.federalreserve.gov/monetarypolicy/openmarket.htm",
+   "scope": "federal funds rate",
+   "entity_id": "federal funds target range",
+   "absence_is_meaningful": false,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "the FOMC holds or raises the target range at every meeting in the window",
+  "resolution_method": "model"
+ }
+}

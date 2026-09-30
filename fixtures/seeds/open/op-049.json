@@ -1,0 +1,23 @@
+{
+ "id": "op-049",
+ "category": "source_page_changed",
+ "expected_outcome": "hit",
+ "note": "Reported 4.1% on 2024-07-05; the page now shows later months.",
+ "lock_at": "2024-06-15T12:00:00Z",
+ "contract": {
+  "subject": "US unemployment rate",
+  "criterion": "The BLS reports a June 2024 US unemployment rate of 4.1% or higher",
+  "deadline_at": "2024-07-31T23:59:59Z",
+  "source": {
+   "name": "BLS Employment Situation",
+   "kind": "economic_data",
+   "locator": "https://www.bls.gov/news.release/empsit.nr0.htm",
+   "scope": "US unemployment rate",
+   "entity_id": "June 2024 unemployment rate",
+   "absence_is_meaningful": false,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "the June 2024 rate is reported below 4.1%",
+  "resolution_method": "model"
+ }
+}

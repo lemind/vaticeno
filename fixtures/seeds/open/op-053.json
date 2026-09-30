@@ -1,0 +1,23 @@
+{
+ "id": "op-053",
+ "category": "partial_outcome",
+ "expected_outcome": "miss",
+ "note": "Toured five continents; never Africa.",
+ "lock_at": "2024-01-01T12:00:00Z",
+ "contract": {
+  "subject": "Taylor Swift Eras Tour",
+  "criterion": "The Eras Tour plays at least one show on every inhabited continent",
+  "deadline_at": "2024-12-31T23:59:59Z",
+  "source": {
+   "name": "Taylor Swift official site",
+   "kind": "entertainment_releases",
+   "locator": "https://www.taylorswift.com/",
+   "scope": "Taylor Swift Eras Tour",
+   "entity_id": "The Eras Tour",
+   "absence_is_meaningful": false,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "no show on at least one inhabited continent (e.g. Africa)",
+  "resolution_method": "model"
+ }
+}

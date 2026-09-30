@@ -1,0 +1,23 @@
+{
+ "id": "op-034",
+ "category": "announcement_before_lock_event_after",
+ "expected_outcome": "hit",
+ "note": "Planned for years; held 2024-07-26.",
+ "lock_at": "2024-07-01T12:00:00Z",
+ "contract": {
+  "subject": "Paris 2024 Olympics",
+  "criterion": "The Paris 2024 Olympic opening ceremony is held on the river Seine",
+  "deadline_at": "2024-07-31T23:59:59Z",
+  "source": {
+   "name": "Olympics Paris 2024",
+   "kind": "sports_results",
+   "locator": "https://www.olympics.com/en/paris-2024",
+   "scope": "Paris 2024 Olympics",
+   "entity_id": "Paris 2024 opening ceremony",
+   "absence_is_meaningful": false,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "the ceremony is not held on the Seine in the window",
+  "resolution_method": "model"
+ }
+}

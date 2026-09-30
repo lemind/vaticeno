@@ -1,0 +1,23 @@
+{
+ "id": "op-035",
+ "category": "announcement_before_lock_event_after",
+ "expected_outcome": "hit",
+ "note": "Date announced 2024-01-08; on sale 2024-02-02.",
+ "lock_at": "2024-01-10T12:00:00Z",
+ "contract": {
+  "subject": "Apple Vision Pro",
+  "criterion": "Apple Vision Pro goes on sale to customers in US stores",
+  "deadline_at": "2024-02-29T23:59:59Z",
+  "source": {
+   "name": "Apple Newsroom",
+   "kind": "tech_releases",
+   "locator": "https://www.apple.com/newsroom/",
+   "scope": "Apple Vision Pro",
+   "entity_id": "Apple Vision Pro (US)",
+   "absence_is_meaningful": false,
+   "fallback": "same_issuer_only"
+  },
+  "negative_condition": "Vision Pro not on sale in the US in the window",
+  "resolution_method": "model"
+ }
+}
