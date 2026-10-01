@@ -6,11 +6,12 @@ import { readIngestState, writeIngestState, type IngestState } from '../ingest/s
 import { amendClaim, type ClaimDeps, submitClaim } from '../lifecycle/claims.js';
 import type { SourceReader } from '../lifecycle/source-reader.js';
 import { log } from '../log.js';
+import { type ExtrasDeps, quoteReply, selfpromoReply } from './extras.js';
 import { alert, captureError } from '../observe.js';
 import { HELP_REPLY, STOPPED_REPLY, THIRD_PARTY_REPLY } from '../replies/templates.js';
 import { type Mention, XApiError, type XClient } from '../x/client.js';
 
-export type BotDeps = ClaimDeps & {
+export type BotDeps = ExtrasDeps & {
   x: XClient;
   reader: SourceReader;
   botUserId: string;
@@ -44,6 +45,8 @@ export async function routeMention(deps: BotDeps, mention: Mention, now: Date): 
   }
   // Tagging the bot again after STOP resumes (owner decision 2026-09-30, constitution IV).
   await deps.db.delete(optOuts).where(eq(optOuts.xUserId, mention.author_id));
+  if (/^selfpromo[!.]*$/i.test(body)) return { action: 'selfpromo', reply: await selfpromoReply(deps) };
+  if (/^quote[!.]*$/i.test(body)) return { action: 'quote', reply: await quoteReply(deps, now) };
   // HACK(x): SPECULATIVE (carried from the POC) — X rejects a post identical to a recent one, so pong carries the time. See src/poc/poll.ts.
   // REVISIT: if a repeated pong without the time is ever accepted.
   if (/^ping\b/i.test(body)) return { action: 'ping', reply: `pong · ${now.toISOString().slice(11, 19)} UTC` };

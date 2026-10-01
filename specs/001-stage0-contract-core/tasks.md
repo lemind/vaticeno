@@ -215,6 +215,8 @@ element, no percentage or ranking, no content (SC-009).
 - [x] T097 Matches soon: sports claims only need the deadline after the lock; judge.v3 reports the kickoff (time zone stated), stored as `evidences.event_start` (`drizzle/0006_evidence_event_start.sql`); the evidence counts if the match began after the contract's last change and by the deadline (`src/resolve/gates.ts`, `src/contract/checks.ts`, `src/llm/instructions/judge.v3.md`); seeds replay with judge.v2 (no paid re-record). Known: open-topic seed recordings predate search.v2 and don't replay
 - [x] T098 normalize.v3: a crypto price target with a date is always a daily close (direction and window from the wording, "in a day" = TODAY + 1), never needs info for "close"; a match names both sides and the competition; the corpus replays with normalize.v2 (no paid re-record). Known: corpus replay already fails on a stale Coinbase recording
 - [x] T099 Sports claims: a grounded search (`fixture.v1`, `src/llm/fixture.ts`) confirms the match is scheduled, fills in both sides and the competition, and moves the deadline to the kickoff's UTC day; not found → NOT RECORDED `event_not_found` (`drizzle/0007_event_not_found.sql`); kickoff already passed → too close
+- [x] T100 `@vaticeno selfpromo`: a fixed motto (5) + a fresh AI joke (`joke.v1`), motto alone if the model fails (`src/bot/extras.ts`); listed in help
+- [x] T101 `@vaticeno quote`: AI + Google Search finds a real quote from a far field (`quote.v1`); our fetch of its page must contain it word for word and name the author; no @, # or links; 2 tries, else a short fallback; never stored (`src/bot/extras.ts`, `tests/integration/bot.test.ts`)
 
 ---
 

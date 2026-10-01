@@ -68,11 +68,14 @@ Reply with the prediction and a date.
   I record predictions and check them at the deadline.
   • Tag me under your prediction → recorded
   • Reply with a fix (within 15 min) → updated
+  • quote → a real quote about predictions · selfpromo → who I am
   • STOP → I stop replying to you (tag me again to resume)
   ```
 - X rules: `NOT RECORDED — I can't record this one.` (no quote, no explanation)
 - duplicate: `ALREADY RECORDED · #{existing_slug}`
 - sports match not found scheduled: `NOT RECORDED — I can't find that match scheduled — name both teams and the day.`
+- selfpromo: `{one of 5 mottos}\n\n{AI joke ≤ 140 chars}` (motto alone if the model fails)
+- quote: `“{quote}” — {author}, {source}\n\nVaticeno keeps score.`; unverifiable → `No quote I could verify right now. {motto}`
 - STOP: `STOPPED — I won't reply to you until you tag me again. Your locked predictions are still checked.`
 - someone else's post: `NOT RECORDED — I only record your own predictions. Tag me under your post.`
 

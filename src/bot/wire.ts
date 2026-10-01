@@ -1,13 +1,13 @@
 // Builds the X side of the bot from the X env (src/config.ts loadConfig): client, post reader, reply poster.
 import { loadConfig } from '../config.js';
-import type { ClaimDeps } from '../lifecycle/claims.js';
+import type { ExtrasDeps } from './extras.js';
 import { log } from '../log.js';
 import { createXClient, postReply, XApiError } from '../x/client.js';
 import { getValidAccessToken } from '../x/oauth.js';
 import type { BotDeps } from './mentions.js';
 import { createXSourceReader } from './x-source-reader.js';
 
-export function buildBotDeps(claimDeps: ClaimDeps): BotDeps {
+export function buildBotDeps(claimDeps: ExtrasDeps): BotDeps {
   const config = loadConfig();
   if (!config.X_BOT_USER_ID) throw new Error('X_BOT_USER_ID is missing. Run `npm run poc:whoami` first.');
   if (!config.X_OAUTH2_CLIENT_ID || !config.X_OAUTH2_CLIENT_SECRET) throw new Error('X_OAUTH2_CLIENT_ID/SECRET are needed to post replies');

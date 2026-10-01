@@ -22,6 +22,8 @@ const NOW = new Date('2026-09-30T12:00:00Z');
 const BOT = '1';
 const ME = '200';
 
+let jokeText = 'I predicted this joke. Check the receipt.';
+
 // A football claim; the stub's match search finds "Liverpool" fixtures only.
 const { price: _price, ...MODEL_BASE } = VALID_CONTRACT;
 const MATCH_CONTRACT = {
@@ -35,6 +37,11 @@ const MATCH_CONTRACT = {
 const llm = {
   mode: 'replay',
   generateJson: async ({ input, instructionVersion }: { input: string; instructionVersion: string }) => {
+    if (instructionVersion === 'joke.v1') return { data: { joke: jokeText }, costs: [] };
+    if (instructionVersion === 'quote.v1') {
+      const { seed } = JSON.parse(input) as { seed: string };
+      return { data: { quote: 'Prediction is very difficult', author: 'Someone', source: null, url: `https://quotes.example/${seed}` }, costs: [] };
+    }
     if (instructionVersion.startsWith('fixture')) {
       const { subject } = JSON.parse(input) as { subject: string };
       const found = subject === 'Liverpool';
@@ -54,7 +61,7 @@ const llm = {
   },
 } as unknown as LlmClient;
 
-async function bot(mentionsByPoll: Mention[][], posts: Record<string, { versionId: string; text: string }> = {}) {
+async function bot(mentionsByPoll: Mention[][], posts: Record<string, { versionId: string; text: string }> = {}, pageText = '') {
   const replies: Array<{ to: string; text: string }> = [];
   let poll = 0;
   const x = {
@@ -63,6 +70,7 @@ async function bot(mentionsByPoll: Mention[][], posts: Record<string, { versionI
   const deps: BotDeps = {
     db: t.db, llm, coinbase: { productStatus: async () => 'online' } as unknown as Coinbase, normalizerModel: 'm',
     x, reader: createMemorySourceReader(posts), botUserId: BOT,
+    fetchPage: async (url: string) => ({ url, text: pageText, sha256: 'x', simhash: null, retrievedAt: NOW }),
     postReply: async (to, text) => { replies.push({ to, text }); return { id: `r-${to}` }; },
     allowAuthor: (id) => id !== '666', caps: { perAuthorPerHour: 3, perDay: 300 },
     statePath: join(await mkdtemp(join(tmpdir(), 'vaticeno-bot-')), 'ingest.json'),
@@ -172,6 +180,38 @@ describe('fixes from X', () => {
     await pollMentions(deps, NOW);
     await pollMentions(deps, NOW);
     assert.equal((await t.sql`select count(*)::int as n from claims`)[0]!.n, 2);
+  });
+});
+
+describe('selfpromo and quote', () => {
+  test('selfpromo is a motto plus a joke', async () => {
+    const { deps, replies } = await bot([[mention('120', '@vaticeno selfpromo')]]);
+    await pollMentions(deps, NOW);
+    assert.match(replies[0]!.text, /Vaticeno[\s\S]*\n\nI predicted this joke/);
+  });
+
+  test('a quote is posted only if its page contains it', async () => {
+    const found = await bot([[mention('121', '@vaticeno quote')]], {}, 'Someone once said: Prediction is very difficult, especially…');
+    await pollMentions(found.deps, NOW);
+    assert.match(found.replies[0]!.text, /^“Prediction is very difficult” — Someone/);
+    const missing = await bot([[mention('122', '@vaticeno quote')]], {}, 'a page about something else');
+    await pollMentions(missing.deps, NOW);
+    assert.match(missing.replies[0]!.text, /^No quote I could verify right now \(12:00 UTC\)/);
+    const wrongAuthor = await bot([[mention('123', '@vaticeno quote')]], {}, 'Prediction is very difficult — misattributed, says the article');
+    await pollMentions(wrongAuthor.deps, NOW);
+    assert.match(wrongAuthor.replies[0]!.text, /^No quote I could verify/, 'the page must name the author');
+  });
+
+  test('a joke that tags someone is dropped: the motto goes out alone', async () => {
+    jokeText = 'Ask @someone, they called it';
+    try {
+      const { deps, replies } = await bot([[mention('124', '@vaticeno selfpromo')]]);
+      await pollMentions(deps, NOW);
+      assert.doesNotMatch(replies[0]!.text, /@/);
+      assert.match(replies[0]!.text, /Vaticeno/);
+    } finally {
+      jokeText = 'I predicted this joke. Check the receipt.';
+    }
   });
 });
 
