@@ -1,27 +1,33 @@
 // The closed set of bot commands, matched in code (no model call): exact words, a few aliases, and small
-// typos ("qoute", "selfpromtoe"). Anything else is not a command and goes to the prediction pipeline.
-export type Command = 'help' | 'stop' | 'ping' | 'selfpromote' | 'quote';
+// typos ("qoute", "selfpromtoe"), plus a few extra words. Anything else goes to the prediction pipeline.
+export type Command = 'help' | 'stop' | 'ping' | 'selfpromo' | 'quote';
 
 const ALIASES: Record<string, Command> = {
   help: 'help', commands: 'help',
   stop: 'stop',
   ping: 'ping',
-  selfpromote: 'selfpromote', selfpromo: 'selfpromote', promo: 'selfpromote', about: 'selfpromote',
+  selfpromo: 'selfpromo', selfpromote: 'selfpromo', promo: 'selfpromo',
   quote: 'quote', quotes: 'quote', citation: 'quote',
 };
 // STOP and ping only exactly: a typo must never opt someone out, and "pin"/"pong" are not ping.
-const FUZZY: Command[] = ['help', 'selfpromote', 'quote'];
+const FUZZY: Command[] = ['help', 'selfpromo', 'quote'];
+// The command word may carry a few filler words ("quote 1", "help pls", "stop please"). Anything with
+// content ("stop at 90k", "help, I meant 95k") is a prediction or a fix, never a command.
+const MAX_EXTRA_WORDS = 3;
+const FILLER = new Set(['please', 'pls', 'plz', 'me', 'test', 'now', 'again', 'it', 'one', 'another', 'more', 'us', 'bot', 'thanks', 'thx', 'a', 'the']);
+const isFiller = (word: string) => FILLER.has(word) || /^\d{1,2}$/.test(word);
 
 export function resolveCommand(body: string): Command | null {
-  const words = body.toLowerCase().replace(/[!.?]+$/, '').trim().split(/[\s_-]+/).filter(Boolean);
-  if (words.length === 0 || words.length > 2) return null;
-  const word = words.join(''); // "self promote" → selfpromote
-  const exact = ALIASES[word];
+  const words = body.toLowerCase().replace(/[!.?,:;]+/g, ' ').trim().split(/[\s_-]+/).filter((w) => /[\p{L}\p{N}]/u.test(w));
+  if (words.length === 0) return null;
+  // "self promo" / "self-promote" is one word
+  const [first, rest] = words[0] === 'self' && words.length > 1 ? [`self${words[1]}`, words.slice(2)] : [words[0]!, words.slice(1)];
+  if (rest.length > MAX_EXTRA_WORDS || !rest.every(isFiller)) return null;
+  const exact = ALIASES[first];
   if (exact) return exact;
-  if (words.length > 1 && !word.startsWith('self')) return null; // two words are a command only as "self promo(te)"
   for (const [alias, command] of Object.entries(ALIASES)) {
     if (!FUZZY.includes(command) || alias.length < 4) continue;
-    if (editDistance(word, alias) <= (alias.length >= 8 ? 2 : 1)) return command;
+    if (editDistance(first, alias) <= (alias.length >= 8 ? 2 : 1)) return command;
   }
   return null;
 }

@@ -48,7 +48,7 @@ export async function routeMention(deps: BotDeps, mention: Mention, now: Date): 
   // Tagging the bot again after STOP resumes (owner decision 2026-09-30, constitution IV).
   await deps.db.delete(optOuts).where(eq(optOuts.xUserId, mention.author_id));
   if (command === 'help') return { action: 'help', reply: HELP_REPLY };
-  if (command === 'selfpromote') return { action: 'selfpromote', reply: await selfpromoReply(deps) };
+  if (command === 'selfpromo') return { action: 'selfpromo', reply: await selfpromoReply(deps) };
   if (command === 'quote') return { action: 'quote', reply: await quoteReply(deps, now) };
   // HACK(x): SPECULATIVE (carried from the POC) — X rejects a post identical to a recent one, so pong carries the time. See src/poc/poll.ts.
   // REVISIT: if a repeated pong without the time is ever accepted.

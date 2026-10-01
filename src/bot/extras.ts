@@ -64,7 +64,7 @@ export async function quoteReply(deps: ExtrasDeps, now: Date): Promise<string> {
         input: JSON.stringify({ seed: seed(), topic: pick(QUOTE_TOPICS) }), schema: QuoteSchema, googleSearch: true,
       });
       costs.push(...c);
-      reply = await verifiedQuote(deps, data, [...new Set([...sources, data.url])].slice(0, PAGES_CHECKED), attempt);
+      reply = await verifiedQuote(deps, data, [...new Set([...sources.slice(0, PAGES_CHECKED - 1), data.url])], attempt);
     } catch (error) {
       if (error instanceof LlmSchemaError) costs.push(...error.costs);
       captureError(error, { event: 'quote.failed', attempt });
