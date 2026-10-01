@@ -43,6 +43,8 @@ export type JsonCall<T> = {
   recordAs?: (raw: unknown) => unknown;
   // Schema for the recorded shape, when recordAs changes it.
   replaySchema?: z.ZodType<T>;
+  // With Google Search as a tool; the JSON is then read from the answer text (search + schema mode is unmeasured).
+  googleSearch?: boolean;
 };
 
 export type SearchResult = { queries: string[]; urls: string[] };
@@ -58,7 +60,8 @@ export function createLlmClient(options: { mode: LlmMode; apiKey?: string; store
     return ai;
   };
 
-  async function generateJson<T>(call: JsonCall<T>): Promise<{ data: T; costs: CallCost[] }> {
+  // `sources`: with googleSearch, the pages search really returned (grounding), not URLs the model wrote.
+  async function generateJson<T>(call: JsonCall<T>): Promise<{ data: T; costs: CallCost[]; sources?: string[] }> {
     const identity = { model: call.model, instruction: call.instructionVersion, input: call.replayIdentity ?? call.input };
 
     if (mode === 'replay') {
@@ -69,19 +72,22 @@ export function createLlmClient(options: { mode: LlmMode; apiKey?: string; store
 
     let raw: unknown;
     let usage: Usage;
+    let searchQueries = 0;
+    let sources: string[] = [];
     try {
       const response = await live().models.generateContent({
         model: call.model,
         contents: call.input,
-        config: {
-          systemInstruction: call.system,
-          responseMimeType: 'application/json',
-          responseJsonSchema: z.toJSONSchema(call.schema, { io: 'input' }),
-        },
+        config: call.googleSearch
+          ? { systemInstruction: call.system, tools: [{ googleSearch: {} }] }
+          : { systemInstruction: call.system, responseMimeType: 'application/json', responseJsonSchema: z.toJSONSchema(call.schema, { io: 'input' }) },
       });
       usage = usageOf(response.usageMetadata);
+      const grounding = response.candidates?.[0]?.groundingMetadata;
+      searchQueries = grounding?.webSearchQueries?.length ?? 0;
+      sources = [...new Set((grounding?.groundingChunks ?? []).map((chunk) => chunk.web?.uri).filter((uri): uri is string => !!uri))];
       try {
-        raw = JSON.parse(response.text ?? '');
+        raw = JSON.parse(call.googleSearch ? jsonInText(response.text ?? '') : (response.text ?? ''));
       } catch {
         raw = INVALID_JSON;
       }
@@ -96,7 +102,8 @@ export function createLlmClient(options: { mode: LlmMode; apiKey?: string; store
       });
     }
     const costs = [modelCost(call.model, call.operation, usage)];
-    return { data: parseOutput(call.schema, raw, costs), costs };
+    if (searchQueries > 0) costs.push({ provider: 'google_search', operation: 'search', units: searchQueries, usdCost: searchQueries * SEARCH_QUERY_USD });
+    return { data: parseOutput(call.schema, raw, costs), costs, sources };
   }
 
   // Grounded search: only the grounding metadata (queries + URLs) is used; the model's prose is ignored.
@@ -139,6 +146,13 @@ export function createLlmClient(options: { mode: LlmMode; apiKey?: string; store
 }
 
 export type LlmClient = ReturnType<typeof createLlmClient>;
+
+// The JSON object in a free-text answer (it may be wrapped in a code fence or a sentence).
+function jsonInText(text: string): string {
+  const start = text.indexOf('{');
+  const end = text.lastIndexOf('}');
+  return start >= 0 && end > start ? text.slice(start, end + 1) : text;
+}
 
 function parseOutput<T>(schema: z.ZodType<T>, raw: unknown, costs: CallCost[]): T {
   if (raw !== null && typeof raw === 'object' && 'invalid_json' in raw) throw new LlmSchemaError('model returned invalid JSON', costs);

@@ -12,6 +12,9 @@ export const MODEL_PRICES_PER_MTOK: Readonly<Record<string, { input: number; out
 // Google Search grounding on Gemini 3.x: 5,000 free requests/month, then $14 per 1,000. UNRECONCILED.
 export const SEARCH_QUERY_USD = 0.014;
 
+// Constitution: above $0.30 spent on one claim, stop and investigate (resolver alert, corpus and seeds gates).
+export const CLAIM_BUDGET_USD = 0.3;
+
 export function modelCostUsd(model: string, inputTokens: number, outputTokens: number): number | undefined {
   const price = MODEL_PRICES_PER_MTOK[model];
   if (!price) return undefined;

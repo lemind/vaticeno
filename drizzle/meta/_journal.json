@@ -29,6 +29,34 @@
       "when": 1790751401190,
       "tag": "0003_earned_trust",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790774932010,
+      "tag": "0004_thread_tweet_ids",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790777051182,
+      "tag": "0005_opt_outs",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790780267310,
+      "tag": "0006_evidence_event_start",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790784044939,
+      "tag": "0007_event_not_found",
+      "breakpoints": true
     }
   ]
 }

@@ -1,7 +1,7 @@
 // FR-003: after every proposal these checks — not the proposal — decide the outcome. Pure.
 import type { REJECT_REASONS } from '../db/schema.js';
 import type { Proposal, UnclearItem } from './proposal.js';
-import { type Contract, ContractSchema } from './schema.js';
+import { type Contract, ContractSchema, SCHEDULED_EVENT_KINDS } from './schema.js';
 
 export type RejectReason = (typeof REJECT_REASONS)[number];
 
@@ -11,6 +11,7 @@ export type CheckOutcome =
   | { outcome: 'rejected'; reason: RejectReason };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const LOCK_DELAY_MS = 15 * 60 * 1000; // = lifecycle LOCK_DELAY_MS: the claim locks 15 min after recording
 const MAX_YEARS = 10;
 
 export function runChecks(proposal: Proposal, now: Date, options: { sourcePostClaimed: boolean }): CheckOutcome {
@@ -25,7 +26,10 @@ export function runChecks(proposal: Proposal, now: Date, options: { sourcePostCl
 
   const deadline = new Date(contract.deadline_at);
   if (Number.isNaN(deadline.getTime())) return { outcome: 'needs_info', unclear: withItem(proposal.unclear, 'deadline') };
-  if (deadline.getTime() - now.getTime() <= DAY_MS) return { outcome: 'rejected', reason: 'deadline_too_close' };
+  // More than 24 h (today's price or trend is already visible). A sports match only needs to end after the
+  // lock: the evidence gate then checks it began after the claim was set (a game 10 min away is fine).
+  const minLeadMs = SCHEDULED_EVENT_KINDS.includes(contract.source?.kind) ? LOCK_DELAY_MS : DAY_MS;
+  if (deadline.getTime() - now.getTime() <= minLeadMs) return { outcome: 'rejected', reason: 'deadline_too_close' };
   if (deadline.getTime() > addYears(now, MAX_YEARS).getTime()) return { outcome: 'rejected', reason: 'deadline_too_far' };
 
   if (proposal.unclear.length > 0) return { outcome: 'needs_info', unclear: [...proposal.unclear] };

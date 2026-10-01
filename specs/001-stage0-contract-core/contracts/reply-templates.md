@@ -7,10 +7,9 @@ Only the parts in `{…}` vary. `{statement}` is rendered from the contract, nev
 RECORDED · #{slug}
 "{statement}"
 Fix in 15 min: reply with the corrected prediction
-vaticeno.app/c/{slug}
 ```
-The statement already names the deadline and, for model claims, the source; the page shows the rest.
-Budget: the frame is ~100 weighted chars (X counts any link as 23), so the statement gets ~180 —
+The statement is the criterion plus the deadline (if the criterion lacks it); no source — the resolver picks the sources.
+Budget: the frame is ~80 chars (no link: there is no public site yet), so the statement gets ~180 —
 hence `criterion` ≤ 100 and `source.name` ≤ 48 in the contract schema.
 
 **NEEDS INFO** (case A) — `{unclear_explanation}` and examples come from the model and are checked.
@@ -35,14 +34,31 @@ No command word anywhere: any reply from the author under a bot reply is the cor
 Now judging:
 "{statement}"
 
-Locks: {lock_in} · amends left: {amends_left}
-vaticeno.app/c/{slug}
+Locks in 15 min · fixes left: {amends_left}
 ```
 
 **EXPIRED** — the original post was edited before lock and the edit fails the checks or exceeds the amend limit
 ```
 [EXPIRED] #{slug} — the post changed after recording, so nothing was locked. Tag me on a new post to record it.
 ```
+
+**NOT CHANGED** — a fix to a recorded (draft) claim that can't be applied; the recorded version stands
+```
+NOT CHANGED — {reason or unclear_explanation}
+#{slug} stays as recorded.
+```
+
+**STILL NOT RECORDED** — a fix to a needs-info claim that still can't be recorded (24 h clock keeps running)
+```
+STILL NOT RECORDED — {reason or unclear_explanation}
+Reply with the prediction and a date.
+```
+
+**REFUSED** — a fix that can't be considered at all (fixed texts, `refusedReply`)
+- locked or later: `#{slug} is locked and can't change.` · expired/rejected: `#{slug} can no longer be changed.`
+- needs info past 24 h: `#{slug} expired: no fix within 24 hours.`
+- two fixes used: `#{slug} can't be changed again (2 fixes used).`
+- lost a race with another change: `#{slug} changed meanwhile; nothing was changed.`
 
 **REJECTED**
 - deadline out of range: `NOT RECORDED — {reason_in_words}.`
@@ -52,11 +68,19 @@ vaticeno.app/c/{slug}
   I record predictions and check them at the deadline.
   • Tag me under your prediction → recorded
   • Reply with a fix (within 15 min) → updated
+  • quote → a quote about bets and predictions
+  • selfpromo → who I am
+  • STOP → I stop replying to you (tag me again to resume)
   ```
 - X rules: `NOT RECORDED — I can't record this one.` (no quote, no explanation)
-- duplicate: `ALREADY RECORDED · vaticeno.app/c/{existing_slug}`
+- duplicate: `ALREADY RECORDED · #{existing_slug}`
+- sports match not found scheduled: `NOT RECORDED — I can't find that match scheduled — name both teams and the day.`
+- selfpromo (aliases: selfpromote, promo; filler words like "1", "please" allowed): `{one of 5 mottos}\n\n{AI joke ≤ 140 chars}` (motto alone if the model fails)
+- quote: `“{quote}” — {author}, {source}`; unverifiable after 3 tries → `Couldn't verify a quote this time ({HH:MM} UTC). Try again in a minute.`
+- STOP: `STOPPED — I won't reply to you until you tag me again. Your locked predictions are still checked.`
+- someone else's post: `NOT RECORDED — I only record your own predictions. Tag me under your post.`
 
 **RESOLVED** — `HIT · #{slug}` / `MISS · #{slug}` / `VOID · #{slug}`, then the statement, the deciding
-answer's proof line (`{event_date}: {value or source name}`), `Locked {locked_date} · vaticeno.app/c/{slug}`.
+answer's proof line (`{event_date}: {value or source name}`), `Locked {locked_date}`. Not posted: verdicts go to the page only (`RESOLUTION_DELIVERY=page_only`).
 
-In Stage 0 these are produced and checked by the CLI (length, frame), not stored or posted.
+Posted only as the one reply to a mention (constitution VI); never stored.

@@ -8,7 +8,9 @@ import type { CallCost, LlmClient } from './client.js';
 import { loadInstruction } from './instructions.js';
 
 export const SEARCH_VERSION = 'search.v2';
-export const JUDGE_VERSION = 'judge.v2';
+export const JUDGE_VERSION = 'judge.v3';
+// The seeded claims were recorded with v2 (no event_start); they replay with it — no paid re-record.
+export const SEEDS_JUDGE_VERSION = 'judge.v2';
 export const ARBITRATE_VERSION = 'arbitrate.v1';
 
 type Window = { lockAt: Date; deadlineAt: Date };
@@ -34,6 +36,7 @@ const JudgeFields = {
   says: z.enum(['hit', 'miss', 'pending', 'irrelevant', 'entity_gone']),
   basis: z.enum(['record', 'absence']),
   event_date: DATE.nullable(),
+  event_start: z.string().max(40).nullable().optional(), // v3; absent in v2 answers; unparseable = no time (gates.ts)
   is_final_result: z.boolean(),
   from_contract_source: z.boolean(),
   source_trust: z.enum(['primary', 'established', 'weak']),
@@ -47,20 +50,27 @@ const JudgeRecordedSchema = z.object({ ...JudgeFields, quote_sha256: z.string().
 
 export type Judgement = Omit<z.infer<typeof JudgeSchema>, 'quote'> & { quoteFound: boolean | null };
 
+// v3 also gets when the claim was last set (lock − 15 min): a match that began after it counts (gates.ts).
+function judgeInput(contract: Contract, window: Window, version: string) {
+  if (version === 'judge.v2') return contractInput(contract, window);
+  return { ...contractInput(contract, window), claim_set: new Date(window.lockAt.getTime() - 15 * 60 * 1000).toISOString() };
+}
+
 export async function judgePage(
   llm: LlmClient,
   model: string,
   contract: Contract,
   window: Window,
   page: { url: string; text: string; sha256: string },
+  version: string = JUDGE_VERSION,
 ): Promise<{ judgement: Judgement; costs: CallCost[] }> {
   const { data, costs } = await llm.generateJson<z.infer<typeof JudgeSchema> & { quote_found?: boolean }>({
     model,
-    instructionVersion: JUDGE_VERSION,
+    instructionVersion: version,
     operation: 'judge',
-    system: loadInstruction(JUDGE_VERSION),
-    input: JSON.stringify({ ...contractInput(contract, window), page: { url: page.url, text: page.text } }),
-    replayIdentity: { ...contractInput(contract, window), url: page.url, sha256: page.sha256 },
+    system: loadInstruction(version),
+    input: JSON.stringify({ ...judgeInput(contract, window, version), page: { url: page.url, text: page.text } }),
+    replayIdentity: { ...judgeInput(contract, window, version), url: page.url, sha256: page.sha256 },
     schema: JudgeSchema,
     replaySchema: JudgeRecordedSchema as unknown as z.ZodType<z.infer<typeof JudgeSchema> & { quote_found?: boolean }>,
     recordAs: (raw) => redactQuote(raw, page.text),
@@ -68,7 +78,7 @@ export async function judgePage(
   // Live: check the quote against the page now. Replay: use the check made when it was recorded.
   const quoteFound = data.quote_found ?? (data.quote ? quoteInText(data.quote, page.text) : null);
   const judgement: Judgement = {
-    says: data.says, basis: data.basis, event_date: data.event_date, is_final_result: data.is_final_result,
+    says: data.says, basis: data.basis, event_date: data.event_date, event_start: data.event_start ?? null, is_final_result: data.is_final_result,
     from_contract_source: data.from_contract_source, source_trust: data.source_trust, trust_reason: data.trust_reason,
     original_source: data.original_source, reasoning: data.reasoning, quoteFound,
   };

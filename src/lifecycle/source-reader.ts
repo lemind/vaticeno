@@ -17,8 +17,9 @@ export function createFileSourceReader(path: string = SIMULATED_POSTS_FILE) {
   async function load(): Promise<Record<string, SourceVersion>> {
     try {
       return JSON.parse(await readFile(path, 'utf8')) as Record<string, SourceVersion>;
-    } catch {
-      return {};
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return {}; // no posts simulated yet
+      throw error;
     }
   }
 

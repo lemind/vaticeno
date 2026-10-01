@@ -35,6 +35,7 @@ browser → Fastify (server-rendered pages) → backend DB role → Postgres
 | slug | text UNIQUE NOT NULL | 5 chars, alphabet without 0/O/1/I/l; 6 after 3 collisions (FR-018) |
 | source_tweet_id | text UNIQUE NOT NULL | one tweet = one claim (FR-003a); insert with `ON CONFLICT DO NOTHING RETURNING` |
 | summon_tweet_id | text NOT NULL | the tweet that tagged the bot |
+| thread_tweet_ids | text[] NOT NULL DEFAULT '{}' | ids of the bot's replies and the author's fixes for this claim; a reply to any of them is a fix, however deep the thread (ids only) |
 | source_version | text NOT NULL | version of the original tweet the current draft was built from (X edit history); compared at lock time to detect edits |
 | locked_source_version | text null | version ID of the user's tweet at lock; written once, at lock |
 | locked_source_hash | text null | SHA-256 of the user's tweet text at lock (the text itself is never stored); written once, at lock |
@@ -164,7 +165,7 @@ Known sources (`sources` table, below) never change a trust level; they only sha
 |---|---|
 | trusted | `trust_level` is `primary` or `established` (`weak` never counts) |
 | quote_found | the model's quote occurs in the fetched page (checked in memory; the quote is then discarded, never stored). Not applicable to `basis = absence` and price feeds |
-| in_window | the event date is inside `(lock_at, deadline_at]`. For `basis = absence`: instead, the page is `primary` (the contract's own source), was read on or after the deadline, and the contract marks it `absence_is_meaningful` |
+| in_window | the event date is inside `(lock_at, deadline_at]` (day granularity: the lock day never counts). For a sports match (`football_results`, `sports_results`) whose page states the start time with its time zone (judge.v3 `event_start`, stored on the row), instead: it began after the contract's last change (`lock_at` − 15 min) and by the deadline, and agrees with the event date (±1 day) — so a game 10 min after recording counts, and a fix sent after kickoff makes it not count. For `basis = absence`: instead, the page is `primary` (the contract's own source), was read on or after the deadline, and the contract marks it `absence_is_meaningful` |
 | final | the result is final, not a projection or preliminary figure |
 | independent | not a copy of another item in the same run: different registrable domain **and** page text not near-identical (word-shingle similarity of the extracted text, computed in memory during the run; the text is then dropped) **and** not attributed to the same original report (the judge's `original_source`, e.g. "AP"). Copies count once |
 
@@ -294,3 +295,12 @@ the claim's author can amend.
 ## Not in Stage 0
 
 Mention ingestion state, reply delivery, opt-out and display names (Stage 1).
+
+## opt_outs
+
+Authors who sent `@vaticeno STOP` (constitution IV); the row is removed when they tag the bot again. Their locked claims still resolve.
+
+| Field | Type | Notes |
+|---|---|---|
+| x_user_id | text PK | X user id |
+| created_at | timestamptz NOT NULL | when STOP was received |

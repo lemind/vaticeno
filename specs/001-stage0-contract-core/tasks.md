@@ -163,12 +163,12 @@ that itself passes the checks, use the amend format and fit 280 chars (SC-005).
 
 **Independent Test**: every US4 acceptance scenario passes against Postgres (SC-007).
 
-- [ ] T063 [US4] Add `[AMENDED]` and `[EXPIRED]` templates to `src/replies/templates.ts` per `contracts/reply-templates.md`
-- [ ] T064 [US4] Extend `amendClaim` in `src/lifecycle/claims.ts` for status draft: refuse when `now ≥ lock_at` or `amend_count = 2`; valid → replace contract, `amend_count + 1`, `lock_at = now + 15 min`, `source_version` = current version from `reader`, `[AMENDED]` reply; failed amend does not count; log `claim.amended`
-- [ ] T065 [US4] Create `src/lifecycle/source-reader.ts`: `SourceReader` interface `{readVersion(tweetId) → {versionId, text}}` with a fixture-backed implementation for Stage 0 (X implementation comes in Stage 1); `src/cli/claim-edit.ts` writes a simulated edit into it
-- [ ] T066 [US4] Create `src/lifecycle/lock.ts` `lockDueDrafts(now, reader)`: for drafts with `lock_at ≤ now` re-read the tweet; version changed → run `proposeContract` + `runChecks` on the edited text: passes and `amend_count < 2` → replace contract, `source_version`, `amend_count + 1`, `lock_at = now + 15 min`, `[AMENDED]` reply; fails or limit reached → expired with `[EXPIRED]` reply (never lock the pre-edit contract); unchanged → set locked_source_version and locked_source_hash (SHA-256 of text, text discarded), `next_check_at = deadline_at` and status locked; log `claim.locked` / `claim.expired`; drafts past deadline → expired
-- [ ] T067 [US4] Create `src/cli/jobs-tick.ts` (`--now`): runs `lockDueDrafts`, `expireNeedsInfo`, `resolveDueClaims` once, in that order, each inside `withJobLock`
-- [ ] T068 [US4] Write `tests/integration/lifecycle.test.ts` for US4 scenarios 1–7 (frozen after lock, terminal states, third amend refused, amend at exactly lock_at refused, 15-minute lock and restart, edit found at lock → [AMENDED], edit failing checks or at the limit → expired and never locked, locked version + hash recorded)
+- [x] T063 [US4] Add `[AMENDED]` and `[EXPIRED]` templates to `src/replies/templates.ts` per `contracts/reply-templates.md`
+- [x] T064 [US4] Extend `amendClaim` in `src/lifecycle/claims.ts` for status draft: refuse when `now ≥ lock_at` or `amend_count = 2`; valid → replace contract, `amend_count + 1`, `lock_at = now + 15 min`, `source_version` = current version from `reader`, `[AMENDED]` reply; failed amend does not count; log `claim.amended`
+- [x] T065 [US4] Create `src/lifecycle/source-reader.ts`: `SourceReader` interface `{readVersion(tweetId) → {versionId, text}}` with a fixture-backed implementation for Stage 0 (X implementation comes in Stage 1); `src/cli/claim-edit.ts` writes a simulated edit into it
+- [x] T066 [US4] Create `src/lifecycle/lock.ts` `lockDueDrafts({...deps, reader}, now)`: for drafts with `lock_at ≤ now` re-read the tweet; version changed → run `proposeContract` + `runChecks` on the edited text: passes and `amend_count < 2` → replace contract, `source_version`, `amend_count + 1`, `lock_at = now + 15 min`, `[AMENDED]` reply; fails or limit reached → expired with `[EXPIRED]` reply (never lock the pre-edit contract); unchanged → set locked_source_version and locked_source_hash (SHA-256 of text, text discarded), `next_check_at = deadline_at` and status locked; log `claim.locked` / `claim.expired`; drafts past deadline → expired
+- [x] T067 [US4] Create `src/cli/jobs-tick.ts` (`--now`): runs `lockDueDrafts`, `expireNeedsInfo`, `resolveDueClaims` once, in that order, each inside `withJobLock`
+- [x] T068 [US4] Write `tests/integration/lifecycle.test.ts` for US4 scenarios 1–7 (frozen after lock, terminal states, third amend refused, amend at exactly lock_at refused, 15-minute lock and restart, edit found at lock → [AMENDED], edit failing checks or at the limit → expired and never locked, locked version + hash recorded)
 
 **Checkpoint**: full claim life works with simulated time.
 
@@ -181,23 +181,43 @@ that itself passes the checks, use the amend format and fit 280 chars (SC-005).
 **Independent Test**: pages for seeded claims in each state and one author show every required
 element, no percentage or ranking, no content (SC-009).
 
-- [ ] T069 [P] [US5] Create `src/web/html.ts`: `html` tagged template with escaping, `layout(title, body)`
-- [ ] T070 [US5] Create `src/web/claim-page.ts` per `contracts/http.md`: rendered statement, criterion, source, negative condition, status, created/lock/resolve times, deadline countdown, evidence items (source, trust level, says, link, value, event date, gates), resolution (decided_by, notes, deciding evidence), link to the X post, positions
-- [ ] T071 [US5] Create `src/web/author-page.ts`: claims the user holds a position on, derived right/wrong/void, raw counts only
-- [ ] T072 [US5] Create `src/web/server.ts` (Fastify): `GET /c/:slug`, `GET /u/:x_user_id`, `GET /healthz`; 404s; no admin routes; `npm run dev` starts it
-- [ ] T073 [US5] Write `tests/integration/pages.test.ts` using Fastify `inject`: one claim page and one author page render required elements, no `%`, no fixture text, `<script>` in a contract field comes out escaped
+- [x] T069 [P] [US5] Create `src/web/html.ts`: `html` tagged template with escaping, `layout(title, body)`
+- [x] T070 [US5] Create `src/web/claim-page.ts` per `contracts/http.md`: rendered statement, criterion, source, negative condition, status, created/lock/resolve times, deadline countdown, evidence items (source, trust level, says, link, value, event date, read at, gates), resolution (decided_by, notes, deciding evidence), link to the X post, positions
+- [x] T071 [US5] Create `src/web/author-page.ts`: claims the user holds a position on, derived right/wrong/void, raw counts only
+- [x] T072 [US5] Create `src/web/server.ts` (Fastify): `GET /c/:slug`, `GET /u/:x_user_id`, `GET /healthz`; 404s; no admin routes; `npm run dev` starts it
+- [x] T073 [US5] Write `tests/integration/pages.test.ts` using Fastify `inject`: one claim page and one author page render required elements, no `%`, no fixture text, `<script>` in a contract field comes out escaped
 
 ---
 
 ## Phase 8: Polish & Cross-Cutting
 
-- [ ] T074 Create `src/jobs/scheduler.ts`: node-cron calls `lockDueDrafts` every minute, `expireNeedsInfo` every 10 minutes, `resolveDueClaims` hourly — same functions as `jobs:tick`, each inside `withJobLock`; started from `src/web/server.ts` behind `ENABLE_JOBS=true`
-- [ ] T075 [P] Wire observability: `initObservability` in `src/web/server.ts` and every `src/cli/*` entry (uncaught errors captured, `flush()` before exit); `/healthz` reports `needs_human` and in-memory `last_resolver_run_at`; `deploy/journald-vaticeno.conf` (`SystemMaxUse=500M`); document in `quickstart.md` where to look (journalctl, Sentry Issues/Logs/Crons) and the uptime check on `/healthz`
-- [ ] T076 [P] Write `tests/integration/no-content.test.ts` for SC-008: after corpus + seeds, scan every text/jsonb column, captured logs and `fixtures/replay/` for any fixture text (DB/logs only), quote or page text
-- [ ] T077 [P] Add per-claim cost summary to `seeds:open` and `corpus` output; fail if any claim exceeds $0.30
-- [ ] T078 [P] Add `deploy/backup.sh` (nightly `pg_dump` of Supabase to off-box storage) and a systemd timer `deploy/vaticeno-backup.timer`; document one restore test in `quickstart.md`
-- [ ] T079 [P] Add `deploy/Caddyfile` for `vaticeno.app` → `localhost:3000`
-- [ ] T080 Update `README.md` (Stage 0 status, new scripts) and walk through `quickstart.md` end to end; fix any drift
+- [x] T074 Create `src/jobs/scheduler.ts`: node-cron calls `lockDueDrafts` every minute, `expireNeedsInfo` every 10 minutes, `resolveDueClaims` hourly — same functions as `jobs:tick`, each inside `withJobLock`; started from `src/web/server.ts` behind `ENABLE_JOBS=true`
+- [x] T075 [P] Wire observability: `initObservability` in `src/web/server.ts` and every `src/cli/*` entry (uncaught errors captured, `flush()` before exit); `/healthz` reports `needs_human` and in-memory `last_resolver_run_at`; `deploy/journald-vaticeno.conf` (`SystemMaxUse=500M`); document in `quickstart.md` where to look (journalctl, Sentry Issues/Logs/Crons) and the uptime check on `/healthz`
+- [x] T076 [P] Write `tests/integration/no-content.test.ts` for SC-008 with stub models (no paid runs): one claim through submit → fix → lock → web resolution, then scan every text/jsonb column and the captured logs for the post text, fix text, page text and quote (recorded answers are local only, research R5, so `fixtures/replay/` is not scanned)
+- [x] T077 [P] Add per-claim cost summary to `seeds:open` and `corpus` output; fail if any claim exceeds $0.30
+- [x] T078 [P] Add `deploy/backup.sh` (nightly `pg_dump` of Supabase to off-box storage) and a systemd timer `deploy/vaticeno-backup.timer`; document one restore test in `quickstart.md`
+- [x] T079 [P] Add `deploy/Caddyfile` for `vaticeno.app` → `localhost:3000`
+- [x] T080 Update `README.md` (Stage 0 status, new scripts) and walk through `quickstart.md` end to end; fix any drift
+
+---
+
+## Phase 9: X connection (owner decision 2026-09-30: live on X now)
+
+**Goal**: real mentions go through the engine and get one reply each, in the thread.
+
+- [x] T090 `src/bot/mentions.ts`: `routeMention` (ping; help; a reply in the thread of the author's open claim = a fix, no keyword; empty mention under your own post records that post; under someone else's post → refused; otherwise the mention text is the prediction) and `pollMentions` (cursor moves per handled mention; an outage leaves the rest for the next poll; one reply per mention, never retried; allowlist and caps)
+- [x] T091 `src/bot/x-source-reader.ts` (current version = last id in edit history) and `src/bot/wire.ts` (X client, OAuth reply poster with one 401 refresh); `getTweet` in `src/x/client.ts`
+- [x] T092 Scheduler `mentions` job every minute behind `ENABLE_X=true`; the lock job reads posts from X; replies drop the page link (no domain yet)
+- [x] T093 `deploy/vaticeno.service` runs `src/web/server.ts` (pages on localhost, jobs, X); constitution VI 2.1.0; `tests/integration/bot.test.ts`
+- [x] T094 Fixes found by thread: every bot reply and fix id is kept on the claim (`drizzle/0004_thread_tweet_ids.sql`), so a reply under any bot answer is a fix even inside an older thread; `tests/integration/bot.test.ts`
+- [x] T095 Review high: fixes matched by the direct parent only; others' replies ignored without a model call; cap checked before recording; a mention saved as answered before the post; a mention failing 3 polls is skipped with an alert; page-limit alert; docs synced
+- [x] T096 STOP opt-out: a STOPPED reply, opted out until the author tags the bot again (`opt_outs` table, `drizzle/0005_opt_outs.sql`); statement drops the source name; `tests/integration/bot.test.ts`
+- [x] T097 Matches soon: sports claims only need the deadline after the lock; judge.v3 reports the kickoff (time zone stated), stored as `evidences.event_start` (`drizzle/0006_evidence_event_start.sql`); the evidence counts if the match began after the contract's last change and by the deadline (`src/resolve/gates.ts`, `src/contract/checks.ts`, `src/llm/instructions/judge.v3.md`); seeds replay with judge.v2 (no paid re-record). Known: open-topic seed recordings predate search.v2 and don't replay
+- [x] T098 normalize.v3: a crypto price target with a date is always a daily close (direction and window from the wording, "in a day" = TODAY + 1), never needs info for "close"; a match names both sides and the competition; the corpus replays with normalize.v2 (no paid re-record). Known: corpus replay already fails on a stale Coinbase recording
+- [x] T099 Sports claims: a grounded search (`fixture.v1`, `src/llm/fixture.ts`) confirms the match is scheduled, fills in both sides and the competition, and moves the deadline to the kickoff's UTC day; not found → NOT RECORDED `event_not_found` (`drizzle/0007_event_not_found.sql`); kickoff already passed → too close
+- [x] T100 `@vaticeno selfpromo`: a fixed motto (5) + a fresh AI joke (`joke.v1`), motto alone if the model fails (`src/bot/extras.ts`); listed in help
+- [x] T101 `@vaticeno quote`: AI + Google Search finds a real quote from a far field (`quote.v1`); our fetch of its page must contain it word for word and name the author; no @, # or links; 2 tries, else a short fallback; never stored (`src/bot/extras.ts`, `tests/integration/bot.test.ts`)
+- [x] T102 Commands matched in code, no model call (`src/bot/commands.ts`): aliases (selfpromote → selfpromo, quotes), small typos and up to 3 filler words ("quote 1", "stop please"; content like "stop at 90k" is never a command); STOP and ping without typos; quote topics are bets, wagers, sport, bitcoin, predictions; verified against the pages search returned (grounding), 3 tries; the reply is only the quote
 
 ---
 

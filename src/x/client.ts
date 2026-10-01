@@ -36,6 +36,11 @@ const MentionsResponseSchema = z.object({
 
 const UserByUsernameResponseSchema = z.object({ data: XUserSchema });
 
+// One post with its edit history; the last id in edit_history_tweet_ids is the current version.
+const TweetResponseSchema = z.object({
+  data: z.object({ id: z.string(), text: z.string(), author_id: z.string().optional(), edit_history_tweet_ids: z.array(z.string()).optional() }),
+});
+
 export type Mention = z.infer<typeof MentionSchema>;
 export type XUser = z.infer<typeof XUserSchema>;
 export type MentionsPage = z.infer<typeof MentionsResponseSchema>;
@@ -68,6 +73,11 @@ export function createXClient(bearerToken: string) {
     async getUserByUsername(username: string): Promise<XUser> {
       const json = await getJson(`/users/by/username/${encodeURIComponent(username)}`, {});
       return UserByUsernameResponseSchema.parse(json).data;
+    },
+
+    async getTweet(id: string): Promise<z.infer<typeof TweetResponseSchema>['data']> {
+      const json = await getJson(`/tweets/${encodeURIComponent(id)}`, { 'tweet.fields': 'author_id,edit_history_tweet_ids' });
+      return TweetResponseSchema.parse(json).data;
     },
 
     async getMentionsPage(opts: {

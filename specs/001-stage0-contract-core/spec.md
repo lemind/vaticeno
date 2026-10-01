@@ -52,7 +52,8 @@ reported.
    **Then** it is recorded against that season and the official final table as the source. (The
    same text with "this season" and no date is needs info: the deadline would be derived from the
    league's schedule, which the MVP never does.)
-4. **Given** a prediction whose deadline is less than 24 hours away or more than 10 years away,
+4. **Given** a prediction whose deadline is less than 24 hours away (a sports match: before its 15 min
+   lock), or a deadline more than 10 years away,
    **When** it is evaluated, **Then** it is rejected with that reason.
 5. **Given** a text that is not a prediction ("love this thread"), **When** it is evaluated, **Then**
    it is rejected as not a prediction.
@@ -334,8 +335,11 @@ shown but never count as a contradiction.
   "next election", "after the merger") need a schedule to become a date, so they are needs info in
   the MVP. Both kinds are listed in the fixture corpus.
 - A bare date means 23:59:59 UTC; the recorded statement says so.
-- Intraday wording for prices ("wicks above", "touches") is needs info unless the author picks a
-  daily close — the system never silently maps it.
+- A sports claim must name a real, scheduled match (owner decision 2026-09-30): a web search confirms it and
+  fills in the competition; an invented or unfindable match is NOT RECORDED.
+- A crypto price target with a date is always recorded as a daily close (owner decision 2026-09-30):
+  "hits", "touches", "would be" included. The RECORDED reply shows the exact terms, so the author can fix
+  them within 15 min. Only a price without a date (or a date without a price) is needs info.
 - Several news sites repeating one wire story count as one source, not independent confirmation.
 - An announcement published before lock can still be valid evidence if the event itself happens
   after lock; what matters is when the event occurred, not when it was reported.
@@ -361,7 +365,8 @@ shown but never count as a contradiction.
 - **FR-003**: After every proposal the system MUST apply these checks, and the checks — not the
   proposal — decide the outcome: the text is a prediction; it complies with X's rules for content
   the bot republishes; an explicit deadline present (MVP: the author states it; it is never
-  derived from an event); deadline more than 24 h away; deadline within 10 years;
+  derived from an event); deadline more than 24 h away (a sports match: after the lock, and the match must
+  start after the claim's last change — checked on the evidence); deadline within 10 years;
   nothing unclear; criterion is objectively decidable (a yes/no that two independent readers of the
   source would agree on); a structured source is present; the negative condition is stated;
   source post not already claimed. The model's self-reported confidence is recorded for analysis
@@ -388,7 +393,8 @@ shown but never count as a contradiction.
   is never sent.
 - **FR-009**: All replies MUST fit within X's post length limit and contain no link card; the public
   page link is plain text.
-- **FR-010**: Amends — any reply from the claim's author under the bot's reply, no command word —
+- **FR-010**: Amends — any reply from the claim's author directly under the bot's reply, the claim's post,
+  the summon or an earlier fix (however deep the thread), no command word —
   MUST be accepted in needs info and in draft; replies from anyone else are ignored; the first
   successful amend from needs info MUST NOT count against the limit; at most two successful amends
   from draft; a failed amend MUST NOT consume an attempt.
@@ -563,8 +569,18 @@ shown but never count as a contradiction.
   mention's own text, since the prediction is usually a different post.
 - No paid live runs of the corpus or open-topic seeds (owner decision 2026-09-30): SC-001, SC-003 and
   SC-005 rest on the last recorded runs; the owner checks accuracy with a few real claims at release.
-- Opt-out (`STOP`) is not built and not offered in replies for now (owner decision 2026-09-30).
-  Constitution IV and X's approval checklist (INIT_SPEC §10) still require it before live replies.
+- Stage 0 reads the post at lock *time of the job* (usually within a minute of `lock_at`); an edit made in
+  that gap counts as before lock. Stage 1's X reader must use each version's creation time and ignore
+  versions created after `lock_at`. A draft that still can't be locked a day after `lock_at` expires with an
+  alert.
+- Extra commands (owner decision 2026-10-01), user-triggered replies like the rest: `@vaticeno selfpromo` →
+  one of five fixed mottos plus a short AI-written joke (no gambling call to action); `@vaticeno quote` → only a
+  real, attributed quote about bets, wagers, sport, bitcoin or predictions, found on the web and posted only
+  if a page search returned contains it — never invented, never stored. Commands are matched in code, with a
+  few aliases, small typos and up to 3 filler words ("selfpromote", "qoute", "quote 1", "stop please"); any
+  content ("stop at 90k") makes it a prediction or a fix.
+- Opt-out: `@vaticeno STOP` gets a STOPPED reply; the author stays opted out until they tag the bot again
+  (owner decision 2026-09-30); their locked claims still resolve (constitution IV). Listed in the help reply.
 - Edits to the original tweet count as amends before lock and are ignored after it. In Stage 0 the
   re-read is simulated from fixtures.
 - Deadlines may be up to 10 years out (INIT_SPEC's 18-month cap is dropped).
