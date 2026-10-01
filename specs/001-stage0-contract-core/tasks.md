@@ -217,6 +217,7 @@ element, no percentage or ranking, no content (SC-009).
 - [x] T099 Sports claims: a grounded search (`fixture.v1`, `src/llm/fixture.ts`) confirms the match is scheduled, fills in both sides and the competition, and moves the deadline to the kickoff's UTC day; not found → NOT RECORDED `event_not_found` (`drizzle/0007_event_not_found.sql`); kickoff already passed → too close
 - [x] T100 `@vaticeno selfpromo`: a fixed motto (5) + a fresh AI joke (`joke.v1`), motto alone if the model fails (`src/bot/extras.ts`); listed in help
 - [x] T101 `@vaticeno quote`: AI + Google Search finds a real quote from a far field (`quote.v1`); our fetch of its page must contain it word for word and name the author; no @, # or links; 2 tries, else a short fallback; never stored (`src/bot/extras.ts`, `tests/integration/bot.test.ts`)
+- [x] T102 Commands matched in code, no model call (`src/bot/commands.ts`): aliases (selfpromo → selfpromote, quotes) and small typos; STOP and ping exact only; quote topics are bets, wagers, sport, bitcoin, predictions; verified against the pages search returned (grounding), 3 tries; the reply is only the quote
 
 ---
 

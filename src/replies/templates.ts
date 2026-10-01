@@ -37,7 +37,7 @@ const REJECT_WORDS: Record<Exclude<RejectReason, 'x_rules' | 'duplicate'>, strin
 export const HELP_REPLY = 'I record predictions and check them at the deadline.\n'
   + '• Tag me under your prediction → recorded\n'
   + '• Reply with a fix (within 15 min) → updated\n'
-  + '• quote → a real quote about predictions · selfpromo → who I am\n'
+  + '• quote → a real quote about bets and predictions · selfpromote → who I am\n'
   + '• STOP → I stop replying to you (tag me again to resume)';
 
 // Sent on STOP; the bot stays silent to the author until they tag it again (constitution IV).

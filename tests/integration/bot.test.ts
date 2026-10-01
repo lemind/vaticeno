@@ -185,7 +185,7 @@ describe('fixes from X', () => {
 
 describe('selfpromo and quote', () => {
   test('selfpromo is a motto plus a joke', async () => {
-    const { deps, replies } = await bot([[mention('120', '@vaticeno selfpromo')]]);
+    const { deps, replies } = await bot([[mention('120', '@vaticeno selfpromote')]]);
     await pollMentions(deps, NOW);
     assert.match(replies[0]!.text, /Vaticeno[\s\S]*\n\nI predicted this joke/);
   });
@@ -196,10 +196,10 @@ describe('selfpromo and quote', () => {
     assert.match(found.replies[0]!.text, /^“Prediction is very difficult” — Someone/);
     const missing = await bot([[mention('122', '@vaticeno quote')]], {}, 'a page about something else');
     await pollMentions(missing.deps, NOW);
-    assert.match(missing.replies[0]!.text, /^No quote I could verify right now \(12:00 UTC\)/);
+    assert.match(missing.replies[0]!.text, /^Couldn't verify a quote this time \(12:00 UTC\)/);
     const wrongAuthor = await bot([[mention('123', '@vaticeno quote')]], {}, 'Prediction is very difficult — misattributed, says the article');
     await pollMentions(wrongAuthor.deps, NOW);
-    assert.match(wrongAuthor.replies[0]!.text, /^No quote I could verify/, 'the page must name the author');
+    assert.match(wrongAuthor.replies[0]!.text, /^Couldn't verify a quote/, 'the page must name the author');
   });
 
   test('a joke that tags someone is dropped: the motto goes out alone', async () => {

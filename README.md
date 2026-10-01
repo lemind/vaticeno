@@ -34,8 +34,8 @@ claim page, not posted on X. Spec and tasks: [spec](specs/001-stage0-contract-co
 | `@vaticeno` as a reply to your own post | records that post |
 | a reply under the bot's answer | a fix (within 15 min of RECORDED; anytime within 24 h of NOT RECORDED) |
 | `@vaticeno help` (or anything that isn't a prediction) | the list of actions |
-| `@vaticeno quote` | a real, verified quote about predictions, risk or chance |
-| `@vaticeno selfpromo` | a motto + a joke |
+| `@vaticeno quote` | a real, verified quote about bets, sport, bitcoin, predictions |
+| `@vaticeno selfpromote` (or selfpromo) | a motto + a joke |
 | `@vaticeno STOP` | stops replying to you until you tag it again |
 | `@vaticeno ping` | `pong` |
 

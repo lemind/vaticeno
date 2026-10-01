@@ -573,10 +573,11 @@ shown but never count as a contradiction.
   that gap counts as before lock. Stage 1's X reader must use each version's creation time and ignore
   versions created after `lock_at`. A draft that still can't be locked a day after `lock_at` expires with an
   alert.
-- Extra commands (owner decision 2026-10-01), user-triggered replies like the rest: `@vaticeno selfpromo` →
-  one of five fixed mottos plus a short AI-written joke (no gambling call to action); `@vaticeno quote` → a
-  real, attributed quote about prediction, risk or chance, found on the web and posted only if the page
-  really contains it — never invented, never stored.
+- Extra commands (owner decision 2026-10-01), user-triggered replies like the rest: `@vaticeno selfpromote` →
+  one of five fixed mottos plus a short AI-written joke (no gambling call to action); `@vaticeno quote` → only a
+  real, attributed quote about bets, wagers, sport, bitcoin or predictions, found on the web and posted only
+  if a page search returned contains it — never invented, never stored. Commands are matched in code, with a
+  few aliases and small typos ("selfpromo", "qoute"); anything else is treated as a prediction.
 - Opt-out: `@vaticeno STOP` gets a STOPPED reply; the author stays opted out until they tag the bot again
   (owner decision 2026-09-30); their locked claims still resolve (constitution IV). Listed in the help reply.
 - Edits to the original tweet count as amends before lock and are ignored after it. In Stage 0 the

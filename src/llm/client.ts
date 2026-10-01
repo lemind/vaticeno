@@ -60,7 +60,8 @@ export function createLlmClient(options: { mode: LlmMode; apiKey?: string; store
     return ai;
   };
 
-  async function generateJson<T>(call: JsonCall<T>): Promise<{ data: T; costs: CallCost[] }> {
+  // `sources`: with googleSearch, the pages search really returned (grounding), not URLs the model wrote.
+  async function generateJson<T>(call: JsonCall<T>): Promise<{ data: T; costs: CallCost[]; sources?: string[] }> {
     const identity = { model: call.model, instruction: call.instructionVersion, input: call.replayIdentity ?? call.input };
 
     if (mode === 'replay') {
@@ -72,6 +73,7 @@ export function createLlmClient(options: { mode: LlmMode; apiKey?: string; store
     let raw: unknown;
     let usage: Usage;
     let searchQueries = 0;
+    let sources: string[] = [];
     try {
       const response = await live().models.generateContent({
         model: call.model,
@@ -81,7 +83,9 @@ export function createLlmClient(options: { mode: LlmMode; apiKey?: string; store
           : { systemInstruction: call.system, responseMimeType: 'application/json', responseJsonSchema: z.toJSONSchema(call.schema, { io: 'input' }) },
       });
       usage = usageOf(response.usageMetadata);
-      searchQueries = response.candidates?.[0]?.groundingMetadata?.webSearchQueries?.length ?? 0;
+      const grounding = response.candidates?.[0]?.groundingMetadata;
+      searchQueries = grounding?.webSearchQueries?.length ?? 0;
+      sources = [...new Set((grounding?.groundingChunks ?? []).map((chunk) => chunk.web?.uri).filter((uri): uri is string => !!uri))];
       try {
         raw = JSON.parse(call.googleSearch ? jsonInText(response.text ?? '') : (response.text ?? ''));
       } catch {
@@ -99,7 +103,7 @@ export function createLlmClient(options: { mode: LlmMode; apiKey?: string; store
     }
     const costs = [modelCost(call.model, call.operation, usage)];
     if (searchQueries > 0) costs.push({ provider: 'google_search', operation: 'search', units: searchQueries, usdCost: searchQueries * SEARCH_QUERY_USD });
-    return { data: parseOutput(call.schema, raw, costs), costs };
+    return { data: parseOutput(call.schema, raw, costs), costs, sources };
   }
 
   // Grounded search: only the grounding metadata (queries + URLs) is used; the model's prose is ignored.

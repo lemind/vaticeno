@@ -20,8 +20,9 @@ export const MOTTOS = [
   'Vaticeno remembers what you predicted. Then it checks.',
   'Make the prediction. Vaticeno keeps the receipt.',
 ];
-const QUOTE_FIELDS = ['science', 'weather', 'medicine', 'chess', 'sport', 'sailing', 'history', 'military strategy', 'poetry', 'philosophy', 'economics', 'physics'];
-const QUOTE_TRIES = 2;
+const QUOTE_TOPICS = ['betting', 'wagers', 'gambling odds', 'arguments and disputes', 'sport predictions', 'bitcoin', 'crypto', 'predictions', 'forecasting', 'luck and chance', 'risk'];
+const QUOTE_TRIES = 3;
+const PAGES_CHECKED = 4; // per try: the pages search returned, then the model's own link
 // A bot reply must not tag anyone or carry links (constitution VI): such model output is not used.
 const TAGS_OR_LINKS = /[@#]|https?:\/\/|www\./i;
 
@@ -51,19 +52,19 @@ export async function selfpromoReply(deps: ExtrasDeps): Promise<string> {
 
 const QuoteSchema = z.object({ quote: z.string().min(20).max(200), author: z.string().min(1).max(80), source: z.string().max(80).nullable(), url: z.string().max(500) });
 
-// A quote counts only if its page, fetched by us, contains it word for word AND names the author: no
-// invented quotes, no misattributions passed off as verified.
+// A quote counts only if a page search really returned (or the model's link) contains it word for word AND
+// names the author: no invented quotes, no misattributions passed off as verified. Only the quote is posted.
 export async function quoteReply(deps: ExtrasDeps, now: Date): Promise<string> {
   const costs: CallCost[] = [];
   let reply: string | null = null;
   for (let attempt = 1; attempt <= QUOTE_TRIES && !reply; attempt++) {
     try {
-      const { data, costs: c } = await deps.llm.generateJson({
+      const { data, costs: c, sources = [] } = await deps.llm.generateJson({
         model: deps.normalizerModel, instructionVersion: 'quote.v1', operation: 'search', system: loadInstruction('quote.v1'),
-        input: JSON.stringify({ seed: seed(), field: pick(QUOTE_FIELDS) }), schema: QuoteSchema, googleSearch: true,
+        input: JSON.stringify({ seed: seed(), topic: pick(QUOTE_TOPICS) }), schema: QuoteSchema, googleSearch: true,
       });
       costs.push(...c);
-      reply = await verifiedQuote(deps, data, attempt);
+      reply = await verifiedQuote(deps, data, [...new Set([...sources, data.url])].slice(0, PAGES_CHECKED), attempt);
     } catch (error) {
       if (error instanceof LlmSchemaError) costs.push(...error.costs);
       captureError(error, { event: 'quote.failed', attempt });
@@ -71,26 +72,24 @@ export async function quoteReply(deps: ExtrasDeps, now: Date): Promise<string> {
   }
   await saveCosts(deps, costs);
   // The time keeps the fallback unique: X rejects a post identical to a recent one (see the ping HACK).
-  return reply ?? `No quote I could verify right now (${now.toISOString().slice(11, 16)} UTC). ${pick(MOTTOS)}`;
+  return reply ?? `Couldn't verify a quote this time (${now.toISOString().slice(11, 16)} UTC). Try again in a minute.`;
 }
 
-async function verifiedQuote(deps: ExtrasDeps, data: z.infer<typeof QuoteSchema>, attempt: number): Promise<string | null> {
+async function verifiedQuote(deps: ExtrasDeps, data: z.infer<typeof QuoteSchema>, urls: string[], attempt: number): Promise<string | null> {
   const by = data.source ? `${data.author}, ${data.source}` : data.author;
-  const reply = `“${data.quote.trim()}” — ${by}\n\nVaticeno keeps score.`;
-  if (!/^https:\/\//.test(data.url) || TAGS_OR_LINKS.test(`${data.quote} ${by}`) || weightedLength(reply) > X_MAX_CHARS) return null;
-  let text: string;
-  try {
-    text = (await deps.fetchPage(data.url)).text;
-  } catch (error) {
-    log('info', 'quote page unavailable; trying again', { event: 'quote.page_unavailable', attempt, error: String(error) });
-    return null;
+  const reply = `“${data.quote.trim()}” — ${by}`;
+  if (TAGS_OR_LINKS.test(`${data.quote} ${by}`) || weightedLength(reply) > X_MAX_CHARS) return null;
+  const surname = data.author.trim().split(/\s+/).at(-1)!.toLowerCase();
+  for (const url of urls.filter((u) => /^https:\/\//.test(u))) {
+    try {
+      const { text } = await deps.fetchPage(url);
+      if (quoteInText(punctuation(data.quote), punctuation(text)) && text.toLowerCase().includes(surname)) return reply;
+    } catch (error) {
+      log('info', 'quote page unavailable', { event: 'quote.page_unavailable', attempt, error: String(error) });
+    }
   }
-  const surname = data.author.trim().split(/\s+/).at(-1)!;
-  if (!quoteInText(punctuation(data.quote), punctuation(text)) || !text.toLowerCase().includes(surname.toLowerCase())) {
-    log('info', 'quote or author not on its page; trying again', { event: 'quote.unverified', attempt });
-    return null;
-  }
-  return reply;
+  log('info', 'quote or author not on any page; trying again', { event: 'quote.unverified', attempt, pages: urls.length });
+  return null;
 }
 
 // Ellipses and dashes vary between a page and its copy.

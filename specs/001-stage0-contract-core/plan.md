@@ -159,7 +159,7 @@ deploy/                             # systemd units, backup.sh + nightly timer, 
 `*.test.ts`, DB-backed tests in `tests/integration/`. The core runs as CLI → service → DB; cron and
 the web server are thin callers of the same services. Phase 9 wires X: the service runs the web server,
 whose scheduler polls mentions (`src/bot/`, `ENABLE_X`); the POC poller (`src/poc/`) is no longer run.
-Two extra commands live in `src/bot/extras.ts`: `selfpromo` (fixed motto + AI joke, `joke.v1`) and `quote`
+Two extra commands live in `src/bot/extras.ts`: `selfpromote` (fixed motto + AI joke, `joke.v1`) and `quote`
 (AI + Google Search finds a real quote, `quote.v1`; posted only if our fetch of its page contains it and names the author; replies never tag anyone). Nothing
 is stored; their costs are recorded without a claim.
 

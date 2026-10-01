@@ -6,6 +6,7 @@ import { readIngestState, writeIngestState, type IngestState } from '../ingest/s
 import { amendClaim, type ClaimDeps, submitClaim } from '../lifecycle/claims.js';
 import type { SourceReader } from '../lifecycle/source-reader.js';
 import { log } from '../log.js';
+import { resolveCommand } from './commands.js';
 import { type ExtrasDeps, quoteReply, selfpromoReply } from './extras.js';
 import { alert, captureError } from '../observe.js';
 import { HELP_REPLY, STOPPED_REPLY, THIRD_PARTY_REPLY } from '../replies/templates.js';
@@ -39,17 +40,19 @@ export async function routeMention(deps: BotDeps, mention: Mention, now: Date): 
   if (mention.referenced_tweets?.some((ref) => ref.type === 'retweeted')) return { action: 'ignored_repost', reply: null };
 
   const body = mention.text.replace(/@\w+/g, ' ').replace(/\s+/g, ' ').trim();
-  if (/^stop[!.]*$/i.test(body)) {
+  const command = resolveCommand(body); // closed set, matched in code: no model call
+  if (command === 'stop') {
     await deps.db.insert(optOuts).values({ xUserId: mention.author_id }).onConflictDoNothing();
     return { action: 'stop', reply: STOPPED_REPLY };
   }
   // Tagging the bot again after STOP resumes (owner decision 2026-09-30, constitution IV).
   await deps.db.delete(optOuts).where(eq(optOuts.xUserId, mention.author_id));
-  if (/^selfpromo[!.]*$/i.test(body)) return { action: 'selfpromo', reply: await selfpromoReply(deps) };
-  if (/^quote[!.]*$/i.test(body)) return { action: 'quote', reply: await quoteReply(deps, now) };
+  if (command === 'help') return { action: 'help', reply: HELP_REPLY };
+  if (command === 'selfpromote') return { action: 'selfpromote', reply: await selfpromoReply(deps) };
+  if (command === 'quote') return { action: 'quote', reply: await quoteReply(deps, now) };
   // HACK(x): SPECULATIVE (carried from the POC) — X rejects a post identical to a recent one, so pong carries the time. See src/poc/poll.ts.
   // REVISIT: if a repeated pong without the time is ever accepted.
-  if (/^ping\b/i.test(body)) return { action: 'ping', reply: `pong · ${now.toISOString().slice(11, 19)} UTC` };
+  if (command === 'ping') return { action: 'ping', reply: `pong · ${now.toISOString().slice(11, 19)} UTC` };
   const repliedTo = mention.referenced_tweets?.find((ref) => ref.type === 'replied_to')?.id;
 
   // A reply in a claim's thread is the author's fix (FR-010, no keyword); anyone else is ignored, and a closed
