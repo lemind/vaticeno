@@ -38,10 +38,6 @@ const llm = {
   mode: 'replay',
   generateJson: async ({ input, instructionVersion }: { input: string; instructionVersion: string }) => {
     if (instructionVersion === 'joke.v1') return { data: { joke: jokeText }, costs: [] };
-    if (instructionVersion === 'quote.v1') {
-      const { seed } = JSON.parse(input) as { seed: string };
-      return { data: { quote: 'Prediction is very difficult', author: 'Someone', source: null, url: `https://quotes.example/${seed}` }, costs: [] };
-    }
     if (instructionVersion.startsWith('fixture')) {
       const { subject } = JSON.parse(input) as { subject: string };
       const found = subject === 'Liverpool';
@@ -190,16 +186,23 @@ describe('selfpromo and quote', () => {
     assert.match(replies[0]!.text, /Vaticeno[\s\S]*\n\nI predicted this joke/);
   });
 
-  test('a quote is posted only if its page contains it', async () => {
-    const found = await bot([[mention('121', '@vaticeno quote')]], {}, 'Someone once said: Prediction is very difficult, especially…');
+  test('a quote is posted with its author; if the source is down it is retried later, not dropped', async () => {
+    const found = await bot([[mention('121', '@vaticeno quote 1')]]);
+    found.deps.quoteSource = async () => ({ text: 'Never put money down unless you are sure', by: 'Bugsy Siegel' });
     await pollMentions(found.deps, NOW);
-    assert.match(found.replies[0]!.text, /^“Prediction is very difficult” — Someone/);
-    const missing = await bot([[mention('122', '@vaticeno quote')]], {}, 'a page about something else');
-    await pollMentions(missing.deps, NOW);
-    assert.match(missing.replies[0]!.text, /^Couldn't verify a quote this time \(12:00 UTC\)/);
-    const wrongAuthor = await bot([[mention('123', '@vaticeno quote')]], {}, 'Prediction is very difficult — misattributed, says the article');
-    await pollMentions(wrongAuthor.deps, NOW);
-    assert.match(wrongAuthor.replies[0]!.text, /^Couldn't verify a quote/, 'the page must name the author');
+    assert.equal(found.replies[0]!.text, '“Never put money down unless you are sure” — Bugsy Siegel');
+
+    const down = await bot([[mention('122', '@vaticeno quote')], [], []]);
+    let up = false;
+    down.deps.quoteSource = async () => (up ? { text: 'Luck is what happens when preparation meets opportunity', by: 'Seneca' } : null);
+    await pollMentions(down.deps, NOW);
+    assert.equal(down.replies.length, 0, 'no fallback reply');
+    up = true;
+    await pollMentions(down.deps, new Date(NOW.getTime() + 30_000));
+    assert.equal(down.replies.length, 0, 'not before the 1-minute retry');
+    await pollMentions(down.deps, new Date(NOW.getTime() + 61_000));
+    assert.equal(down.replies[0]!.to, '122');
+    assert.match(down.replies[0]!.text, /Seneca$/);
   });
 
   test('a joke that tags someone is dropped: the motto goes out alone', async () => {

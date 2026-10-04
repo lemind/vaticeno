@@ -576,9 +576,9 @@ shown but never count as a contradiction.
 - Verdicts (owner decision 2026-10-04): each final HIT / MISS / VOID is posted once as a reply in the claim's
   thread, with its proof (the price close or the deciding site).
 - Extra commands (owner decision 2026-10-01), user-triggered replies like the rest: `@vaticeno selfpromo` →
-  one of five fixed mottos plus a short AI-written joke (no gambling call to action); `@vaticeno quote` → only a
-  real, attributed quote about bets, wagers, sport, bitcoin or predictions, found on the web and posted only
-  if a page search returned contains it — never invented, never stored. Commands are matched in code, with a
+  one of five fixed mottos plus a short AI-written joke (no gambling call to action); `@vaticeno quote` → a sourced
+  quote from Wikiquote's topic pages (gambling, betting, luck, chance, risk, prediction, sports, bitcoin…),
+  fetched live, never stored, no AI; if Wikiquote is down the quote is sent later (1, 5, 30, 120 min). Commands are matched in code, with a
   few aliases, small typos and up to 3 filler words ("selfpromote", "qoute", "quote 1", "stop please"); any
   content ("stop at 90k") makes it a prediction or a fix.
 - Opt-out: `@vaticeno STOP` gets a STOPPED reply; the author stays opted out until they tag the bot again

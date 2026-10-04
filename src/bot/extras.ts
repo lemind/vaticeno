@@ -1,5 +1,5 @@
 // Two user-triggered extras (owner decision 2026-10-01): `selfpromo` = a fixed motto + a fresh AI joke,
-// `quote` = a real quote the AI finds on the web, posted only if the page really contains it. Nothing stored.
+// `quote` = a sourced quote from Wikiquote (2026-10-04: free, no AI). Nothing stored.
 import { z } from 'zod';
 import { recordCosts } from '../db/costs.js';
 import { type CallCost, LlmSchemaError } from '../llm/client.js';
@@ -8,10 +8,11 @@ import { log } from '../log.js';
 import { captureError } from '../observe.js';
 import { weightedLength, X_MAX_CHARS } from '../replies/templates.js';
 import type { PageFetcher } from '../resolve/fetch.js';
-import { quoteInText } from '../resolve/similarity.js';
+import { type Quote, wikiquoteQuote } from './wikiquote.js';
 import type { ClaimDeps } from '../lifecycle/claims.js';
 
-export type ExtrasDeps = ClaimDeps & { fetchPage: PageFetcher };
+// quoteSource: Wikiquote by default; tests pass their own.
+export type ExtrasDeps = ClaimDeps & { fetchPage: PageFetcher; quoteSource?: () => Promise<Quote | null> };
 
 export const MOTTOS = [
   "Vaticeno doesn't make predictions. Vaticeno records yours.",
@@ -20,9 +21,6 @@ export const MOTTOS = [
   'Vaticeno remembers what you predicted. Then it checks.',
   'Make the prediction. Vaticeno keeps the receipt.',
 ];
-const QUOTE_TOPICS = ['betting', 'wagers', 'gambling odds', 'arguments and disputes', 'sport predictions', 'bitcoin', 'crypto', 'predictions', 'forecasting', 'luck and chance', 'risk'];
-const QUOTE_TRIES = 3;
-const PAGES_CHECKED = 4; // per try: the pages search returned, then the model's own link
 // A bot reply must not tag anyone or carry links (constitution VI): such model output is not used.
 const TAGS_OR_LINKS = /[@#]|https?:\/\/|www\./i;
 
@@ -50,50 +48,19 @@ export async function selfpromoReply(deps: ExtrasDeps): Promise<string> {
   return reply;
 }
 
-const QuoteSchema = z.object({ quote: z.string().min(20).max(200), author: z.string().min(1).max(80), source: z.string().max(80).nullable(), url: z.string().max(500) });
-
-// A quote counts only if a page search really returned (or the model's link) contains it word for word AND
-// names the author: no invented quotes, no misattributions passed off as verified. Only the quote is posted.
-export async function quoteReply(deps: ExtrasDeps, now: Date): Promise<string> {
-  const costs: CallCost[] = [];
-  let reply: string | null = null;
-  for (let attempt = 1; attempt <= QUOTE_TRIES && !reply; attempt++) {
-    try {
-      const { data, costs: c, sources = [] } = await deps.llm.generateJson({
-        model: deps.normalizerModel, instructionVersion: 'quote.v1', operation: 'search', system: loadInstruction('quote.v1'),
-        input: JSON.stringify({ seed: seed(), topic: pick(QUOTE_TOPICS) }), schema: QuoteSchema, googleSearch: true,
-      });
-      costs.push(...c);
-      reply = await verifiedQuote(deps, data, [...new Set([...sources.slice(0, PAGES_CHECKED - 1), data.url])], attempt);
-    } catch (error) {
-      if (error instanceof LlmSchemaError) costs.push(...error.costs);
-      captureError(error, { event: 'quote.failed', attempt });
-    }
+// A quote from Wikiquote (free, attributed, never stored); null when it can't be fetched right now — the
+// caller retries later instead of replying with a fallback.
+export async function quoteReply(deps: ExtrasDeps): Promise<string | null> {
+  try {
+    const quote = await (deps.quoteSource ?? (() => wikiquoteQuote(pick)))();
+    if (!quote) return null;
+    const reply = `“${quote.text}” — ${quote.by}`;
+    return weightedLength(reply) <= X_MAX_CHARS ? reply : `“${quote.text}”`.slice(0, X_MAX_CHARS);
+  } catch (error) {
+    log('info', 'quote source unavailable', { event: 'quote.unavailable', error: String(error) });
+    return null;
   }
-  await saveCosts(deps, costs);
-  // The time keeps the fallback unique: X rejects a post identical to a recent one (see the ping HACK).
-  return reply ?? `Couldn't verify a quote this time (${now.toISOString().slice(11, 16)} UTC). Try again in a minute.`;
 }
-
-async function verifiedQuote(deps: ExtrasDeps, data: z.infer<typeof QuoteSchema>, urls: string[], attempt: number): Promise<string | null> {
-  const by = data.source ? `${data.author}, ${data.source}` : data.author;
-  const reply = `“${data.quote.trim()}” — ${by}`;
-  if (TAGS_OR_LINKS.test(`${data.quote} ${by}`) || weightedLength(reply) > X_MAX_CHARS) return null;
-  const surname = data.author.trim().split(/\s+/).at(-1)!.toLowerCase();
-  for (const url of urls.filter((u) => /^https:\/\//.test(u))) {
-    try {
-      const { text } = await deps.fetchPage(url);
-      if (quoteInText(punctuation(data.quote), punctuation(text)) && text.toLowerCase().includes(surname)) return reply;
-    } catch (error) {
-      log('info', 'quote page unavailable', { event: 'quote.page_unavailable', attempt, error: String(error) });
-    }
-  }
-  log('info', 'quote or author not on any page; trying again', { event: 'quote.unverified', attempt, pages: urls.length });
-  return null;
-}
-
-// Ellipses and dashes vary between a page and its copy.
-const punctuation = (s: string) => s.replace(/…/g, '...').replace(/[‐-―−]/g, '-');
 
 async function saveCosts(deps: ExtrasDeps, costs: CallCost[]) {
   try {

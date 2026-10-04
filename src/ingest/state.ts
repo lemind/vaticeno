@@ -12,6 +12,8 @@ const IngestStateSchema = z.object({
   reply_log: z.array(z.object({ author_id: z.string(), at: z.string() })).default([]),
   // The mention that failed on the last poll(s), so one that always fails is skipped instead of blocking the rest.
   failing: z.object({ tweet_id: z.string(), attempts: z.number() }).optional(),
+  // `quote` mentions whose quote couldn't be fetched yet: retried on a ladder (src/bot/mentions.ts).
+  pending_quotes: z.array(z.object({ tweet_id: z.string(), author_id: z.string(), attempts: z.number(), next_at: z.string() })).default([]),
 });
 
 export type IngestState = z.infer<typeof IngestStateSchema>;

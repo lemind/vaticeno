@@ -76,7 +76,7 @@ Reply with the prediction and a date.
 - duplicate: `ALREADY RECORDED · #{existing_slug}`
 - sports match not found scheduled: `NOT RECORDED — I can't find that match scheduled — name both teams and the day.`
 - selfpromo (aliases: selfpromote, promo; filler words like "1", "please" allowed): `{one of 5 mottos}\n\n{AI joke ≤ 140 chars}` (motto alone if the model fails)
-- quote: `“{quote}” — {author}, {source}`; unverifiable after 3 tries → `Couldn't verify a quote this time ({HH:MM} UTC). Try again in a minute.`
+- quote: `“{quote}” — {author}, {source}` from Wikiquote; if it can't be fetched, no reply yet: retried after 1, 5, 30 and 120 min, then dropped with an alert
 - STOP: `STOPPED — I won't reply to you until you tag me again. Your locked predictions are still checked.`
 - someone else's post: `NOT RECORDED — I only record your own predictions. Tag me under your post.`
 

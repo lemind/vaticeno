@@ -22,7 +22,7 @@ export type BotDeps = ExtrasDeps & {
   statePath?: string;
 };
 
-type Routed = { action: string; reply: string | null; slug?: string | null }; // slug: the claim this mention belongs to
+type Routed = { action: string; reply: string | null; slug?: string | null; deferQuote?: boolean }; // slug: the claim this mention belongs to
 
 const HOUR_MS = 3_600_000;
 const DAY_MS = 24 * HOUR_MS;
@@ -30,7 +30,9 @@ const FIRST_RUN_PAGE_SIZE = 10; // no cursor yet: only recent mentions, keep the
 const PAGE_SIZE = 100;
 const MAX_PAGES = 5;
 const REPLIED_IDS_KEPT = 1000;
-const MAX_ATTEMPTS = 3; // polls a failing mention is retried before it is skipped with an alert
+const MAX_ATTEMPTS = 3;
+// A quote is always answered: if Wikiquote is down, retry after 1, 5, 30 and 120 minutes, then give up with an alert.
+const QUOTE_RETRY_MINUTES = [1, 5, 30, 120]; // polls a failing mention is retried before it is skipped with an alert
 // A mention that only points at the post above ("this", "👆", nothing) means that post is the prediction.
 const POINTS_AT_PARENT = /^(this|that|it|this one|that one|above|here|[^\p{L}\p{N}]*)$/iu;
 
@@ -49,7 +51,10 @@ export async function routeMention(deps: BotDeps, mention: Mention, now: Date): 
   await deps.db.delete(optOuts).where(eq(optOuts.xUserId, mention.author_id));
   if (command === 'help') return { action: 'help', reply: HELP_REPLY };
   if (command === 'selfpromo') return { action: 'selfpromo', reply: await selfpromoReply(deps) };
-  if (command === 'quote') return { action: 'quote', reply: await quoteReply(deps, now) };
+  if (command === 'quote') {
+    const quote = await quoteReply(deps);
+    return quote ? { action: 'quote', reply: quote } : { action: 'quote_deferred', reply: null, deferQuote: true };
+  }
   // HACK(x): SPECULATIVE (carried from the POC) — X rejects a post identical to a recent one, so pong carries the time. See src/poc/poll.ts.
   // REVISIT: if a repeated pong without the time is ever accepted.
   if (command === 'ping') return { action: 'ping', reply: `pong · ${now.toISOString().slice(11, 19)} UTC` };
@@ -99,7 +104,7 @@ async function claimInThread(deps: BotDeps, mention: Mention, repliedTo: string 
 export async function pollMentions(deps: BotDeps, now: Date): Promise<{ mentions: number; replies: number }> {
   const state = await readIngestState(deps.statePath);
   const mentions = await fetchNewMentions(deps, state.mentions_since_id);
-  let replies = 0;
+  let replies = await retryPendingQuotes(deps, state, now);
   for (const mention of mentions) {
     const cap = capHit(deps, state, mention.author_id, now);
     if (!deps.allowAuthor(mention.author_id)) {
@@ -124,6 +129,7 @@ export async function pollMentions(deps: BotDeps, now: Date): Promise<{ mentions
         routed = { action: 'given_up', reply: null };
       }
       log('info', 'mention handled', { event: 'mention.handled', tweet_id: mention.id, author_id: mention.author_id, action: routed.action, text_chars: mention.text.length });
+      if (routed.deferQuote) state.pending_quotes.push({ tweet_id: mention.id, author_id: mention.author_id, attempts: 0, next_at: inMinutes(now, QUOTE_RETRY_MINUTES[0]!) });
       const replyId = routed.reply ? await sendReply(deps, state, mention, routed.reply, now) : null;
       if (replyId) replies++;
       if (routed.slug && replyId) await rememberThread(deps, routed.slug, [mention.id, replyId]); // only threads the bot answered in
@@ -140,6 +146,34 @@ export async function pollMentions(deps: BotDeps, now: Date): Promise<{ mentions
   log('info', 'mentions poll', { event: 'mentions.polled', mentions: mentions.length, replies });
   return { mentions: mentions.length, replies };
 }
+
+async function retryPendingQuotes(deps: BotDeps, state: IngestState, now: Date): Promise<number> {
+  let replies = 0;
+  const waiting: IngestState['pending_quotes'] = [];
+  for (const pending of state.pending_quotes) {
+    if (state.replied_tweet_ids.includes(pending.tweet_id)) continue;
+    if (Date.parse(pending.next_at) > now.getTime()) {
+      waiting.push(pending);
+      continue;
+    }
+    const quote = capHit(deps, state, pending.author_id, now) ? null : await quoteReply(deps);
+    if (quote) {
+      if (await sendReply(deps, state, { id: pending.tweet_id, author_id: pending.author_id, text: '' }, quote, now)) replies++;
+      continue;
+    }
+    const attempts = pending.attempts + 1;
+    if (attempts >= QUOTE_RETRY_MINUTES.length) {
+      alert('quote.given_up', { tweet_id: pending.tweet_id, attempts });
+      continue;
+    }
+    waiting.push({ ...pending, attempts, next_at: inMinutes(now, QUOTE_RETRY_MINUTES[attempts]!) });
+  }
+  state.pending_quotes = waiting;
+  await writeIngestState(state, deps.statePath);
+  return replies;
+}
+
+const inMinutes = (now: Date, minutes: number) => new Date(now.getTime() + minutes * 60_000).toISOString();
 
 // The posted reply's id, or null when nothing was posted. The mention is saved as answered BEFORE the post:
 // a crash mid-post never replays it, and a failed post is never retried (INIT_SPEC §6.7).
