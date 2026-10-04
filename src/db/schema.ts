@@ -66,6 +66,9 @@ export const claims = pgTable(
     lockAt: utc('lock_at'),
     needsInfoSince: utc('needs_info_since'),
     nextCheckAt: utc('next_check_at'),
+    // The verdict reply on X: marked BEFORE posting, never retried (INIT_SPEC §6.7); the posted id after.
+    verdictReplyAt: utc('verdict_reply_at'),
+    verdictReplyTweetId: text('verdict_reply_tweet_id'),
     createdAt: utc('created_at').notNull().defaultNow(),
   },
   (t) => [

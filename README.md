@@ -5,21 +5,21 @@ An X bot that puts predictions **on the record** and checks them automatically o
 ```
 @vaticeno BTC above $150,000 by 2026-12-31
   → RECORDED · #slug + the exact statement it will judge (fix it within 15 min by replying)
-  → after the deadline: HIT / MISS / VOID on the claim page
+  → after the deadline: HIT / MISS / VOID as a reply in the same thread
 ```
 
 ## Status
 
 **Live on X (testing):** tag the bot under your prediction (or put it in the mention): it records it and
-answers once in the thread; reply under its answer to fix it within 15 min. Verdicts are written to the
-claim page, not posted on X. Spec and tasks: [spec](specs/001-stage0-contract-core/spec.md),
+answers once in the thread; reply under its answer to fix it within 15 min. After the deadline the verdict
+(HIT / MISS / VOID) is posted as a reply in the same thread. Spec and tasks: [spec](specs/001-stage0-contract-core/spec.md),
 [tasks](specs/001-stage0-contract-core/tasks.md). How it runs: one service with four timed jobs
 (mentions and lock every minute, expire every 10 min, resolve hourly).
 
 | Done | Next |
 |---|---|
-| X: mentions → one reply each; fixes by replying under the bot's answer; STOP; help | Verdict replies on X |
-| Predictions → contracts by AI, checked in code; price + date = daily close; unclear ones get a checked example | Per-claim AI budget in the live resolver |
+| X: mentions → one reply each; fixes by replying under the bot's answer; STOP; help; verdict replies | Per-claim AI budget in the live resolver |
+| Predictions → contracts by AI, checked in code; price + date = daily close; unclear ones get a checked example | |
 | Sports: the match must exist (web search), competition filled in, recordable until kickoff | Public pages on a domain (HTTPS config is ready in `deploy/`) |
 | Database: lock and verdict rules enforced by Postgres, locally and on Supabase | Nightly backups (scripts in `deploy/`, not installed) |
 | Verdicts after the deadline: Coinbase daily close, or AI reading web pages behind code gates; human review | |

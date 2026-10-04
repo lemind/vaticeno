@@ -11,10 +11,11 @@ import { type ResolverDeps, resolveDueClaims } from '../resolve/resolver.js';
 import type { ClaimDeps } from '../lifecycle/claims.js';
 import { withJobLock } from './lock.js';
 import { type BotDeps, pollMentions } from '../bot/mentions.js';
+import { deliverVerdicts } from '../bot/verdicts.js';
 
 export type SchedulerDeps = ClaimDeps & ResolverDeps & { reader: SourceReader; sql: Sql; bot: BotDeps | null };
 
-const SCHEDULES = { mentions: '* * * * *', lock: '* * * * *', expire: '*/10 * * * *', resolve: '0 * * * *' } as const;
+const SCHEDULES = { mentions: '* * * * *', lock: '* * * * *', expire: '*/10 * * * *', resolve: '0 * * * *', verdicts: '*/5 * * * *' } as const;
 
 export function startScheduler(deps: SchedulerDeps): { stop: () => Promise<void> } {
   const now = () => new Date();
@@ -26,6 +27,8 @@ export function startScheduler(deps: SchedulerDeps): { stop: () => Promise<void>
     lock: () => withCronMonitor('vaticeno-lock', SCHEDULES.lock, () => lockDueDrafts(deps, now())),
     expire: () => expireNeedsInfo(deps.db, now()),
     resolve: () => resolveDueClaims(deps, now()),
+    // Verdict replies on X (ENABLE_X): one per final verdict, in the claim's thread.
+    verdicts: async () => (deps.bot ? deliverVerdicts(deps.bot, now()) : null),
   };
 
   const tasks = (Object.keys(jobs) as Array<keyof typeof SCHEDULES>).map((name) =>

@@ -1,7 +1,7 @@
 @AGENTS.md
 
 <!-- SPECKIT START -->
-**Constitution**: `.specify/memory/constitution.md` (v2.2.0) — principles every plan must pass.
+**Constitution**: `.specify/memory/constitution.md` (v2.3.0) — principles every plan must pass.
 
 **Active plan**: `specs/001-stage0-contract-core/plan.md` (research, data-model, contracts/, quickstart alongside).
 
@@ -20,7 +20,7 @@ model-decided) proven on seeded claims, public pages. Where INIT_SPEC (v1.1.1) i
 - **Lease writes are `worker_token`-guarded**; 0 rows updated → no side effects (§6.1).
 - **Never retry a post after a failed existence check** — that is how duplicates happen (§6.7).
 - **No post text stored**, IDs only (§6.9). `x_user_id` is identity; handle is a display cache (§3).
-- **Replies only where mentioned** (constitution VI): one reply per mention, in that thread; no unsolicited replies. `RESOLUTION_DELIVERY` defaults to `page_only`.
+- **Replies only where mentioned** (constitution VI): one reply per mention, in that thread; no unsolicited replies. The final verdict is posted once in the claim's thread (constitution VI 2.3.0).
 - All timestamps UTC; bare date = `23:59:59 UTC` (§8).
 
 ## Conventions

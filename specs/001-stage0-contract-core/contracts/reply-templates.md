@@ -81,6 +81,8 @@ Reply with the prediction and a date.
 - someone else's post: `NOT RECORDED — I only record your own predictions. Tag me under your post.`
 
 **RESOLVED** — `HIT · #{slug}` / `MISS · #{slug}` / `VOID · #{slug}`, then the statement, the deciding
-answer's proof line (`{event_date}: {value or source name}`), `Locked {locked_date}`. Not posted: verdicts go to the page only (`RESOLUTION_DELIVERY=page_only`).
+answer's proof line (`Coinbase daily close {date}: {value}` or `Source: {site} ({date})`; VOID: `Void: {reason}.`;
+human review: `Decided on review.`). Posted once as a reply under the author's summon (constitution VI 2.3.0),
+within 7 days of the decision, never to an author who sent STOP; marked before posting, never retried.
 
 Posted only as the one reply to a mention (constitution VI); never stored.

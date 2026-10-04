@@ -35,6 +35,8 @@ browser → Fastify (server-rendered pages) → backend DB role → Postgres
 | slug | text UNIQUE NOT NULL | 5 chars, alphabet without 0/O/1/I/l; 6 after 3 collisions (FR-018) |
 | source_tweet_id | text UNIQUE NOT NULL | one tweet = one claim (FR-003a); insert with `ON CONFLICT DO NOTHING RETURNING` |
 | summon_tweet_id | text NOT NULL | the tweet that tagged the bot |
+| verdict_reply_at | timestamptz null | when the verdict reply on X was attempted (set before posting; never retried) |
+| verdict_reply_tweet_id | text null | the posted verdict reply |
 | thread_tweet_ids | text[] NOT NULL DEFAULT '{}' | ids of the bot's replies and the author's fixes for this claim; a reply to any of them is a fix, however deep the thread (ids only) |
 | source_version | text NOT NULL | version of the original tweet the current draft was built from (X edit history); compared at lock time to detect edits |
 | locked_source_version | text null | version ID of the user's tweet at lock; written once, at lock |

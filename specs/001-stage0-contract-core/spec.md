@@ -573,6 +573,8 @@ shown but never count as a contradiction.
   that gap counts as before lock. Stage 1's X reader must use each version's creation time and ignore
   versions created after `lock_at`. A draft that still can't be locked a day after `lock_at` expires with an
   alert.
+- Verdicts (owner decision 2026-10-04): each final HIT / MISS / VOID is posted once as a reply in the claim's
+  thread, with its proof (the price close or the deciding site).
 - Extra commands (owner decision 2026-10-01), user-triggered replies like the rest: `@vaticeno selfpromo` →
   one of five fixed mottos plus a short AI-written joke (no gambling call to action); `@vaticeno quote` → only a
   real, attributed quote about bets, wagers, sport, bitcoin or predictions, found on the web and posted only

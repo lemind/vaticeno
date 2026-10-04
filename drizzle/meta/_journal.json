@@ -57,6 +57,13 @@
       "when": 1790784044939,
       "tag": "0007_event_not_found",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791119170338,
+      "tag": "0008_verdict_reply",
+      "breakpoints": true
     }
   ]
 }

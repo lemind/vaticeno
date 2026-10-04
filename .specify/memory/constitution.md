@@ -1,6 +1,8 @@
 <!--
 Sync Impact Report
-- Version change: 2.1.0 → 2.2.0 (2026-09-30, MINOR): IV — STOP lasts until the author tags the bot again
+- Version change: 2.2.0 → 2.3.0 (2026-10-04, MINOR): VI — the final verdict is posted once as a reply in the
+  claim's thread, under the author's summon (owner decision); part of the same interaction, capped per day.
+- Earlier: 2.1.0 → 2.2.0 (2026-09-30, MINOR): IV — STOP lasts until the author tags the bot again
   (owner decision), not permanently.
 - Earlier: 2.0.0 → 2.1.0 (2026-09-30, MINOR): VI — mention-triggered replies need no separate X
   approval (owner decision); unsolicited replies stay forbidden.
@@ -141,10 +143,12 @@ entire class of problems, and it is what X's terms require.
 - Replies go only to people who mentioned the bot, in that thread, once per interaction. X allows
   mention-triggered replies without separate approval (owner check of X's developer forum, 2026-09-30);
   the account carries X's "Automated" label and names its operator in the bio. Anything unsolicited
-  (keyword search, replying where not mentioned) is forbidden.
+  (keyword search, replying where not mentioned) is forbidden. One exception, part of the same interaction:
+  the claim's final verdict is posted once as a reply in its thread, under the author's summon (owner
+  decision 2026-10-04), through the same allowlist and caps; never to an author who sent STOP.
 - There are no topic exclusions, but content the bot republishes MUST comply with X's rules.
-- Behavior that depends on X's answers (resolution delivery mode, third-party recording) MUST be
-  configuration, not code, and MUST default to the most conservative option.
+- Behavior that depends on X's answers (third-party recording) MUST be configuration, not code, and MUST
+  default to the most conservative option. Verdict delivery is a reply in the thread (owner decision).
 
 Rationale: the account is the product's only distribution channel. Losing it ends the experiment.
 
@@ -195,4 +199,4 @@ Rationale: a one-person proto survives on code it can read in one sitting.
 - Every plan passes the Constitution Check before design and again after it. A justified violation
   is recorded in the plan's Complexity Tracking table; an unjustified one blocks the work.
 
-**Version**: 2.2.0 | **Ratified**: 2026-09-28 | **Last Amended**: 2026-09-30
+**Version**: 2.3.0 | **Ratified**: 2026-09-28 | **Last Amended**: 2026-10-04
