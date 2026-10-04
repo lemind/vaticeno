@@ -6,7 +6,7 @@ import { renderStatement } from '../contract/render.js';
 import { claims, evidences, optOuts, resolutions } from '../db/schema.js';
 import { log } from '../log.js';
 import { alert, captureError } from '../observe.js';
-import { assertReplyFits } from '../replies/templates.js';
+import { assertReplyFits, weightedLength, X_MAX_CHARS } from '../replies/templates.js';
 import type { BotDeps } from './mentions.js';
 
 const RECENT_MS = 7 * 24 * 3_600_000; // older verdicts (e.g. before this shipped) are not posted
@@ -76,7 +76,7 @@ async function verdictText(deps: BotDeps, claim: Due): Promise<string> {
   }
   if (claim.decidedBy === 'human') return assertReplyFits(`${head}\nDecided on review.`);
   const [evidence] = claim.evidenceId
-    ? await deps.db.select({ source: evidences.sourceName, value: evidences.value, date: evidences.eventDate }).from(evidences).where(eq(evidences.id, claim.evidenceId)).limit(1)
+    ? await deps.db.select({ source: evidences.sourceName, value: evidences.value, date: evidences.eventDate, result: evidences.resultSummary }).from(evidences).where(eq(evidences.id, claim.evidenceId)).limit(1)
     : [];
   if (!evidence) return assertReplyFits(head);
   if (contract.price && evidence.value !== null) {
@@ -84,5 +84,16 @@ async function verdictText(deps: BotDeps, claim: Due): Promise<string> {
     const amount = Number(evidence.value).toLocaleString('en-US', { maximumFractionDigits: 8 });
     return assertReplyFits(`${head}\nCoinbase daily close ${evidence.date}: ${quote === 'USD' ? `$${amount}` : `${amount} ${quote}`}`);
   }
-  return assertReplyFits(`${head}\nSource: ${evidence.source}${evidence.date ? ` (${evidence.date})` : ''}`);
+  // The site without its domain ending: X turns "nfl.com" into a link (ugly, and links cost extra).
+  const site = siteLabel(evidence.source);
+  if (evidence.result) {
+    const withResult = `${head}\n${evidence.result} · ${site}`;
+    if (weightedLength(withResult) <= X_MAX_CHARS) return withResult;
+  }
+  return assertReplyFits(`${head}\nSource: ${site}${evidence.date ? ` (${evidence.date})` : ''}`);
+}
+
+function siteLabel(domain: string): string {
+  const name = domain.replace(/^www\./, '').split('.')[0] ?? domain;
+  return name.length <= 4 ? name.toUpperCase() : name.charAt(0).toUpperCase() + name.slice(1);
 }

@@ -81,7 +81,7 @@ Reply with the prediction and a date.
 - someone else's post: `NOT RECORDED — I only record your own predictions. Tag me under your post.`
 
 **RESOLVED** — `HIT · #{slug}` / `MISS · #{slug}` / `VOID · #{slug}`, then the statement, the deciding
-answer's proof line (`Coinbase daily close {date}: {value}` or `Source: {site} ({date})`; VOID: `Void: {reason}.`;
+answer's proof line (`Coinbase daily close {date}: {value}` or `{result} · {Site}` (e.g. `Browns 24–17 Steelers · NFL`, the site without its domain ending so X makes no link), else `Source: {Site} ({date})`; VOID: `Void: {reason}.`;
 human review: `Decided on review.`). Posted once as a reply under the author's summon (constitution VI 2.3.0),
 within 7 days of the decision, never to an author who sent STOP; marked before posting, never retried.
 

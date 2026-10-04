@@ -114,6 +114,7 @@ export const evidences = pgTable(
     sourceName: text('source_name').notNull(),
     trustLevel: text('trust_level', { enum: TRUST_LEVELS }).notNull(),
     trustReason: text('trust_reason'),
+    resultSummary: text('result_summary'), // the outcome in the judge's own words (e.g. a final score), never page text
     says: text('says', { enum: EVIDENCE_SAYS }).notNull(),
     eventDate: date('event_date'),
     eventStart: utc('event_start'), // when a match began, if the page stated it (in_window, gates.ts)

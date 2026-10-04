@@ -142,6 +142,7 @@ One row per source checked. Rows are written as sources are checked, before the 
 | search_query | text null | |
 | retrieved_at | timestamptz | |
 | model_id, instruction_version | text null | when a model read the page |
+| result_summary | text null | the outcome in the judge's own words (a final score, a vote count), for the verdict reply; never page text |
 | gates | jsonb | result per gate, e.g. `{"trusted":true,"quote_found":true,"in_window":true,"final":true,"independent":true}` |
 | passed | bool | true only if every applicable gate passed |
 | created_at | timestamptz default now() | |

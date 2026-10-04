@@ -52,3 +52,13 @@ test('a failed post is never retried; an author who sent STOP gets nothing', asy
   await deliverVerdicts(bot(async () => { posted++; return { id: 'v2' }; }), NOW);
   assert.equal(posted, 0);
 });
+
+test('a web verdict shows the result and the site without a link', async () => {
+  const claim = await insertClaim(t.sql, 'resolved', { summon_tweet_id: '501' });
+  const evidence = await insertEvidence(t.sql, claim.id, { source_kind: 'web', source_name: 'nfl.com', says: 'miss', event_date: '2026-10-01', result_summary: 'Browns 24–17 Steelers' });
+  await t.sql`insert into resolutions ${t.sql({ claim_id: claim.id, review_status: 'final', outcome: 'miss', decided_by: 'evidence', deciding_evidence_id: evidence.id, decided_at: '2027-01-01T01:00:00Z' })}`;
+  const posts: string[] = [];
+  await deliverVerdicts(bot(async (_to, text) => { posts.push(text); return { id: 'v3' }; }), NOW);
+  assert.match(posts[0]!, /\nBrowns 24–17 Steelers · NFL$/);
+  assert.doesNotMatch(posts[0]!, /nfl\.com/);
+});

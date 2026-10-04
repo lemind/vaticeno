@@ -121,6 +121,7 @@ export async function resolveClaim(deps: ResolverDeps, claim: ClaimRow, now: Dat
       sourceName: item.sourceName,
       trustLevel: item.draft.trustLevel,
       trustReason: item.trustReason,
+      resultSummary: item.resultSummary ?? null,
       says: item.draft.says,
       eventDate: item.draft.eventDate,
       eventStart: item.draft.eventStart && !Number.isNaN(Date.parse(item.draft.eventStart)) ? new Date(item.draft.eventStart) : null,

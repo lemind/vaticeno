@@ -64,6 +64,13 @@
       "when": 1791119170338,
       "tag": "0008_verdict_reply",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791120184866,
+      "tag": "0009_evidence_result",
+      "breakpoints": true
     }
   ]
 }

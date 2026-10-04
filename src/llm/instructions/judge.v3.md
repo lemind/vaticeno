@@ -28,6 +28,9 @@ from your own knowledge, even when you are sure. If the page does not state it, 
   and its time zone (or UTC offset); convert it (8:15 PM ET on Oct 1 = `2026-10-02T00:15:00Z`). null if
   the page gives no time or no time zone, and null for anything longer than one match (a season, a
   tournament, a trial, a count).
+- `result`: the outcome in your own words, at most 60 characters, as a reader would want it in one line:
+  the final score with both sides ("Browns 24–17 Steelers"), the vote count, the closing value. Never copy
+  page text. null for `irrelevant`.
 - `is_final_result`: true only if the page presents the result as final and official.
 - `from_contract_source`: true if this page is the contract's named source.
 - `source_trust`: how much this site can be relied on for THIS result, judged from the page itself:

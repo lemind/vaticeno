@@ -35,6 +35,7 @@ JudgeSchema = {
   quote: string | null,                  // verbatim from the page; checked in code, then dropped
   event_date: string | null,             // YYYY-MM-DD of the event itself, not of publication
   event_start: string | null,            // UTC date-time the event began (kickoff), only if the page states it
+  result: string | null,                 // the outcome in its own words, ≤ 60 chars ("Browns 24–17 Steelers"); shown in the verdict
   is_final_result: boolean,
   from_contract_source: boolean,        // informational only
   source_trust: 'primary' | 'established' | 'weak',  // primary = the body that decides/records the outcome;

@@ -22,6 +22,7 @@ export type GatheredItem = {
   value: number | null; // price feed answers only
   sourceName: string;
   trustReason: string | null;
+  resultSummary?: string | null;
   contentSha256: string | null;
   searchQuery: string | null;
   modelId: string | null;
@@ -87,6 +88,7 @@ export async function gatherWebEvidence(
         value: null,
         sourceName: host ? registrableDomain(host) : page.url,
         trustReason: judgement.trust_reason,
+        resultSummary: judgement.result ?? null,
         contentSha256: page.sha256,
         searchQuery,
         modelId: deps.judgeModelA,

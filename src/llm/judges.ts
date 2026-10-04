@@ -37,6 +37,7 @@ const JudgeFields = {
   basis: z.enum(['record', 'absence']),
   event_date: DATE.nullable(),
   event_start: z.string().max(40).nullable().optional(), // v3; absent in v2 answers; unparseable = no time (gates.ts)
+  result: z.string().max(80).nullable().optional(), // v3: the outcome in its own words, shown in the verdict reply
   is_final_result: z.boolean(),
   from_contract_source: z.boolean(),
   source_trust: z.enum(['primary', 'established', 'weak']),
@@ -78,7 +79,7 @@ export async function judgePage(
   // Live: check the quote against the page now. Replay: use the check made when it was recorded.
   const quoteFound = data.quote_found ?? (data.quote ? quoteInText(data.quote, page.text) : null);
   const judgement: Judgement = {
-    says: data.says, basis: data.basis, event_date: data.event_date, event_start: data.event_start ?? null, is_final_result: data.is_final_result,
+    says: data.says, basis: data.basis, event_date: data.event_date, event_start: data.event_start ?? null, result: data.result ?? null, is_final_result: data.is_final_result,
     from_contract_source: data.from_contract_source, source_trust: data.source_trust, trust_reason: data.trust_reason,
     original_source: data.original_source, reasoning: data.reasoning, quoteFound,
   };
