@@ -81,15 +81,17 @@ src/content/
   receipt-run.ts   receipts
 src/cli/content-tick.ts, src/cli/content-queue.ts   run one job by hand; manage the originals queue
 src/jobs/scheduler.ts   pool (2×/day), original (daily), receipts (hourly), only with ENABLE_FEED
-drizzle/0010_feed.sql   feed_posts (kind, status, day, slot, source_post_id, account_id, queue_item_id,
-                        posted_id, created_at), feed_queue (text, position, posted_at)
+drizzle/0010_feed.sql, 0011_feed_dry_run.sql   feed_posts (kind, cap_group generated, status, day, slot,
+                        source_post_id, account_id, queue_item_id, posted_id, created_at),
+                        feed_queue (text, position, posted_at)
 ```
 
 X client additions: user timeline read, repost (`POST /2/users/:id/retweets`), quote post (`POST /2/tweets`
 with `quote_tweet_id`). Following the pool: by hand in the app (free), or the API with the extra
 `follows.write` permission (re-authorize the bot). Config: `ENABLE_FEED` (off), `FEED_DRY_RUN` (on),
-`FEED_PLATFORM_ACCOUNT_ID` (the owner-kept account), `FEED_DAILY_USD_CAP` (0.30). X costs are recorded
-as cost rows (provider `x`: read, post, repost).
+`FEED_PLATFORM_ACCOUNT_ID` (the owner-kept account), `FEED_DAILY_USD_CAP` (0.30). X and model costs are recorded
+as cost rows (provider `x`; operations `feed_read`, `feed_post`, `feed_model`), and the daily cap sums
+exactly those. X list prices: `src/x/prices.ts`.
 
 ## Never twice, caps (database-enforced)
 
@@ -103,7 +105,8 @@ as cost rows (provider `x`: read, post, repost).
   slot is free again (null is outside the unique key), so caps count only `reserved` and `posted`.
 - A crash between posting and storing leaves `reserved`: the slot stays taken and the post is not retried
   (the post may have gone out).
-- Dry run reserves nothing: picks are only logged; the previous account is the last logged pick.
+- A dry-run pick is stored as a `dry_run` row with no slot: it holds none of the day's cap, yet it keeps
+  the rehearsal honest (the same account never twice in a row, the same post never twice).
 
 ## Phases
 

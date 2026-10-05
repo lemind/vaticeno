@@ -29,15 +29,28 @@ the CLI only prints the estimate.
 
 ## Phase 2: Foundational
 
-- [ ] T004 Migration `drizzle/0010_feed.sql` + `src/db/schema.ts`: table `feed_posts` (id, kind `repost|quote|original|receipt`, status `reserved|posted|failed`, day date, slot int null, source_post_id text null, account_id text null, queue_item_id null, posted_id text null, created_at) with unique `(source_post_id)` where not null and unique `(kind_group, day, slot)` where `kind_group` is `pool` for repost/quote, else the kind; table `feed_queue` (id, text, position, posted_at null); RLS on, no policies; a down migration. Apply locally, then on Supabase.
-- [ ] T005 Add X cost rows: provider `x`, operations `read`, `post`, `repost` in `src/db/schema.ts` (`COST_PROVIDERS`, `COST_OPERATIONS`, CHECK constraint in T004's migration); prices in `src/llm/prices.ts` marked UNRECONCILED ($0.005 read, $0.015 post, repost = post until measured).
-- [ ] T006 [P] `src/content/pool.ts`: the 17 accounts (id, handle, field, weight = score − 15, enabled) from `docs/content-rules.md`; the platform account's id from `FEED_PLATFORM_ACCOUNT_ID` (skipped when unset); `pickAccount(pool, previousId, random)` → weighted pick, never `previousId`.
-- [ ] T007 [P] X client in `src/x/client.ts`: `getUserPosts(id)` (`GET /2/users/:id/tweets`, `exclude=replies,retweets`, `max_results=5`, `created_at`), `repost(accessToken, me, postId)` (`POST /2/users/:me/retweets`), `quotePost(accessToken, postId, text)` (`POST /2/tweets` with `quote_tweet_id`), `postStandalone(accessToken, text)`; Zod-parsed responses. Standalone posts only from `src/content/`.
-- [ ] T008 `src/content/slots.ts`: `reserveSlot(db, {kind, day, sourcePostId?, …}, cap)` inserts with the first free slot `1..cap` (`on conflict do nothing`, returns the row or null), `markPosted(id, postedId)`, `markFailed(id)` (status `failed`, `slot = null`); today's spend from cost rows vs `FEED_DAILY_USD_CAP`.
-- [ ] T009 Test `tests/integration/content.test.ts`: two parallel reservations of the same source → one row; cap 2 → third reservation null; a failed post frees its slot, its source stays used; a `reserved` row (crash) keeps its slot.
-- [ ] T010 [P] Test `src/content/pool.test.ts`: 10,000 seeded picks match each weight's share within 1.5 points; never the previous account; a disabled account is never picked.
+- [x] T004 Migration `drizzle/0010_feed.sql` + `src/db/schema.ts`: table `feed_posts` (id, kind `repost|quote|original|receipt`, status `reserved|posted|failed`, day date, slot int null, source_post_id text null, account_id text null, queue_item_id null, posted_id text null, created_at) with unique `(source_post_id)` where not null and unique `(kind_group, day, slot)` where `kind_group` is `pool` for repost/quote, else the kind; table `feed_queue` (id, text, position, posted_at null); RLS on, no policies; a down migration. Apply locally, then on Supabase.
+- [x] T005 Add X cost rows: provider `x`, operations `read`, `post`, `repost` in `src/db/schema.ts` (`COST_PROVIDERS`, `COST_OPERATIONS`, CHECK constraint in T004's migration); prices in `src/llm/prices.ts` marked UNRECONCILED ($0.005 read, $0.015 post, repost = post until measured).
+- [x] T006 [P] `src/content/pool.ts`: the 17 accounts (id, handle, field, weight = score − 15, enabled) from `docs/content-rules.md`; the platform account's id from `FEED_PLATFORM_ACCOUNT_ID` (skipped when unset); `pickAccount(pool, previousId, random)` → weighted pick, never `previousId`.
+- [x] T007 [P] X client in `src/x/client.ts`: `getUserPosts(id)` (`GET /2/users/:id/tweets`, `exclude=replies,retweets`, `max_results=5`, `created_at`), `repost(accessToken, me, postId)` (`POST /2/users/:me/retweets`), `quotePost(accessToken, postId, text)` (`POST /2/tweets` with `quote_tweet_id`), `postStandalone(accessToken, text)`; Zod-parsed responses. Standalone posts only from `src/content/`.
+- [x] T008 `src/content/slots.ts`: `reserveSlot(db, {kind, day, sourcePostId?, …}, cap)` inserts with the first free slot `1..cap` (`on conflict do nothing`, returns the row or null), `markPosted(id, postedId)`, `markFailed(id)` (status `failed`, `slot = null`); today's spend from cost rows vs `FEED_DAILY_USD_CAP`.
+- [x] T009 Test `tests/integration/content.test.ts`: two parallel reservations of the same source → one row; cap 2 → third reservation null; a failed post frees its slot, its source stays used; a `reserved` row (crash) keeps its slot.
+- [x] T010 [P] Test `src/content/pool.test.ts`: 10,000 seeded picks match each weight's share within 1.5 points; never the previous account; a disabled account is never picked.
 
-**Checkpoint**: tables, X calls, weighted pick and reservations exist; nothing is scheduled.
+**Checkpoint**: tables, X calls, weighted pick and reservations exist; nothing is scheduled. ✅
+
+**Phase 2 done** (T004–T010). `feed_posts` carries a generated `cap_group`, so reposts and quote posts
+share one daily cap in the database itself; a partial unique index on the source post stops a second
+posting of it; checks hold that a refused post frees its slot while keeping its source, that a repost
+stores no post id of ours, and that each kind carries what it needs. Dry-run picks are recorded as
+`dry_run` rows (migration 0011): no slot of the cap, but the rehearsal still never repeats an account or
+a post, with `previousAccountId` reading the last pool row. Deliberate deviations: no down migration
+(this repo has none — migrations are append-only, so 0011 amends 0010 instead of editing it); cost
+operations are `feed_read`, `feed_post`, `feed_model` rather than `read`/`post`/`repost`, so the daily
+spend sums exactly the feed's own rows; X list prices live in `src/x/prices.ts`, since `src/llm/prices.ts`
+is the model price list; the pool's ids sit in a generated `src/content/pool-ids.ts` written by
+`content:pool-ids`, so T003 needs no hand-editing. Verified: 80 unit and 98 integration tests pass, both
+migrations applied locally. **Supabase: not applied yet.** The X calls are unexercised — they cost money.
 
 ---
 
@@ -52,7 +65,7 @@ the CLI only prints the estimate.
 - [ ] T013 [US1] `src/bot/wikiquote.ts`: `wikiquoteQuote` takes an optional topic (tried first, then the random ones); export the topic list for T012.
 - [ ] T014 [US1] `src/content/quote.ts`: `quoteText(post, mode)` → the verified quote (`"text" — by`) or the joke, checked in code (`weightedLength` ≤ 200, `hasTagsOrLinks` false); any failure → null (plain repost).
 - [ ] T015 [P] [US1] Test `src/content/quote.test.ts`: a joke with @, #, a link, or over 200 chars → null; a quote with a link in it → null; a clean joke passes.
-- [ ] T016 [US1] `src/content/pool-run.ts`: `runPoolPost(deps, now)` → spend cap check → pick (previous account from the last pool row) → read posts (cost) → `latestEligible`, else pick again (≤ 3 tries) → roll 90/5/5 → dry run: log the pick and stop (no reservation) / live: reserve (pool cap 2) → repost or quote post → `markPosted` or `markFailed`, cost recorded. An account X reports as gone (4xx on its timeline) is skipped with one alert a day. Logs ids only, never post text.
+- [ ] T016 [US1] `src/content/pool-run.ts`: `runPoolPost(deps, now)` → spend cap check (`feedSpentTodayUsd`) → pick (`previousAccountId`) → read posts (cost) → `latestEligible`, else pick again (≤ 3 tries) → roll 90/5/5 → dry run: `logDryRun` and stop / live: `reserveSlot` → repost or quote post → `markPosted` or `markFailed`, cost recorded. An account X reports as gone (4xx on its timeline) is skipped with one alert a day. Logs ids only, never post text.
 - [ ] T017 [US1] Schedule in `src/jobs/scheduler.ts`: `pool` job twice a day (09:00 and 18:00 UTC cron, then a random 0–90 min delay in the job), only when `ENABLE_FEED`; `content:tick` CLI in `src/cli/content-tick.ts` + `package.json` script to run one job by hand.
 - [ ] T018 [US1] Follow the 17 pool accounts from @vaticeno (by hand in the app; owner).
 - [ ] T019 [US1] Dry run for a week on the droplet (`ENABLE_FEED=true`, `FEED_DRY_RUN=true`); owner reviews picks (SC-001); read the measured X costs (SC-002); then `FEED_DRY_RUN=false`.

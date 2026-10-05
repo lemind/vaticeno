@@ -37,6 +37,13 @@ const MentionsResponseSchema = z.object({
 
 const UserByUsernameResponseSchema = z.object({ data: XUserSchema });
 
+// A pool account's latest posts (spec 002): own posts only, no replies or reposts, newest first.
+const UserPostSchema = z.object({ id: z.string(), text: z.string(), created_at: z.string() });
+const UserPostsResponseSchema = z.object({
+  data: z.array(UserPostSchema).optional(),
+  meta: z.object({ result_count: z.number() }),
+});
+
 // One post with its edit history; the last id in edit_history_tweet_ids is the current version.
 const TweetResponseSchema = z.object({
   data: z.object({
@@ -46,6 +53,7 @@ const TweetResponseSchema = z.object({
 });
 
 export type Mention = z.infer<typeof MentionSchema>;
+export type UserPost = z.infer<typeof UserPostSchema>;
 export type XUser = z.infer<typeof XUserSchema>;
 export type MentionsPage = z.infer<typeof MentionsResponseSchema>;
 
@@ -77,6 +85,16 @@ export function createXClient(bearerToken: string) {
     async getUserByUsername(username: string): Promise<XUser> {
       const json = await getJson(`/users/by/username/${encodeURIComponent(username)}`, {});
       return UserByUsernameResponseSchema.parse(json).data;
+    },
+
+    // X's smallest timeline page is 5 posts, and billing is per post returned (src/x/prices.ts).
+    async getUserPosts(userId: string): Promise<UserPost[]> {
+      const json = await getJson(`/users/${encodeURIComponent(userId)}/tweets`, {
+        max_results: '5',
+        exclude: 'replies,retweets',
+        'tweet.fields': 'created_at',
+      });
+      return UserPostsResponseSchema.parse(json).data ?? [];
     },
 
     async getTweet(id: string): Promise<z.infer<typeof TweetResponseSchema>['data']> {
@@ -128,6 +146,25 @@ async function sendUserRequest(accessToken: string, method: 'GET' | 'POST', path
 // User-context calls take an OAuth 2.0 user access token, not the app Bearer token.
 export async function getAuthenticatedUser(accessToken: string): Promise<XUser> {
   return UserByUsernameResponseSchema.parse(await sendUserRequest(accessToken, 'GET', '/users/me')).data;
+}
+
+// Own-feed posts (constitution VI 2.4.0, spec 002): only src/content/ may call these. Keep URLs out of
+// `text`: a post with a link costs far more (§9 surcharge).
+const RepostResponseSchema = z.object({ data: z.object({ retweeted: z.boolean() }) });
+
+// A repost creates no post of ours, so X returns no id — only whether it took.
+export async function repost(accessToken: string, meUserId: string, postId: string): Promise<boolean> {
+  const json = await sendUserRequest(accessToken, 'POST', `/users/${encodeURIComponent(meUserId)}/retweets`, { tweet_id: postId });
+  return RepostResponseSchema.parse(json).data.retweeted;
+}
+
+export async function quotePost(accessToken: string, quotedPostId: string, text: string) {
+  const json = await sendUserRequest(accessToken, 'POST', '/tweets', { text, quote_tweet_id: quotedPostId });
+  return CreatePostResponseSchema.parse(json).data;
+}
+
+export async function postStandalone(accessToken: string, text: string) {
+  return CreatePostResponseSchema.parse(await sendUserRequest(accessToken, 'POST', '/tweets', { text })).data;
 }
 
 // Always a reply in the thread, never a standalone post (INIT_SPEC §6.5). Keep URLs out: §9 surcharge.

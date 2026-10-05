@@ -101,7 +101,10 @@ feed, at most 2 per day, so the profile shows the product working.
   before posting; a second reservation fails), not only by code checks. A post X rejects is never tried
   again, but it frees its day's slot: only posts that went out (or are in flight) count toward a cap.
 - **FR-006**: The bot follows every pool account (once, by hand or through the API).
-- **FR-007**: Dry-run is the default: picks are logged for the owner; posting needs an explicit switch.
+- **FR-007**: Dry-run is the default: picks are recorded for the owner to review and nothing is posted.
+  A dry-run pick uses none of the day's cap, but it does count for "never the same account twice in a
+  row" and "never the same post twice", so the rehearsal behaves like the real thing. Posting needs an
+  explicit switch.
 - **FR-008**: Every X read, AI call and post is recorded as a cost; a daily spend cap stops the feed for
   the day when reached.
 - **FR-009**: Nothing is stored from other people's posts except their ids and the account handle.
