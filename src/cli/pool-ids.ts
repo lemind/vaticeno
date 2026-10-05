@@ -35,7 +35,7 @@ await runCli('pool-ids', async () => {
     }
   }
 
-  const body = Object.entries(ids).map(([handle, id]) => `  ${JSON.stringify(handle)}: '${id}',`).join('\n');
+  const body = Object.entries(ids).map(([handle, id]) => `  '${handle}': '${id}',`).join('\n');
   writeFileSync(GENERATED_FILE, `${HEADER}\n${body}\n};\n`);
   printJson({ written: GENERATED_FILE, ids: Object.keys(ids).length, failed, usd: (handles.length * X_USER_READ_USD).toFixed(2) });
 });
