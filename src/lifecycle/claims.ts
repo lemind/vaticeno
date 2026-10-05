@@ -27,6 +27,7 @@ export type ClaimDeps = { db: Db; llm: LlmClient; coinbase: Coinbase; normalizer
 
 export type SubmitInput = {
   text: string; // used for the proposal only — never stored or logged (FR-029)
+  context?: readonly string[]; // posts above it in the thread, same rule: read, never stored
   authorId: string;
   sourceTweetId: string;
   summonTweetId: string;
@@ -50,8 +51,8 @@ type Evaluation = { decision: Decision; modelId: string; selfConfidence: number 
 
 // Proposal → checks → price feed confirmation. Shared by submit, fixes and edits found at lock. Paid calls go
 // into `costs` as they happen, so a feed outage after the model call still leaves its cost to record.
-export async function evaluateClaimText(deps: ClaimDeps, text: string, now: Date, costs: CallCost[]): Promise<Evaluation> {
-  const proposed = await proposeContract(deps.llm, deps.normalizerModel, text, now.toISOString().slice(0, 10));
+export async function evaluateClaimText(deps: ClaimDeps, text: string, now: Date, costs: CallCost[], context: readonly string[] = []): Promise<Evaluation> {
+  const proposed = await proposeContract(deps.llm, deps.normalizerModel, text, now.toISOString().slice(0, 10), undefined, context);
   costs.push(...proposed.costs);
   if (proposed.kind === 'malformed') {
     const explanation = "I couldn't turn this into a checkable prediction.";
@@ -90,7 +91,7 @@ export async function submitClaim(deps: ClaimDeps, input: SubmitInput): Promise<
 
   const costs: CallCost[] = [];
   const { decision, modelId, selfConfidence, slug, reply } = await recordingCostsOnFailure(db, null, costs, async () => {
-    const evaluated = await evaluateClaimText(deps, input.text, input.now, costs);
+    const evaluated = await evaluateClaimText(deps, input.text, input.now, costs, input.context ?? []);
     const newSlugValue = await newSlug(async (candidate) => (await db.select({ id: claims.id }).from(claims).where(eq(claims.slug, candidate)).limit(1)).length > 0);
     return { ...evaluated, slug: newSlugValue, reply: await replyFor(deps, evaluated.decision, newSlugValue, input.text, input.now, costs) };
   });

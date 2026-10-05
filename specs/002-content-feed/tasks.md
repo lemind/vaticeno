@@ -135,6 +135,9 @@ runs it by hand. 86 unit and 109 integration tests pass.
 `README.md` carries the feed's status and its three commands, `CLAUDE.md` points at spec 002. Everything
 in this spec is implemented and verified; what is left is the owner's deploy and the queue load.
 
+- [x] T028 Review fixes (code review medium, 2026-10-05): the receipt line no longer carries `#slug` — X rendered it as a hashtag, which own-feed text must not have (constitution VI 2.4.0); the originals and receipts jobs now record their post as a cost row and honour `FEED_DAILY_USD_CAP`, which only the pool job did, so a third of the feed's spend was invisible to its own cap; a dry run of the daily own post no longer reserves anything, since any row at all retired the queue item for good (with `FEED_DRY_RUN=true` as the default, nine dry runs would have silently wiped the nine starter posts); the reserve/post/mark money guard moved into `src/content/spend.ts` (third use), which is what the two later jobs were missing.
+- [x] T029 Thread context and inference (owner report, 2026-10-05): `normalize.v4` never asks for what it can work out — a follower, like or view count with no platform named is an X count; "in a month"/"next month"/"next week"/"by the weekend" are computed from TODAY; a bare name the thread above already names is that subject. The recorder now passes the posts above the mention as `context` (already-paid reads, nothing stored), and the summon's own words when it records the parent post.
+
 ## Dependencies & Execution Order
 
 - T001 blocks every task that posts (T016 live mode, T021, T024); dry run (T019) may start before it.

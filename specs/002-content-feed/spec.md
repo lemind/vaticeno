@@ -105,8 +105,8 @@ feed, at most 2 per day, so the profile shows the product working.
   A dry-run pick uses none of the day's cap, but it does count for "never the same account twice in a
   row" and "never the same post twice", so the rehearsal behaves like the real thing. Posting needs an
   explicit switch.
-- **FR-008**: Every X read, AI call and post is recorded as a cost; a daily spend cap stops the feed for
-  the day when reached.
+- **FR-008**: Every X read, AI call and post is recorded as a cost — by all three jobs, not only the pool
+  one; a daily spend cap stops the whole feed for the day when reached.
 - **FR-009**: Nothing is stored from other people's posts except their ids and the account handle.
 - **FR-010**: Own-feed posting requires a constitution amendment (VI) before it is switched on.
 
@@ -126,8 +126,8 @@ feed, at most 2 per day, so the profile shows the product working.
   counting a repost at the post price ($0.015) until X's repost price is measured; UNRECONCILED until
   the dry run measures X's prices.
 - **SC-003**: A visitor to the profile sees at least 10 own or curated posts before the first invite.
-- **SC-004**: Text Vaticeno adds (quote lines, jokes, originals) never contains @mentions, links or
-  hashtags and never makes a prediction of its own. Reposting or quoting another account's post is
+- **SC-004**: Text Vaticeno adds (quote lines, jokes, originals, receipt lines) never contains @mentions,
+  links or hashtags and never makes a prediction of its own. Reposting or quoting another account's post is
   allowed.
 
 ## Assumptions

@@ -171,6 +171,37 @@ test('a quote turn adds our own line, and X refusing it frees the slot without a
   assert.deepEqual([failed!.status, failed!.slot], ['failed', null]);
 });
 
+test('a dry run of the daily own post leaves the queue alone', async () => {
+  await t.sql`insert into feed_queue ${t.sql({ text: 'Dry run keeps this.', position: 1 })}`;
+  const dry = originalDeps({ dryRun: true, postText: async () => { throw new Error('must not post'); } });
+  assert.equal((await runOriginalPost(dry, NOW)).done, 'logged');
+  assert.equal((await t.sql`select count(*)::int as n from feed_posts`)[0]!.n, 0, 'nothing reserved');
+  // The item is still the next one to go out, for real this time.
+  assert.equal((await runOriginalPost(originalDeps(), NOW)).done, 'posted');
+});
+
+test('the spend cap stops every job, not just the pool', async () => {
+  await recordCost(t.db, { claimId: null, provider: 'x', operation: 'feed_read', units: 1, usdCost: 0.2 });
+  await t.sql`insert into feed_queue ${t.sql({ text: 'Not today.', position: 1 })}`;
+  await verdictClaim('hit', 'vrcap');
+  const deps = originalDeps({ dailyUsdCap: 0.15, postText: async () => { throw new Error('must not post'); }, quotePost: async () => { throw new Error('must not post'); } });
+  assert.equal((await runOriginalPost(deps, new Date())).done, 'cap_reached');
+  assert.deepEqual(await runReceipts(deps, new Date()), { posted: 0 });
+});
+
+test('every posting job records what it spent', async () => {
+  await t.sql`insert into feed_queue ${t.sql({ text: 'Costed post.', position: 1 })}`;
+  await verdictClaim('hit', 'vrcost');
+  const deps = originalDeps();
+  await runOriginalPost(deps, NOW);
+  await runReceipts(deps, NOW);
+  await runPoolPost(contentDeps({ dryRun: false }), NOW);
+  const rows = await t.sql`select operation, count(*)::int as n from cost_events group by operation order by operation`;
+  const byOp = Object.fromEntries(rows.map((r) => [r.operation, r.n]));
+  assert.equal(byOp['feed_post'], 3, 'the own post, the receipt and the pool post');
+  assert.ok((byOp['feed_read'] ?? 0) >= 1, 'the pool read');
+});
+
 test('the spend cap stops the day, and an unreadable account is skipped', async () => {
   await recordCost(t.db, { claimId: null, provider: 'x', operation: 'feed_read', units: 1, usdCost: 0.2 });
   const capped = await runPoolPost(contentDeps({ dailyUsdCap: 0.15 }), new Date());
@@ -244,12 +275,12 @@ test('a verdict is quoted once as a receipt, two a day at most', async () => {
   assert.deepEqual(await runReceipts(deps, NOW), { posted: 2 }, "today's two receipt slots");
   assert.deepEqual(await runReceipts(deps, NOW), { posted: 0 }, 'the day is used up');
   assert.equal(quoted.length, 2);
-  assert.match(quoted[0]!.text, /^RECEIPT · (HIT|MISS) · #\w+$/);
+  assert.match(quoted[0]!.text, /^RECEIPT · (HIT|MISS) · claim \w+$/);
   // Tomorrow the one left over goes out, and nothing is ever quoted twice.
   assert.deepEqual(await runReceipts(deps, new Date('2027-01-02T07:00:00Z')), { posted: 1 });
   assert.equal(new Set(quoted.map((q) => q.id)).size, 3);
   assert.deepEqual([...quoted.map((q) => q.id)].sort(), ['vr1', 'vr2', 'vr3']);
-  assert.ok(quoted.some((q) => q.text.endsWith(`#${first.slug}`)));
+  assert.ok(quoted.some((q) => q.text.endsWith(`claim ${first.slug}`)));
 });
 
 test('an author who sent STOP gets no receipt', async () => {

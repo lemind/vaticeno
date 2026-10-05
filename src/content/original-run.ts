@@ -6,6 +6,8 @@ import { log } from '../log.js';
 import { alert, captureError } from '../observe.js';
 import type { ContentDeps } from './pool-run.js';
 import { markFailed, markPosted, reserveSlot, utcDay } from './slots.js';
+import { overSpendCap, recordFeedPost } from './spend.js';
+import { X_POST_CREATE_USD } from '../x/prices.js';
 
 export type OriginalDeps = ContentDeps & { postText: (text: string) => Promise<{ id: string }> };
 
@@ -14,6 +16,7 @@ export type OriginalRunResult =
   | { done: 'logged' | 'posted'; itemId: string; postedId?: string };
 
 export async function runOriginalPost(deps: OriginalDeps, now: Date): Promise<OriginalRunResult> {
+  if (await overSpendCap(deps, now)) return { done: 'cap_reached' };
   // The next item that is neither marked as posted nor already recorded in feed_posts. The second check
   // matters: if a crash lost the mark after a post went out, that item must not block the whole queue
   // (its row keeps it from being posted again, so without this the feed would go quiet for good).
@@ -32,9 +35,9 @@ export async function runOriginalPost(deps: OriginalDeps, now: Date): Promise<Or
 
   const day = utcDay(now);
   if (deps.dryRun) {
-    const row = await reserveSlot(deps.db, { kind: 'original', day, queueItemId: item.id });
-    if (row) await markFailed(deps.db, row.id); // the slot is given straight back: nothing was posted
-    log('info', 'feed dry run: would post the next original', { event: 'feed.dry_run_original', item_id: item.id, reserved: Boolean(row) });
+    // Nothing is written: a queue item is identified by its id, so any row at all — even a dry-run one —
+    // would retire the item for good and the owner's own writing would never go out.
+    log('info', 'feed dry run: would post the next original', { event: 'feed.dry_run_original', item_id: item.id });
     return { done: 'logged', itemId: item.id };
   }
 
@@ -55,6 +58,7 @@ export async function runOriginalPost(deps: OriginalDeps, now: Date): Promise<Or
   // The item is marked as posted even if this throws afterwards: the row stays reserved, so the item
   // keeps its slot and is never posted twice (its unique key is the queue item).
   await markPosted(deps.db, slot.id, postedId);
+  await recordFeedPost(deps, X_POST_CREATE_USD);
   await deps.db.update(feedQueue).set({ postedAt: now }).where(eq(feedQueue.id, item.id));
   log('info', 'own post published', { event: 'feed.original_posted', item_id: item.id, posted_id: postedId });
   return { done: 'posted', itemId: item.id, postedId };

@@ -5,11 +5,11 @@ import { log } from '../log.js';
 import { alert, captureError } from '../observe.js';
 import { XApiError, type UserPost } from '../x/client.js';
 import { X_POST_READ_USD, X_POST_CREATE_USD, X_REPOST_USD } from '../x/prices.js';
-import { recordCost } from '../db/costs.js';
 import { latestEligible } from './eligible.js';
 import { type PoolAccount, pickAccount, poolAccounts } from './pool.js';
 import { type QuoteDeps, type QuoteMode, ourLineFor } from './quote.js';
-import { feedSpentTodayUsd, logDryRun, markFailed, markPosted, previousAccountId, reserveSlot, usedPostIds, utcDay } from './slots.js';
+import { logDryRun, markFailed, markPosted, previousAccountId, reserveSlot, usedPostIds, utcDay } from './slots.js';
+import { overSpendCap, recordFeedPost, recordFeedRead } from './spend.js';
 
 export type ContentDeps = QuoteDeps & {
   readPosts: (accountId: string) => Promise<UserPost[]>;
@@ -32,11 +32,7 @@ export type PoolRunResult =
 
 export async function runPoolPost(deps: ContentDeps, now: Date): Promise<PoolRunResult> {
   const random = deps.random ?? Math.random;
-  const spent = await feedSpentTodayUsd(deps.db, now);
-  if (spent >= deps.dailyUsdCap) {
-    log('warn', 'feed stopped for the day: spend cap', { event: 'feed.spend_cap', spent_usd: spent, cap_usd: deps.dailyUsdCap });
-    return { done: 'spend_cap' };
-  }
+  if (await overSpendCap(deps, now)) return { done: 'spend_cap' };
 
   const found = await findCandidate(deps, now, random);
   if (!found) return { done: 'no_candidate' };
@@ -77,7 +73,7 @@ export async function runPoolPost(deps: ContentDeps, now: Date): Promise<PoolRun
     return { done: 'cap_reached' };
   }
   await markPosted(deps.db, slot.id, postedId);
-  await spend(deps, kind === 'quote' ? X_POST_CREATE_USD : X_REPOST_USD, 'feed_post');
+  await recordFeedPost(deps, kind === 'quote' ? X_POST_CREATE_USD : X_REPOST_USD);
   log('info', 'feed posted', { event: 'feed.posted', handle: account.handle, account_id: account.id, post_id: post.id, kind, posted_id: postedId });
   return { done: 'posted', account: account.handle, postId: post.id, kind, postedId };
 }
@@ -105,7 +101,7 @@ async function findCandidate(deps: ContentDeps, now: Date, random: () => number)
       }
       throw error; // an outage is not a verdict on the pool: fail the run and retry next slot
     }
-    await spend(deps, posts.length * X_POST_READ_USD, 'feed_read', Math.max(posts.length, 1));
+    await recordFeedRead(deps, posts.length * X_POST_READ_USD, Math.max(posts.length, 1));
 
     const post = latestEligible(posts, now, await usedPostIds(deps.db, posts.map((p) => p.id)));
     if (post) return { account, post };
@@ -114,10 +110,3 @@ async function findCandidate(deps: ContentDeps, now: Date, random: () => number)
   return null;
 }
 
-async function spend(deps: ContentDeps, usdCost: number, operation: 'feed_read' | 'feed_post', units = 1): Promise<void> {
-  try {
-    await recordCost(deps.db, { claimId: null, provider: 'x', operation, units, usdCost });
-  } catch (error) {
-    captureError(error, { event: 'feed.cost_failed', operation }); // never fails the run
-  }
-}

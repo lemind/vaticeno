@@ -64,8 +64,9 @@ export async function routeMention(deps: BotDeps, mention: Mention, now: Date): 
     if (!repliedTo) return { action: 'help', reply: HELP_REPLY };
     if (mention.in_reply_to_user_id !== mention.author_id) return { action: 'third_party', reply: THIRD_PARTY_REPLY };
     const post = await deps.reader.readVersion(repliedTo);
+    // The summon's own words are context for the parent post ("@vaticeno this, by next month").
     const result = await submitClaim(deps, {
-      text: post.text, authorId: mention.author_id, sourceTweetId: repliedTo, summonTweetId: mention.id, sourceVersion: post.versionId, now,
+      text: post.text, context: [body], authorId: mention.author_id, sourceTweetId: repliedTo, summonTweetId: mention.id, sourceVersion: post.versionId, now,
     });
     return { action: `record_parent_${result.outcome}`, reply: result.reply, slug: result.slug };
   }
@@ -84,8 +85,10 @@ export async function routeMention(deps: BotDeps, mention: Mention, now: Date): 
   const current = latest === mention.id ? { versionId: mention.id, text: body } : await currentVersion(deps, mention.id);
   // An edit of the mention gets a new id: the claim is keyed on the first version, so edits never record twice.
   const original = mention.edit_history_tweet_ids?.[0] ?? mention.id;
+  // The posts above resolve "she", "it" and bare names; they are already paid for when this is a reply.
+  const context = repliedTo ? (await threadAbove(deps, repliedTo)).map((post) => post.text) : [];
   const result = await submitClaim(deps, {
-    text: current.text, authorId: mention.author_id, sourceTweetId: original, summonTweetId: mention.id, sourceVersion: current.versionId, now,
+    text: current.text, context, authorId: mention.author_id, sourceTweetId: original, summonTweetId: mention.id, sourceVersion: current.versionId, now,
   });
   // Not a prediction: the model reads the thread — once per mention (a command word already had its turn).
   if (result.outcome === 'rejected' && result.rejectReason === 'not_prediction' && !firstAssessed) {

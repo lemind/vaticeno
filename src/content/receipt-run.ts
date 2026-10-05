@@ -7,12 +7,15 @@ import { log } from '../log.js';
 import { captureError } from '../observe.js';
 import type { OriginalDeps } from './original-run.js';
 import { FEED_CAPS, markFailed, markPosted, reserveSlot, utcDay } from './slots.js';
+import { overSpendCap, recordFeedPost } from './spend.js';
+import { X_POST_CREATE_USD } from '../x/prices.js';
 
 const RECENT_MS = 7 * 24 * 3_600_000; // an old verdict is not news; receipts follow the live feed
 
 export type ReceiptDeps = OriginalDeps;
 
 export async function runReceipts(deps: ReceiptDeps, now: Date): Promise<{ posted: number }> {
+  if (await overSpendCap(deps, now)) return { posted: 0 };
   const since = new Date(now.getTime() - RECENT_MS);
   const due = await deps.db
     .select({ slug: claims.slug, authorId: claims.authorXUserId, replyId: claims.verdictReplyTweetId, outcome: resolutions.outcome })
@@ -34,7 +37,8 @@ export async function runReceipts(deps: ReceiptDeps, now: Date): Promise<{ poste
 
   let posted = 0;
   for (const claim of due) {
-    const text = `RECEIPT · ${claim.outcome!.toUpperCase()} · #${claim.slug}`;
+    // No "#" before the slug: X would turn it into a hashtag, which own-feed text must not carry.
+    const text = `RECEIPT · ${claim.outcome!.toUpperCase()} · claim ${claim.slug}`;
     const day = utcDay(now);
     if (deps.dryRun) {
       log('info', 'feed dry run: would post a receipt', { event: 'feed.dry_run_receipt', slug: claim.slug, text });
@@ -47,6 +51,7 @@ export async function runReceipts(deps: ReceiptDeps, now: Date): Promise<{ poste
     try {
       const quote = await deps.quotePost(claim.replyId!, text);
       await markPosted(deps.db, slot.id, quote.id);
+      await recordFeedPost(deps, X_POST_CREATE_USD);
       posted += 1;
       log('info', 'receipt posted', { event: 'feed.receipt_posted', slug: claim.slug, outcome: claim.outcome, posted_id: quote.id });
     } catch (error) {
