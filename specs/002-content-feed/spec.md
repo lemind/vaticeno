@@ -92,7 +92,10 @@ feed, at most 2 per day, so the profile shows the product working.
   the latest eligible one (≤ 48 h old, not posted by us before). None → pick another account, at most 3
   tries per run.
 - **FR-003**: About 9 runs in 10 repost the latest post plainly; no AI call.
-- **FR-004**: About 1 run in 10 quote-posts it instead: half the time with a verified quote (the same
+- **FR-004**: **Blocked by X since 2026-10-05**: quoting a pool account's post is refused with 403
+  ("You can only reply to or quote posts where you are mentioned or are the author"), so every pool run
+  reposts plainly and Vaticeno's own words appear only on posts it authored (receipts). If X's access
+  changes, this returns as written: about 1 run in 10 quote-posts instead: half the time with a verified quote (the same
   checked source as the `quote` command, the AI only picks the topic), half the time with a short AI joke
   about the post. Our text: ≤ 200 characters, no tags, links or hashtags, no prediction of its own;
   anything that fails falls back to a plain repost.

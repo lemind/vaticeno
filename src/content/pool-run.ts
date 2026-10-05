@@ -21,8 +21,13 @@ export type ContentDeps = QuoteDeps & {
   random?: () => number;
 };
 
-// 9 runs in 10 repost plainly; the rest split evenly between a sourced quote and a joke (FR-003/FR-004).
-const REPOST_SHARE = 0.9;
+// HACK(x): OBSERVED 2026-10-05 — X answers 403 "You can only reply to or quote posts where you are
+// mentioned or are the author" when quoting a pool account's post, so every pool run reposts plainly
+// for now. Our own words still go out on our own posts (receipts quote our verdict replies, which we
+// authored). `--mode quote|joke` still forces the attempt by hand.
+// REVISIT: if X's access level changes (or a quote of a third party succeeds by hand), set this back
+// to 0.9 and the 1-in-10 quote turn returns.
+const REPOST_SHARE = 1;
 export const HAND_RUN_SLOTS = 10; // room for a hand-run on top of the day's cap
 const MAX_TRIES = 3;
 

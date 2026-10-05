@@ -144,6 +144,9 @@ in this spec is implemented and verified; what is left is the owner's deploy and
 
 - [x] T032 Two live failures fixed (owner reports 2026-10-05, both read back from X): a Wikiquote source line whose citation template opened on that line but closed on the next left `{{cite news` in a posted reply — an unterminated template is now cut, the author's name alone is kept, and any entry still carrying wikitext (doubled braces or brackets, a pipe, a `<ref`) is skipped rather than posted, with the same guard again on the finished reply; single `[brackets]` stay, since a quotation may carry an editorial insertion. Separately, `normalize.v5`: an event on a known schedule IS a deadline — "the next US presidential election" is recorded as 2028-11-07, not sent back as a question — and the rule is written into `CLAUDE.md` and the 001 spec: if a date can go into the suggested example, it must be recorded.
 
+- [x] T033 Hand-picked post kind, and a closed claim records anew (owner decisions 2026-10-05): `content:tick -- pool --mode repost|quote|joke` forces one kind instead of the roll; a reply under a claim that can no longer change (locked, closed, expired, out of fixes) is recorded as a NEW claim instead of being answered "can no longer be changed" — only a mid-flight conflict still gets the refusal.
+- [x] T034 X blocks quoting third parties (OBSERVED 2026-10-05): a quote post of a pool account's post is refused with 403 "You can only reply to or quote posts where you are mentioned or are the author". Pool runs are plain reposts for now (`REPOST_SHARE = 1`, tagged `HACK(x)` with a REVISIT); receipts still work because we quote our own verdict replies. FR-004 marked blocked in the spec.
+
 ## Dependencies & Execution Order
 
 - T001 blocks every task that posts (T016 live mode, T021, T024); dry run (T019) may start before it.
