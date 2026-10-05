@@ -75,7 +75,9 @@ Reply with the prediction and a date.
 - X rules: `NOT RECORDED — I can't record this one.` (no quote, no explanation)
 - duplicate: `ALREADY RECORDED · #{existing_slug}`
 - sports match not found scheduled: `NOT RECORDED — I can't find that match scheduled — name both teams and the day.`
-- selfpromo (aliases: selfpromote, promo; filler words like "1", "please" allowed): `{one of 5 mottos}\n\n{AI joke ≤ 140 chars}` (motto alone if the model fails)
+- Commands: the first word decides — `quote`, `help`, `selfpromo`, `ping`, `STOP` followed by any text are that
+  command (`quote pp`); typos (`qoute`) only with filler words after them.
+- selfpromo (aliases: selfpromote, promo): `{one of 5 mottos}\n\n{AI joke ≤ 140 chars}` (motto alone if the model fails)
 - quote: `“{quote}” — {author}, {source}` from Wikiquote; if it can't be fetched, no reply yet: retried after 1, 5, 30 and 120 min, then dropped with an alert
 - STOP: `STOPPED — I won't reply to you until you tag me again. Your locked predictions are still checked.`
 - someone else's post: `NOT RECORDED — I only record your own predictions. Tag me under your post.`

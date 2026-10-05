@@ -579,8 +579,9 @@ shown but never count as a contradiction.
   one of five fixed mottos plus a short AI-written joke (no gambling call to action); `@vaticeno quote` → a sourced
   quote from Wikiquote's topic pages (gambling, betting, luck, chance, risk, prediction, sports, bitcoin…),
   fetched live, never stored, no AI; if Wikiquote is down the quote is sent later (1, 5, 30, 120 min). Commands are matched in code, with a
-  few aliases, small typos and up to 3 filler words ("selfpromote", "qoute", "quote 1", "stop please"); any
-  content ("stop at 90k") makes it a prediction or a fix.
+  few aliases and small typos. An exact command word followed by any text is that command ("quote pp",
+  "help what is this"; owner decision 2026-10-05); a typo of one ("qoute") counts only with filler words
+  ("qoute 2"), so a prediction that merely starts with a similar word stays a prediction.
 - Opt-out: `@vaticeno STOP` gets a STOPPED reply; the author stays opted out until they tag the bot again
   (owner decision 2026-09-30); their locked claims still resolve (constitution IV). Listed in the help reply.
 - Edits to the original tweet count as amends before lock and are ignored after it. In Stage 0 the

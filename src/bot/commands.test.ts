@@ -10,9 +10,9 @@ test('commands: exact, aliases, small typos and a few extra words; longer text i
     ['ping test 2', 'ping'], ['STOP', 'stop'], ['stop.', 'stop'], ['stop it please', 'stop'],
     ['quote please', 'quote'], ['quote 🙏', 'quote'],
     ['stoop', null], ['pin', null], ['pong', null], ['hope', null],
-    ['stop at 90k', null], ['Stop loss at 85k', null], ['about 95k by Friday', null], ['About to hit 100k', null],
-    ['promo ends Friday', null], ['help, I meant 95k', null], ['quite sure BTC 100k', null], ['held 100k by Friday', null],
-    ['Quote me: BTC hits 200k by 2027', null], ['stop loss hit before BTC reaches 90k', null],
+    ['quote pp', 'quote'], ['help what is this', 'help'], ['stop at 90k', 'stop'], ['promo ends Friday', 'selfpromo'],
+    ['Quote me: BTC hits 200k by 2027', 'quote'], ['qoute pp', null], ['about 95k by Friday', null], ['About to hit 100k', null],
+    ['quite sure BTC 100k', null], ['held 100k by Friday', null],
     ['BTC closes above $100k by Oct 3', null], ['bitcoin will explode next month', null], ['', null],
   ];
   for (const [input, expected] of cases) assert.equal(resolveCommand(input), expected, input);
