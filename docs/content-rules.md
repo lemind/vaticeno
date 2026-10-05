@@ -58,30 +58,31 @@ Never the same account twice in a row, never the same post twice. The bot follow
 
 Score = popularity + virality + Vaticeno relevance (each 1–10, owner research 2026-10-05).
 Weight = score − 15, so the top accounts come up about 5× as often as the weakest.
-Chance = weight / 157 per pick; picks per month at 60 picks.
+Chance = weight / 147 per pick; picks per month at 60 picks.
 
 | Account | Field | Score | Weight | Chance | Picks/month |
 |---|---|---:|---:|---:|---:|
-| @FabrizioRomano | sport | 30 | 15 | 9.6% | ~5.7 |
-| @AdamSchefter | sport | 30 | 15 | 9.6% | ~5.7 |
-| platform account kept by the owner outside the repo | forecasting | 29 | 14 | 8.9% | ~5.4 |
-| @NateSilver538 | statistics | 28 | 13 | 8.3% | ~5.0 |
-| @Kalshi | forecasting | 27 | 12 | 7.6% | ~4.6 |
-| @100trillionUSD | crypto | 27 | 12 | 7.6% | ~4.6 |
-| @RaoulGMI | crypto | 25 | 10 | 6.4% | ~3.8 |
-| @StatMuse | sport | 25 | 10 | 6.4% | ~3.8 |
-| @OptaJoe | sport | 25 | 10 | 6.4% | ~3.8 |
-| @ESPNStatsInfo | sport | 25 | 10 | 6.4% | ~3.8 |
-| @OptaAnalyst | sport | 23 | 8 | 5.1% | ~3.1 |
-| @OurWorldInData | statistics | 21 | 6 | 3.8% | ~2.3 |
-| @gelliottmorris | statistics | 21 | 6 | 3.8% | ~2.3 |
-| @metaculus | forecasting | 20 | 5 | 3.2% | ~1.9 |
-| @Statsbomb | sport | 19 | 4 | 2.5% | ~1.5 |
-| @ManifoldMarkets | forecasting | 19 | 4 | 2.5% | ~1.5 |
-| @_1woonomic | crypto | 18 | 3 | 1.9% | ~1.1 |
-| **17 accounts** | | | **157** | 100% | 60 |
+| @FabrizioRomano | sport | 30 | 15 | 10.2% | ~6.1 |
+| @AdamSchefter | sport | 30 | 15 | 10.2% | ~6.1 |
+| platform account kept by the owner outside the repo | forecasting | 29 | 14 | 9.5% | ~5.7 |
+| @NateSilver538 | statistics | 28 | 13 | 8.8% | ~5.3 |
+| @Kalshi | forecasting | 27 | 12 | 8.2% | ~4.9 |
+| @100trillionUSD | crypto | 27 | 12 | 8.2% | ~4.9 |
+| @RaoulGMI | crypto | 25 | 10 | 6.8% | ~4.1 |
+| @StatMuse | sport | 25 | 10 | 6.8% | ~4.1 |
+| @OptaJoe | sport | 25 | 10 | 6.8% | ~4.1 |
+| @OptaAnalyst | sport | 23 | 8 | 5.4% | ~3.3 |
+| @OurWorldInData | statistics | 21 | 6 | 4.1% | ~2.4 |
+| @gelliottmorris | statistics | 21 | 6 | 4.1% | ~2.4 |
+| @metaculus | forecasting | 20 | 5 | 3.4% | ~2.0 |
+| @Statsbomb | sport | 19 | 4 | 2.7% | ~1.6 |
+| @ManifoldMarkets | forecasting | 19 | 4 | 2.7% | ~1.6 |
+| @_1woonomic | crypto | 18 | 3 | 2.0% | ~1.2 |
+| **16 accounts** | | | **147** | 100% | 60 |
 
-Left out: `@CryptoHayes` (unavailable on X since 2026-07-07), `@saylor`, `@PeterSchiff`.
+Left out: `@CryptoHayes` (unavailable on X since 2026-07-07), `@ESPNStatsInfo` (the handle no longer
+belongs to ESPN — it now carries a betting brand, 2026-10-05), `@saylor`, `@PeterSchiff`. A handle can
+change hands: check an account before adding it, and the dry run's logged picks show who we would repost.
 Scores and weights live in config next to each account's numeric id; the owner can change them.
 
 ## Starter posts (before inviting anyone)

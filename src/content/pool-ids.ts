@@ -9,7 +9,6 @@ export const POOL_IDS: Readonly<Record<string, string>> = {
   'RaoulGMI': '2453385626',
   'StatMuse': '2772543750',
   'OptaJoe': '44606764',
-  'ESPNStatsInfo': '2301831317',
   'OptaAnalyst': '179500584',
   'OurWorldInData': '3169963433',
   'gelliottmorris': '57029492',

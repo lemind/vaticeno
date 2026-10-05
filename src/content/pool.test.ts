@@ -19,14 +19,14 @@ function seeded(seed: number): () => number {
 
 const IDS = Object.fromEntries(POOL.filter((e) => e.handle !== PLATFORM_HANDLE).map((e, i) => [e.handle, `id${i}`]));
 
-test('the pool is the 17 accounts of docs/content-rules.md, weights summing to 157', () => {
-  assert.equal(POOL.length, 17);
-  assert.equal(POOL.reduce((sum, e) => sum + e.weight, 0), 157);
+test('the pool is the 16 accounts of docs/content-rules.md, weights summing to 147', () => {
+  assert.equal(POOL.length, 16);
+  assert.equal(POOL.reduce((sum, e) => sum + e.weight, 0), 147);
 });
 
 test('an account is read only with a known numeric id', () => {
-  assert.equal(poolAccounts(undefined, IDS).length, 16, 'the platform account needs its env id');
-  assert.equal(poolAccounts('p9', IDS).length, 17);
+  assert.equal(poolAccounts(undefined, IDS).length, 15, 'the platform account needs its env id');
+  assert.equal(poolAccounts('p9', IDS).length, 16);
   assert.equal(poolAccounts('p9', IDS).find((a) => a.handle === PLATFORM_HANDLE)?.id, 'p9');
   assert.equal(poolAccounts('p9', {}).length, 1, 'no lookup has run yet: only the configured account');
 });
@@ -42,7 +42,7 @@ test('picks follow the weights', () => {
   }
   for (const account of accounts) {
     const share = (picks.get(account.handle) ?? 0) / runs;
-    const expected = account.weight / 157;
+    const expected = account.weight / 147;
     assert.ok(Math.abs(share - expected) < 0.015, `${account.handle}: ${share.toFixed(3)} vs ${expected.toFixed(3)}`);
   }
 });
@@ -58,7 +58,7 @@ test('the previous run’s account never comes up again, and a lone account yiel
 test('a disabled account is dropped from the pool, so it is never read or picked', () => {
   const pool = POOL.map((e) => (e.handle === 'OptaJoe' ? { ...e, enabled: false } : e));
   const accounts = poolAccounts('p9', IDS, pool);
-  assert.equal(accounts.length, 16);
+  assert.equal(accounts.length, 15);
   assert.equal(accounts.find((a) => a.handle === 'OptaJoe'), undefined);
   const random = seeded(11);
   for (let i = 0; i < 2000; i++) assert.notEqual(pickAccount(accounts, null, random)!.handle, 'OptaJoe');

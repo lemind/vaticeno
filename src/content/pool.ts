@@ -24,7 +24,6 @@ export const POOL: readonly PoolEntry[] = [
   { handle: 'RaoulGMI', field: 'crypto', weight: 10, enabled: true },
   { handle: 'StatMuse', field: 'sport', weight: 10, enabled: true },
   { handle: 'OptaJoe', field: 'sport', weight: 10, enabled: true },
-  { handle: 'ESPNStatsInfo', field: 'sport', weight: 10, enabled: true },
   { handle: 'OptaAnalyst', field: 'sport', weight: 8, enabled: true },
   { handle: 'OurWorldInData', field: 'statistics', weight: 6, enabled: true },
   { handle: 'gelliottmorris', field: 'statistics', weight: 6, enabled: true },
