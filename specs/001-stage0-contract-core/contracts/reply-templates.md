@@ -6,7 +6,7 @@ Only the parts in `{…}` vary. `{statement}` is rendered from the contract, nev
 ```
 RECORDED · #{slug}
 "{statement}"
-Fix in 15 min: reply with the corrected prediction
+Edits accepted for 15 min.
 ```
 The statement is the criterion plus the deadline (if the criterion lacks it); no source — the resolver picks the sources.
 Budget: the frame is ~80 chars (no link: there is no public site yet), so the statement gets ~180 —

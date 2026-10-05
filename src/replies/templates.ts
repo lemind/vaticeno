@@ -8,7 +8,7 @@ const X_LINK_CHARS = 23; // X counts every link as 23 characters
 
 export function recordedReply(slug: string, statement: string): string {
   return assertReplyFits(
-    `RECORDED · #${slug}\n"${statement}"\nFix in 15 min: reply with the corrected prediction`,
+    `RECORDED · #${slug}\n"${statement}"\nEdits accepted for 15 min.`,
   );
 }
 
