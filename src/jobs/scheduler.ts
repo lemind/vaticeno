@@ -13,12 +13,13 @@ import { withJobLock } from './lock.js';
 import { type BotDeps, pollMentions } from '../bot/mentions.js';
 import { runPoolPost } from '../content/pool-run.js';
 import { type OriginalDeps, runOriginalPost } from '../content/original-run.js';
+import { runReceipts } from '../content/receipt-run.js';
 import { deliverVerdicts, postLockReplies } from '../bot/verdicts.js';
 
 export type SchedulerDeps = ClaimDeps & ResolverDeps & { reader: SourceReader; sql: Sql; bot: BotDeps | null; content: OriginalDeps | null };
 
 // The pool run twice a day at an off-the-hour minute, so the feed never looks like a clock (spec 002).
-const SCHEDULES = { mentions: '* * * * *', lock: '* * * * *', expire: '*/10 * * * *', resolve: '0 * * * *', verdicts: '*/5 * * * *', pool: '23 9,18 * * *', original: '41 13 * * *' } as const;
+const SCHEDULES = { mentions: '* * * * *', lock: '* * * * *', expire: '*/10 * * * *', resolve: '0 * * * *', verdicts: '*/5 * * * *', pool: '23 9,18 * * *', original: '41 13 * * *', receipts: '7 * * * *' } as const;
 
 export function startScheduler(deps: SchedulerDeps): { stop: () => Promise<void> } {
   const now = () => new Date();
@@ -40,6 +41,8 @@ export function startScheduler(deps: SchedulerDeps): { stop: () => Promise<void>
     pool: async () => (deps.content ? runPoolPost(deps.content, now()) : null),
     // One owner-written post a day, from the queue; no AI (spec 002 US2).
     original: async () => (deps.content ? runOriginalPost(deps.content, now()) : null),
+    // Receipts: the bot's own verdict replies quoted on the feed, at most two a day (spec 002 US3).
+    receipts: async () => (deps.content ? runReceipts(deps.content, now()) : null),
   };
 
   const tasks = (Object.keys(jobs) as Array<keyof typeof SCHEDULES>).map((name) =>

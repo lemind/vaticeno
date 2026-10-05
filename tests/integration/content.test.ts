@@ -7,7 +7,8 @@ import { feedSpentTodayUsd, logDryRun, markFailed, markPosted, previousAccountId
 import { runPoolPost, type ContentDeps } from '../../src/content/pool-run.js';
 import { runOriginalPost, type OriginalDeps } from '../../src/content/original-run.js';
 import { XApiError, type UserPost } from '../../src/x/client.js';
-import { setupTestDb, type TestDb } from './helpers.js';
+import { runReceipts } from '../../src/content/receipt-run.js';
+import { insertClaim, insertEvidence, setupTestDb, type TestDb } from './helpers.js';
 
 let t: TestDb;
 before(async () => { t = await setupTestDb(); });
@@ -223,4 +224,39 @@ test('X refusing an own post frees the day and never retries it', async () => {
   assert.deepEqual([failed!.status, failed!.slot], ['failed', null]);
   // Its row still names the item, so the item is never attempted again.
   assert.equal((await runOriginalPost(refusing, new Date('2027-01-02T13:41:00Z'))).done, 'empty_queue');
+});
+
+// Receipts (US3): one per verdict, at most two a day, never for an author who sent STOP.
+async function verdictClaim(outcome: 'hit' | 'miss', replyId: string) {
+  const claim = await insertClaim(t.sql, 'resolved', { verdict_reply_at: NOW.toISOString(), verdict_reply_tweet_id: replyId });
+  const evidence = await insertEvidence(t.sql, claim.id, { says: outcome, value: '151000' });
+  await t.sql`insert into resolutions ${t.sql({ claim_id: claim.id, review_status: 'final', outcome, decided_by: 'evidence', deciding_evidence_id: evidence.id, decided_at: NOW.toISOString() })}`;
+  return claim;
+}
+
+test('a verdict is quoted once as a receipt, two a day at most', async () => {
+  const first = await verdictClaim('hit', 'vr1');
+  await verdictClaim('miss', 'vr2');
+  await verdictClaim('hit', 'vr3');
+  const quoted: Array<{ id: string; text: string }> = [];
+  const deps = originalDeps({ quotePost: async (id, text) => { quoted.push({ id, text }); return { id: `own${quoted.length}` }; } });
+
+  assert.deepEqual(await runReceipts(deps, NOW), { posted: 2 }, "today's two receipt slots");
+  assert.deepEqual(await runReceipts(deps, NOW), { posted: 0 }, 'the day is used up');
+  assert.equal(quoted.length, 2);
+  assert.match(quoted[0]!.text, /^RECEIPT · (HIT|MISS) · #\w+$/);
+  // Tomorrow the one left over goes out, and nothing is ever quoted twice.
+  assert.deepEqual(await runReceipts(deps, new Date('2027-01-02T07:00:00Z')), { posted: 1 });
+  assert.equal(new Set(quoted.map((q) => q.id)).size, 3);
+  assert.deepEqual([...quoted.map((q) => q.id)].sort(), ['vr1', 'vr2', 'vr3']);
+  assert.ok(quoted.some((q) => q.text.endsWith(`#${first.slug}`)));
+});
+
+test('an author who sent STOP gets no receipt', async () => {
+  await verdictClaim('hit', 'vr9');
+  await t.sql`insert into opt_outs ${t.sql({ x_user_id: '200' })}`; // insertClaim's author
+  const quoted: string[] = [];
+  const deps = originalDeps({ quotePost: async (id) => { quoted.push(id); return { id: 'own1' } ; } });
+  assert.deepEqual(await runReceipts(deps, NOW), { posted: 0 });
+  assert.deepEqual(quoted, []);
 });

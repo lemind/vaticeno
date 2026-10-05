@@ -1,0 +1,58 @@
+// Receipts (spec 002 US3): the bot quote-posts its own verdict reply on the main feed, so the profile
+// shows the product working. Our text is the verdict line only — no tags, no links, nothing of the
+// author's words (constitution V, VI 2.4.0). At most two a day, never the same verdict twice.
+import { and, desc, eq, gt, isNotNull, notExists } from 'drizzle-orm';
+import { claims, feedPosts, optOuts, resolutions } from '../db/schema.js';
+import { log } from '../log.js';
+import { captureError } from '../observe.js';
+import type { OriginalDeps } from './original-run.js';
+import { FEED_CAPS, markFailed, markPosted, reserveSlot, utcDay } from './slots.js';
+
+const RECENT_MS = 7 * 24 * 3_600_000; // an old verdict is not news; receipts follow the live feed
+
+export type ReceiptDeps = OriginalDeps;
+
+export async function runReceipts(deps: ReceiptDeps, now: Date): Promise<{ posted: number }> {
+  const since = new Date(now.getTime() - RECENT_MS);
+  const due = await deps.db
+    .select({ slug: claims.slug, authorId: claims.authorXUserId, replyId: claims.verdictReplyTweetId, outcome: resolutions.outcome })
+    .from(claims)
+    .innerJoin(resolutions, eq(resolutions.claimId, claims.id))
+    .where(and(
+      isNotNull(claims.verdictReplyTweetId),
+      gt(claims.verdictReplyAt, since),
+      eq(resolutions.reviewStatus, 'final'),
+      isNotNull(resolutions.outcome),
+      // The author's STOP covers the feed too: no receipt for their claim (constitution IV).
+      notExists(deps.db.select({ id: optOuts.xUserId }).from(optOuts).where(eq(optOuts.xUserId, claims.authorXUserId))),
+      // Verdicts we have already quoted (or tried to) are out of the running: without this, two old
+      // verdicts would be picked again every run and a fresh verdict would never get its receipt.
+      notExists(deps.db.select({ id: feedPosts.id }).from(feedPosts).where(eq(feedPosts.sourcePostId, claims.verdictReplyTweetId))),
+    ))
+    .orderBy(desc(claims.verdictReplyAt)) // newest verdict first: a receipt is only interesting while fresh
+    .limit(FEED_CAPS.receipt);
+
+  let posted = 0;
+  for (const claim of due) {
+    const text = `RECEIPT · ${claim.outcome!.toUpperCase()} · #${claim.slug}`;
+    const day = utcDay(now);
+    if (deps.dryRun) {
+      log('info', 'feed dry run: would post a receipt', { event: 'feed.dry_run_receipt', slug: claim.slug, text });
+      continue;
+    }
+    // The verdict reply is the source: one receipt per verdict, whatever happens next.
+    const slot = await reserveSlot(deps.db, { kind: 'receipt', day, sourcePostId: claim.replyId! });
+    if (!slot) continue; // already posted, or both of today's receipt slots are used
+
+    try {
+      const quote = await deps.quotePost(claim.replyId!, text);
+      await markPosted(deps.db, slot.id, quote.id);
+      posted += 1;
+      log('info', 'receipt posted', { event: 'feed.receipt_posted', slug: claim.slug, outcome: claim.outcome, posted_id: quote.id });
+    } catch (error) {
+      await markFailed(deps.db, slot.id);
+      captureError(error, { event: 'feed.receipt_failed', slug: claim.slug });
+    }
+  }
+  return { posted };
+}

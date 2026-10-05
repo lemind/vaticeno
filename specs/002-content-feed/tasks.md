@@ -112,8 +112,15 @@ daily cap, "never twice" and the crash cases are covered by integration tests (1
 
 **Independent test**: a claim with `verdict_reply_tweet_id` set and no receipt row → one RECEIPT quote post; a STOPped author → none.
 
-- [ ] T024 [US3] `src/content/receipt-run.ts`: claims with a posted verdict reply in the last 7 days, author not in `opt_outs`, no `feed_posts` row for that reply id → reserve (`receipt`, cap 2, source = verdict reply id) → quote post `RECEIPT · {HIT|MISS|VOID} · #slug` → mark.
-- [ ] T025 [US3] Schedule `receipts` hourly in `src/jobs/scheduler.ts`; add to `content:tick`.
+- [x] T024 [US3] `src/content/receipt-run.ts`: claims with a posted verdict reply in the last 7 days, author not in `opt_outs`, no `feed_posts` row for that reply id → reserve (`receipt`, cap 2, source = verdict reply id) → quote post `RECEIPT · {HIT|MISS|VOID} · #slug` → mark.
+- [x] T025 [US3] Schedule `receipts` hourly in `src/jobs/scheduler.ts`; add to `content:tick`.
+
+- [x] T025a Review fix (2026-10-05): the receipts query now skips verdicts that already have a `feed_posts` row and takes the newest first — without it, two old verdicts were re-picked every run and a fresh verdict would never have got its receipt (found by the test).
+
+**Checkpoint**: US3 done ✅ — the `receipts` job runs hourly (`ENABLE_FEED=true`) and quote-posts the
+bot's own verdict reply as `RECEIPT · HIT|MISS|VOID · #slug`, at most 2 a day, once per verdict, never
+for an author who sent STOP, and only for verdicts from the last 7 days. `npm run content:tick -- receipts`
+runs it by hand. 86 unit and 109 integration tests pass.
 
 ---
 
