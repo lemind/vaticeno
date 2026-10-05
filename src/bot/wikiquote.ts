@@ -4,14 +4,18 @@ import { hasTagsOrLinks } from '../replies/templates.js';
 
 const API = 'https://en.wikiquote.org/w/api.php';
 const USER_AGENT = 'VaticenoBot/1.0 (https://x.com/vaticeno)'; // Wikimedia asks every client to identify itself
-const TOPICS = ['Gambling', 'Betting', 'Luck', 'Chance', 'Risk', 'Prediction', 'Forecasting', 'Speculation', 'Sports', 'Bitcoin'];
+// Also offered to the model that matches a quote to a post (spec 002 T012); it may only pick from these.
+export const QUOTE_TOPICS = ['Gambling', 'Betting', 'Luck', 'Chance', 'Risk', 'Prediction', 'Forecasting', 'Speculation', 'Sports', 'Bitcoin'] as const;
+const TOPICS: readonly string[] = QUOTE_TOPICS;
 const STOP_SECTIONS = /^==+\s*(misattributed|disputed|unsourced|see also|external links|about|quotes about)/i;
 const TIMEOUT_MS = 10_000;
 
 export type Quote = { text: string; by: string };
 
-export async function wikiquoteQuote(pick: <T>(items: readonly T[]) => T, pagesTried = 3): Promise<Quote | null> {
-  const topics = [...TOPICS].sort(() => Math.random() - 0.5).slice(0, pagesTried);
+// `topic` (the feed's chosen one) is tried first; the random topics are the fallback, as before.
+export async function wikiquoteQuote(pick: <T>(items: readonly T[]) => T, pagesTried = 3, topic?: string): Promise<Quote | null> {
+  const shuffled = [...TOPICS].sort(() => Math.random() - 0.5).slice(0, pagesTried);
+  const topics = topic ? [topic, ...shuffled.filter((t) => t !== topic)] : shuffled;
   for (const topic of topics) {
     const quotes = quotesOn(await pageWikitext(topic));
     if (quotes.length > 0) return pick(quotes);

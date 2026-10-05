@@ -86,6 +86,16 @@ export async function logDryRun(db: Db, reservation: Reservation): Promise<{ id:
   return row ?? null;
 }
 
+// Which of these post ids we have already used (any status, any day): never the same post twice.
+export async function usedPostIds(db: Db, ids: readonly string[]): Promise<Set<string>> {
+  if (ids.length === 0) return new Set();
+  const rows = await db
+    .select({ sourcePostId: feedPosts.sourcePostId })
+    .from(feedPosts)
+    .where(inArray(feedPosts.sourcePostId, [...ids]));
+  return new Set(rows.map((row) => row.sourcePostId).filter((id): id is string => id !== null));
+}
+
 // The pool account of the last run, dry or live: the next run must not pick it again (FR-002).
 export async function previousAccountId(db: Db): Promise<string | null> {
   const [row] = await db

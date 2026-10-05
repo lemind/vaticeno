@@ -4,6 +4,8 @@ import assert from 'node:assert/strict';
 import { after, before, beforeEach, test } from 'node:test';
 import { recordCost } from '../../src/db/costs.js';
 import { feedSpentTodayUsd, logDryRun, markFailed, markPosted, previousAccountId, reserveSlot, utcDay } from '../../src/content/slots.js';
+import { runPoolPost, type ContentDeps } from '../../src/content/pool-run.js';
+import { XApiError, type UserPost } from '../../src/x/client.js';
 import { setupTestDb, type TestDb } from './helpers.js';
 
 let t: TestDb;
@@ -100,4 +102,78 @@ test("the daily spend counts the feed's own costs only", async () => {
   assert.equal(await feedSpentTodayUsd(t.db, today), 0.04);
   const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
   assert.equal(await feedSpentTodayUsd(t.db, tomorrow), 0, "yesterday's spend never counts");
+});
+
+// The pool run end to end, with X and the model stubbed: a dry run records and posts nothing, a live run
+// posts once and marks the row, and a refusal from X frees the slot without a retry.
+function contentDeps(over: Partial<ContentDeps> & { posts?: UserPost[] } = {}): ContentDeps {
+  const posts = over.posts ?? [{ id: 'src1', text: 'City will beat Arsenal on Sunday', created_at: NOW.toISOString() }];
+  return {
+    db: t.db,
+    normalizerModel: 'stub',
+    llm: { generateJson: async () => ({ data: { line: 'That one is on the record now.' }, costs: [] }) },
+    quoteSource: async () => ({ text: 'Prediction is very difficult.', by: 'Niels Bohr' }),
+    readPosts: async () => posts,
+    repost: async () => true,
+    quotePost: async () => ({ id: 'own1' }),
+    dryRun: true,
+    dailyUsdCap: 0.15,
+    platformAccountId: undefined,
+    random: () => 0.5, // a plain repost
+    ...over,
+  } as unknown as ContentDeps;
+}
+
+test('a dry run records the pick, posts nothing, and holds no slot', async () => {
+  const calls: string[] = [];
+  const deps = contentDeps({ repost: async () => { calls.push('repost'); return true; } });
+  const run = await runPoolPost(deps, NOW);
+  assert.equal(run.done, 'logged');
+  assert.deepEqual(calls, []);
+  const [row] = await t.sql`select status, slot, source_post_id from feed_posts`;
+  assert.deepEqual([row!.status, row!.slot, row!.source_post_id], ['dry_run', null, 'src1']);
+  // The same post is not picked again, and the day's cap is untouched.
+  assert.equal((await runPoolPost(deps, NOW)).done, 'no_candidate');
+});
+
+test('a live run reposts once, marks the row, and records the cost', async () => {
+  const reposted: string[] = [];
+  const deps = contentDeps({ dryRun: false, repost: async (id) => { reposted.push(id); return true; } });
+  const run = await runPoolPost(deps, NOW);
+  assert.deepEqual([run.done, reposted], ['posted', ['src1']]);
+  const [row] = await t.sql`select kind, status, slot, posted_id from feed_posts`;
+  assert.deepEqual([row!.kind, row!.status, row!.slot, row!.posted_id], ['repost', 'posted', 1, null]);
+  const [cost] = await t.sql`select operation, units from cost_events where operation = 'feed_post'`;
+  assert.equal(cost!.operation, 'feed_post');
+  // Never the same post twice, even on a later day.
+  assert.equal((await runPoolPost(deps, new Date('2027-01-02T09:00:00Z'))).done, 'no_candidate');
+});
+
+test('a quote turn adds our own line, and X refusing it frees the slot without a retry', async () => {
+  const quoted: Array<{ id: string; text: string }> = [];
+  const deps = contentDeps({
+    dryRun: false,
+    random: () => 0.95, // the quote turn, joke half
+    quotePost: async (id, text) => { quoted.push({ id, text }); return { id: 'own1' }; },
+  });
+  assert.equal((await runPoolPost(deps, NOW)).done, 'posted');
+  assert.deepEqual(quoted, [{ id: 'src1', text: 'That one is on the record now.' }]);
+
+  const refusing = contentDeps({
+    dryRun: false,
+    posts: [{ id: 'src2', text: 'Another prediction by Friday', created_at: NOW.toISOString() }],
+    repost: async () => { throw new Error('duplicate content'); },
+  });
+  assert.equal((await runPoolPost(refusing, NOW)).done, 'cap_reached');
+  const [failed] = await t.sql`select status, slot from feed_posts where source_post_id = 'src2'`;
+  assert.deepEqual([failed!.status, failed!.slot], ['failed', null]);
+});
+
+test('the spend cap stops the day, and an unreadable account is skipped', async () => {
+  await recordCost(t.db, { claimId: null, provider: 'x', operation: 'feed_read', units: 1, usdCost: 0.2 });
+  const capped = await runPoolPost(contentDeps({ dailyUsdCap: 0.15 }), new Date());
+  assert.equal(capped.done, 'spend_cap');
+
+  const gone = contentDeps({ readPosts: async () => { throw new XApiError(403, 'forbidden', null); } });
+  assert.equal((await runPoolPost(gone, NOW)).done, 'no_candidate');
 });

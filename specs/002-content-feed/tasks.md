@@ -62,17 +62,26 @@ migrations applied locally. **Supabase: not applied yet.** The X calls are unexe
 
 **Independent test**: with `FEED_DRY_RUN=true`, `npm run content:tick -- pool` logs a pick (account, post id, mode) and records the read cost; nothing is posted.
 
-- [ ] T011 [US1] `src/content/eligible.ts`: `latestEligible(posts, now, usedIds)` → newest post ≤ 48 h old not already in `feed_posts`; pure.
-- [ ] T012 [P] [US1] Instructions `src/llm/instructions/feed.v1.md` + call in `src/content/quote.ts`: input the post text and the mode (`quote` → return one topic from the quote command's list; `joke` → one short line about the post, ≤ 200 chars, no @, #, links, no prediction, no new facts); Zod output; one flash-lite call, cost recorded.
-- [ ] T013 [US1] `src/bot/wikiquote.ts`: `wikiquoteQuote` takes an optional topic (tried first, then the random ones); export the topic list for T012.
-- [ ] T014 [US1] `src/content/quote.ts`: `quoteText(post, mode)` → the verified quote (`"text" — by`) or the joke, checked in code (`weightedLength` ≤ 200, `hasTagsOrLinks` false); any failure → null (plain repost).
-- [ ] T015 [P] [US1] Test `src/content/quote.test.ts`: a joke with @, #, a link, or over 200 chars → null; a quote with a link in it → null; a clean joke passes.
-- [ ] T016 [US1] `src/content/pool-run.ts`: `runPoolPost(deps, now)` → spend cap check (`feedSpentTodayUsd`) → pick (`previousAccountId`) → read posts (cost) → `latestEligible`, else pick again (≤ 3 tries) → roll 90/5/5 → dry run: `logDryRun` and stop / live: `reserveSlot` → repost or quote post → `markPosted` or `markFailed`, cost recorded. An account X reports as gone (4xx on its timeline) is skipped with one alert a day. Logs ids only, never post text.
-- [ ] T017 [US1] Schedule in `src/jobs/scheduler.ts`: `pool` job twice a day (09:00 and 18:00 UTC cron, then a random 0–90 min delay in the job), only when `ENABLE_FEED`; `content:tick` CLI in `src/cli/content-tick.ts` + `package.json` script to run one job by hand.
+- [x] T011 [US1] `src/content/eligible.ts`: `latestEligible(posts, now, usedIds)` → newest post ≤ 48 h old not already in `feed_posts`; pure.
+- [x] T012 [P] [US1] Instructions `src/llm/instructions/feed.v1.md` + call in `src/content/quote.ts`: input the post text and the mode (`quote` → return one topic from the quote command's list; `joke` → one short line about the post, ≤ 200 chars, no @, #, links, no prediction, no new facts); Zod output; one flash-lite call, cost recorded.
+- [x] T013 [US1] `src/bot/wikiquote.ts`: `wikiquoteQuote` takes an optional topic (tried first, then the random ones); export the topic list for T012.
+- [x] T014 [US1] `src/content/quote.ts`: `quoteText(post, mode)` → the verified quote (`"text" — by`) or the joke, checked in code (`weightedLength` ≤ 200, `hasTagsOrLinks` false); any failure → null (plain repost).
+- [x] T015 [P] [US1] Test `src/content/quote.test.ts`: a joke with @, #, a link, or over 200 chars → null; a quote with a link in it → null; a clean joke passes.
+- [x] T016 [US1] `src/content/pool-run.ts`: `runPoolPost(deps, now)` → spend cap check (`feedSpentTodayUsd`) → pick (`previousAccountId`) → read posts (cost) → `latestEligible`, else pick again (≤ 3 tries) → roll 90/5/5 → dry run: `logDryRun` and stop / live: `reserveSlot` → repost or quote post → `markPosted` or `markFailed`, cost recorded. An account X reports as gone (4xx on its timeline) is skipped with one alert a day. Logs ids only, never post text.
+- [x] T017 [US1] Schedule in `src/jobs/scheduler.ts`: `pool` job twice a day (09:00 and 18:00 UTC cron, then a random 0–90 min delay in the job), only when `ENABLE_FEED`; `content:tick` CLI in `src/cli/content-tick.ts` + `package.json` script to run one job by hand.
 - [ ] T018 [US1] Follow the 15 pool accounts from @vaticeno (by hand in the app; owner), checking each one is still the account it claims to be.
 - [ ] T019 [US1] Dry run for a week on the droplet (`ENABLE_FEED=true`, `FEED_DRY_RUN=true`); owner reviews picks (SC-001); read the measured X costs (SC-002); then `FEED_DRY_RUN=false`.
 
-**Checkpoint**: US1 runs on its own; the feed gets ~2 posts a day.
+- [x] T017a Review fixes (2026-10-05): only the call to X sits inside the try, so a failure while marking leaves the row `reserved` (slot taken, never retried) instead of freeing a slot whose post already went out; a post stamped up to 5 min ahead of our clock still counts as fresh, since the newest post of a busy account is the one we want.
+
+**Checkpoint**: US1 code done ✅ — `npm run content:tick -- pool` runs one pass; the scheduler runs it at
+09:23 and 18:23 UTC when `ENABLE_FEED=true`. Dry run records the pick and posts nothing. Built: eligible
+post choice (48 h, never used, clock-skew tolerant), the 1-in-10 quote turn (`feed.v1` names a Wikiquote
+topic or writes one ≤ 200-char line, checked in code for tags, links and length, falling back to a plain
+repost), the run itself (spend cap → weighted pick → read → eligible → roll 90/5/5 → dry-run record or
+reserve-post-mark), the X wiring with a one-off token refresh on 401, and the CLI. An account X refuses
+with a 4xx is skipped with an alert per occurrence (not deduped: at most a handful a day). 86 unit and 104
+integration tests pass. Left in this phase: T018 and T019, both the owner's.
 
 ---
 

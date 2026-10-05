@@ -11,11 +11,13 @@ import { type ResolverDeps, resolveDueClaims } from '../resolve/resolver.js';
 import type { ClaimDeps } from '../lifecycle/claims.js';
 import { withJobLock } from './lock.js';
 import { type BotDeps, pollMentions } from '../bot/mentions.js';
+import { type ContentDeps, runPoolPost } from '../content/pool-run.js';
 import { deliverVerdicts, postLockReplies } from '../bot/verdicts.js';
 
-export type SchedulerDeps = ClaimDeps & ResolverDeps & { reader: SourceReader; sql: Sql; bot: BotDeps | null };
+export type SchedulerDeps = ClaimDeps & ResolverDeps & { reader: SourceReader; sql: Sql; bot: BotDeps | null; content: ContentDeps | null };
 
-const SCHEDULES = { mentions: '* * * * *', lock: '* * * * *', expire: '*/10 * * * *', resolve: '0 * * * *', verdicts: '*/5 * * * *' } as const;
+// The pool run twice a day at an off-the-hour minute, so the feed never looks like a clock (spec 002).
+const SCHEDULES = { mentions: '* * * * *', lock: '* * * * *', expire: '*/10 * * * *', resolve: '0 * * * *', verdicts: '*/5 * * * *', pool: '23 9,18 * * *' } as const;
 
 export function startScheduler(deps: SchedulerDeps): { stop: () => Promise<void> } {
   const now = () => new Date();
@@ -33,6 +35,8 @@ export function startScheduler(deps: SchedulerDeps): { stop: () => Promise<void>
     resolve: () => resolveDueClaims(deps, now()),
     // Verdict replies on X (ENABLE_X): one per final verdict, in the claim's thread.
     verdicts: async () => (deps.bot ? deliverVerdicts(deps.bot, now()) : null),
+    // Own feed (ENABLE_FEED): one pool repost or quote post, or just a logged pick in dry run.
+    pool: async () => (deps.content ? runPoolPost(deps.content, now()) : null),
   };
 
   const tasks = (Object.keys(jobs) as Array<keyof typeof SCHEDULES>).map((name) =>
