@@ -6,11 +6,19 @@ const ALIASES: Record<string, Command> = {
   help: 'help', commands: 'help',
   stop: 'stop',
   ping: 'ping',
-  selfpromo: 'selfpromo', selfpromote: 'selfpromo', promo: 'selfpromo',
+  // selfpromo: ~50 ways to say "promote yourself" (owner decision 2026-10-05); phrases are matched joined.
+  selfpromo: 'selfpromo', selfpromote: 'selfpromo', selfpromotion: 'selfpromo', promo: 'selfpromo', promote: 'selfpromo', promotion: 'selfpromo', promoteyourself: 'selfpromo', showoff: 'selfpromo',
+  showyourself: 'selfpromo', flex: 'selfpromo', brag: 'selfpromo', boast: 'selfpromo', humblebrag: 'selfpromo', pitch: 'selfpromo', elevatorpitch: 'selfpromo', yourpitch: 'selfpromo',
+  plug: 'selfpromo', selfplug: 'selfpromo', shamelessplug: 'selfpromo', advertise: 'selfpromo', advert: 'selfpromo', ad: 'selfpromo', commercial: 'selfpromo', hype: 'selfpromo',
+  hypeyourself: 'selfpromo', sellyourself: 'selfpromo', sell: 'selfpromo', intro: 'selfpromo', introduce: 'selfpromo', introduceyourself: 'selfpromo', aboutyou: 'selfpromo', aboutyourself: 'selfpromo',
+  whoareyou: 'selfpromo', whatareyou: 'selfpromo', whoami: 'selfpromo', bio: 'selfpromo', tagline: 'selfpromo', motto: 'selfpromo', slogan: 'selfpromo', mission: 'selfpromo',
+  manifesto: 'selfpromo', brand: 'selfpromo', showcase: 'selfpromo', presentyourself: 'selfpromo', spotlight: 'selfpromo', shill: 'selfpromo', shillyourself: 'selfpromo', bragabout: 'selfpromo',
+  tellmeaboutyou: 'selfpromo', yourstory: 'selfpromo', elevator: 'selfpromo',
   quote: 'quote', quotes: 'quote', citation: 'quote',
 };
-// STOP and ping only exactly: a typo must never opt someone out, and "pin"/"pong" are not ping.
-const FUZZY: Command[] = ['help', 'selfpromo', 'quote'];
+// Typos are matched against these words only (STOP and ping never: a typo must not opt someone out, and
+// short aliases like "plug" or "brag" would catch ordinary words).
+const FUZZY_WORDS = ['help', 'quote', 'quotes', 'selfpromo', 'selfpromote', 'promote', 'introduce'];
 // A bare command ("quote", "quote 2", "help pls", "qoute") is matched here, with no model call. An exact
 // command word followed by real text ("quote me something nice", "Quote me: BTC 200k by 2027") is only a
 // candidate: commandWordIn() flags it and the model decides (src/llm/intent.ts).
@@ -21,14 +29,15 @@ const isFiller = (word: string) => FILLER.has(word) || /^\d{1,2}$/.test(word);
 export function resolveCommand(body: string): Command | null {
   const words = body.toLowerCase().replace(/[!.?,:;]+/g, ' ').trim().split(/[\s_-]+/).filter((w) => /[\p{L}\p{N}]/u.test(w));
   if (words.length === 0) return null;
+  const phrase = ALIASES[words.join('')]; // "promote yourself", "show off", "who are you"
+  if (phrase && words.length <= 4) return phrase;
   // "self promo" / "self-promote" is one word
   const [first, rest] = words[0] === 'self' && words.length > 1 ? [`self${words[1]}`, words.slice(2)] : [words[0]!, words.slice(1)];
   if (rest.length > MAX_EXTRA_WORDS || !rest.every(isFiller)) return null;
   const exact = ALIASES[first];
   if (exact) return exact;
-  for (const [alias, command] of Object.entries(ALIASES)) {
-    if (!FUZZY.includes(command) || alias.length < 4) continue;
-    if (editDistance(first, alias) <= (alias.length >= 8 ? 2 : 1)) return command;
+  for (const alias of FUZZY_WORDS) {
+    if (editDistance(first, alias) <= (alias.length >= 8 ? 2 : 1)) return ALIASES[alias]!;
   }
   return null;
 }

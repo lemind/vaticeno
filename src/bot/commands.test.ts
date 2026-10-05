@@ -24,3 +24,12 @@ test('a command word followed by real text is a candidate for the model, not a c
   assert.equal(commandWordIn('stop at 90k'), 'stop');
   assert.equal(commandWordIn('BTC above 100k'), null);
 });
+
+test('selfpromo has many names, phrases included; short ones never catch ordinary words by typo', () => {
+  for (const input of ['promote', 'promote yourself', 'show off', 'show-off', 'showoff', 'flex', 'brag', 'pitch', 'elevator pitch',
+    'shameless plug', 'introduce yourself', 'who are you', 'who are you?', 'hype yourself', 'self promotion', 'motto']) {
+    assert.equal(resolveCommand(input), 'selfpromo', input);
+  }
+  for (const input of ['plus', 'drag', 'flux', 'promote BTC to 100k by Friday']) assert.equal(resolveCommand(input), null, input);
+  assert.equal(resolveCommand('promte'), 'selfpromo', 'typo of promote');
+});

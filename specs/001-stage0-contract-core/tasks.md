@@ -224,6 +224,7 @@ element, no percentage or ranking, no content (SC-009).
 - [x] T106 Review fixes (T104–T105): verdict results, jokes and quotes with @, # or any domain are never posted (`hasTagsOrLinks`); a waiting quote is dropped on STOP and retried after this poll's mentions; a reply cap doesn't count as a failed try; the parser keeps names from `[[w:…]]` / `{{w|…}}`, skips translations and "Original:" lines; a quote that doesn't fit with its author is never cut
 - [x] T107 RECORDED says "Edits accepted for 15 min."; an exact command word followed by any text is the command ("quote pp"); typos still need filler words (`src/bot/commands.ts`)
 - [x] T108 Unclear mentions assessed by the model with the thread above (`intent.v1`, `src/llm/intent.ts`, up to 3 parent posts read from X, never stored): a command word with more text, or a non-prediction ("so?" under a quote → a new quote); questions get a short answer; bare commands stay in code. Help adds "* → nobody knows what to expect :)"; reply length counted the way X does (•, → and emoji weigh 2)
+- [x] T109 selfpromo answers to ~50 names and phrases (promote, promote yourself, show off, flex, brag, pitch, who are you…); typos only on the long canonical words
 
 ---
 

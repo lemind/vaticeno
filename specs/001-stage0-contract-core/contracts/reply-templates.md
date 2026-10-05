@@ -78,7 +78,7 @@ Reply with the prediction and a date.
 - sports match not found scheduled: `NOT RECORDED — I can't find that match scheduled — name both teams and the day.`
 - Commands: bare ones (`quote`, `quote 2`, `qoute`) in code; anything unclear is assessed by the model with the
   thread (`intent.v1`). A question gets `{answer}` (≤ 200 chars, no tags or links); otherwise help.
-- selfpromo (aliases: selfpromote, promo): `{one of 5 mottos}\n\n{AI joke ≤ 140 chars}` (motto alone if the model fails)
+- selfpromo (~50 names and phrases: promote, promote yourself, show off, flex, brag, pitch, who are you…): `{one of 5 mottos}\n\n{AI joke ≤ 140 chars}` (motto alone if the model fails)
 - quote: `“{quote}” — {author}, {source}` from Wikiquote; if it can't be fetched, no reply yet: retried after 1, 5, 30 and 120 min, then dropped with an alert
 - STOP: `STOPPED — I won't reply to you until you tag me again. Your locked predictions are still checked.`
 - someone else's post: `NOT RECORDED — I only record your own predictions. Tag me under your post.`

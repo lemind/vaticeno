@@ -35,7 +35,7 @@ answers once in the thread; reply under its answer to fix it within 15 min. Afte
 | a reply under the bot's answer | a fix (within 15 min of RECORDED; anytime within 24 h of NOT RECORDED) |
 | `@vaticeno help` (or anything that isn't a prediction) | the list of actions |
 | `@vaticeno quote` | a sourced quote from Wikiquote about bets, luck, risk, sport, bitcoin |
-| `@vaticeno selfpromo` (or selfpromote) | a motto + a joke |
+| `@vaticeno selfpromo` (or promote, show off, flex, brag, who are you…) | a motto + a joke |
 | `@vaticeno STOP` | stops replying to you until you tag it again |
 | `@vaticeno ping` | `pong` |
 
