@@ -9,7 +9,7 @@ import { readIngestState } from '../../src/ingest/state.js';
 import type { Proposal } from '../../src/contract/proposal.js';
 import type { Coinbase } from '../../src/feeds/coinbase.js';
 import { createMemorySourceReader } from '../../src/lifecycle/source-reader.js';
-import { type LlmClient, LlmUnavailable } from '../../src/llm/client.js';
+import { type LlmClient, LlmSchemaError, LlmUnavailable } from '../../src/llm/client.js';
 import type { Mention, XClient } from '../../src/x/client.js';
 import { setupTestDb, type TestDb, VALID_CONTRACT } from './helpers.js';
 
@@ -131,6 +131,17 @@ describe('sports matches', () => {
     const { deps, replies } = await bot([[mention('110', '@vaticeno match Liverpool vs Madrid tomorrow 3:1')]]);
     await pollMentions(deps, NOW);
     assert.match(replies[0]!.text, /^RECORDED[\s\S]*Liverpool beat Real Madrid 3–1 \(UEFA Champions League\)/);
+  });
+
+  test('a malformed match search answer does not kill the claim: recorded unchecked', async () => {
+    const { deps, replies } = await bot([[mention('112', '@vaticeno match Garbled FC vs Nobody tomorrow 3:1')]]);
+    const real = deps.llm.generateJson;
+    deps.llm = { ...deps.llm, generateJson: async (call: Parameters<typeof real>[0]) => {
+      if (call.instructionVersion.startsWith('fixture')) throw new LlmSchemaError('bad json', []);
+      return real(call);
+    } } as typeof deps.llm;
+    await pollMentions(deps, NOW);
+    assert.match(replies[0]!.text, /^RECORDED/);
   });
 
   test('a match search cannot find is not recorded', async () => {

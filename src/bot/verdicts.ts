@@ -7,6 +7,7 @@ import { claims, evidences, optOuts, resolutions } from '../db/schema.js';
 import { log } from '../log.js';
 import { alert, captureError } from '../observe.js';
 import { assertReplyFits, hasTagsOrLinks, weightedLength, X_MAX_CHARS } from '../replies/templates.js';
+import type { LockResult } from '../lifecycle/lock.js';
 import type { BotDeps } from './mentions.js';
 
 const RECENT_MS = 7 * 24 * 3_600_000; // older verdicts (e.g. before this shipped) are not posted
@@ -96,4 +97,20 @@ async function verdictText(deps: BotDeps, claim: Due): Promise<string> {
 function siteLabel(domain: string): string {
   const name = domain.replace(/^www\./, '').split('.')[0] ?? domain;
   return name.length <= 4 ? name.toUpperCase() : name.charAt(0).toUpperCase() + name.slice(1);
+}
+
+// An edit found at lock changed or expired the contract: the author is told once, in the claim's thread,
+// through the same gates as other replies. The state change already happened once; a failed post is not retried.
+export async function postLockReplies(deps: BotDeps, results: LockResult[]): Promise<void> {
+  for (const result of results) {
+    if (!result.reply || !result.summonTweetId || !result.authorId || !deps.allowAuthor(result.authorId)) continue;
+    try {
+      const stopped = await deps.db.select({ id: optOuts.xUserId }).from(optOuts).where(eq(optOuts.xUserId, result.authorId)).limit(1);
+      if (stopped.length > 0) continue;
+      const reply = await deps.postReply(result.summonTweetId, result.reply);
+      log('info', 'lock reply posted', { event: 'lock.reply_posted', slug: result.slug, outcome: result.outcome, reply_tweet_id: reply.id });
+    } catch (error) {
+      captureError(error, { event: 'lock.reply_failed', slug: result.slug });
+    }
+  }
 }

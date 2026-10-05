@@ -11,7 +11,7 @@ import { type ResolverDeps, resolveDueClaims } from '../resolve/resolver.js';
 import type { ClaimDeps } from '../lifecycle/claims.js';
 import { withJobLock } from './lock.js';
 import { type BotDeps, pollMentions } from '../bot/mentions.js';
-import { deliverVerdicts } from '../bot/verdicts.js';
+import { deliverVerdicts, postLockReplies } from '../bot/verdicts.js';
 
 export type SchedulerDeps = ClaimDeps & ResolverDeps & { reader: SourceReader; sql: Sql; bot: BotDeps | null };
 
@@ -24,7 +24,11 @@ export function startScheduler(deps: SchedulerDeps): { stop: () => Promise<void>
     // X intake (ENABLE_X): new mentions → engine → one reply each.
     mentions: async () => (deps.bot ? pollMentions(deps.bot, now()) : null),
     // The lock job carries the free plan's one cron monitor: it runs every minute, so silence means down.
-    lock: () => withCronMonitor('vaticeno-lock', SCHEDULES.lock, () => lockDueDrafts(deps, now())),
+    lock: () => withCronMonitor('vaticeno-lock', SCHEDULES.lock, async () => {
+      const results = await lockDueDrafts(deps, now());
+      if (deps.bot) await postLockReplies(deps.bot, results);
+      return results;
+    }),
     expire: () => expireNeedsInfo(deps.db, now()),
     resolve: () => resolveDueClaims(deps, now()),
     // Verdict replies on X (ENABLE_X): one per final verdict, in the claim's thread.

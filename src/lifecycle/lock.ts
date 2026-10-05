@@ -17,7 +17,8 @@ const MAX_DRAFTS_PER_RUN = 100;
 // alert, instead of retrying forever and holding up newer drafts.
 const GIVE_UP_AFTER_MS = 24 * 60 * 60 * 1000;
 
-export type LockResult = { slug: string; outcome: 'locked' | 'amended' | 'expired' | 'waiting'; reply: string | null };
+// summonTweetId / authorId: where an [AMENDED] / [EXPIRED] reply goes (posted by the scheduler when X is on).
+export type LockResult = { slug: string; outcome: 'locked' | 'amended' | 'expired' | 'waiting'; reply: string | null; summonTweetId?: string; authorId?: string };
 
 export async function lockDueDrafts(deps: ClaimDeps & { reader: SourceReader }, now: Date): Promise<LockResult[]> {
   const due = await deps.db.select().from(claims)
@@ -89,7 +90,7 @@ async function lockDraft(deps: ClaimDeps & { reader: SourceReader }, claim: Clai
   }
   const applied = await replaceDraftContract(db, claim, { contract: decision.contract, modelId, selfConfidence, versionId: post.versionId, now, costs, lockNotReached: false });
   if (!applied) return { slug, outcome: 'waiting', reply: null };
-  return { slug, outcome: 'amended', reply };
+  return { slug, outcome: 'amended', reply, summonTweetId: claim.summonTweetId, authorId: claim.authorXUserId };
 }
 
 async function waitOrGiveUp(db: ClaimDeps['db'], claim: ClaimRow, now: Date, reason: string): Promise<LockResult> {
@@ -106,5 +107,5 @@ async function expireDraft(db: ClaimDeps['db'], claim: ClaimRow, reason: string,
     .where(and(eq(claims.id, claim.id), eq(claims.status, 'draft'), eq(claims.amendCount, claim.amendCount))).returning({ id: claims.id });
   if (rows.length === 0) return { slug: claim.slug, outcome: 'waiting', reply: null };
   log('info', 'claim expired', { event: 'claim.expired', claim_id: claim.id, slug: claim.slug, reason });
-  return { slug: claim.slug, outcome: 'expired', reply };
+  return { slug: claim.slug, outcome: 'expired', reply, summonTweetId: claim.summonTweetId, authorId: claim.authorXUserId };
 }

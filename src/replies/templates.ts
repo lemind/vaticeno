@@ -3,6 +3,10 @@
 import type { RejectReason } from '../contract/checks.js';
 
 export const X_MAX_CHARS = 280;
+
+// X's weighting (twitter-text v3): these code-point ranges count 1, everything else 2 (•, →, CJK, emoji).
+const SINGLE_WEIGHT: Array<[number, number]> = [[0, 4351], [8192, 8205], [8208, 8223], [8242, 8247]];
+const charWeight = (ch: string) => (SINGLE_WEIGHT.some(([lo, hi]) => ch.codePointAt(0)! >= lo && ch.codePointAt(0)! <= hi) ? 1 : 2);
 const X_LINK_CHARS = 23; // X counts every link as 23 characters
 
 
@@ -34,13 +38,13 @@ const REJECT_WORDS: Record<Exclude<RejectReason, 'x_rules' | 'duplicate'>, strin
 };
 
 // Anything that isn't a prediction ("@vaticeno cancel", "hi", …) gets what the bot can do.
-export const HELP_REPLY = 'I record predictions and check them at the deadline.\n'
+export const HELP_REPLY = assertReplyFits('I record predictions and check them at the deadline.\n'
   + '• Tag me under your prediction → recorded\n'
   + '• Reply with a fix (15 min) → updated\n'
   + '• quote → a quote about bets\n'
   + '• selfpromo → who I am\n'
   + '• STOP → I go quiet (tag me to resume)\n'
-  + '• * → nobody knows what to expect :)';
+  + '• * → nobody knows what to expect :)'); // checked at load: a too-long help fails the tests, not a post
 
 // Sent on STOP; the bot stays silent to the author until they tag it again (constitution IV).
 export const STOPPED_REPLY = "STOPPED — I won't reply to you until you tag me again. Your locked predictions are still checked.";
@@ -64,7 +68,7 @@ export function amendedReply(slug: string, statement: string, amendsLeft: number
 
 // The post was edited before lock and the edit can't be recorded (or no fixes are left): nothing is locked.
 export function expiredReply(slug: string): string {
-  return `[EXPIRED] #${slug} — the post changed after recording, so nothing was locked. Tag me on a new post to record it.`;
+  return assertReplyFits(`[EXPIRED] #${slug} — the post changed after recording, so nothing was locked. Tag me on a new post to record it.`);
 }
 
 // A fix that is refused outright (contracts/reply-templates.md "REFUSED").
@@ -104,9 +108,6 @@ export function hasTagsOrLinks(text: string): boolean {
   return /[@#]|https?:\/\/|www\./i.test(text) || /\b[\w-]+\.[a-z]{2,24}\b/.test(text);
 }
 
-// X's weighting (twitter-text v3): these code-point ranges count 1, everything else 2 (•, →, CJK, emoji).
-const SINGLE_WEIGHT: Array<[number, number]> = [[0, 4351], [8192, 8205], [8208, 8223], [8242, 8247]];
-const charWeight = (ch: string) => (SINGLE_WEIGHT.some(([lo, hi]) => ch.codePointAt(0)! >= lo && ch.codePointAt(0)! <= hi) ? 1 : 2);
 
 export function weightedLength(text: string): number {
   const links = text.match(/\b[\w.-]+\.[a-z]{2,}\/\S*/gi) ?? [];

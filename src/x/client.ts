@@ -4,7 +4,7 @@ const X_API_BASE = 'https://api.x.com/2';
 
 // Field names are the long-standing v2 ones. The current docs page shows `post.fields` /
 // `referenced_posts`; if X rejects these, the 400 body names the valid values.
-const MENTION_TWEET_FIELDS = 'created_at,conversation_id,author_id,in_reply_to_user_id,referenced_tweets,edit_controls';
+const MENTION_TWEET_FIELDS = 'created_at,conversation_id,author_id,in_reply_to_user_id,referenced_tweets,edit_controls,edit_history_tweet_ids';
 
 const XUserSchema = z.object({ id: z.string(), username: z.string(), name: z.string().optional() });
 
@@ -18,6 +18,7 @@ const MentionSchema = z.object({
   referenced_tweets: z
     .array(z.object({ type: z.enum(['replied_to', 'quoted', 'retweeted']), id: z.string() }))
     .optional(),
+  edit_history_tweet_ids: z.array(z.string()).optional(),
   edit_controls: z
     .object({ editable_until: z.string(), edits_remaining: z.number() })
     .optional(),

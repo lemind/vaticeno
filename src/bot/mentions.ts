@@ -77,14 +77,23 @@ export async function routeMention(deps: BotDeps, mention: Mention, now: Date): 
   }
 
   // Otherwise the mention itself is the prediction; if it isn't one, the model reads the thread and decides.
+  // The version recorded is the post's current one: if it was edited before this poll, read that version,
+  // or the lock job would take the earlier edit for a new one (a false fix or expiry).
+  const latest = mention.edit_history_tweet_ids?.at(-1) ?? mention.id;
+  const current = latest === mention.id ? { versionId: mention.id, text: body } : await currentVersion(deps, mention.id);
   const result = await submitClaim(deps, {
-    text: body, authorId: mention.author_id, sourceTweetId: mention.id, summonTweetId: mention.id, sourceVersion: mention.id, now,
+    text: current.text, authorId: mention.author_id, sourceTweetId: mention.id, summonTweetId: mention.id, sourceVersion: current.versionId, now,
   });
   if (result.outcome === 'rejected' && result.rejectReason === 'not_prediction') {
     const assessed = await assess(deps, mention, body, repliedTo, now, { predictionRuledOut: true });
     if (assessed) return assessed;
   }
   return { action: `record_inline_${result.outcome}`, reply: result.reply, slug: result.slug };
+}
+
+async function currentVersion(deps: BotDeps, tweetId: string): Promise<{ versionId: string; text: string }> {
+  const post = await deps.reader.readVersion(tweetId);
+  return { versionId: post.versionId, text: post.text.replace(/@\w+/g, ' ').replace(/\s+/g, ' ').trim() };
 }
 
 async function runCommand(deps: BotDeps, mention: Mention, command: Command, now: Date): Promise<Routed> {

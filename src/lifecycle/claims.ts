@@ -252,7 +252,9 @@ async function confirmFixture(deps: ClaimDeps, contract: Contract, now: Date, co
   } catch (error) {
     if (!(error instanceof LlmSchemaError)) throw error; // an outage retries the mention later
     costs.push(...error.costs);
-    return { outcome: 'rejected', reason: 'event_not_found' };
+    // One malformed answer must not kill a real claim: record it unchecked; the verdict still needs evidence.
+    log('warn', 'fixture check unreadable; recorded without it', { event: 'fixture.unreadable' });
+    return { outcome: 'recorded', contract };
   }
   if (!fixture.found) return { outcome: 'rejected', reason: 'event_not_found' };
 
@@ -265,6 +267,7 @@ async function confirmFixture(deps: ClaimDeps, contract: Contract, now: Date, co
     deadline_at: kickoffDayEnd && Date.parse(kickoffDayEnd) > Date.parse(contract.deadline_at) ? kickoffDayEnd : contract.deadline_at,
   };
   const valid = ContractSchema.safeParse(confirmed);
+  if (!valid.success) log('warn', 'fixture details invalid; recorded without them', { event: 'fixture.invalid' });
   return { outcome: 'recorded', contract: valid.success ? valid.data : contract };
 }
 

@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { after, before, beforeEach, test } from 'node:test';
 import type { BotDeps } from '../../src/bot/mentions.js';
-import { deliverVerdicts } from '../../src/bot/verdicts.js';
+import { deliverVerdicts, postLockReplies } from '../../src/bot/verdicts.js';
 import { insertClaim, insertEvidence, setupTestDb, type TestDb } from './helpers.js';
 
 let t: TestDb;
@@ -73,3 +73,16 @@ test('a result that tags someone or carries a link is not posted: the source lin
   assert.doesNotMatch(posts[0]!, /@|evil/);
 });
 
+
+test('an [AMENDED] / [EXPIRED] reply from the lock job is posted once under the summon; STOP silences it', async () => {
+  const posts: Array<{ to: string; text: string }> = [];
+  const deps = bot(async (to, text) => { posts.push({ to, text }); return { id: 'l1' }; });
+  await postLockReplies(deps, [
+    { slug: 'a1', outcome: 'expired', reply: '[EXPIRED] #a1 …', summonTweetId: '600', authorId: '200' },
+    { slug: 'a2', outcome: 'locked', reply: null, summonTweetId: '601', authorId: '200' },
+  ]);
+  assert.deepEqual(posts, [{ to: '600', text: '[EXPIRED] #a1 …' }]);
+  await t.sql`insert into opt_outs ${t.sql({ x_user_id: '200' })}`;
+  await postLockReplies(deps, [{ slug: 'a3', outcome: 'amended', reply: '[AMENDED] #a3 …', summonTweetId: '602', authorId: '200' }]);
+  assert.equal(posts.length, 1);
+});
