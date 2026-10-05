@@ -23,6 +23,10 @@ const BOT = '1';
 const ME = '200';
 
 let jokeText = 'I predicted this joke. Check the receipt.';
+// Posts the stub X returns for thread reads: id → post.
+const threadPosts: Record<string, { id: string; text: string; author_id: string; referenced_tweets?: Array<{ type: string; id: string }> }> = {
+  'q-bot': { id: 'q-bot', text: '“Luck is…” — Seneca', author_id: '1' },
+};
 
 // A football claim; the stub's match search finds "Liverpool" fixtures only.
 const { price: _price, ...MODEL_BASE } = VALID_CONTRACT;
@@ -38,6 +42,12 @@ const llm = {
   mode: 'replay',
   generateJson: async ({ input, instructionVersion }: { input: string; instructionVersion: string }) => {
     if (instructionVersion === 'joke.v1') return { data: { joke: jokeText }, costs: [] };
+    if (instructionVersion === 'intent.v1') {
+      const { text, thread } = JSON.parse(input) as { text: string; thread: Array<{ from: string; text: string }> };
+      if (text === 'so?' && thread[0]?.from === 'bot') return { data: { intent: 'quote', answer: null }, costs: [] };
+      if (text.endsWith('?')) return { data: { intent: 'question', answer: 'I record predictions and check them at the deadline.' }, costs: [] };
+      return { data: { intent: 'other', answer: null }, costs: [] };
+    }
     if (instructionVersion.startsWith('fixture')) {
       const { subject } = JSON.parse(input) as { subject: string };
       const found = subject === 'Liverpool';
@@ -50,6 +60,7 @@ const llm = {
       return { data: { is_prediction: true, x_rules_ok: true, contract: { ...MATCH_CONTRACT, subject }, unclear: [], unclear_explanation: '', examples: [], self_confidence: 0.8 }, costs: [] };
     }
     if (text.startsWith('down')) throw new LlmUnavailable('model down');
+    if (text.endsWith('?')) return { data: { is_prediction: false, x_rules_ok: true, contract: null, unclear: [], unclear_explanation: '', examples: [], self_confidence: 0.9 }, costs: [] };
     const data: Proposal = text.startsWith('vague')
       ? { is_prediction: true, x_rules_ok: true, contract: null, unclear: ['deadline'], unclear_explanation: 'No date given.', examples: [], self_confidence: 0.3 }
       : { is_prediction: true, x_rules_ok: true, contract: VALID_CONTRACT as Proposal['contract'], unclear: [], unclear_explanation: '', examples: [], self_confidence: 0.8 };
@@ -62,6 +73,7 @@ async function bot(mentionsByPoll: Mention[][], posts: Record<string, { versionI
   let poll = 0;
   const x = {
     getMentionsPage: async () => ({ data: [...(mentionsByPoll[poll++] ?? [])].reverse(), meta: { result_count: 0 } }),
+    getTweet: async (id: string) => threadPosts[id] ?? Promise.reject(new Error('404')),
   } as unknown as XClient;
   const deps: BotDeps = {
     db: t.db, llm, coinbase: { productStatus: async () => 'online' } as unknown as Coinbase, normalizerModel: 'm',
@@ -225,6 +237,23 @@ describe('selfpromo and quote', () => {
     } finally {
       jokeText = 'I predicted this joke. Check the receipt.';
     }
+  });
+});
+
+describe('unclear mentions: the model reads the thread', () => {
+  test('"so?" under the bot\'s quote gets a new quote', async () => {
+    const { deps, replies } = await bot([[mention('130', '@vaticeno so?', { in_reply_to_user_id: BOT, referenced_tweets: [{ type: 'replied_to', id: 'q-bot' }] })]]);
+    deps.quoteSource = async () => ({ text: 'Never put money down unless you are sure', by: 'Bugsy Siegel' });
+    await pollMentions(deps, NOW);
+    assert.equal(replies[0]!.text, '“Never put money down unless you are sure” — Bugsy Siegel');
+  });
+
+  test('a question gets a short answer; anything else unclear gets help', async () => {
+    const { deps, replies } = await bot([[mention('131', '@vaticeno what is this?'), mention('132', '@vaticeno quote me something nice')]]);
+    deps.quoteSource = async () => ({ text: 'Never put money down unless you are sure', by: 'Bugsy Siegel' });
+    await pollMentions(deps, NOW);
+    assert.equal(replies[0]!.text, 'I record predictions and check them at the deadline.');
+    assert.match(replies[1]!.text, /Tag me under your prediction/, 'the stub says "other" → help');
   });
 });
 

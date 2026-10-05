@@ -39,7 +39,8 @@ answers once in the thread; reply under its answer to fix it within 15 min. Afte
 | `@vaticeno STOP` | stops replying to you until you tag it again |
 | `@vaticeno ping` | `pong` |
 
-A command word can be followed by any text (`@vaticeno quote pp` is `quote`); typos like `qoute` work too.
+Bare commands and typos (`quote`, `qoute 2`) are matched instantly; anything else unclear ("quote me something
+nice", "so?" under a quote, a question) is read by the AI together with the thread above it.
 
 ## Run locally
 

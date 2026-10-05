@@ -11,9 +11,9 @@ const ALIASES: Record<string, Command> = {
 };
 // STOP and ping only exactly: a typo must never opt someone out, and "pin"/"pong" are not ping.
 const FUZZY: Command[] = ['help', 'selfpromo', 'quote'];
-// An exact command word followed by anything is the command ("quote pp", "help what is this") — owner
-// decision 2026-10-05. A typo of one ("qoute") counts only with filler words after it, so a prediction that
-// merely starts with a similar word ("quite sure BTC 100k") stays a prediction.
+// A bare command ("quote", "quote 2", "help pls", "qoute") is matched here, with no model call. An exact
+// command word followed by real text ("quote me something nice", "Quote me: BTC 200k by 2027") is only a
+// candidate: commandWordIn() flags it and the model decides (src/llm/intent.ts).
 const MAX_EXTRA_WORDS = 3;
 const FILLER = new Set(['please', 'pls', 'plz', 'me', 'test', 'now', 'again', 'it', 'one', 'another', 'more', 'us', 'bot', 'thanks', 'thx', 'a', 'the']);
 const isFiller = (word: string) => FILLER.has(word) || /^\d{1,2}$/.test(word);
@@ -23,14 +23,21 @@ export function resolveCommand(body: string): Command | null {
   if (words.length === 0) return null;
   // "self promo" / "self-promote" is one word
   const [first, rest] = words[0] === 'self' && words.length > 1 ? [`self${words[1]}`, words.slice(2)] : [words[0]!, words.slice(1)];
+  if (rest.length > MAX_EXTRA_WORDS || !rest.every(isFiller)) return null;
   const exact = ALIASES[first];
   if (exact) return exact;
-  if (rest.length > MAX_EXTRA_WORDS || !rest.every(isFiller)) return null;
   for (const [alias, command] of Object.entries(ALIASES)) {
     if (!FUZZY.includes(command) || alias.length < 4) continue;
     if (editDistance(first, alias) <= (alias.length >= 8 ? 2 : 1)) return command;
   }
   return null;
+}
+
+// The exact command word that starts a longer text, if any: then the model decides what the text means.
+export function commandWordIn(body: string): Command | null {
+  const words = body.toLowerCase().replace(/[!.?,:;]+/g, ' ').trim().split(/[\s_-]+/).filter((w) => /[\p{L}\p{N}]/u.test(w));
+  const first = words[0] === 'self' && words.length > 1 ? `self${words[1]}` : words[0];
+  return first ? (ALIASES[first] ?? null) : null;
 }
 
 // Damerau-Levenshtein (optimal string alignment): a swap of two neighbours ("qoute") counts as one edit.

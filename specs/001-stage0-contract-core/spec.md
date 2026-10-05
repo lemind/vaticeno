@@ -579,9 +579,11 @@ shown but never count as a contradiction.
   one of five fixed mottos plus a short AI-written joke (no gambling call to action); `@vaticeno quote` → a sourced
   quote from Wikiquote's topic pages (gambling, betting, luck, chance, risk, prediction, sports, bitcoin…),
   fetched live, never stored, no AI; if Wikiquote is down the quote is sent later (1, 5, 30, 120 min). Commands are matched in code, with a
-  few aliases and small typos. An exact command word followed by any text is that command ("quote pp",
-  "help what is this"; owner decision 2026-10-05); a typo of one ("qoute") counts only with filler words
-  ("qoute 2"), so a prediction that merely starts with a similar word stays a prediction.
+  few aliases and small typos, when bare ("quote", "quote 2", "qoute"). Anything unclear goes to the model
+  with the thread above it (owner decision 2026-10-05; nearest context wins): a command word with more text
+  ("quote me something nice" vs "Quote me: BTC 200k by 2027"), or a mention that isn't a prediction ("so?"
+  under the bot's quote → a new quote). A question to the bot gets a short model-written answer (no tags or
+  links); anything else gets help.
 - Opt-out: `@vaticeno STOP` gets a STOPPED reply; the author stays opted out until they tag the bot again
   (owner decision 2026-09-30); their locked claims still resolve (constitution IV). Listed in the help reply.
 - Edits to the original tweet count as amends before lock and are ignored after it. In Stage 0 the

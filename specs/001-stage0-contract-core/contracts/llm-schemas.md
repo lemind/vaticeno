@@ -82,3 +82,9 @@ Input: criterion, subject, deadline, now. Output (JSON read from the answer text
 
 Not found → rejected `event_not_found`; kickoff already passed → `deadline_too_close`; a kickoff after the
 deadline moves the deadline to the end of the kickoff's UTC day.
+
+## Intent — `intent.v1` (unclear mentions only)
+
+Input: the mention text and up to 3 posts above it (`bot` / `user`, texts in memory only). Output:
+`{ intent: prediction | quote | selfpromo | help | ping | stop | question | other, answer: string | null }`;
+`answer` only for a question (≤ 200 chars, filtered for tags and links before posting).

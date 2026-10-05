@@ -6,10 +6,13 @@ import { readIngestState, writeIngestState, type IngestState } from '../ingest/s
 import { amendClaim, type ClaimDeps, submitClaim } from '../lifecycle/claims.js';
 import type { SourceReader } from '../lifecycle/source-reader.js';
 import { log } from '../log.js';
-import { resolveCommand } from './commands.js';
+import { type Command, commandWordIn, resolveCommand } from './commands.js';
+import { type Intent, type ThreadPost, classifyIntent } from '../llm/intent.js';
+import { type CallCost, LlmSchemaError } from '../llm/client.js';
+import { recordCosts } from '../db/costs.js';
 import { type ExtrasDeps, quoteReply, selfpromoReply } from './extras.js';
 import { alert, captureError } from '../observe.js';
-import { HELP_REPLY, STOPPED_REPLY, THIRD_PARTY_REPLY } from '../replies/templates.js';
+import { HELP_REPLY, hasTagsOrLinks, STOPPED_REPLY, THIRD_PARTY_REPLY, weightedLength, X_MAX_CHARS } from '../replies/templates.js';
 import { type Mention, XApiError, type XClient } from '../x/client.js';
 
 export type BotDeps = ExtrasDeps & {
@@ -42,22 +45,10 @@ export async function routeMention(deps: BotDeps, mention: Mention, now: Date): 
   if (mention.referenced_tweets?.some((ref) => ref.type === 'retweeted')) return { action: 'ignored_repost', reply: null };
 
   const body = mention.text.replace(/@\w+/g, ' ').replace(/\s+/g, ' ').trim();
-  const command = resolveCommand(body); // closed set, matched in code: no model call
-  if (command === 'stop') {
-    await deps.db.insert(optOuts).values({ xUserId: mention.author_id }).onConflictDoNothing();
-    return { action: 'stop', reply: STOPPED_REPLY };
-  }
+  const command = resolveCommand(body); // a bare command, matched in code: no model call
+  if (command) return runCommand(deps, mention, command, now);
   // Tagging the bot again after STOP resumes (owner decision 2026-09-30, constitution IV).
   await deps.db.delete(optOuts).where(eq(optOuts.xUserId, mention.author_id));
-  if (command === 'help') return { action: 'help', reply: HELP_REPLY };
-  if (command === 'selfpromo') return { action: 'selfpromo', reply: await selfpromoReply(deps) };
-  if (command === 'quote') {
-    const quote = await quoteReply(deps);
-    return quote ? { action: 'quote', reply: quote } : { action: 'quote_deferred', reply: null, deferQuote: true };
-  }
-  // HACK(x): SPECULATIVE (carried from the POC) — X rejects a post identical to a recent one, so pong carries the time. See src/poc/poll.ts.
-  // REVISIT: if a repeated pong without the time is ever accepted.
-  if (command === 'ping') return { action: 'ping', reply: `pong · ${now.toISOString().slice(11, 19)} UTC` };
   const repliedTo = mention.referenced_tweets?.find((ref) => ref.type === 'replied_to')?.id;
 
   // A reply in a claim's thread is the author's fix (FR-010, no keyword); anyone else is ignored, and a closed
@@ -79,11 +70,87 @@ export async function routeMention(deps: BotDeps, mention: Mention, now: Date): 
     return { action: `record_parent_${result.outcome}`, reply: result.reply, slug: result.slug };
   }
 
-  // Otherwise the mention itself is the prediction (or "help", or not a prediction → help reply).
+  // A command word with more text: the model decides, seeing the thread (a prediction goes on below).
+  if (commandWordIn(body)) {
+    const assessed = await assess(deps, mention, body, repliedTo, now);
+    if (assessed) return assessed;
+  }
+
+  // Otherwise the mention itself is the prediction; if it isn't one, the model reads the thread and decides.
   const result = await submitClaim(deps, {
     text: body, authorId: mention.author_id, sourceTweetId: mention.id, summonTweetId: mention.id, sourceVersion: mention.id, now,
   });
+  if (result.outcome === 'rejected' && result.rejectReason === 'not_prediction') {
+    const assessed = await assess(deps, mention, body, repliedTo, now, { predictionRuledOut: true });
+    if (assessed) return assessed;
+  }
   return { action: `record_inline_${result.outcome}`, reply: result.reply, slug: result.slug };
+}
+
+async function runCommand(deps: BotDeps, mention: Mention, command: Command, now: Date): Promise<Routed> {
+  if (command === 'stop') {
+    await deps.db.insert(optOuts).values({ xUserId: mention.author_id }).onConflictDoNothing();
+    return { action: 'stop', reply: STOPPED_REPLY };
+  }
+  await deps.db.delete(optOuts).where(eq(optOuts.xUserId, mention.author_id)); // tagging again resumes
+  if (command === 'help') return { action: 'help', reply: HELP_REPLY };
+  if (command === 'selfpromo') return { action: 'selfpromo', reply: await selfpromoReply(deps) };
+  if (command === 'quote') {
+    const quote = await quoteReply(deps);
+    return quote ? { action: 'quote', reply: quote } : { action: 'quote_deferred', reply: null, deferQuote: true };
+  }
+  // HACK(x): SPECULATIVE (carried from the POC) — X rejects a post identical to a recent one, so pong carries the time. See src/poc/poll.ts.
+  // REVISIT: if a repeated pong without the time is ever accepted.
+  return { action: 'ping', reply: `pong · ${now.toISOString().slice(11, 19)} UTC` };
+}
+
+const THREAD_DEPTH = 3; // posts above the mention shown to the model (paid X reads, in memory only)
+
+// The model decides what an unclear mention wants, with the thread above it. null = go on with recording.
+async function assess(deps: BotDeps, mention: Mention, body: string, repliedTo: string | undefined, now: Date, opts: { predictionRuledOut?: boolean } = {}): Promise<Routed | null> {
+  const thread = await threadAbove(deps, repliedTo);
+  let intent: Intent;
+  let answer: string | null;
+  try {
+    const assessed = await classifyIntent(deps.llm, deps.normalizerModel, body, thread);
+    ({ intent, answer } = assessed);
+    await saveCosts(deps, assessed.costs);
+  } catch (error) {
+    if (!(error instanceof LlmSchemaError)) throw error; // an outage retries the mention
+    await saveCosts(deps, error.costs);
+    return opts.predictionRuledOut ? { action: 'help', reply: HELP_REPLY } : null;
+  }
+  log('info', 'mention assessed', { event: 'mention.assessed', tweet_id: mention.id, intent, thread_posts: thread.length });
+  if (intent === 'prediction') return opts.predictionRuledOut ? { action: 'help', reply: HELP_REPLY } : null;
+  if (intent === 'question') {
+    return answer && !hasTagsOrLinks(answer) && weightedLength(answer) <= X_MAX_CHARS ? { action: 'answer', reply: answer } : { action: 'help', reply: HELP_REPLY };
+  }
+  if (intent === 'other') return { action: 'help', reply: HELP_REPLY };
+  return runCommand(deps, mention, intent, now);
+}
+
+async function saveCosts(deps: BotDeps, costs: CallCost[]) {
+  try {
+    await recordCosts(deps.db, costs.map((cost) => ({ ...cost, claimId: null })));
+  } catch (error) {
+    captureError(error, { event: 'assess.costs_failed' }); // never fails the reply
+  }
+}
+
+async function threadAbove(deps: BotDeps, repliedTo: string | undefined): Promise<ThreadPost[]> {
+  const thread: ThreadPost[] = [];
+  let id = repliedTo;
+  for (let depth = 0; id && depth < THREAD_DEPTH; depth++) {
+    try {
+      const post = await deps.x.getTweet(id);
+      thread.push({ from: post.author_id === deps.botUserId ? 'bot' : 'user', text: post.text });
+      id = post.referenced_tweets?.find((ref) => ref.type === 'replied_to')?.id;
+    } catch (error) {
+      log('info', 'thread post unreadable', { event: 'thread.unreadable', error: String(error) });
+      break;
+    }
+  }
+  return thread;
 }
 
 // The claim whose thread the mention replies into: its parent is the claim's post, the summon, a fix or a bot
