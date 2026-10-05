@@ -13,7 +13,8 @@ await runCli('content-tick', async (config) => {
   const { values, positionals } = cliArgs({ now: { type: 'string' } });
   const job = positionals[0] ?? 'pool';
   if (job !== 'pool' && job !== 'original' && job !== 'receipts') throw new Error(`unknown content job: ${job} (pool | original | receipts)`);
-  if (!config.ENABLE_FEED) throw new Error('ENABLE_FEED is false: switch it on in .env to run a content job');
+  // No ENABLE_FEED check: that flag is for the scheduler. Typing this command is the intent.
+  // Run it on the server — it uses whatever DATABASE_URL and .state/ OAuth token the environment has.
 
   const now = nowFrom(values.now);
   const content = buildContentDeps(buildDeps(config), config);
