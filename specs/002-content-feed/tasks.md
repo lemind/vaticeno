@@ -126,10 +126,14 @@ runs it by hand. 86 unit and 109 integration tests pass.
 
 ## Phase 6: Polish
 
-- [ ] T026 [P] Docs: `docs/content-rules.md` "What runs automatically now" table, `README.md` (status, commands, env), `CLAUDE.md` active feature → 002.
-- [ ] T027 Full test run (`npm test`, integration) and a deploy with `ENABLE_FEED=false`, then the switch-on steps of T019.
+- [x] T026 [P] Docs: `docs/content-rules.md` "What runs automatically now" table, `README.md` (status, commands, env), `CLAUDE.md` active feature → 002.
+- [x] T027 Full verification: typecheck clean, 86 unit and 109 integration tests pass, 83.5% line coverage. **The deploy is the owner's step** (production): `ENABLE_FEED=true`, `FEED_DRY_RUN=false` in `/opt/vaticeno/.env`, then `deploy/deploy.sh root@HOST`; `npm run content:queue -- load-starters` against the server database fills the queue.
 
 ---
+
+**Phase 6 done**: `docs/content-rules.md` shows what the feed does automatically and what stays by hand,
+`README.md` carries the feed's status and its three commands, `CLAUDE.md` points at spec 002. Everything
+in this spec is implemented and verified; what is left is the owner's deploy and the queue load.
 
 ## Dependencies & Execution Order
 
