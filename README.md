@@ -13,8 +13,13 @@ An X bot that puts predictions **on the record** and checks them automatically o
 **Live on X (testing):** tag the bot under your prediction (or put it in the mention): it records it and
 answers once in the thread; reply under its answer to fix it within 15 min. After the deadline the verdict
 (HIT / MISS / VOID) is posted as a reply in the same thread. Spec and tasks: [spec](specs/001-stage0-contract-core/spec.md),
-[tasks](specs/001-stage0-contract-core/tasks.md). How it runs: one service with four timed jobs
-(mentions and lock every minute, expire every 10 min, resolve hourly).
+[tasks](specs/001-stage0-contract-core/tasks.md). How it runs: one service with five timed jobs
+(mentions and lock every minute, expire every 10 min, resolve hourly, verdicts every 5 min).
+
+**Next (spec 002, own feed):** [spec](specs/002-content-feed/spec.md), [tasks](specs/002-content-feed/tasks.md).
+Twice a day the bot picks one account from a fixed pool by weight and reposts its latest post, or quotes it
+with a line of its own; plus one owner-written post a day and verdict receipts. Off by default
+(`ENABLE_FEED=false`), and dry-run first.
 
 | Done | Next |
 |---|---|
@@ -23,6 +28,7 @@ answers once in the thread; reply under its answer to fix it within 15 min. Afte
 | Sports: the match must exist (web search), competition filled in, recordable until kickoff | Public pages on a domain (HTTPS config is ready in `deploy/`) |
 | Database: lock and verdict rules enforced by Postgres, locally and on Supabase | Nightly backups (scripts in `deploy/`, not installed) |
 | Verdicts after the deadline: Coinbase daily close, or AI reading web pages behind code gates; human review | |
+| Own feed (spec 002), groundwork: rule change, settings, tables, the 15-account pool with weights, the X repost and quote calls, daily caps and "never twice" enforced by Postgres | The twice-a-day job itself, then a week of dry run before anything is posted |
 | Claim and author pages (localhost on the server) | |
 | Error tracking, logs and alerts (Sentry, production only); tests on every pull request | |
 

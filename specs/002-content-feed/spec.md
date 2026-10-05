@@ -15,7 +15,7 @@ owner-written originals and receipts. Overall goal: spend as little money as pos
 
 ### User Story 1 - Pool reposts (Priority: P1)
 
-Twice a day the bot picks one account from a fixed pool of 16, by weight (higher-scored accounts come up
+Twice a day the bot picks one account from a fixed pool of 15, by weight (higher-scored accounts come up
 more often), takes its latest eligible post (not a reply or repost, at most 48 h old, never posted by us
 before) and reposts it; if the account has none, another account is picked. About 1 time in 10 it quote-posts that post instead:
 half of those with a verified quote that fits it, half with a short AI joke about it.
@@ -131,9 +131,9 @@ feed, at most 2 per day, so the profile shows the product working.
 
 ## Assumptions
 
-- The pool is the 16 accounts in `docs/content-rules.md`; `@CryptoHayes` (unavailable on X),
-  `@ESPNStatsInfo` (the handle now carries a betting brand, not ESPN), `@saylor` and `@PeterSchiff` are
-  left out. A handle can change hands, so the owner checks an account before it joins the pool.
+- The pool is the 15 accounts in `docs/content-rules.md`; `@CryptoHayes` (unavailable on X),
+  `@ESPNStatsInfo` (the handle now carries a betting brand, not ESPN), `@_1woonomic` (dormant),
+  `@saylor` and `@PeterSchiff` are left out. A handle can change hands, so the owner checks an account before it joins the pool.
 - Reposting a pool post as-is is the owner's editorial choice: the latest post is reposted without an
   AI check, so the pool itself is what keeps the feed on-brand.
 - X allows automated reposts and quote posts when they are not bulk, aggressive or spammy.

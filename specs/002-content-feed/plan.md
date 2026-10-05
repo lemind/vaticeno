@@ -48,10 +48,10 @@ own and new facts.
 
 ## Pool and weights
 
-`src/content/pool.ts` holds the 16 accounts with numeric id, handle and weight (table and scores in
+`src/content/pool.ts` holds the 15 accounts with numeric id, handle and weight (table and scores in
 `docs/content-rules.md`). The owner-kept platform account's id comes from an env var. Weight = score − 15;
-chance = weight / 147. Top accounts (Romano, Schefter: 10.2%) come up about 5× as often as the weakest
-(Woo: 2.0%). Ids, not handles: the ids are looked up once at setup (T003, ~$0.16), never again at run time.
+chance = weight / 144. Top accounts (Romano, Schefter: 10.4%) come up about 4× as often as the weakest
+(Statsbomb, Manifold: 2.8%). Ids, not handles: the ids are looked up once at setup (T003, ~$0.16), never again at run time.
 
 ## Cost
 

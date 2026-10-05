@@ -30,7 +30,6 @@ export const POOL: readonly PoolEntry[] = [
   { handle: 'metaculus', field: 'forecasting', weight: 5, enabled: true },
   { handle: 'Statsbomb', field: 'sport', weight: 4, enabled: true },
   { handle: 'ManifoldMarkets', field: 'forecasting', weight: 4, enabled: true },
-  { handle: '_1woonomic', field: 'crypto', weight: 3, enabled: true },
 ];
 
 // The accounts a run may read: enabled, and with a known numeric id (T003's lookup, or the env var).

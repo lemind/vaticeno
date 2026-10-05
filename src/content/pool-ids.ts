@@ -15,6 +15,5 @@ export const POOL_IDS: Readonly<Record<string, string>> = {
   'metaculus': '4117238354',
   'Statsbomb': '1520262590',
   'ManifoldMarkets': '1466559813752606725',
-  '_1woonomic': '2286905538',
   'Kalshi': '1071484733543079936',
 };

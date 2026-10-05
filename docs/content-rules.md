@@ -48,7 +48,7 @@ odds or betting feed.
 |---|---|
 | RECEIPT post when a claim gets a final verdict | constitution VI amendment (today the bot only replies to mentions) and a daily cap |
 | ON THE RECORD from a hand-written queue, 1 a day | the same amendment; the queue is written by the owner, never by the AI |
-| Reposts from the pool, 2 a day (spec 002) | the same amendment; the pool and weights are chosen by the owner |
+| Reposts from the pool, 2 a day (spec 002) | ✅ amendment done (constitution 2.4.0), pool, weights, tables and caps built; the job itself and a dry-run week are left |
 
 ## Repost pool (spec 002)
 
@@ -58,30 +58,30 @@ Never the same account twice in a row, never the same post twice. The bot follow
 
 Score = popularity + virality + Vaticeno relevance (each 1–10, owner research 2026-10-05).
 Weight = score − 15, so the top accounts come up about 5× as often as the weakest.
-Chance = weight / 147 per pick; picks per month at 60 picks.
+Chance = weight / 144 per pick; picks per month at 60 picks.
 
 | Account | Field | Score | Weight | Chance | Picks/month |
 |---|---|---:|---:|---:|---:|
-| @FabrizioRomano | sport | 30 | 15 | 10.2% | ~6.1 |
-| @AdamSchefter | sport | 30 | 15 | 10.2% | ~6.1 |
-| platform account kept by the owner outside the repo | forecasting | 29 | 14 | 9.5% | ~5.7 |
-| @NateSilver538 | statistics | 28 | 13 | 8.8% | ~5.3 |
-| @Kalshi | forecasting | 27 | 12 | 8.2% | ~4.9 |
-| @100trillionUSD | crypto | 27 | 12 | 8.2% | ~4.9 |
-| @RaoulGMI | crypto | 25 | 10 | 6.8% | ~4.1 |
-| @StatMuse | sport | 25 | 10 | 6.8% | ~4.1 |
-| @OptaJoe | sport | 25 | 10 | 6.8% | ~4.1 |
-| @OptaAnalyst | sport | 23 | 8 | 5.4% | ~3.3 |
-| @OurWorldInData | statistics | 21 | 6 | 4.1% | ~2.4 |
-| @gelliottmorris | statistics | 21 | 6 | 4.1% | ~2.4 |
-| @metaculus | forecasting | 20 | 5 | 3.4% | ~2.0 |
-| @Statsbomb | sport | 19 | 4 | 2.7% | ~1.6 |
-| @ManifoldMarkets | forecasting | 19 | 4 | 2.7% | ~1.6 |
-| @_1woonomic | crypto | 18 | 3 | 2.0% | ~1.2 |
-| **16 accounts** | | | **147** | 100% | 60 |
+| @FabrizioRomano | sport | 30 | 15 | 10.4% | ~6.2 |
+| @AdamSchefter | sport | 30 | 15 | 10.4% | ~6.2 |
+| platform account kept by the owner outside the repo | forecasting | 29 | 14 | 9.7% | ~5.8 |
+| @NateSilver538 | statistics | 28 | 13 | 9.0% | ~5.4 |
+| @Kalshi | forecasting | 27 | 12 | 8.3% | ~5.0 |
+| @100trillionUSD | crypto | 27 | 12 | 8.3% | ~5.0 |
+| @RaoulGMI | crypto | 25 | 10 | 6.9% | ~4.2 |
+| @StatMuse | sport | 25 | 10 | 6.9% | ~4.2 |
+| @OptaJoe | sport | 25 | 10 | 6.9% | ~4.2 |
+| @OptaAnalyst | sport | 23 | 8 | 5.6% | ~3.3 |
+| @OurWorldInData | statistics | 21 | 6 | 4.2% | ~2.5 |
+| @gelliottmorris | statistics | 21 | 6 | 4.2% | ~2.5 |
+| @metaculus | forecasting | 20 | 5 | 3.5% | ~2.1 |
+| @Statsbomb | sport | 19 | 4 | 2.8% | ~1.7 |
+| @ManifoldMarkets | forecasting | 19 | 4 | 2.8% | ~1.7 |
+| **15 accounts** | | | **144** | 100% | 60 |
 
 Left out: `@CryptoHayes` (unavailable on X since 2026-07-07), `@ESPNStatsInfo` (the handle no longer
-belongs to ESPN — it now carries a betting brand, 2026-10-05), `@saylor`, `@PeterSchiff`. A handle can
+belongs to ESPN — it now carries a betting brand, 2026-10-05), `@_1woonomic` (dormant, owner call
+2026-10-05), `@saylor`, `@PeterSchiff`. A handle can
 change hands: check an account before adding it, and the dry run's logged picks show who we would repost.
 Scores and weights live in config next to each account's numeric id; the owner can change them.
 
