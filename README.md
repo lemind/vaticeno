@@ -39,6 +39,8 @@ answers once in the thread; reply under its answer to fix it within 15 min. Afte
 | `@vaticeno STOP` | stops replying to you until you tag it again |
 | `@vaticeno ping` | `pong` |
 
+A command word can be followed by any text (`@vaticeno quote pp` is `quote`); typos like `qoute` work too.
+
 ## Run locally
 
 Requires Node 22.9+, Docker, and an X developer app for the bot ([docs/poc-x-setup.md](docs/poc-x-setup.md)).
