@@ -35,20 +35,21 @@ odds or betting feed.
 
 ## What runs automatically now
 
-| Automated (replies, only when someone tags the bot) | Manual (the owner posts) |
-|---|---|
-| record, fix, help, STOP, ping | the pinned intro |
-| `quote`: a verified quote about bets and predictions | all own-feed posts (ON THE RECORD, HOW IT WORKS, jokes) |
-| `selfpromo`: a motto and a joke | own-feed reposts until spec 002 ships |
-| | RECEIPT posts from real verdicts |
+| Replies (only when someone tags the bot) | Own feed (spec 002, `ENABLE_FEED`) | Still by hand |
+|---|---|---|
+| record, fix, help, STOP, ping | 2 pool posts a day: a repost, or a quote post with our own line | the pinned intro |
+| `quote`: a verified quote about bets and predictions | 1 own post a day from the owner's queue (`content:queue`) | writing new queue items |
+| `selfpromo`: a motto and a joke | up to 2 RECEIPT quote posts a day from real verdicts | deleting a bad repost, changing a weight |
+
+Caps, "never the same post twice" and "never the same account twice in a row" are enforced by the
+database, so a restart or two runs at once cannot double-post. Nothing posts while `FEED_DRY_RUN=true`.
 
 ## What can be automated later
 
 | Next | Needs |
 |---|---|
-| RECEIPT post when a claim gets a final verdict | constitution VI amendment (today the bot only replies to mentions) and a daily cap |
-| ON THE RECORD from a hand-written queue, 1 a day | the same amendment; the queue is written by the owner, never by the AI |
-| Reposts from the pool, 2 a day (spec 002) | ✅ amendment done (constitution 2.4.0), pool, weights, tables and caps built; the job itself and a dry-run week are left |
+| A weekly stats post (profile opens, mentions) | one X call a week, about $0.03; not built |
+| Choosing new pool accounts | stays with the owner: a handle can change hands (see `@ESPNStatsInfo`) |
 
 ## Repost pool (spec 002)
 
