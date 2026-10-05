@@ -18,16 +18,25 @@ export const POOL_IDS: Readonly<Record<string, string>> = {`;
 
 await runCli('pool-ids', async () => {
   const asked = process.argv.slice(2).filter(Boolean);
-  // The platform account is configured by id, so it is never looked up by handle.
-  const handles = asked.length > 0 ? asked : POOL.map((e) => e.handle).filter((h) => h !== PLATFORM_HANDLE);
+  // The platform account is configured by id, so it is never looked up by handle. Handles already in the
+  // generated file are skipped: ids never change, and every lookup is paid for. Name a handle to force it.
+  const handles = asked.length > 0 ? asked : POOL.map((e) => e.handle).filter((h) => h !== PLATFORM_HANDLE && !POOL_IDS[h]);
+  if (handles.length === 0) {
+    printJson({ written: null, skipped: 'every pool handle already has an id', usd: '0.00' });
+    return;
+  }
   const x = createXClient(loadConfig().X_BEARER_TOKEN);
 
   const ids: Record<string, string> = { ...POOL_IDS };
+  let resolved = 0;
   let failed = 0;
   for (const handle of handles) {
     try {
       const user = await x.getUserByUsername(handle);
-      ids[handle] = user.id;
+      // Keyed by the username X returns, not by the one typed: the lookup is case-insensitive, and
+      // src/content/pool.ts looks ids up by the exact handle in POOL.
+      ids[user.username] = user.id;
+      resolved += 1;
       printJson({ handle: user.username, id: user.id });
     } catch (error) {
       failed += 1;
@@ -37,5 +46,6 @@ await runCli('pool-ids', async () => {
 
   const body = Object.entries(ids).map(([handle, id]) => `  '${handle}': '${id}',`).join('\n');
   writeFileSync(GENERATED_FILE, `${HEADER}\n${body}\n};\n`);
-  printJson({ written: GENERATED_FILE, ids: Object.keys(ids).length, failed, usd: (handles.length * X_USER_READ_USD).toFixed(2) });
+  // X bills per user returned, so a failed lookup costs nothing.
+  printJson({ written: GENERATED_FILE, ids: Object.keys(ids).length, failed, usd: (resolved * X_USER_READ_USD).toFixed(2) });
 });

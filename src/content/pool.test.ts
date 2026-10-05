@@ -55,9 +55,11 @@ test('the previous run’s account never comes up again, and a lone account yiel
   assert.equal(pickAccount([], null), null);
 });
 
-test('a disabled account is never picked', () => {
-  const accounts = poolAccounts('p9', IDS).map((a) => (a.handle === 'OptaJoe' ? { ...a, enabled: false } : a));
-  const enabled = accounts.filter((a) => a.enabled);
+test('a disabled account is dropped from the pool, so it is never read or picked', () => {
+  const pool = POOL.map((e) => (e.handle === 'OptaJoe' ? { ...e, enabled: false } : e));
+  const accounts = poolAccounts('p9', IDS, pool);
+  assert.equal(accounts.length, 16);
+  assert.equal(accounts.find((a) => a.handle === 'OptaJoe'), undefined);
   const random = seeded(11);
-  for (let i = 0; i < 2000; i++) assert.notEqual(pickAccount(enabled, null, random)!.handle, 'OptaJoe');
+  for (let i = 0; i < 2000; i++) assert.notEqual(pickAccount(accounts, null, random)!.handle, 'OptaJoe');
 });

@@ -70,6 +70,27 @@ test('a dry-run pick holds no slot, but is not picked again, and names the previ
   assert.equal(await previousAccountId(t.db), 'acc3');
 });
 
+test('an error path after a successful post cannot free the slot or re-post', async () => {
+  const live = await reserveSlot(t.db, pool('p1'));
+  assert.equal(await markPosted(t.db, live!.id, null), true);
+  // The post is out; whatever throws afterwards, this must change nothing.
+  assert.equal(await markFailed(t.db, live!.id), false);
+  assert.equal((await reserveSlot(t.db, { ...pool('p2'), accountId: 'acc2' }))?.slot, 2, 'slot 1 stays used');
+  const [row] = await t.sql`select status, slot from feed_posts where id = ${live!.id}`;
+  assert.deepEqual([row!.status, row!.slot], ['posted', 1]);
+  // A dry-run row is not a reserved post either, so no mark touches it.
+  const dry = await logDryRun(t.db, { ...pool('p3'), accountId: 'acc3' });
+  assert.equal(await markPosted(t.db, dry!.id, 'x1'), false);
+});
+
+test('an owner-written original is reserved once, whatever the day', async () => {
+  const [item] = await t.sql`insert into feed_queue ${t.sql({ text: 'On the record.', position: 1 })} returning id`;
+  const queueItemId = item!.id as string;
+  assert.equal((await reserveSlot(t.db, { kind: 'original', day: DAY, queueItemId }))?.slot, 1);
+  // A crash before feed_queue.posted_at was set must not post the same text again tomorrow.
+  assert.equal(await reserveSlot(t.db, { kind: 'original', day: '2027-01-02', queueItemId }), null);
+});
+
 test("the daily spend counts the feed's own costs only", async () => {
   // Cost rows are stamped by the database, so this one test runs against the real clock.
   const today = new Date();

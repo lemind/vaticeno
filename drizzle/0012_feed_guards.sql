@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "feed_posts_queue_item_key" ON "feed_posts" USING btree ("queue_item_id") WHERE queue_item_id is not null;

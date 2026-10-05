@@ -44,14 +44,26 @@ export async function reserveSlot(db: Db, reservation: Reservation): Promise<{ i
   return null;
 }
 
-// The post went out. `postedId` is null for a repost: X returns no id for one.
-export async function markPosted(db: Db, id: string, postedId: string | null): Promise<void> {
-  await db.update(feedPosts).set({ status: 'posted', postedId }).where(eq(feedPosts.id, id));
+// The post went out. `postedId` is null for a repost: X returns no id for one. Only a reserved row
+// moves: a second mark (a retry, or an error path after the post already went out) changes nothing.
+export async function markPosted(db: Db, id: string, postedId: string | null): Promise<boolean> {
+  const rows = await db
+    .update(feedPosts)
+    .set({ status: 'posted', postedId })
+    .where(and(eq(feedPosts.id, id), eq(feedPosts.status, 'reserved')))
+    .returning({ id: feedPosts.id });
+  return rows.length > 0;
 }
 
-// X refused the post: never retried (the source stays used), but the day's slot is freed.
-export async function markFailed(db: Db, id: string): Promise<void> {
-  await db.update(feedPosts).set({ status: 'failed', slot: null }).where(eq(feedPosts.id, id));
+// X refused the post: never retried (the source stays used), but the day's slot is freed. Guarded the
+// same way, so an error raised *after* a successful post can never free a slot that was really used.
+export async function markFailed(db: Db, id: string): Promise<boolean> {
+  const rows = await db
+    .update(feedPosts)
+    .set({ status: 'failed', slot: null })
+    .where(and(eq(feedPosts.id, id), eq(feedPosts.status, 'reserved')))
+    .returning({ id: feedPosts.id });
+  return rows.length > 0;
 }
 
 // A dry-run pick (FR-007): recorded for the owner's review and so the rehearsal behaves like the real

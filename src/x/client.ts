@@ -38,10 +38,12 @@ const MentionsResponseSchema = z.object({
 const UserByUsernameResponseSchema = z.object({ data: XUserSchema });
 
 // A pool account's latest posts (spec 002): own posts only, no replies or reposts, newest first.
-const UserPostSchema = z.object({ id: z.string(), text: z.string(), created_at: z.string() });
+// Every field is optional on purpose: X omits requested fields on withheld posts, and a gone or
+// protected account answers 200 with `errors` and no `meta`. One odd post must not cost us the page.
+const UserPostSchema = z.object({ id: z.string(), text: z.string(), created_at: z.string().optional() });
 const UserPostsResponseSchema = z.object({
   data: z.array(UserPostSchema).optional(),
-  meta: z.object({ result_count: z.number() }),
+  meta: z.object({ result_count: z.number() }).optional(),
 });
 
 // One post with its edit history; the last id in edit_history_tweet_ids is the current version.

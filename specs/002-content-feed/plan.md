@@ -89,7 +89,8 @@ drizzle/0010_feed.sql, 0011_feed_dry_run.sql   feed_posts (kind, cap_group gener
 X client additions: user timeline read, repost (`POST /2/users/:id/retweets`), quote post (`POST /2/tweets`
 with `quote_tweet_id`). Following the pool: by hand in the app (free), or the API with the extra
 `follows.write` permission (re-authorize the bot). Config: `ENABLE_FEED` (off), `FEED_DRY_RUN` (on),
-`FEED_PLATFORM_ACCOUNT_ID` (the owner-kept account), `FEED_DAILY_USD_CAP` (0.30). X and model costs are recorded
+`FEED_PLATFORM_ACCOUNT_ID` (the owner-kept account), `FEED_DAILY_USD_CAP` (0.30). The feed's model call never uses grounded search: the surcharge would be filed as `search` by the shared
+client and stay invisible to the daily cap. X and model costs are recorded
 as cost rows (provider `x`; operations `feed_read`, `feed_post`, `feed_model`), and the daily cap sums
 exactly those. X list prices: `src/x/prices.ts`.
 

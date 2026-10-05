@@ -246,8 +246,10 @@ export const feedPosts = pgTable(
     check('feed_posts_pool_check', sql`${t.kind} not in ('repost', 'quote') or (${t.accountId} is not null and ${t.sourcePostId} is not null)`),
     check('feed_posts_original_check', sql`${t.kind} <> 'original' or ${t.queueItemId} is not null`),
     check('feed_posts_receipt_check', sql`${t.kind} <> 'receipt' or ${t.sourcePostId} is not null`),
-    // Never the same post twice, even from two runs at once.
+    // Never the same post twice, even from two runs at once: pool posts and receipts are keyed by the
+    // post they carry, an owner-written original by its queue item.
     uniqueIndex('feed_posts_source_key').on(t.sourcePostId).where(sql`source_post_id is not null`),
+    uniqueIndex('feed_posts_queue_item_key').on(t.queueItemId).where(sql`queue_item_id is not null`),
     // The day's caps: one row per slot. A failed row's slot is null, and nulls never collide.
     unique('feed_posts_slot_unique').on(t.capGroup, t.day, t.slot),
   ],

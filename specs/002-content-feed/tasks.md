@@ -52,6 +52,8 @@ is the model price list; the pool's ids sit in a generated `src/content/pool-ids
 `content:pool-ids`, so T003 needs no hand-editing. Verified: 80 unit and 98 integration tests pass, both
 migrations applied locally. **Supabase: not applied yet.** The X calls are unexercised — they cost money.
 
+- [x] T010a Review fixes (code review, 2026-10-05): an empty `FEED_PLATFORM_ACCOUNT_ID=`/`FEED_DAILY_USD_CAP=` line now means "unset" instead of killing every entrypoint or setting the cap to 0 (default 0.15/day ≈ $4.5 a month, SC-002); `markPosted`/`markFailed` only move a `reserved` row, so an error after a successful post can no longer free a used slot; a unique index on `queue_item_id` (migration 0012) keeps an original from being posted twice after a crash; a timeline page survives a post with no `created_at` and an account that answers 200 with `errors`; `content:pool-ids` keys ids by the username X returns, skips handles it already has (paid call) and counts only resolved lookups; a pool handle with no id is logged, not silently dropped; the disabled-account test now exercises the real filter.
+
 ---
 
 ## Phase 3: User Story 1 — Pool reposts (P1) 🎯 MVP

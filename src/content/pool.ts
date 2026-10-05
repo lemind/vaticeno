@@ -1,6 +1,7 @@
 // The repost pool (spec 002 FR-001): a fixed list the owner owns; the bot never adds an account.
 // Scores and the weight table live in docs/content-rules.md — weight = popularity + virality + relevance
 // − 15, so the strongest accounts come up about five times as often as the weakest.
+import { log } from '../log.js';
 import { POOL_IDS } from './pool-ids.js';
 
 export const POOL_FIELDS = ['forecasting', 'statistics', 'crypto', 'sport'] as const;
@@ -34,11 +35,20 @@ export const POOL: readonly PoolEntry[] = [
 ];
 
 // The accounts a run may read: enabled, and with a known numeric id (T003's lookup, or the env var).
-export function poolAccounts(platformAccountId?: string, ids: Readonly<Record<string, string>> = POOL_IDS): PoolAccount[] {
-  return POOL.flatMap((entry) => {
+// A handle with no id is skipped — but loudly: silently shrinking the pool would re-weight every account.
+export function poolAccounts(
+  platformAccountId?: string,
+  ids: Readonly<Record<string, string>> = POOL_IDS,
+  pool: readonly PoolEntry[] = POOL,
+): PoolAccount[] {
+  return pool.flatMap((entry) => {
     if (!entry.enabled) return [];
     const id = entry.handle === PLATFORM_HANDLE ? platformAccountId : ids[entry.handle];
-    return id ? [{ ...entry, id }] : [];
+    if (!id) {
+      if (entry.handle !== PLATFORM_HANDLE) log('warn', 'pool account has no id; skipped', { event: 'feed.pool_id_missing', handle: entry.handle });
+      return [];
+    }
+    return [{ ...entry, id }];
   });
 }
 
