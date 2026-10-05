@@ -152,12 +152,16 @@ fixtures/
 ├── seeds/open/*.json               # categorised per SC-003
 └── replay/                         # recorded model, search, fetch, feed responses — gitignored, local only
 tests/integration/                  # real Postgres: triggers, transitions, uniqueness, services
+deploy/                             # systemd units, backup.sh + nightly timer, journald cap, Caddyfile
 ```
 
 **Structure Decision**: single project extending the existing `src/`; unit tests colocated as
 `*.test.ts`, DB-backed tests in `tests/integration/`. The core runs as CLI → service → DB; cron and
-the web server are thin callers of the same services. The POC poller keeps running on the droplet
-unchanged; Stage 0 code is not wired to X and Stage 0 tasks do not edit the POC directories.
+the web server are thin callers of the same services. Phase 9 wires X: the service runs the web server,
+whose scheduler polls mentions (`src/bot/`, `ENABLE_X`); the POC poller (`src/poc/`) is no longer run.
+Two extra commands live in `src/bot/extras.ts`: `selfpromo` (fixed motto + AI joke, `joke.v1`) and `quote`
+(a sourced quote from Wikiquote's API, `src/bot/wikiquote.ts`, retried later on a 1-5-30-120 min ladder; replies never tag anyone). Nothing
+is stored; their costs are recorded without a claim.
 
 ## Architecture
 

@@ -48,6 +48,10 @@ const CoreEnvSchema = z
     ARBITER_MODEL: modelId,
     SENTRY_DSN: optionalText,
     PORT: z.coerce.number().int().min(1).max(65535).default(3000),
+    // Run the jobs (lock, expiry, resolver) inside the web server. Exactly one instance may set it.
+    ENABLE_JOBS: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
+    // With ENABLE_JOBS: read mentions on X, record claims and post replies (needs the X_* variables).
+    ENABLE_X: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
   })
   .superRefine((env, ctx) => {
     if (env.LLM_MODE !== 'replay' && !env.GEMINI_API_KEY) {

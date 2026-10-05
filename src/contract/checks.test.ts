@@ -58,6 +58,15 @@ test('deadline must be more than 24 h away (exactly 24 h is rejected)', () => {
   assert.deepEqual(check(proposal({}, { deadline_at: '2026-09-01T00:00:00Z' })), { outcome: 'rejected', reason: 'deadline_too_close' });
 });
 
+test('a sports match only needs the deadline after the 15 min lock (a game starting soon is fine)', () => {
+  const model = (deadline_at: string) => check(proposal({}, { resolution_method: 'model', deadline_at, source: { ...priceContract.source, kind: 'football_results' } }));
+  assert.notEqual(model('2026-09-30T13:00:00Z').outcome, 'rejected', 'an hour away');
+  assert.deepEqual(model('2026-09-30T12:15:00Z'), { outcome: 'rejected', reason: 'deadline_too_close' });
+  assert.deepEqual(model('2026-09-29T12:00:00Z'), { outcome: 'rejected', reason: 'deadline_too_close' });
+  const stock = check(proposal({}, { resolution_method: 'model', deadline_at: '2026-09-30T13:00:00Z', source: { ...priceContract.source, kind: 'company_news' } }));
+  assert.deepEqual(stock, { outcome: 'rejected', reason: 'deadline_too_close' }, 'anything else keeps 24 h');
+});
+
 test('deadline must be within 10 years (exactly 10 years is allowed)', () => {
   assert.equal(check(proposal({}, { deadline_at: '2036-09-30T12:00:00Z' })).outcome, 'recorded');
   assert.deepEqual(check(proposal({}, { deadline_at: '2036-09-30T12:00:01Z' })), { outcome: 'rejected', reason: 'deadline_too_far' });

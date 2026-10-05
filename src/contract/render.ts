@@ -7,7 +7,8 @@ export function renderStatement(contract: Contract): string {
   if (contract.resolution_method === 'price_feed' && contract.price) {
     return renderPrice(contract.price, by);
   }
-  return `${contract.criterion} — by ${by}, per ${contract.source.name}`;
+  // No source in the reply: which site answers is the resolver's call, not a promise. The date is added only if missing.
+  return contract.criterion.includes(by) ? contract.criterion : `${contract.criterion} — by ${by}`;
 }
 
 function renderPrice(price: PriceTerms, by: string): string {

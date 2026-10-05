@@ -1,0 +1,3 @@
+-- New reject reason: a sports claim whose match search cannot find scheduled (owner decision 2026-09-30).
+ALTER TABLE "claims" DROP CONSTRAINT "claims_reject_reason_check";--> statement-breakpoint
+ALTER TABLE "claims" ADD CONSTRAINT "claims_reject_reason_check" CHECK ("claims"."reject_reason" in ('not_prediction', 'x_rules', 'deadline_too_close', 'deadline_too_far', 'duplicate', 'event_not_found'));

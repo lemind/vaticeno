@@ -1,0 +1,9 @@
+# HTTPS for the public pages (research: Caddy in front, automatic certificates). /etc/caddy/Caddyfile.
+vaticeno.app {
+	encode gzip
+	reverse_proxy localhost:3000
+}
+
+www.vaticeno.app {
+	redir https://vaticeno.app{uri} permanent
+}

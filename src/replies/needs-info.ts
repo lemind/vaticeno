@@ -12,7 +12,7 @@ import { fallbackExample, needsInfoReply, weightedLength, X_MAX_CHARS } from './
 
 const EXAMPLES_CHECKED = 2; // per round: at most 2 + 1 regeneration + 1 = 4 extra calls per reply
 
-export type NeedsInfoDeps = { llm: LlmClient; coinbase: Coinbase; normalizerModel: string };
+export type NeedsInfoDeps = { llm: LlmClient; coinbase: Coinbase; normalizerModel: string; normalizerVersion?: string };
 
 export type NeedsInfoResult = { reply: string; example: string | null; costs: CallCost[] };
 
@@ -28,7 +28,7 @@ export async function buildNeedsInfoReply(
   let example = await firstRecordable(deps, input.proposal?.examples ?? [], today, input.now, costs, fits);
   if (!example) {
     // One regeneration: ask again for this text; the added hint makes it a distinct (recordable) call.
-    const again = await proposeContract(deps.llm, deps.normalizerModel, `${input.text}\n\n(suggest different examples)`, today);
+    const again = await proposeContract(deps.llm, deps.normalizerModel, `${input.text}\n\n(suggest different examples)`, today, deps.normalizerVersion);
     costs.push(...again.costs);
     if (again.kind === 'ok') example = await firstRecordable(deps, again.proposal.examples.slice(0, 1), today, input.now, costs, fits);
   }
@@ -43,7 +43,7 @@ async function firstRecordable(
   for (const example of examples.slice(0, EXAMPLES_CHECKED)) {
     const body = example.replace(/^amend\s+/i, '').trim();
     if (!body || !fits(body)) continue; // must fit the reply, or it is useless
-    const proposed = await proposeContract(deps.llm, deps.normalizerModel, body, today);
+    const proposed = await proposeContract(deps.llm, deps.normalizerModel, body, today, deps.normalizerVersion);
     costs.push(...proposed.costs);
     if (proposed.kind !== 'ok') continue;
     const checked = runChecks(proposed.proposal, now, { sourcePostClaimed: false });

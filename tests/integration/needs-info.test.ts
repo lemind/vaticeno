@@ -74,7 +74,7 @@ describe('amend from needs info', () => {
     const reader = createMemorySourceReader({ '77': { versionId: 'v2', text: 'moon soon (edited)' } });
     const later = new Date('2026-09-30T13:00:00Z');
 
-    assert.equal((await amendClaim({ ...d, reader }, { slug, authorId: '999', text: 'x', now: later })).outcome, 'refused');
+    assert.equal((await amendClaim({ ...d, reader }, { slug, authorId: '999', text: 'x', now: later })).outcome, 'ignored');
 
     const result = await amendClaim({ ...d, reader }, { slug, authorId: '200', text: 'BTC daily close above $150,000 by 2026-12-31', now: later });
     assert.equal(result.outcome, 'recorded');

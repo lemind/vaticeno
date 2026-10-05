@@ -1,5 +1,6 @@
 // Non-price claims: search → fetch → judge each page → trust → gates (research R4). Page text and quotes
 // live only in memory for this run; what survives is the evidence row (link, hash, answer, gates).
+import { SCHEDULED_EVENT_KINDS } from '../contract/schema.js';
 import type { Contract } from '../contract/schema.js';
 import { type CallCost, type LlmClient, LlmSchemaError } from '../llm/client.js';
 import { JUDGE_VERSION, judgePage, searchSources } from '../llm/judges.js';
@@ -12,7 +13,7 @@ import { capTrust, hostOf, registrableDomain } from './trust.js';
 const MAX_PAGES = 8;
 const TRUST_ORDER = { primary: 0, established: 1, weak: 2 } as const;
 
-export type WebDeps = { llm: LlmClient; fetchPage: PageFetcher; judgeModelA: string; judgeModelB: string };
+export type WebDeps = { llm: LlmClient; fetchPage: PageFetcher; judgeModelA: string; judgeModelB: string; judgeVersion?: string };
 
 export type GatheredItem = {
   draft: EvidenceDraft;
@@ -21,6 +22,7 @@ export type GatheredItem = {
   value: number | null; // price feed answers only
   sourceName: string;
   trustReason: string | null;
+  resultSummary?: string | null;
   contentSha256: string | null;
   searchQuery: string | null;
   modelId: string | null;
@@ -65,7 +67,7 @@ export async function gatherWebEvidence(
     if (seen.has(page.url)) continue;
     seen.add(page.url);
     try {
-      const { judgement, costs: judgeCosts } = await judgePage(deps.llm, deps.judgeModelA, contract, window, page);
+      const { judgement, costs: judgeCosts } = await judgePage(deps.llm, deps.judgeModelA, contract, window, page, deps.judgeVersion);
       costs.push(...judgeCosts);
       const host = hostOf(page.url);
       judged.push({
@@ -75,6 +77,7 @@ export async function gatherWebEvidence(
           trustLevel: capTrust(judgement.source_trust, page.url, contract),
           says: judgement.says,
           eventDate: judgement.event_date,
+          eventStart: judgement.event_start ?? null,
           url: page.url,
           retrievedAt: page.retrievedAt,
           quoteFound: judgement.quoteFound,
@@ -85,10 +88,11 @@ export async function gatherWebEvidence(
         value: null,
         sourceName: host ? registrableDomain(host) : page.url,
         trustReason: judgement.trust_reason,
+        resultSummary: judgement.result ?? null,
         contentSha256: page.sha256,
         searchQuery,
         modelId: deps.judgeModelA,
-        instructionVersion: JUDGE_VERSION,
+        instructionVersion: deps.judgeVersion ?? JUDGE_VERSION,
         pageText: page.text,
       });
     } catch (error) {
@@ -103,7 +107,7 @@ export async function gatherWebEvidence(
   judged.sort((a, b) => TRUST_ORDER[a.draft.trustLevel] - TRUST_ORDER[b.draft.trustLevel]);
   const accepted: EvidenceDraft[] = [];
   const items: GatheredItem[] = judged.map((item) => {
-    const { gates, passed } = runGates(item.draft, { ...window, absenceIsMeaningful: contract.source.absence_is_meaningful }, accepted);
+    const { gates, passed } = runGates(item.draft, { ...window, absenceIsMeaningful: contract.source.absence_is_meaningful, startTimeCounts: SCHEDULED_EVENT_KINDS.includes(contract.source.kind) }, accepted);
     if (passed) accepted.push(item.draft);
     return { ...item, gates, passed };
   });
@@ -122,7 +126,7 @@ export async function gatherWebEvidence(
 
 function emptySearchItem(searchQuery: string | null, now: Date): GatheredItem {
   const draft: EvidenceDraft = {
-    sourceKind: 'web', basis: 'record', trustLevel: 'weak', says: 'irrelevant', eventDate: null, url: null,
+    sourceKind: 'web', basis: 'record', trustLevel: 'weak', says: 'irrelevant', eventDate: null, eventStart: null, url: null,
     retrievedAt: now, quoteFound: null, isFinalResult: false, originalSource: null, simhash: null,
   };
   const gates: Gates = { trusted: false, quote_found: null, in_window: null, final: false, independent: null };

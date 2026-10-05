@@ -6,11 +6,11 @@ All commands: `npm run <script> -- [options]`. Output is structured JSON lines u
 
 | Script | Purpose | Key options | Exit code |
 |---|---|---|---|
-| `corpus` | run the fixture corpus through proposal + checks (FR-006) | `--group <name>`, `--model <id>` | 0 if pass rate ≥ 90%, else 1 |
-| `seeds:crypto` | resolve the 60 frozen crypto seeds | — | 0 only if 100% correct |
-| `seeds:open` | resolve the seeded open-topic set with the model judge | `--model <id>` | 0 if agreement ≥ 95% and wrong HIT/MISS < 5% |
+| `corpus` | run the fixture corpus through proposal + checks (FR-006) | `--group <name>`, `--model <id>` | 0 if pass rate ≥ 90%, every NEEDS INFO reply passes SC-005 and no claim costs > $0.30; else 1 |
+| `seeds:crypto` | resolve the 60 frozen crypto seeds | `--category`, `--id`, `--verbose` | 0 only if 100% correct and no claim costs > $0.30 |
+| `seeds:open` | resolve the seeded open-topic set with the model judge | `--category`, `--id`, `--verbose` | 0 if agreement ≥ 95%, wrong HIT/MISS < 5%, every category at its minimum and no claim costs > $0.30 |
 | `claim:submit` | create a claim from text as if summoned | `--text`, `--author`, `--post` | 0 |
-| `claim:reply` | the author's reply under the bot's reply (an amend; no command word) | `--slug`, `--text` | 0 |
+| `claim:reply` | the author's reply under the bot's reply (an amend; no command word); other users are ignored | `--slug`, `--text`, `--author`, `--now` | 0 |
 | `claim:edit` | simulate an edit of the original tweet (picked up at lock time) | `--slug`, `--text` | 0 |
 | `jobs:tick` | run lock sweeper, needs-info expiry and resolver once (same service functions cron calls) | `--now` | 0 |
 | `review:list` | resolutions flagged for human review, with their evidence | — | 0 |

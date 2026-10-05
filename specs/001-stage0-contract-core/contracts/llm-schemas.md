@@ -23,7 +23,7 @@ Input: locked contract, lock and deadline, and the pass number (two passes, `JUD
 candidate URLs. The model's prose is ignored. The contract's own locator is always read as well.
 Input also lists known sources (`sources.agreed_count ≥ 5`) as places to look first — a hint only.
 
-## Judge — `judge.v2` (no tools)
+## Judge — `judge.v3` (no tools; the seeded claims replay with `judge.v2`, which has no `event_start`)
 
 Input: locked contract, lock and deadline, and ONE page our code fetched (`{url, text}`). One call per
 page → one evidence row.
@@ -34,6 +34,8 @@ JudgeSchema = {
   basis: 'record' | 'absence',          // absence only when this page is the contract's exhaustive record
   quote: string | null,                  // verbatim from the page; checked in code, then dropped
   event_date: string | null,             // YYYY-MM-DD of the event itself, not of publication
+  event_start: string | null,            // UTC date-time the event began (kickoff), only if the page states it
+  result: string | null,                 // the outcome in its own words, ≤ 60 chars ("Browns 24–17 Steelers"); shown in the verdict
   is_final_result: boolean,
   from_contract_source: boolean,        // informational only
   source_trust: 'primary' | 'established' | 'weak',  // primary = the body that decides/records the outcome;
@@ -67,3 +69,22 @@ ArbiterSchema = {
 ```
 An index (not an evidence id) keeps replay stable: ids are new on every run. `cannot_decide` →
 resolution `review_status = needs_human`.
+
+## Fixture check — `fixture.v1` (Google Search; sports claims only)
+
+Input: criterion, subject, deadline, now. Output (JSON read from the answer text):
+
+```ts
+{ found: boolean, home: string | null, away: string | null, competition: string | null,
+  kickoff_utc: string | null,  // YYYY-MM-DDTHH:MM:SSZ if a source states it
+  criterion: string | null }   // rewritten with both sides + competition, ≤ 100 chars
+```
+
+Not found → rejected `event_not_found`; kickoff already passed → `deadline_too_close`; a kickoff after the
+deadline moves the deadline to the end of the kickoff's UTC day.
+
+## Intent — `intent.v1` (unclear mentions only)
+
+Input: the mention text and up to 3 posts above it (`bot` / `user`, texts in memory only). Output:
+`{ intent: prediction | quote | selfpromo | help | ping | stop | question | other, answer: string | null }`;
+`answer` only for a question (≤ 200 chars, filtered for tags and links before posting).

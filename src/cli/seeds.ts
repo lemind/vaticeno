@@ -1,6 +1,7 @@
 // npm run seeds:crypto | seeds:open — resolve seeded historical claims whose correct verdict is known
 // (SC-002 – SC-004, SC-010). Each seed gets a fresh claim in a scratch database; the resolver runs as of
 // just after the deadline and then follows its own schedule (up to MAX_RUNS), as time would.
+import { SEEDS_JUDGE_VERSION } from '../llm/judges.js';
 import { readdir, readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { eq, sql } from 'drizzle-orm';
@@ -12,6 +13,7 @@ import { claims, costEvents, evidences, resolutions, sources } from '../db/schem
 import type { Candle, Coinbase } from '../feeds/coinbase.js';
 import { createLlmClient } from '../llm/client.js';
 import { createReplayStore } from '../llm/replay.js';
+import { CLAIM_BUDGET_USD } from '../llm/prices.js';
 import { createPageFetcher } from '../resolve/fetch.js';
 import { type ResolverDeps, resolveClaim } from '../resolve/resolver.js';
 import { cliArgs, printJson, runCli } from './run.js';
@@ -65,6 +67,8 @@ await runCli('seeds', async (config) => {
     const base: Omit<ResolverDeps, 'coinbase'> = {
       db: scratch.db, llm, fetchPage: createPageFetcher({ mode: config.LLM_MODE, store }),
       judgeModelA: config.JUDGE_MODEL_A, judgeModelB: config.JUDGE_MODEL_B, arbiterModel: config.ARBITER_MODEL,
+      // Replay reads the answers recorded with the v2 judge (SEEDS_JUDGE_VERSION); a new recording uses the current one.
+      ...(config.LLM_MODE === 'replay' ? { judgeVersion: SEEDS_JUDGE_VERSION } : {}),
     };
 
     const results = [];
@@ -141,12 +145,14 @@ function summarize(set: 'crypto' | 'open', results: Result[]) {
     : [];
   const agreement = agreed / results.length;
   const wrongRate = wrong / results.length;
-  const ok = set === 'crypto' ? agreed === results.length : agreement >= 0.95 && wrongRate < 0.05 && short.length === 0;
+  const overBudget = results.filter((r) => r.usd_cost > CLAIM_BUDGET_USD).length; // constitution: > $0.30 → investigate
+  const accurate = set === 'crypto' ? agreed === results.length : agreement >= 0.95 && wrongRate < 0.05 && short.length === 0;
+  const ok = accurate && overBudget === 0;
   return {
     set, total: results.length, agreed, agreement: Number(agreement.toFixed(3)), wrong_hit_miss: wrong, wrong_rate: Number(wrongRate.toFixed(3)),
     needs_human: results.filter((r) => r.actual === 'needs_human').length,
     usd_cost: Number(results.reduce((sum, r) => sum + r.usd_cost, 0).toFixed(4)),
-    max_claim_usd: Math.max(...results.map((r) => r.usd_cost)),
+    max_claim_usd: Math.max(...results.map((r) => r.usd_cost)), claims_over_budget: overBudget,
     categories_below_minimum: short, by_category: byCategory, ok,
   };
 }

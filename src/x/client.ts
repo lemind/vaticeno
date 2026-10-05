@@ -4,7 +4,7 @@ const X_API_BASE = 'https://api.x.com/2';
 
 // Field names are the long-standing v2 ones. The current docs page shows `post.fields` /
 // `referenced_posts`; if X rejects these, the 400 body names the valid values.
-const MENTION_TWEET_FIELDS = 'created_at,conversation_id,author_id,in_reply_to_user_id,referenced_tweets,edit_controls';
+const MENTION_TWEET_FIELDS = 'created_at,conversation_id,author_id,in_reply_to_user_id,referenced_tweets,edit_controls,edit_history_tweet_ids';
 
 const XUserSchema = z.object({ id: z.string(), username: z.string(), name: z.string().optional() });
 
@@ -18,6 +18,7 @@ const MentionSchema = z.object({
   referenced_tweets: z
     .array(z.object({ type: z.enum(['replied_to', 'quoted', 'retweeted']), id: z.string() }))
     .optional(),
+  edit_history_tweet_ids: z.array(z.string()).optional(),
   edit_controls: z
     .object({ editable_until: z.string(), edits_remaining: z.number() })
     .optional(),
@@ -35,6 +36,14 @@ const MentionsResponseSchema = z.object({
 });
 
 const UserByUsernameResponseSchema = z.object({ data: XUserSchema });
+
+// One post with its edit history; the last id in edit_history_tweet_ids is the current version.
+const TweetResponseSchema = z.object({
+  data: z.object({
+    id: z.string(), text: z.string(), author_id: z.string().optional(), edit_history_tweet_ids: z.array(z.string()).optional(),
+    referenced_tweets: z.array(z.object({ type: z.string(), id: z.string() })).optional(),
+  }),
+});
 
 export type Mention = z.infer<typeof MentionSchema>;
 export type XUser = z.infer<typeof XUserSchema>;
@@ -68,6 +77,11 @@ export function createXClient(bearerToken: string) {
     async getUserByUsername(username: string): Promise<XUser> {
       const json = await getJson(`/users/by/username/${encodeURIComponent(username)}`, {});
       return UserByUsernameResponseSchema.parse(json).data;
+    },
+
+    async getTweet(id: string): Promise<z.infer<typeof TweetResponseSchema>['data']> {
+      const json = await getJson(`/tweets/${encodeURIComponent(id)}`, { 'tweet.fields': 'author_id,edit_history_tweet_ids,referenced_tweets' });
+      return TweetResponseSchema.parse(json).data;
     },
 
     async getMentionsPage(opts: {

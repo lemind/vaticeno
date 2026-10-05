@@ -21,7 +21,7 @@ import {
 export const CLAIM_STATUSES = [
   'parsing', 'needs_info', 'draft', 'locked', 'resolving', 'resolved', 'void', 'rejected', 'expired',
 ] as const;
-export const REJECT_REASONS = ['not_prediction', 'x_rules', 'deadline_too_close', 'deadline_too_far', 'duplicate'] as const;
+export const REJECT_REASONS = ['not_prediction', 'x_rules', 'deadline_too_close', 'deadline_too_far', 'duplicate', 'event_not_found'] as const;
 export const RESOLUTION_METHODS = ['price_feed', 'model'] as const;
 export const STANCES = ['agree', 'disagree'] as const;
 export const SOURCE_KINDS = ['price_feed', 'web'] as const;
@@ -49,6 +49,7 @@ export const claims = pgTable(
     slug: text('slug').notNull().unique(),
     sourceTweetId: text('source_tweet_id').notNull().unique(),
     summonTweetId: text('summon_tweet_id').notNull(),
+    threadTweetIds: text('thread_tweet_ids').array().notNull().default(sql`'{}'`), // bot replies and fixes: a reply to any of them is a fix
     sourceVersion: text('source_version').notNull(),
     lockedSourceVersion: text('locked_source_version'),
     lockedSourceHash: text('locked_source_hash'),
@@ -65,6 +66,9 @@ export const claims = pgTable(
     lockAt: utc('lock_at'),
     needsInfoSince: utc('needs_info_since'),
     nextCheckAt: utc('next_check_at'),
+    // The verdict reply on X: marked BEFORE posting, never retried (INIT_SPEC §6.7); the posted id after.
+    verdictReplyAt: utc('verdict_reply_at'),
+    verdictReplyTweetId: text('verdict_reply_tweet_id'),
     createdAt: utc('created_at').notNull().defaultNow(),
   },
   (t) => [
@@ -78,6 +82,8 @@ export const claims = pgTable(
     index('claims_author_idx').on(t.authorXUserId, t.createdAt.desc()),
   ],
 );
+
+export type ClaimRow = typeof claims.$inferSelect;
 
 export const positions = pgTable(
   'positions',
@@ -108,8 +114,10 @@ export const evidences = pgTable(
     sourceName: text('source_name').notNull(),
     trustLevel: text('trust_level', { enum: TRUST_LEVELS }).notNull(),
     trustReason: text('trust_reason'),
+    resultSummary: text('result_summary'), // the outcome in the judge's own words (e.g. a final score), never page text
     says: text('says', { enum: EVIDENCE_SAYS }).notNull(),
     eventDate: date('event_date'),
+    eventStart: utc('event_start'), // when a match began, if the page stated it (in_window, gates.ts)
     value: numeric('value'),
     url: text('url'),
     contentSha256: text('content_sha256'),
@@ -187,3 +195,9 @@ export const sources = pgTable(
   },
   (t) => [check('sources_agreed_count_check', sql`${t.agreedCount} >= 1`)],
 );
+
+// Authors who sent STOP (constitution IV), until they tag the bot again. Their locked claims still resolve.
+export const optOuts = pgTable('opt_outs', {
+  xUserId: text('x_user_id').primaryKey(),
+  createdAt: utc('created_at').notNull().defaultNow(),
+});

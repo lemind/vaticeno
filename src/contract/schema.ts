@@ -1,6 +1,9 @@
 import { z } from 'zod';
 
 // The contract that gets locked and judged (data-model.md "ContractSchema"). Validated before every write.
+// Single scheduled events (a match): may be recorded until shortly before they start (checks.ts, gates.ts).
+export const SCHEDULED_EVENT_KINDS: readonly string[] = ['football_results', 'sports_results'];
+
 const text = (max: number) => z.string().trim().min(1).max(max);
 
 export const PriceSchema = z.object({
