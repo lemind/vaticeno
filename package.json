@@ -16,6 +16,7 @@
     "claim:submit": "tsx --env-file-if-exists=.env src/cli/claim-submit.ts",
     "claim:reply": "tsx --env-file-if-exists=.env src/cli/claim-reply.ts",
     "claim:edit": "tsx --env-file-if-exists=.env src/cli/claim-edit.ts",
+    "claim:recheck": "tsx --env-file-if-exists=.env src/cli/claim-recheck.ts",
     "jobs:tick": "tsx --env-file-if-exists=.env src/cli/jobs-tick.ts",
     "content:tick": "tsx --env-file-if-exists=.env src/cli/content-tick.ts",
     "content:queue": "tsx --env-file-if-exists=.env src/cli/content-queue.ts",
