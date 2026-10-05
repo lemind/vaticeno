@@ -46,7 +46,12 @@ export function quotesOn(wikitext: string): Quote[] {
     // Lyrics, dialogue and episode quotes are not aphorisms: they make no sense under a prediction.
     if (/\b(song|songs|lyrics|album|single|film|movie|episode|season|soundtrack|musical)\b/i.test(source)) continue;
     const by = authorOf(source);
-    const postable = text.length >= 30 && text.length <= 200 && text.length + by.length <= 270 && !hasTagsOrLinks(text + ' ' + by);
+    // Markup that survived the cleaning means we do not understand this entry: skip it rather than post
+    // it ("— Warren Buffett. {{cite news" reached X on 2026-10-05).
+    // Doubled braces or brackets, a pipe and <ref are wikitext; single [brackets] are the editorial
+    // insertions a quotation is allowed to carry.
+    const clean = !/\{\{|\}\}|\[\[|\]\]|\||<ref|https?:/i.test(`${text} ${by}`);
+    const postable = clean && text.length >= 30 && text.length <= 200 && text.length + by.length <= 270 && !hasTagsOrLinks(text + ' ' + by);
     // The author line must be a name, not a translation note ("Original: …").
     if (postable && /^\p{L}/u.test(by) && !/^(original|variant|translation|translated)\b/i.test(by)) quotes.push({ text, by });
   }
@@ -57,7 +62,7 @@ export function quotesOn(wikitext: string): Quote[] {
 // first part belongs under a quote. Cutting the whole line at 90 characters used to leave fragments
 // like "…A Little Bit of Mambo (19 July 1999), New York: R" (owner report 2026-10-05).
 function authorOf(source: string): string {
-  const name = source.split(/\s[—–-]\s|,|;|\s\(/)[0]!.replace(/[.,;:\s]+$/, '').trim();
+  const name = source.split(/\s[—–-]\s|,|;|\s\(|\.\s|\{/)[0]!.replace(/[.,;:\s]+$/, '').trim();
   if (name.length > 0 && name.length <= 48) return name;
   // No comma and still long: keep whole words only, never a mid-word cut.
   const words = name.split(/\s+/);
@@ -75,6 +80,9 @@ function plain(wiki: string): string {
     .replace(/\{\{\s*w\s*\|(?:[^|}]*\|)?([^|}]*)\}\}/gi, '$1') // {{w|Name}} / {{w|Page|Name}} → Name
     .replace(/\{\{[^{}]*\}\}/g, '')
     .replace(/\{\{[^{}]*\}\}/g, '') // nested templates: a second pass
+    // A template that opens on this line and closes on the next one ("{{cite news |url=…") survives the
+    // passes above, because the wikitext is read line by line. Everything from such an opening is dropped.
+    .replace(/\{\{[\s\S]*$/, '')
     .replace(/\[\[(?:[^|\]]*\|)?([^\]]*)\]\]/g, '$1') // [[link|text]] → text
     .replace(/^(?:w|wikipedia|s|wikisource):/i, '')
     .replace(/(?<=\s|^)(?:w|wikipedia):(?=\S)/gi, '')

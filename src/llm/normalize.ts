@@ -2,7 +2,7 @@ import { type Proposal, ProposalSchema } from '../contract/proposal.js';
 import { type CallCost, type LlmClient, LlmSchemaError } from './client.js';
 import { loadInstruction } from './instructions.js';
 
-export const NORMALIZE_VERSION = 'normalize.v4';
+export const NORMALIZE_VERSION = 'normalize.v5';
 // The fixture corpus was recorded with v2; it replays with it — no paid re-record.
 export const CORPUS_NORMALIZE_VERSION = 'normalize.v2';
 

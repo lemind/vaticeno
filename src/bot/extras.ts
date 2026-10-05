@@ -23,6 +23,9 @@ export const MOTTOS = [
 ];
 
 const pick = <T>(items: readonly T[]): T => items[Math.floor(Math.random() * items.length)]!;
+// Doubled braces or brackets, a pipe or a <ref are wikitext, never prose: such a reply is not posted.
+// Single [brackets] stay: they are the editorial insertions a quotation is allowed to carry.
+const WIKI_MARKUP = /\{\{|\}\}|\[\[|\]\]|\||<ref/i;
 const seed = () => Math.random().toString(36).slice(2, 10);
 
 // A motto always; the joke only if the model answers, it fits, and it tags no one.
@@ -53,8 +56,10 @@ export async function quoteReply(deps: ExtrasDeps): Promise<string | null> {
     const quote = await (deps.quoteSource ?? (() => wikiquoteQuote(pick)))();
     if (!quote) return null;
     const reply = `“${quote.text}” — ${quote.by}`;
-    // Never an unattributed or cut quote: one that doesn't fit is skipped (the next try picks another).
-    return weightedLength(reply) <= X_MAX_CHARS && !hasTagsOrLinks(reply) ? reply : null;
+    // Never an unattributed, cut or half-parsed quote: one that doesn't pass is skipped (the next try
+    // picks another). WIKI_MARKUP is the guard for a template we failed to strip.
+    const fits = weightedLength(reply) <= X_MAX_CHARS && !hasTagsOrLinks(reply) && !WIKI_MARKUP.test(reply);
+    return fits ? reply : null;
   } catch (error) {
     log('info', 'quote source unavailable', { event: 'quote.unavailable', error: String(error) });
     return null;

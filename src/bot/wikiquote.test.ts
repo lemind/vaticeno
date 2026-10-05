@@ -56,3 +56,20 @@ test('Wikiquote: lyrics and dialogue are skipped, and a long citation never leav
   assert.equal(/[a-z]$/.test(quotes[0]!.by) || /\w$/.test(quotes[0]!.by), true, 'no fragment ending');
   assert.equal(quotes[0]!.by, 'Some Long Named Author Of A Very Long Scholarly');
 });
+
+test('Wikiquote: a template that opens on the source line is never posted as markup', () => {
+  // The real case from 2026-10-05: "— Warren Buffett. {{cite news" went out on X.
+  const wikitext = [
+    '== Quotes ==',
+    '* [bitcoin is] probably rat poison squared, and I would never put a dollar of my own in it.',
+    '** Warren Buffett. {{cite news |url=https://example.com/buffett |title=Buffett on bitcoin',
+    '|date=2018-05-07}}',
+    '* Forecasting is the art of saying what will happen, then explaining why it did not happen.',
+    '** Some Economist, in a lecture (1970)',
+  ].join('\n');
+  const quotes = quotesOn(wikitext);
+  assert.deepEqual(quotes.map((q) => q.by), ['Warren Buffett', 'Some Economist']);
+  // Single [brackets] are fine in a quotation; wikitext is not.
+  for (const quote of quotes) assert.equal(/\{\{|\}\}|\[\[|\]\]|\||<ref/.test(`${quote.text} ${quote.by}`), false);
+  assert.match(quotes[0]!.text, /^\[bitcoin is\]/, 'an editorial insertion survives');
+});

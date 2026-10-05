@@ -142,6 +142,8 @@ in this spec is implemented and verified; what is left is the owner's deploy and
 
 - [x] T031 Quote replies cleaned up (owner report 2026-10-05, a real reply read back from X): the attribution is the author's name alone — the old code cut the whole Wikiquote citation at 90 characters and left "…A Little Bit of Mambo (19 July 1999), New York: R" in a live post; entries whose source names a song, album, film or episode are skipped, since lyrics and dialogue read as nonsense under a prediction ("Flirting is just like a sport. Yes Sir."); and `Sports` is out of the quote topics for the same reason, in `quote` and in the feed's `feed.v1` list.
 
+- [x] T032 Two live failures fixed (owner reports 2026-10-05, both read back from X): a Wikiquote source line whose citation template opened on that line but closed on the next left `{{cite news` in a posted reply — an unterminated template is now cut, the author's name alone is kept, and any entry still carrying wikitext (doubled braces or brackets, a pipe, a `<ref`) is skipped rather than posted, with the same guard again on the finished reply; single `[brackets]` stay, since a quotation may carry an editorial insertion. Separately, `normalize.v5`: an event on a known schedule IS a deadline — "the next US presidential election" is recorded as 2028-11-07, not sent back as a question — and the rule is written into `CLAUDE.md` and the 001 spec: if a date can go into the suggested example, it must be recorded.
+
 ## Dependencies & Execution Order
 
 - T001 blocks every task that posts (T016 live mode, T021, T024); dry run (T019) may start before it.
