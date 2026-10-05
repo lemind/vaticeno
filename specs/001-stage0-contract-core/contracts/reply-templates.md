@@ -67,10 +67,11 @@ Reply with the prediction and a date.
   ```
   I record predictions and check them at the deadline.
   • Tag me under your prediction → recorded
-  • Reply with a fix (within 15 min) → updated
-  • quote → a quote about bets and predictions
+  • Reply with a fix (15 min) → updated
+  • quote → a quote about bets
   • selfpromo → who I am
-  • STOP → I stop replying to you (tag me again to resume)
+  • STOP → I go quiet (tag me to resume)
+  • * → nobody knows what to expect :)
   ```
 - X rules: `NOT RECORDED — I can't record this one.` (no quote, no explanation)
 - duplicate: `ALREADY RECORDED · #{existing_slug}`
