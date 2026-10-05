@@ -112,9 +112,9 @@ exactly those. X list prices: `src/x/prices.ts`.
 ## Phases
 
 1. **Constitution amendment** (VI), pool with ids and weights in config, follow the pool.
-2. **Pool, dry run**: pick + read + roll + quote turn, logged; costs recorded. One week, owner reviews
-   picks (SC-001), measure X read and repost prices (SC-002).
-3. **Pool, live**: behind `FEED_DRY_RUN=false`.
+2. **Pool, live**: `ENABLE_FEED=true`, `FEED_DRY_RUN=false` on the server (owner decision: no rehearsal
+   week — the daily caps and a hand-deleted post are the safety net). The first `cost_events` rows give
+   the real X prices (SC-002); the logged picks are read as they happen (SC-001).
 4. **Originals queue**: table + CLI to add items; daily slot.
 5. **Receipts**: quote the bot's own verdict replies.
 

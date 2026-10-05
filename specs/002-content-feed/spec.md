@@ -36,8 +36,8 @@ the same account twice in a row, never the same post twice, at most 2 a day.
    run happens, **Then** another account is picked (at most 3 tries; then nothing that run).
 4. **Given** a quote-post turn and no verified quote can be fetched, or the joke breaks a rule, **When**
    the run happens, **Then** the post is reposted plainly instead.
-5. **Given** dry-run mode (the default at first), **When** a post is picked, **Then** it is logged for the
-   owner to review, not posted.
+5. **Given** dry-run mode (the default in code, off on the server), **When** a post is picked, **Then** it
+   is recorded and logged for the owner, not posted.
 
 ---
 
@@ -119,8 +119,9 @@ feed, at most 2 per day, so the profile shows the product working.
 
 ## Success Criteria *(mandatory)*
 
-- **SC-001**: In a one-week dry run, the owner would have posted at least 8 of 10 picks, and at most
-  2 of 10 are off-topic (not sport, crypto, forecasting, statistics or science).
+- **SC-001**: Of the first 10 live picks, the owner keeps at least 8, and at most 2 are off-topic (not
+  sport, crypto, forecasting, statistics or science). Checked on the posts themselves, not in a rehearsal
+  (owner decision 2026-10-05): dry-run mode stays available, but going live needs no dry-run week.
 - **SC-002**: The whole feed costs under $4 a month at full caps (X reads, posts and AI together),
   counting a repost at the post price ($0.015) until X's repost price is measured; UNRECONCILED until
   the dry run measures X's prices.
