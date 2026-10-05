@@ -123,7 +123,10 @@ export async function submitClaim(deps: ClaimDeps, input: SubmitInput): Promise<
 export type AmendInput = { slug: string; authorId: string; text: string; now: Date; context?: readonly string[] };
 // `ignored` (someone other than the author): no reply at all (FR-010).
 export type AmendResult =
-  | { outcome: 'recorded' | 'amended' | 'still_needs_info' | 'not_changed' | 'refused'; reply: string }
+  | { outcome: 'recorded' | 'amended' | 'still_needs_info' | 'not_changed'; reply: string }
+  // `reason` lets the caller decide what a refusal means: a reply under a claim that can no longer
+  // change is usually a new prediction, not a failed fix (owner decision 2026-10-05).
+  | { outcome: 'refused'; reply: string; reason: RefusalReason }
   | { outcome: 'ignored'; reply: null };
 
 export const MAX_AMENDS = 2;
@@ -327,7 +330,7 @@ function duplicate(slug: string, input: SubmitInput): SubmitResult {
 
 function refused(claim: ClaimRow, reason: RefusalReason): AmendResult {
   log('info', 'amend refused', { event: 'claim.amend_refused', claim_id: claim.id, reason });
-  return { outcome: 'refused', reply: refusedReply(reason, claim.slug) };
+  return { outcome: 'refused', reply: refusedReply(reason, claim.slug), reason };
 }
 
 const sumUsd = (costs: CallCost[]) => costs.reduce((sum, c) => sum + c.usdCost, 0);

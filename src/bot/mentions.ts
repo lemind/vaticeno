@@ -58,7 +58,12 @@ export async function routeMention(deps: BotDeps, mention: Mention, now: Date): 
     // The thread above the fix: it names what "she", "it" or "the case count" refers to (normalize.v4).
     const context = (await threadAbove(deps, repliedTo)).map((post) => post.text);
     const fixed = await amendClaim({ ...deps, reader: deps.reader }, { slug: claim.slug, authorId: mention.author_id, text: body, now, context });
-    return { action: `fix_${fixed.outcome}`, reply: fixed.reply, slug: claim.slug };
+    // A claim that can no longer change (locked, closed, expired, out of fixes) does not end the
+    // conversation: the author is predicting again, so the reply is recorded as a NEW claim further
+    // down (owner decision 2026-10-05). Only a mid-flight conflict still gets the refusal.
+    const recordAnew = fixed.outcome === 'refused' && fixed.reason !== 'conflict';
+    if (!recordAnew) return { action: `fix_${fixed.outcome}`, reply: fixed.reply, slug: claim.slug };
+    log('info', 'closed claim: recording this reply as a new one', { event: 'claim.amend_to_new', slug: claim.slug, reason: fixed.reason });
   }
 
   // Empty mention (or "this") under a post: that post is the prediction — only if it is the summoner's own.

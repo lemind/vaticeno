@@ -31,7 +31,9 @@ export type PoolRunResult =
   | { done: 'logged'; account: string; postId: string; mode: 'repost' | QuoteMode }
   | { done: 'posted'; account: string; postId: string; kind: 'repost' | 'quote'; postedId: string | null };
 
-export type RunOptions = { force?: boolean }; // a hand-run: past the day's caps, by the owner's choice
+// A hand-run: past the day's caps, by the owner's choice, and optionally one chosen kind of post
+// instead of the 90/5/5 roll.
+export type RunOptions = { force?: boolean; mode?: 'repost' | QuoteMode };
 
 export async function runPoolPost(deps: ContentDeps, now: Date, options: RunOptions = {}): Promise<PoolRunResult> {
   const random = deps.random ?? Math.random;
@@ -42,7 +44,7 @@ export async function runPoolPost(deps: ContentDeps, now: Date, options: RunOpti
   const { account, post } = found;
 
   // The roll decides before anything is reserved, because a quote turn needs its line first.
-  const mode: 'repost' | QuoteMode = random() < REPOST_SHARE ? 'repost' : (random() < 0.5 ? 'quote' : 'joke');
+  const mode: 'repost' | QuoteMode = options.mode ?? (random() < REPOST_SHARE ? 'repost' : (random() < 0.5 ? 'quote' : 'joke'));
   const ourLine = mode === 'repost' ? null : await ourLineFor(deps, post.text, mode);
   const kind = ourLine ? 'quote' : 'repost';
   const day = utcDay(now);
