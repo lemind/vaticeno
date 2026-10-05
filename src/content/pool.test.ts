@@ -4,12 +4,16 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { POOL, PLATFORM_HANDLE, pickAccount, poolAccounts } from './pool.js';
 
-// A small deterministic generator, so the shares are the same on every run.
+// mulberry32: a deterministic generator, so the shares are the same on every run. Math.imul keeps every
+// step inside 32 bits — a plain `state * 1103515245` would pass 2^53 and silently lose its low bits.
 function seeded(seed: number): () => number {
-  let state = seed;
+  let state = seed >>> 0;
   return () => {
-    state = (state * 1103515245 + 12345) % 2147483648;
-    return state / 2147483648;
+    state = (state + 0x6d2b79f5) >>> 0;
+    let z = state;
+    z = Math.imul(z ^ (z >>> 15), z | 1);
+    z ^= z + Math.imul(z ^ (z >>> 7), z | 61);
+    return ((z ^ (z >>> 14)) >>> 0) / 4294967296;
   };
 }
 
