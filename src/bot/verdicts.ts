@@ -6,7 +6,7 @@ import { renderStatement } from '../contract/render.js';
 import { claims, evidences, optOuts, resolutions } from '../db/schema.js';
 import { log } from '../log.js';
 import { alert, captureError } from '../observe.js';
-import { assertReplyFits, weightedLength, X_MAX_CHARS } from '../replies/templates.js';
+import { assertReplyFits, hasTagsOrLinks, weightedLength, X_MAX_CHARS } from '../replies/templates.js';
 import type { BotDeps } from './mentions.js';
 
 const RECENT_MS = 7 * 24 * 3_600_000; // older verdicts (e.g. before this shipped) are not posted
@@ -86,7 +86,7 @@ async function verdictText(deps: BotDeps, claim: Due): Promise<string> {
   }
   // The site without its domain ending: X turns "nfl.com" into a link (ugly, and links cost extra).
   const site = siteLabel(evidence.source);
-  if (evidence.result) {
+  if (evidence.result && !hasTagsOrLinks(evidence.result)) {
     const withResult = `${head}\n${evidence.result} · ${site}`;
     if (weightedLength(withResult) <= X_MAX_CHARS) return withResult;
   }

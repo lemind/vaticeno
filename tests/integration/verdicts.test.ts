@@ -62,3 +62,14 @@ test('a web verdict shows the result and the site without a link', async () => {
   assert.match(posts[0]!, /\nBrowns 24–17 Steelers · NFL$/);
   assert.doesNotMatch(posts[0]!, /nfl\.com/);
 });
+
+test('a result that tags someone or carries a link is not posted: the source line is used', async () => {
+  const claim = await insertClaim(t.sql, 'resolved', { summon_tweet_id: '502' });
+  const evidence = await insertEvidence(t.sql, claim.id, { source_kind: 'web', source_name: 'nfl.com', says: 'miss', event_date: '2026-10-01', result_summary: 'Browns won, ask @someone at evil.com' });
+  await t.sql`insert into resolutions ${t.sql({ claim_id: claim.id, review_status: 'final', outcome: 'miss', decided_by: 'evidence', deciding_evidence_id: evidence.id, decided_at: '2027-01-01T01:00:00Z' })}`;
+  const posts: string[] = [];
+  await deliverVerdicts(bot(async (_to, text) => { posts.push(text); return { id: 'v4' }; }), NOW);
+  assert.match(posts[0]!, /\nSource: NFL \(2026-10-01\)$/);
+  assert.doesNotMatch(posts[0]!, /@|evil/);
+});
+

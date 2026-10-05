@@ -97,6 +97,12 @@ export function alreadyRecordedReply(existingSlug: string): string {
 }
 
 // Length as X counts it: links weigh 23, everything else one per character (code point).
+// A bot reply must not tag anyone or carry links (constitution VI): model or web text that does is not posted.
+export function hasTagsOrLinks(text: string): boolean {
+  // Any name.tld X would turn into a link (lowercase ending); "U.S.", "St. Louis", "No.1" stay fine.
+  return /[@#]|https?:\/\/|www\./i.test(text) || /\b[\w-]+\.[a-z]{2,24}\b/.test(text);
+}
+
 export function weightedLength(text: string): number {
   const links = text.match(/\b[\w.-]+\.[a-z]{2,}\/\S*/gi) ?? [];
   let length = [...text].length;

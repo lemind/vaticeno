@@ -6,7 +6,7 @@ import { type CallCost, LlmSchemaError } from '../llm/client.js';
 import { loadInstruction } from '../llm/instructions.js';
 import { log } from '../log.js';
 import { captureError } from '../observe.js';
-import { weightedLength, X_MAX_CHARS } from '../replies/templates.js';
+import { hasTagsOrLinks, weightedLength, X_MAX_CHARS } from '../replies/templates.js';
 import type { PageFetcher } from '../resolve/fetch.js';
 import { type Quote, wikiquoteQuote } from './wikiquote.js';
 import type { ClaimDeps } from '../lifecycle/claims.js';
@@ -21,8 +21,6 @@ export const MOTTOS = [
   'Vaticeno remembers what you predicted. Then it checks.',
   'Make the prediction. Vaticeno keeps the receipt.',
 ];
-// A bot reply must not tag anyone or carry links (constitution VI): such model output is not used.
-const TAGS_OR_LINKS = /[@#]|https?:\/\/|www\./i;
 
 const pick = <T>(items: readonly T[]): T => items[Math.floor(Math.random() * items.length)]!;
 const seed = () => Math.random().toString(36).slice(2, 10);
@@ -39,7 +37,7 @@ export async function selfpromoReply(deps: ExtrasDeps): Promise<string> {
     });
     costs.push(...c);
     const withJoke = `${motto}\n\n${data.joke.trim()}`;
-    if (!TAGS_OR_LINKS.test(data.joke) && weightedLength(withJoke) <= X_MAX_CHARS) reply = withJoke;
+    if (!hasTagsOrLinks(data.joke) && weightedLength(withJoke) <= X_MAX_CHARS) reply = withJoke;
   } catch (error) {
     if (error instanceof LlmSchemaError) costs.push(...error.costs);
     captureError(error, { event: 'selfpromo.joke_failed' }); // the motto alone still goes out
@@ -55,7 +53,8 @@ export async function quoteReply(deps: ExtrasDeps): Promise<string | null> {
     const quote = await (deps.quoteSource ?? (() => wikiquoteQuote(pick)))();
     if (!quote) return null;
     const reply = `“${quote.text}” — ${quote.by}`;
-    return weightedLength(reply) <= X_MAX_CHARS ? reply : `“${quote.text}”`.slice(0, X_MAX_CHARS);
+    // Never an unattributed or cut quote: one that doesn't fit is skipped (the next try picks another).
+    return weightedLength(reply) <= X_MAX_CHARS && !hasTagsOrLinks(reply) ? reply : null;
   } catch (error) {
     log('info', 'quote source unavailable', { event: 'quote.unavailable', error: String(error) });
     return null;

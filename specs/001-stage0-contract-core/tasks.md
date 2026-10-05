@@ -221,6 +221,7 @@ element, no percentage or ranking, no content (SC-009).
 - [x] T103 Verdict replies on X: a job every 5 min posts each final verdict (last 7 days) once under the author's summon, with the Coinbase close or the deciding site; allowlist and per-author cap, 100/day, STOP respected; marked before posting, never retried; the reply joins the claim's thread (`src/bot/verdicts.ts`, `drizzle/0008_verdict_reply.sql`, constitution 2.3.0). `tests/integration/verdicts.test.ts` (once, never retried, STOP)
 - [x] T104 Verdict shows the result: judge.v3 returns a short result in its own words (a final score), stored as `evidences.result_summary` (`drizzle/0009_evidence_result.sql`); the reply names the site without its domain ending, so X adds no link
 - [x] T105 `quote` from Wikiquote's topic pages (free API, sourced quotes only, never Misattributed/Disputed; no AI, nothing stored) (`src/bot/wikiquote.ts`); when it's down the mention waits and is retried after 1, 5, 30, 120 min (`pending_quotes` in the ingest state); `quote.v1` removed
+- [x] T106 Review fixes (T104–T105): verdict results, jokes and quotes with @, # or any domain are never posted (`hasTagsOrLinks`); a waiting quote is dropped on STOP and retried after this poll's mentions; a reply cap doesn't count as a failed try; the parser keeps names from `[[w:…]]` / `{{w|…}}`, skips translations and "Original:" lines; a quote that doesn't fit with its author is never cut
 
 ---
 

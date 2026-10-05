@@ -1,5 +1,7 @@
 // Quotes from Wikiquote's topic pages, fetched live (never stored): free, no AI, every quote attributed
 // with its source. Only the sourced part of a page is used, never "Misattributed" or "Disputed".
+import { hasTagsOrLinks } from '../replies/templates.js';
+
 const API = 'https://en.wikiquote.org/w/api.php';
 const USER_AGENT = 'VaticenoBot/1.0 (https://x.com/vaticeno)'; // Wikimedia asks every client to identify itself
 const TOPICS = ['Gambling', 'Betting', 'Luck', 'Chance', 'Risk', 'Prediction', 'Forecasting', 'Speculation', 'Sports', 'Bitcoin'];
@@ -28,22 +30,29 @@ async function pageWikitext(page: string): Promise<string> {
 // "* quote" followed by "** Author, ''Work'' (year)": only quotes that carry their source line.
 export function quotesOn(wikitext: string): Quote[] {
   const quotes: Quote[] = [];
-  const lines = wikitext.split('\n');
+  const lines = wikitext.replace(/<ref[^>]*\/>|<ref[^>]*>[\s\S]*?<\/ref>/g, '').split('\n'); // refs can span lines
   for (let i = 0; i < lines.length; i++) {
     if (STOP_SECTIONS.test(lines[i]!)) break;
     if (!/^\*[^*]/.test(lines[i]!) || !/^\*\*[^*]/.test(lines[i + 1] ?? '')) continue;
+    if (/^\*\*\*/.test(lines[i + 2] ?? '')) continue; // original / translation / author: not a plain attribution
     const text = plain(lines[i]!.slice(1));
     const by = plain(lines[i + 1]!.slice(2)).replace(/[.,;]\s*(p|pp|vol|ch)\.\s.*$/i, '').slice(0, 90).replace(/[.,;:\s]+$/, '').trim();
-    if (text.length >= 30 && text.length <= 200 && by.length > 0 && !/[@#]|https?:|www\./i.test(text + by)) quotes.push({ text, by });
+    const postable = text.length >= 30 && text.length <= 200 && text.length + by.length <= 270 && !hasTagsOrLinks(text + ' ' + by);
+    // The author line must be a name, not a translation note ("Original: …").
+    if (postable && /^\p{L}/u.test(by) && !/^(original|variant|translation|translated)\b/i.test(by)) quotes.push({ text, by });
   }
   return quotes;
 }
 
 function plain(wiki: string): string {
   return wiki
-    .replace(/<ref[^>]*\/>|<ref[^>]*>[\s\S]*?<\/ref>/g, '')
-    .replace(/\{\{[^}]*\}\}/g, '')
+    .replace(/<br\s*\/?>/gi, ' ')
+    .replace(/\{\{\s*w\s*\|(?:[^|}]*\|)?([^|}]*)\}\}/gi, '$1') // {{w|Name}} / {{w|Page|Name}} → Name
+    .replace(/\{\{[^{}]*\}\}/g, '')
+    .replace(/\{\{[^{}]*\}\}/g, '') // nested templates: a second pass
     .replace(/\[\[(?:[^|\]]*\|)?([^\]]*)\]\]/g, '$1') // [[link|text]] → text
+    .replace(/^(?:w|wikipedia|s|wikisource):/i, '')
+    .replace(/(?<=\s|^)(?:w|wikipedia):(?=\S)/gi, '')
     .replace(/\[https?:\/\/\S+\s([^\]]*)\]/g, '$1')
     .replace(/'{2,}/g, '')
     .replace(/<[^>]+>/g, '')

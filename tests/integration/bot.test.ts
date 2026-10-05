@@ -203,6 +203,16 @@ describe('selfpromo and quote', () => {
     await pollMentions(down.deps, new Date(NOW.getTime() + 61_000));
     assert.equal(down.replies[0]!.to, '122');
     assert.match(down.replies[0]!.text, /Seneca$/);
+
+    // STOP arrives in the same poll the retry is due: it still wins.
+    const stopped = await bot([[mention('123', '@vaticeno quote')], [], [mention('124', '@vaticeno STOP')]]);
+    let ready = false;
+    stopped.deps.quoteSource = async () => (ready ? { text: 'Luck is what happens when preparation meets opportunity', by: 'Seneca' } : null);
+    await pollMentions(stopped.deps, NOW);
+    await pollMentions(stopped.deps, new Date(NOW.getTime() + 10_000));
+    ready = true;
+    await pollMentions(stopped.deps, new Date(NOW.getTime() + 61_000));
+    assert.deepEqual(stopped.replies.map((r) => r.to), ['124'], 'STOP drops the waiting quote');
   });
 
   test('a joke that tags someone is dropped: the motto goes out alone', async () => {

@@ -104,7 +104,7 @@ async function claimInThread(deps: BotDeps, mention: Mention, repliedTo: string 
 export async function pollMentions(deps: BotDeps, now: Date): Promise<{ mentions: number; replies: number }> {
   const state = await readIngestState(deps.statePath);
   const mentions = await fetchNewMentions(deps, state.mentions_since_id);
-  let replies = await retryPendingQuotes(deps, state, now);
+  let replies = 0;
   for (const mention of mentions) {
     const cap = capHit(deps, state, mention.author_id, now);
     if (!deps.allowAuthor(mention.author_id)) {
@@ -139,6 +139,8 @@ export async function pollMentions(deps: BotDeps, now: Date): Promise<{ mentions
     state.last_successful_poll_at = now.toISOString();
     await writeIngestState(state, deps.statePath); // persisted per mention: a crash never replays a handled one
   }
+  // After this poll's mentions, so a STOP fetched just now is already recorded before a waiting quote posts.
+  replies += await retryPendingQuotes(deps, state, now);
   if (mentions.length === 0) {
     state.last_successful_poll_at = now.toISOString(); // a quiet poll still proves X answered
     await writeIngestState(state, deps.statePath);
@@ -156,7 +158,20 @@ async function retryPendingQuotes(deps: BotDeps, state: IngestState, now: Date):
       waiting.push(pending);
       continue;
     }
-    const quote = capHit(deps, state, pending.author_id, now) ? null : await quoteReply(deps);
+    let stopped: unknown[];
+    try {
+      stopped = await deps.db.select({ id: optOuts.xUserId }).from(optOuts).where(eq(optOuts.xUserId, pending.author_id)).limit(1);
+    } catch (error) {
+      captureError(error, { event: 'quote.retry_failed', tweet_id: pending.tweet_id });
+      waiting.push(pending); // the database blipped: keep it as is, try next poll
+      continue;
+    }
+    if (stopped.length > 0) continue; // STOP after asking: the waiting quote is dropped
+    if (capHit(deps, state, pending.author_id, now)) {
+      waiting.push({ ...pending, next_at: inMinutes(now, QUOTE_RETRY_MINUTES[pending.attempts]!) }); // a cap is not a failed try
+      continue;
+    }
+    const quote = await quoteReply(deps);
     if (quote) {
       if (await sendReply(deps, state, { id: pending.tweet_id, author_id: pending.author_id, text: '' }, quote, now)) replies++;
       continue;
