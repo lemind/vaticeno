@@ -14,9 +14,16 @@ price feeds). Commits: `feat(002-T0NN): …`, one line.
 
 ## Phase 1: Setup
 
-- [ ] T001 Amend constitution VI (2.3.0 → 2.4.0) in `.specify/memory/constitution.md`: own-feed posts allowed — pool reposts and quote posts, owner-written originals, receipts; capped per day; no @mentions, links or hashtags in text we add; no prediction of our own; dry-run by default. Update the version in `CLAUDE.md` and the "Replies only where mentioned" line there. **Blocks every posting task.**
-- [ ] T002 [P] Add config in `src/config.ts`: `ENABLE_FEED` (default false), `FEED_DRY_RUN` (default true), `FEED_PLATFORM_ACCOUNT_ID` (optional numeric id of the owner-kept platform account), `FEED_DAILY_USD_CAP` (default 0.30); document them in `.env.example`.
-- [ ] T003 [P] Look up the numeric X ids of the 16 named pool accounts once (one paid users-by-usernames call, owner runs it) and write them into `src/content/pool.ts` (T006).
+- [x] T001 Amend constitution VI (2.3.0 → 2.4.0) in `.specify/memory/constitution.md`: own-feed posts allowed — pool reposts and quote posts, owner-written originals, receipts; capped per day; no @mentions, links or hashtags in text we add; no prediction of our own; dry-run by default. Update the version in `CLAUDE.md` and the "Replies only where mentioned" line there. **Blocks every posting task.**
+- [x] T002 [P] Add config in `src/config.ts`: `ENABLE_FEED` (default false), `FEED_DRY_RUN` (default true), `FEED_PLATFORM_ACCOUNT_ID` (optional numeric id of the owner-kept platform account), `FEED_DAILY_USD_CAP` (default 0.30); document them in `.env.example`.
+- [ ] T003 [P] Look up the numeric X ids of the 16 named pool accounts once (paid, ~$0.16, owner approves) and write them into `src/content/pool.ts` (T006). **Tool ready, not run**: `npm run content:pool-ids` (`src/cli/pool-ids.ts`) prints handle/id pairs; the ids land in pool.ts with T006.
+
+**Phase 1 done** (T001–T002): constitution 2.4.0 amends IV and VI for own-feed posts (capped, dry-run by
+default; no @mentions, links, hashtags or predictions of our own in text we add); `CLAUDE.md` carries the
+same rule. Config adds `ENABLE_FEED` (off), `FEED_DRY_RUN` (on), `FEED_PLATFORM_ACCOUNT_ID`,
+`FEED_DAILY_USD_CAP` (0.30), documented in `.env.example`; `ENABLE_FEED` without `ENABLE_JOBS` is a config
+error now, not a silent no-op. The id lookup records no cost row yet — provider `x` arrives with T005, so
+the CLI only prints the estimate.
 
 ---
 
