@@ -101,13 +101,27 @@ function siteLabel(domain: string): string {
 
 // An edit found at lock changed or expired the contract: the author is told once, in the claim's thread,
 // through the same gates as other replies. The state change already happened once; a failed post is not retried.
+const LOCK_REPLIES_PER_RUN = 20;
+
 export async function postLockReplies(deps: BotDeps, results: LockResult[]): Promise<void> {
+  const perAuthor = new Map<string, number>();
+  let posted = 0;
   for (const result of results) {
     if (!result.reply || !result.summonTweetId || !result.authorId || !deps.allowAuthor(result.authorId)) continue;
+    // Same self-imposed caps as other replies: per author per run, and per run overall.
+    const authorCount = perAuthor.get(result.authorId) ?? 0;
+    if (authorCount >= deps.caps.perAuthorPerHour || posted >= LOCK_REPLIES_PER_RUN) {
+      alert('lock.reply_capped', { slug: result.slug });
+      continue;
+    }
+    perAuthor.set(result.authorId, authorCount + 1);
+    posted++;
     try {
       const stopped = await deps.db.select({ id: optOuts.xUserId }).from(optOuts).where(eq(optOuts.xUserId, result.authorId)).limit(1);
       if (stopped.length > 0) continue;
       const reply = await deps.postReply(result.summonTweetId, result.reply);
+      // Joins the claim's thread: a reply under [AMENDED] is a fix, under [EXPIRED] the closed-claim refusal.
+      await deps.db.update(claims).set({ threadTweetIds: sql`array_append(${claims.threadTweetIds}, ${reply.id}::text)` }).where(eq(claims.slug, result.slug));
       log('info', 'lock reply posted', { event: 'lock.reply_posted', slug: result.slug, outcome: result.outcome, reply_tweet_id: reply.id });
     } catch (error) {
       captureError(error, { event: 'lock.reply_failed', slug: result.slug });

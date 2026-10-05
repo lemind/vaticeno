@@ -226,6 +226,7 @@ element, no percentage or ranking, no content (SC-009).
 - [x] T108 Unclear mentions assessed by the model with the thread above (`intent.v1`, `src/llm/intent.ts`, up to 3 parent posts read from X, never stored): a command word with more text, or a non-prediction ("so?" under a quote → a new quote); questions get a short answer; bare commands stay in code. Help adds "* → nobody knows what to expect :)"; reply length counted the way X does (•, → and emoji weigh 2)
 - [x] T109 selfpromo answers to ~50 names and phrases (promote, promote yourself, show off, flex, brag, pitch, who are you…); typos only on the long canonical words
 - [x] T110 PR review fixes: [AMENDED]/[EXPIRED] from the lock job are posted under the summon (STOP and allowlist respected); an inline mention edited before the poll is recorded at its current version; a malformed match-search answer records the claim unchecked instead of rejecting it; help and expired replies length-checked
+- [x] T111 Re-review fixes: lock replies join the claim's thread and are capped per author and per run; an edited mention is keyed on its first version (never recorded twice, later versions of an answered mention skipped); the model is asked at most once per mention; a model answer that echoes users' text is not posted; STOP only as a typed command, never from a model reading
 
 ---
 

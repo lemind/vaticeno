@@ -71,7 +71,8 @@ export async function routeMention(deps: BotDeps, mention: Mention, now: Date): 
   }
 
   // A command word with more text: the model decides, seeing the thread (a prediction goes on below).
-  if (commandWordIn(body)) {
+  const firstAssessed = commandWordIn(body);
+  if (firstAssessed) {
     const assessed = await assess(deps, mention, body, repliedTo, now);
     if (assessed) return assessed;
   }
@@ -81,11 +82,14 @@ export async function routeMention(deps: BotDeps, mention: Mention, now: Date): 
   // or the lock job would take the earlier edit for a new one (a false fix or expiry).
   const latest = mention.edit_history_tweet_ids?.at(-1) ?? mention.id;
   const current = latest === mention.id ? { versionId: mention.id, text: body } : await currentVersion(deps, mention.id);
+  // An edit of the mention gets a new id: the claim is keyed on the first version, so edits never record twice.
+  const original = mention.edit_history_tweet_ids?.[0] ?? mention.id;
   const result = await submitClaim(deps, {
-    text: current.text, authorId: mention.author_id, sourceTweetId: mention.id, summonTweetId: mention.id, sourceVersion: current.versionId, now,
+    text: current.text, authorId: mention.author_id, sourceTweetId: original, summonTweetId: mention.id, sourceVersion: current.versionId, now,
   });
-  if (result.outcome === 'rejected' && result.rejectReason === 'not_prediction') {
-    const assessed = await assess(deps, mention, body, repliedTo, now, { predictionRuledOut: true });
+  // Not a prediction: the model reads the thread — once per mention (a command word already had its turn).
+  if (result.outcome === 'rejected' && result.rejectReason === 'not_prediction' && !firstAssessed) {
+    const assessed = await assess(deps, mention, current.text, repliedTo, now, { predictionRuledOut: true });
     if (assessed) return assessed;
   }
   return { action: `record_inline_${result.outcome}`, reply: result.reply, slug: result.slug };
@@ -132,8 +136,11 @@ async function assess(deps: BotDeps, mention: Mention, body: string, repliedTo: 
   log('info', 'mention assessed', { event: 'mention.assessed', tweet_id: mention.id, intent, thread_posts: thread.length });
   if (intent === 'prediction') return opts.predictionRuledOut ? { action: 'help', reply: HELP_REPLY } : null;
   if (intent === 'question') {
-    return answer && !hasTagsOrLinks(answer) && weightedLength(answer) <= X_MAX_CHARS ? { action: 'answer', reply: answer } : { action: 'help', reply: HELP_REPLY };
+    const usable = answer && answer.length <= 200 && !hasTagsOrLinks(answer) && !echoes(answer, [body, ...thread.map((p) => p.text)]);
+    return usable ? { action: 'answer', reply: answer } : { action: 'help', reply: HELP_REPLY };
   }
+  // STOP only when typed as a command (resolveCommand): a model reading must never opt someone out.
+  if (intent === 'stop') return { action: 'help', reply: HELP_REPLY };
   if (intent === 'other') return { action: 'help', reply: HELP_REPLY };
   return runCommand(deps, mention, intent, now);
 }
@@ -144,6 +151,17 @@ async function saveCosts(deps: BotDeps, costs: CallCost[]) {
   } catch (error) {
     captureError(error, { event: 'assess.costs_failed' }); // never fails the reply
   }
+}
+
+// An answer that repeats 20+ characters of what users wrote is likely an injected "reply exactly …".
+function echoes(answer: string, texts: string[]): boolean {
+  const norm = (t: string) => t.toLowerCase().replace(/\s+/g, ' ');
+  const a = norm(answer);
+  return texts.some((text) => {
+    const t = norm(text);
+    for (let i = 0; i + 20 <= t.length; i += 5) if (a.includes(t.slice(i, i + 20))) return true;
+    return false;
+  });
 }
 
 async function threadAbove(deps: BotDeps, repliedTo: string | undefined): Promise<ThreadPost[]> {
@@ -185,8 +203,8 @@ export async function pollMentions(deps: BotDeps, now: Date): Promise<{ mentions
     const cap = capHit(deps, state, mention.author_id, now);
     if (!deps.allowAuthor(mention.author_id)) {
       log('info', 'mention from an author outside the allowlist; skipped', { event: 'mention.skipped', tweet_id: mention.id });
-    } else if (state.replied_tweet_ids.includes(mention.id)) {
-      // already answered (or a post was attempted): never again
+    } else if (state.replied_tweet_ids.includes(mention.id) || state.replied_tweet_ids.includes(mention.edit_history_tweet_ids?.[0] ?? mention.id)) {
+      // already answered (or a post was attempted), or an edit of an answered mention: never again
     } else if (cap) {
       alert('reply.cap_reached', { tweet_id: mention.id, cap }); // before routing: nothing recorded without a reply
     } else {
