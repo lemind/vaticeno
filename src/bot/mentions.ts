@@ -55,7 +55,9 @@ export async function routeMention(deps: BotDeps, mention: Mention, now: Date): 
   // claim gets the refusal — no model call either way.
   const claim = body ? await claimInThread(deps, mention, repliedTo) : null;
   if (claim) {
-    const fixed = await amendClaim({ ...deps, reader: deps.reader }, { slug: claim.slug, authorId: mention.author_id, text: body, now });
+    // The thread above the fix: it names what "she", "it" or "the case count" refers to (normalize.v4).
+    const context = (await threadAbove(deps, repliedTo)).map((post) => post.text);
+    const fixed = await amendClaim({ ...deps, reader: deps.reader }, { slug: claim.slug, authorId: mention.author_id, text: body, now, context });
     return { action: `fix_${fixed.outcome}`, reply: fixed.reply, slug: claim.slug };
   }
 

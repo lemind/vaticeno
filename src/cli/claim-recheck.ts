@@ -24,7 +24,15 @@ await runCli('claim-recheck', async (config) => {
 
   // The author's own post, read again (its text is never stored), with the thread above it as context.
   const post = await bot.reader.readVersion(claim.source);
-  const result = await amendClaim(bot, { slug: values.slug, authorId: claim.author, text: post.text, now });
+  // The posts above the author's own post are context: they name what the post only points at.
+  const context: string[] = [];
+  let parent = (await bot.x.getTweet(claim.source)).referenced_tweets?.find((ref) => ref.type === 'replied_to')?.id;
+  for (let depth = 0; parent && depth < 3; depth++) {
+    const above = await bot.x.getTweet(parent);
+    context.unshift(above.text);
+    parent = above.referenced_tweets?.find((ref) => ref.type === 'replied_to')?.id;
+  }
+  const result = await amendClaim(bot, { slug: values.slug, authorId: claim.author, text: post.text, now, context });
   printJson({ slug: values.slug, outcome: result.outcome, reply: result.reply });
 
   if (values.post && result.reply) {

@@ -120,7 +120,7 @@ export async function submitClaim(deps: ClaimDeps, input: SubmitInput): Promise<
   return { outcome: decision.outcome, slug, reply, ...(decision.outcome === 'rejected' ? { rejectReason: decision.reason } : {}) };
 }
 
-export type AmendInput = { slug: string; authorId: string; text: string; now: Date };
+export type AmendInput = { slug: string; authorId: string; text: string; now: Date; context?: readonly string[] };
 // `ignored` (someone other than the author): no reply at all (FR-010).
 export type AmendResult =
   | { outcome: 'recorded' | 'amended' | 'still_needs_info' | 'not_changed' | 'refused'; reply: string }
@@ -148,7 +148,7 @@ export async function amendClaim(deps: ClaimDeps & { reader: SourceReader }, inp
   }
 
   const costs: CallCost[] = [];
-  const { decision, modelId, selfConfidence } = await recordingCostsOnFailure(db, claim.id, costs, () => evaluateClaimText(deps, input.text, input.now, costs));
+  const { decision, modelId, selfConfidence } = await recordingCostsOnFailure(db, claim.id, costs, () => evaluateClaimText(deps, input.text, input.now, costs, input.context ?? []));
 
   if (decision.outcome !== 'recorded') {
     const why = decision.outcome === 'rejected' ? rejectReasonWords(decision.reason) : decision.explanation;
@@ -195,7 +195,7 @@ async function amendDraft(deps: ClaimDeps & { reader: SourceReader }, claim: Cla
   if (claim.amendCount >= MAX_AMENDS) return refused(claim, 'limit');
 
   const costs: CallCost[] = [];
-  const { decision, modelId, selfConfidence } = await recordingCostsOnFailure(deps.db, claim.id, costs, () => evaluateClaimText(deps, input.text, input.now, costs));
+  const { decision, modelId, selfConfidence } = await recordingCostsOnFailure(deps.db, claim.id, costs, () => evaluateClaimText(deps, input.text, input.now, costs, input.context ?? []));
   if (decision.outcome !== 'recorded') {
     await recordCosts(deps.db, costs.map((cost) => ({ ...cost, claimId: claim.id })));
     const why = decision.outcome === 'rejected' ? rejectReasonWords(decision.reason) : decision.explanation;
