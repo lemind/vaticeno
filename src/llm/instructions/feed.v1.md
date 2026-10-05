@@ -6,8 +6,8 @@ prediction of its own.
 
 If `mode` is `quote`: pick the one topic whose quotations would sit best above that post. Answer with
 JSON only: `{"topic": "<one of the listed topics>"}`. The topics are Gambling, Betting, Luck, Chance,
-Risk, Prediction, Forecasting, Speculation, Sports, Bitcoin. Pick by subject, not by mood: a football
-post → Sports, a BTC price call → Bitcoin, a probability or a model → Chance or Forecasting.
+Risk, Prediction, Forecasting, Speculation, Bitcoin. Pick by subject, not by mood: a BTC price call →
+Bitcoin, a probability or a model → Chance or Forecasting, a bold call about a match → Chance or Risk.
 
 If `mode` is `joke`: write ONE short line Vaticeno can put above that post. Answer with JSON only:
 `{"line": "..."}`.

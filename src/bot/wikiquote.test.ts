@@ -16,7 +16,9 @@ test('Wikiquote: only sourced quotes before Misattributed, markup stripped', () 
   ].join('\n');
   assert.deepEqual(quotesOn(wikitext), [{
     text: 'The gambling known as business looks with austere disfavor upon the business known as gambling.',
-    by: 'Ambrose Bierce, in Cosmopolitan (1905)',
+    // The name alone: the rest of a Wikiquote source line is a publisher's citation, and cutting it to
+    // length left fragments in a real post (owner report 2026-10-05).
+    by: 'Ambrose Bierce',
   }]);
 });
 
@@ -34,8 +36,23 @@ test('Wikiquote: w: links and {{w}} templates keep the name; translations, line-
     "** Original: ''Audentes fortuna iuvat''",
   ].join('\n');
   assert.deepEqual(quotesOn(wikitext), [
-    { text: 'Fortune favours the bold, and so do the odds when you count the cards.', by: "Ambrose Bierce, The Devil's Dictionary (1911)" },
-    { text: 'Luck is what happens when preparation meets opportunity, said the old coach.', by: 'Seneca, Letters' },
+    { text: 'Fortune favours the bold, and so do the odds when you count the cards.', by: 'Ambrose Bierce' },
+    { text: 'Luck is what happens when preparation meets opportunity, said the old coach.', by: 'Seneca' },
   ]);
 });
 
+
+test('Wikiquote: lyrics and dialogue are skipped, and a long citation never leaves a fragment', () => {
+  const wikitext = [
+    '== Quotes ==',
+    '* To me? Flirting is just like a sport. Yes Sir. I am the best at it and I love it.',
+    '** Lou Bega, "Mambo No. 5" (19 April 1999), from the album A Little Bit of Mambo, New York: RCA',
+    '* The future is uncertain, and the only certainty is that we will be surprised by it.',
+    '** Some Long Named Author Of A Very Long Scholarly Work Indeed With No Comma At All Anywhere',
+  ].join('\n');
+  const quotes = quotesOn(wikitext);
+  assert.equal(quotes.length, 1, 'the song lyric is skipped');
+  assert.equal(quotes[0]!.by.length <= 48, true);
+  assert.equal(/[a-z]$/.test(quotes[0]!.by) || /\w$/.test(quotes[0]!.by), true, 'no fragment ending');
+  assert.equal(quotes[0]!.by, 'Some Long Named Author Of A Very Long Scholarly');
+});

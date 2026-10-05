@@ -140,6 +140,8 @@ in this spec is implemented and verified; what is left is the owner's deploy and
 
 - [x] T030 Hand-run beats the caps (owner decision 2026-10-05): `content:tick` posts even when the day's slots are used — the daily caps pace the scheduler, not the owner — and it skips the spend cap too; `--respect-caps` keeps the old behaviour. "Never the same post twice" still holds either way, because that one is X's rule. The `ENABLE_FEED` check is gone from the CLI as well: typing the command is the intent.
 
+- [x] T031 Quote replies cleaned up (owner report 2026-10-05, a real reply read back from X): the attribution is the author's name alone — the old code cut the whole Wikiquote citation at 90 characters and left "…A Little Bit of Mambo (19 July 1999), New York: R" in a live post; entries whose source names a song, album, film or episode are skipped, since lyrics and dialogue read as nonsense under a prediction ("Flirting is just like a sport. Yes Sir."); and `Sports` is out of the quote topics for the same reason, in `quote` and in the feed's `feed.v1` list.
+
 ## Dependencies & Execution Order
 
 - T001 blocks every task that posts (T016 live mode, T021, T024); dry run (T019) may start before it.
