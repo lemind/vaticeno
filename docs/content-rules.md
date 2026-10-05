@@ -52,15 +52,16 @@ odds or betting feed.
 
 ## Repost pool (Prediction spotted)
 
-Accounts to read for concrete predictions; 1–2 quote posts a day at most, never the same account twice
-in a row. Handles are from memory, not checked live.
+A candidate pool, not accounts to repost wholesale: the bot picks only posts with a concrete prediction
+(spec 002). 1–2 quote posts a day at most, never the same account twice in a row. 19 accounts;
+`@woonomic` is now `@_1woonomic`; `@saylor` and `@PeterSchiff` are left out for now.
 
 | Field | Accounts |
 |---|---|
 | Forecasting platforms | @Kalshi · @ManifoldMarkets · @metaculus · one more platform account kept by the owner outside the repo |
-| Statistics / forecasting | @NateSilver538 · @gelliottmorris · @OurWorldInData · @StatMuse |
-| Crypto | @saylor · @PeterSchiff · @CryptoHayes · @woonomic · @100trillionUSD · @RaoulGMI |
-| Sport | @FabrizioRomano · @OptaJoe · @OptaAnalyst · @ESPNStatsInfo · @StatsBomb · @AdamSchefter |
+| Statistics / forecasting | @NateSilver538 · @gelliottmorris · @OurWorldInData (use the political ones sparingly) |
+| Crypto | @100trillionUSD · @CryptoHayes · @RaoulGMI · @_1woonomic |
+| Sport | @FabrizioRomano · @OptaJoe · @OptaAnalyst · @ESPNStatsInfo · @Statsbomb · @AdamSchefter · @StatMuse |
 
 ## Starter posts (before inviting anyone)
 
