@@ -1,41 +1,43 @@
 # Feature Specification: Content feed
 
-**Feature Branch**: `002-content-feed` (not created yet)
+**Feature Branch**: `002-content-feed`
 
 **Created**: 2026-10-05
 
 **Status**: Draft
 
-**Input**: Owner: the account's own feed must not be empty. Occasional "Prediction spotted" quote posts
-picked from a fixed pool of accounts, owner-written originals, and receipts. Overall goal: spend as
-little money as possible. See `docs/content-rules.md` for identity, mix and tone.
+**Input**: Owner: the account's own feed must not be empty. Twice a day, repost the latest post of an
+account from a fixed, weighted pool; sometimes quote it with a verified quote or a joke instead. Plus
+owner-written originals and receipts. Overall goal: spend as little money as possible. See
+`docs/content-rules.md` for identity, tone and the pool with its weights.
 
 ## User Scenarios & Testing *(mandatory)*
 
-### User Story 1 - Prediction spotted (Priority: P1)
+### User Story 1 - Pool reposts (Priority: P1)
 
-Once or twice a day the bot looks at recent posts from a fixed pool of 19 accounts, finds one that
-contains a concrete prediction (a measurable outcome and a date or event), and quote-posts it with a
-short fixed line: "Prediction spotted. Let's see how this one ages." Most days most posts are not
-predictions; then nothing is posted.
+Twice a day the bot picks one account from a fixed pool of 17, by weight (higher-scored accounts come up
+more often), takes its latest eligible post (not a reply or repost, at most 48 h old, never posted by us
+before) and reposts it; if the account has none, another account is picked. About 1 time in 10 it quote-posts that post instead:
+half of those with a verified quote that fits it, half with a short AI joke about it.
 
 **Why this priority**: the profile needs visible, on-brand activity before anyone is invited, and this
-is the only content type that needs no writing from the owner.
+needs no writing from the owner.
 
-**Independent Test**: run the selector against recorded pool posts; it picks only concrete predictions,
-never the same account twice in a row, and posts at most the daily cap.
+**Independent Test**: over many simulated picks, accounts come up in proportion to their weights, never
+the same account twice in a row, never the same post twice, at most 2 a day.
 
 **Acceptance Scenarios**:
 
-1. **Given** a pool post "NEW: Will Apple release a touchscreen MacBook this year?", **When** the selector
-   runs, **Then** it is a candidate and may be quote-posted with a fixed line.
-2. **Given** only product announcements and generic news in the pool, **When** the selector runs, **Then**
-   nothing is posted that run.
-3. **Given** the bot quoted @OptaJoe in the last run, **When** the next run picks a candidate, **Then** it
-   is from another account.
-4. **Given** the daily cap of 2 is reached, **When** another run happens, **Then** nothing is posted.
-5. **Given** dry-run mode (the default at first), **When** a candidate is chosen, **Then** it is logged for
-   the owner to approve, not posted.
+1. **Given** the pool and weights, **When** 1,000 picks are simulated, **Then** each account's share is
+   within a few points of its chance in the table.
+2. **Given** the bot reposted @OptaJoe last time, **When** the next pick is made, **Then** it is another
+   account.
+3. **Given** the picked account's latest post was already reposted, or is older than 48 h, **When** the
+   run happens, **Then** another account is picked (at most 3 tries; then nothing that run).
+4. **Given** a quote-post turn and no verified quote can be fetched, or the joke breaks a rule, **When**
+   the run happens, **Then** the post is reposted plainly instead.
+5. **Given** dry-run mode (the default at first), **When** a post is picked, **Then** it is logged for the
+   owner to review, not posted.
 
 ---
 
@@ -44,7 +46,7 @@ never the same account twice in a row, and posts at most the daily cap.
 The owner keeps a list of original posts (ON THE RECORD principles, HOW IT WORKS, jokes). The bot posts
 the next unposted one at most once a day, at a varied time. No AI writes these.
 
-**Why this priority**: originals are 55–65% of the planned mix and cost nothing to post besides X's fee.
+**Why this priority**: originals carry Vaticeno's own voice and cost nothing to post besides X's fee.
 
 **Independent Test**: with 3 queued posts, three days of runs post each once, in order, and then stop.
 
@@ -58,7 +60,7 @@ the next unposted one at most once a day, at a varied time. No AI writes these.
 ### User Story 3 - Receipts (Priority: P3)
 
 When a claim gets a final verdict, the bot quote-posts its own verdict reply as a RECEIPT on the main
-feed, at most a few per day, so the profile shows the product working.
+feed, at most 2 per day, so the profile shows the product working.
 
 **Why this priority**: strongest proof once there are verdicts; depends on real usage.
 
@@ -72,53 +74,65 @@ feed, at most a few per day, so the profile shows the product working.
 
 ### Edge Cases
 
-- A pool account is renamed, suspended or protected: skip it, alert once, keep the rest.
-- A candidate is a reply, a repost, or older than 48 h: never chosen.
-- A candidate mentions or tags someone in a hostile way, or is about gambling odds as a call to bet: discarded.
-- X rejects the quote post (duplicate, rate limit): logged, not retried (one attempt per candidate).
-- The same post was already quoted: never quoted again.
+- A pool account is renamed, suspended or protected: skip it, alert once, keep the rest (accounts are
+  kept by numeric id, so a rename alone changes nothing).
+- The latest post is a reply or a repost: not requested from X, so never picked.
+- X rejects the repost or quote post (duplicate, rate limit): logged, not retried (one attempt per post);
+  the day's slot is freed for the next run.
+- The same post is picked by two runs at the same time: posted once.
 
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
 
-- **FR-001**: The pool is a fixed list in configuration, owned by the owner; the bot never adds accounts.
-- **FR-002**: The bot reads only a few pool accounts per run, rotating, and only posts newer than the last
-  one read from that account.
-- **FR-003**: Cheap code filters run before any model call: no replies or reposts, at most 48 h old,
-  must contain a number, a date or a future marker ("will", "by", "odds", "%", "next").
-- **FR-004**: At most one model call per run, over all remaining candidates at once, returns the best
-  one (or none) with a reason; only concrete, measurable predictions qualify.
-- **FR-005**: Quote posts use a fixed line from a short owner-written list; the model never writes the
-  post text. No @mentions in our text, no links, no hashtags.
-- **FR-006**: Caps: at most 2 spotted posts and 1 original per day, never the same account twice in a
-  row, never the same post twice; a random time within the day's windows.
-- **FR-007**: Dry-run is the default: chosen candidates are logged for the owner; posting needs an
-  explicit switch.
-- **FR-008**: Every X read, model call and post is recorded as a cost; a daily spend cap stops the
-  feed for the day when reached.
+- **FR-001**: The pool is a fixed list in configuration (numeric account id, handle, weight), owned by
+  the owner; the bot never adds accounts. Weights are in `docs/content-rules.md` ("Repost pool").
+- **FR-002**: Two runs a day at varied times; each picks one account at random by weight, never the
+  account of the previous run, reads only that account's latest posts (no replies, no reposts) and takes
+  the latest eligible one (≤ 48 h old, not posted by us before). None → pick another account, at most 3
+  tries per run.
+- **FR-003**: About 9 runs in 10 repost the latest post plainly; no AI call.
+- **FR-004**: About 1 run in 10 quote-posts it instead: half the time with a verified quote (the same
+  checked source as the `quote` command, the AI only picks the topic), half the time with a short AI joke
+  about the post. Our text: ≤ 200 characters, no tags, links or hashtags, no prediction of its own;
+  anything that fails falls back to a plain repost.
+- **FR-005**: Caps: at most 2 pool posts, 1 original and 2 receipts per day, never the same post twice.
+  The caps and the never-twice rule are enforced by the database (a post or a day's slot is reserved
+  before posting; a second reservation fails), not only by code checks. A post X rejects is never tried
+  again, but it frees its day's slot: only posts that went out (or are in flight) count toward a cap.
+- **FR-006**: The bot follows every pool account (once, by hand or through the API).
+- **FR-007**: Dry-run is the default: picks are logged for the owner; posting needs an explicit switch.
+- **FR-008**: Every X read, AI call and post is recorded as a cost; a daily spend cap stops the feed for
+  the day when reached.
 - **FR-009**: Nothing is stored from other people's posts except their ids and the account handle.
 - **FR-010**: Own-feed posting requires a constitution amendment (VI) before it is switched on.
 
 ### Key Entities
 
-- **Pool account**: handle, field (forecasting, statistics, crypto, sport), enabled, last read post id.
-- **Feed post**: kind (spotted, original, receipt), source post id or queue item, posted id, time.
+- **Pool account**: numeric id, handle, field, weight, enabled.
+- **Feed post**: kind (repost, quote, original, receipt), day and slot, source post id or queue item,
+  posted id, time. One row per source post and one per day's slot.
 - **Queue item**: owner-written text, order, posted at.
 
 ## Success Criteria *(mandatory)*
 
-- **SC-001**: In a two-week dry run, at least 80% of chosen candidates are judged by the owner as real,
-  concrete predictions.
-- **SC-002**: The whole feed costs under $3 a month at 2 spotted posts and 1 original a day (X reads,
-  model and posts together); UNRECONCILED until X's per-read price is measured.
+- **SC-001**: In a one-week dry run, the owner would have posted at least 8 of 10 picks, and at most
+  2 of 10 are off-topic (not sport, crypto, forecasting, statistics or science).
+- **SC-002**: The whole feed costs under $4 a month at full caps (X reads, posts and AI together),
+  counting a repost at the post price ($0.015) until X's repost price is measured; UNRECONCILED until
+  the dry run measures X's prices.
 - **SC-003**: A visitor to the profile sees at least 10 own or curated posts before the first invite.
-- **SC-004**: No post ever tags a third party or links out.
+- **SC-004**: Text Vaticeno adds (quote lines, jokes, originals) never contains @mentions, links or
+  hashtags and never makes a prediction of its own. Reposting or quoting another account's post is
+  allowed.
 
 ## Assumptions
 
-- The pool is the 19 accounts in `docs/content-rules.md` ("Repost pool"), corrected: Willy Woo is now
-  `@_1woonomic`, StatsBomb is `@Statsbomb`; `@saylor` and `@PeterSchiff` are left out for now.
-- X allows automated quote posts for informational purposes when not bulk or aggressive.
+- The pool is the 17 accounts in `docs/content-rules.md`; `@CryptoHayes` (unavailable on X), `@saylor`
+  and `@PeterSchiff` are left out.
+- Reposting a pool post as-is is the owner's editorial choice: the latest post is reposted without an
+  AI check, so the pool itself is what keeps the feed on-brand.
+- X allows automated reposts and quote posts when they are not bulk, aggressive or spammy.
 - Originals are written by the owner; no AI-generated original posts in this feature.
-- Reposts without a quote are out of scope: a quote post carries Vaticeno's voice.
+- Reading X through another service (Grok search) costs the same per post, and scraping is not
+  allowed; the X API is the only source.

@@ -39,7 +39,7 @@ odds or betting feed.
 |---|---|
 | record, fix, help, STOP, ping | the pinned intro |
 | `quote`: a verified quote about bets and predictions | all own-feed posts (ON THE RECORD, HOW IT WORKS, jokes) |
-| `selfpromo`: a motto and a joke | reposts and PREDICTION SPOTTED quote posts |
+| `selfpromo`: a motto and a joke | own-feed reposts until spec 002 ships |
 | | RECEIPT posts from real verdicts |
 
 ## What can be automated later
@@ -48,20 +48,41 @@ odds or betting feed.
 |---|---|
 | RECEIPT post when a claim gets a final verdict | constitution VI amendment (today the bot only replies to mentions) and a daily cap |
 | ON THE RECORD from a hand-written queue, 1 a day | the same amendment; the queue is written by the owner, never by the AI |
-| Reposts | stay manual: choosing what to amplify is editorial |
+| Reposts from the pool, 2 a day (spec 002) | the same amendment; the pool and weights are chosen by the owner |
 
-## Repost pool (Prediction spotted)
+## Repost pool (spec 002)
 
-A candidate pool, not accounts to repost wholesale: the bot picks only posts with a concrete prediction
-(spec 002). 1–2 quote posts a day at most, never the same account twice in a row. 19 accounts;
-`@woonomic` is now `@_1woonomic`; `@saylor` and `@PeterSchiff` are left out for now.
+Twice a day the bot picks one account by weight, takes its latest eligible post (no replies or reposts,
+at most 48 h old, never posted by us before) and reposts it; 1 time in 10 it quote-posts it instead, with a verified quote or an AI joke (half and half).
+Never the same account twice in a row, never the same post twice. The bot follows all pool accounts.
 
-| Field | Accounts |
-|---|---|
-| Forecasting platforms | @Kalshi · @ManifoldMarkets · @metaculus · one more platform account kept by the owner outside the repo |
-| Statistics / forecasting | @NateSilver538 · @gelliottmorris · @OurWorldInData (use the political ones sparingly) |
-| Crypto | @100trillionUSD · @CryptoHayes · @RaoulGMI · @_1woonomic |
-| Sport | @FabrizioRomano · @OptaJoe · @OptaAnalyst · @ESPNStatsInfo · @Statsbomb · @AdamSchefter · @StatMuse |
+Score = popularity + virality + Vaticeno relevance (each 1–10, owner research 2026-10-05).
+Weight = score − 15, so the top accounts come up about 5× as often as the weakest.
+Chance = weight / 157 per pick; picks per month at 60 picks.
+
+| Account | Field | Score | Weight | Chance | Picks/month |
+|---|---|---:|---:|---:|---:|
+| @FabrizioRomano | sport | 30 | 15 | 9.6% | ~5.7 |
+| @AdamSchefter | sport | 30 | 15 | 9.6% | ~5.7 |
+| platform account kept by the owner outside the repo | forecasting | 29 | 14 | 8.9% | ~5.4 |
+| @NateSilver538 | statistics | 28 | 13 | 8.3% | ~5.0 |
+| @Kalshi | forecasting | 27 | 12 | 7.6% | ~4.6 |
+| @100trillionUSD | crypto | 27 | 12 | 7.6% | ~4.6 |
+| @RaoulGMI | crypto | 25 | 10 | 6.4% | ~3.8 |
+| @StatMuse | sport | 25 | 10 | 6.4% | ~3.8 |
+| @OptaJoe | sport | 25 | 10 | 6.4% | ~3.8 |
+| @ESPNStatsInfo | sport | 25 | 10 | 6.4% | ~3.8 |
+| @OptaAnalyst | sport | 23 | 8 | 5.1% | ~3.1 |
+| @OurWorldInData | statistics | 21 | 6 | 3.8% | ~2.3 |
+| @gelliottmorris | statistics | 21 | 6 | 3.8% | ~2.3 |
+| @metaculus | forecasting | 20 | 5 | 3.2% | ~1.9 |
+| @Statsbomb | sport | 19 | 4 | 2.5% | ~1.5 |
+| @ManifoldMarkets | forecasting | 19 | 4 | 2.5% | ~1.5 |
+| @_1woonomic | crypto | 18 | 3 | 1.9% | ~1.1 |
+| **17 accounts** | | | **157** | 100% | 60 |
+
+Left out: `@CryptoHayes` (unavailable on X since 2026-07-07), `@saylor`, `@PeterSchiff`.
+Scores and weights live in config next to each account's numeric id; the owner can change them.
 
 ## Starter posts (before inviting anyone)
 

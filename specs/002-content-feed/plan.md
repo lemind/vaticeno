@@ -1,13 +1,12 @@
 # Implementation Plan: Content feed
 
-**Branch**: `002-content-feed` (not created yet) | **Date**: 2026-10-05 | **Spec**: [spec.md](spec.md)
+**Branch**: `002-content-feed` | **Date**: 2026-10-05 | **Spec**: [spec.md](spec.md)
 
 ## Summary
 
-A cheap, mostly deterministic feed: a scheduler job reads a few pool accounts per run, filters posts in
-code, makes at most one model call to pick a concrete prediction, and quote-posts it with a fixed line.
-Owner-written originals post from a queue with no AI. Receipts quote the bot's own verdict replies.
-Dry-run first. The design goal is cost: every step that can be code is code.
+A small, cheap feed. Twice a day: pick one pool account by weight → read its latest posts → repost the
+latest eligible one (9 in 10) or quote it with a verified quote or an AI joke (1 in 10). Owner-written originals post
+from a queue with no AI. Receipts quote the bot's own verdict replies. Dry-run first.
 
 ## Technical Context
 
@@ -17,56 +16,110 @@ Gemini flash-lite, X API v2 (pay-per-use). No new dependencies.
 ## Constitution Check
 
 - **VI (replies only where mentioned)**: own-feed posts are a new kind of activity. Needs an amendment
-  before posting is switched on: "Own-feed posts allowed: spotted quote posts, owner-written originals,
-  receipts; capped per day; no @mentions, links or hashtags in our text; dry-run by default." **Blocking.**
-- **No post text stored (FR-029)**: only pool post ids and handles are stored; candidate texts stay in
-  memory for the one model call.
-- **Cheaper models first, structured output, Zod at boundaries**: one flash-lite call per run, JSON.
-- **KISS**: one job file, two tables, a config list. No queue system, no extra service.
+  before posting is switched on: "Own-feed posts allowed: pool reposts and quote posts, owner-written
+  originals, receipts; capped per day; no @mentions, links or hashtags in our text; dry-run by default."
+  **Blocking.**
+- **No post text stored (FR-009)**: only pool post ids and handles are stored; a post's text stays in
+  memory for the one AI call on quote turns.
+- **Cheaper models first, structured output, Zod at boundaries**: at most one flash-lite call per quote
+  turn (~6 a month), JSON.
+- **KISS**: one job file, a few tables, a config list. No queue system, no extra service.
 
-## Cost design (the point of this feature)
+## Run flow
 
-| Step | How it stays cheap |
-|---|---|
-| Reading X | 3–4 pool accounts per run (rotating), `since_id` per account, `max_results` 5, no replies or reposts requested (`exclude=replies,retweets`) → about 30–40 post reads a day |
-| Filtering | in code: age ≤ 48 h, has a number / date / future marker, not about betting calls → most posts never reach the model |
-| Choosing | one flash-lite call per run over all remaining candidates (batched), skipped when no candidate survives the filters |
-| Writing | fixed lines from a list: no model call |
-| Originals | owner-written queue: no model call, no reads |
-| Receipts | our own data: no reads, no model call |
-| Guard | daily spend cap from recorded costs; the feed stops for the day when reached |
+```
+pool run (2×/day, random minute in a morning and an evening window)
+  pick an account by weight (weight / sum), not the previous run's account
+  → GET /2/users/:id/tweets  exclude=replies,retweets  max_results=5 (X's minimum)  → take the newest
+  → newest post ≤ 48 h old and not in feed_posts (the latest eligible one) → none: pick again
+    (≤ 3 tries, else stop)
+  → roll: 90% repost | 5% quote + verified quote | 5% quote + AI joke
+      repost:  reserve slot → POST /2/users/:me/retweets
+      quote:   feed.v1 (one call): topic for the quote source, or the joke → checks → reserve slot →
+               POST /2/tweets with quote_tweet_id; no quote / failed checks → plain repost
+original (1×/day)       next queue item → reserve slot → post
+receipts (hourly, ≤ 2/day)  new verdict replies, author not STOPped → reserve → quote post
+```
 
-Rough monthly cost at 2 runs a day: model under $0.10; X reads and posts dominate. X's per-read and
-per-post prices are UNRECONCILED; measure in the dry run before switching posting on.
+Verified quote: the AI names a topic that fits the post (from the `quote` command's topics); the quote
+itself comes from the existing checked source (`wikiquoteQuote`), never from the AI. Joke checks in code:
+≤ 200 characters as X counts them, `hasTagsOrLinks` false; the instructions forbid predictions of its
+own and new facts.
+
+## Pool and weights
+
+`src/content/pool.ts` holds the 17 accounts with numeric id, handle and weight (table and scores in
+`docs/content-rules.md`). The owner-kept platform account's id comes from an env var. Weight = score − 15;
+chance = weight / 157. Top accounts (Romano, Schefter: 9.6%) come up about 5× as often as the weakest
+(Woo: 1.9%). Ids, not handles: the ids are looked up once at setup (T003, ~$0.16), never again at run time.
+
+## Cost
+
+Prices UNRECONCILED (X pricing page: $0.005 per post read, $0.015 per post created; repost price to be
+measured).
+
+| Part | Per day | Per month |
+|---|---|---|
+| Reads: 2 runs × 5 posts (X's minimum page), rarely a retry | ~10 | ~$1.50 |
+| Reposts / quote posts | 2 | ~$0.90 |
+| AI: quote turns only | ~0.2 | < $0.01 |
+| Originals 1/day + receipts ≤ 2/day | 1–3 | ~$0.45–1.35 |
+
+Pool part ~$2.40 a month; whole feed ~$2.85–3.75 at full caps (under $4, SC-002), with reposts priced
+like posts until measured.
 
 ## Project Structure
 
 ```
-src/feed/
-  pool.ts        the pool list (handle, field), rotation, per-account cursor
-  filter.ts      code filters (pure, unit-tested)
-  select.ts      the one model call (instructions: src/llm/instructions/spot.v1.md)
-  post.ts        quote post / original / receipt, caps, dry-run
-  job.ts         the scheduler entry: spotted (2×/day), original (1×/day), receipts (hourly)
-drizzle/00NN_feed.sql   feed_posts (kind, source_post_id, posted_id, at), feed_queue (text, order, posted_at),
-                        pool cursors (handle, last_post_id)
+src/content/
+  pool.ts          the pool (id, handle, field, weight, enabled), weighted pick
+  eligible.ts      latest eligible post (pure)
+  quote.ts         the quote turn: feed.v1 call (src/llm/instructions/feed.v1.md), quote source, checks
+  slots.ts         slot reservation, posted/failed marks, daily spend cap
+  pool-run.ts      the pool run (dry run logs only)
+  original-run.ts  the daily original
+  receipt-run.ts   receipts
+src/cli/content-tick.ts, src/cli/content-queue.ts   run one job by hand; manage the originals queue
+src/jobs/scheduler.ts   pool (2×/day), original (daily), receipts (hourly), only with ENABLE_FEED
+drizzle/0010_feed.sql   feed_posts (kind, status, day, slot, source_post_id, account_id, queue_item_id,
+                        posted_id, created_at), feed_queue (text, position, posted_at)
 ```
 
-X client additions: user timeline read (`GET /2/users/:id/tweets` with `since_id`, `exclude`), quote post
-(`POST /2/tweets` with `quote_tweet_id`). Config: `ENABLE_FEED` (off), `FEED_DRY_RUN` (on), caps.
+X client additions: user timeline read, repost (`POST /2/users/:id/retweets`), quote post (`POST /2/tweets`
+with `quote_tweet_id`). Following the pool: by hand in the app (free), or the API with the extra
+`follows.write` permission (re-authorize the bot). Config: `ENABLE_FEED` (off), `FEED_DRY_RUN` (on),
+`FEED_PLATFORM_ACCOUNT_ID` (the owner-kept account), `FEED_DAILY_USD_CAP` (0.30). X costs are recorded
+as cost rows (provider `x`: read, post, repost).
+
+## Never twice, caps (database-enforced)
+
+- `feed_posts` has `status` (`reserved → posted | failed`), a unique key on `source_post_id` (when set)
+  and on `(cap group, day, slot)`, where reposts and quote posts share the `pool` group; slots are 1–2 for
+  pool posts, 1 for original, 1–2 for receipts.
+- Posting = insert the row first with the first free slot (`on conflict do nothing`; no row → skip),
+  then post, then store the posted id and `posted`. Same rule as replies: marked before posting, never
+  retried (INIT_SPEC §6.7).
+- X rejects the post → `failed` and `slot = null`: the source stays used (one attempt per post), the
+  slot is free again (null is outside the unique key), so caps count only `reserved` and `posted`.
+- A crash between posting and storing leaves `reserved`: the slot stays taken and the post is not retried
+  (the post may have gone out).
+- Dry run reserves nothing: picks are only logged; the previous account is the last logged pick.
 
 ## Phases
 
-1. **Constitution amendment** (VI) and pool list in config. No code posts yet.
-2. **Spotted, dry run**: reader + filters + selector + logging of chosen candidates; costs recorded.
-   Run two weeks, owner reviews picks (SC-001), measure X read cost (SC-002).
-3. **Spotted, live**: quote posts behind `FEED_DRY_RUN=false`, caps on.
+1. **Constitution amendment** (VI), pool with ids and weights in config, follow the pool.
+2. **Pool, dry run**: pick + read + roll + quote turn, logged; costs recorded. One week, owner reviews
+   picks (SC-001), measure X read and repost prices (SC-002).
+3. **Pool, live**: behind `FEED_DRY_RUN=false`.
 4. **Originals queue**: table + CLI to add items; daily slot.
 5. **Receipts**: quote the bot's own verdict replies.
 
 ## Risks
 
-- X read pricing may make even 40 reads a day noticeable: lower to 1 run a day or fewer accounts.
-- Political accounts in the pool (forecasting/statistics) can tilt the feed: the selector prefers sport,
-  crypto and tech when scores tie, and the owner can disable an account in config.
-- A wrong pick is public: dry-run first, and only fixed text of our own.
+- The latest post is reposted without an AI check: a news or off-topic post can land on the feed. The
+  dry run shows how often; lower an account's weight or drop it if needed.
+- Busy accounts (Romano, Schefter) post constantly; their latest post is often plain news, not a
+  prediction. Accepted: the reach is the point.
+- A pool account that X reports as gone (suspended, protected, or deleted): skipped for the run,
+  one alert a day, the rest continue.
+- Political accounts can tilt the feed: their weights are moderate and the owner can disable one.
