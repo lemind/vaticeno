@@ -69,8 +69,8 @@ migrations applied locally. **Supabase: not applied yet.** The X calls are unexe
 - [x] T015 [P] [US1] Test `src/content/quote.test.ts`: a joke with @, #, a link, or over 200 chars → null; a quote with a link in it → null; a clean joke passes.
 - [x] T016 [US1] `src/content/pool-run.ts`: `runPoolPost(deps, now)` → spend cap check (`feedSpentTodayUsd`) → pick (`previousAccountId`) → read posts (cost) → `latestEligible`, else pick again (≤ 3 tries) → roll 90/5/5 → dry run: `logDryRun` and stop / live: `reserveSlot` → repost or quote post → `markPosted` or `markFailed`, cost recorded. An account X reports as gone (4xx on its timeline) is skipped with one alert a day. Logs ids only, never post text.
 - [x] T017 [US1] Schedule in `src/jobs/scheduler.ts`: `pool` job twice a day (09:00 and 18:00 UTC cron, then a random 0–90 min delay in the job), only when `ENABLE_FEED`; `content:tick` CLI in `src/cli/content-tick.ts` + `package.json` script to run one job by hand.
-- [ ] T018 [US1] Follow the 15 pool accounts from @vaticeno (by hand in the app; owner), checking each one is still the account it claims to be.
-- [ ] T019 [US1] **Narrowed (owner decision 2026-10-05): no rehearsal week.** Go straight live on the droplet — `ENABLE_FEED=true`, `FEED_DRY_RUN=false` in `/opt/vaticeno/.env`, then `deploy/deploy.sh`. The caps (2 pool posts a day) and the owner's ability to delete a post by hand replace the dry run; SC-001 becomes a running check of the logged picks instead of a gate, and SC-002's prices are read off the first `cost_events` rows.
+- [x] T018 [US1] Follow the 15 pool accounts from @vaticeno (owner, 2026-10-05): the list is accepted as it stands; `@ESPNStatsInfo` (hijacked handle) and `@_1woonomic` (dormant) were dropped in the process.
+- [x] T019 [US1] **Narrowed (owner decision 2026-10-05): no rehearsal week.** Go straight live on the droplet — `ENABLE_FEED=true`, `FEED_DRY_RUN=false` in `/opt/vaticeno/.env`, then `deploy/deploy.sh`. The caps (2 pool posts a day) and the owner's ability to delete a post by hand replace the dry run; SC-001 becomes a running check of the logged picks instead of a gate, and SC-002's prices are read off the first `cost_events` rows.
 
 - [x] T017a Review fixes (2026-10-05): only the call to X sits inside the try, so a failure while marking leaves the row `reserved` (slot taken, never retried) instead of freeing a slot whose post already went out; a post stamped up to 5 min ahead of our clock still counts as fresh, since the newest post of a busy account is the one we want.
 
@@ -81,7 +81,7 @@ topic or writes one ≤ 200-char line, checked in code for tags, links and lengt
 repost), the run itself (spend cap → weighted pick → read → eligible → roll 90/5/5 → dry-run record or
 reserve-post-mark), the X wiring with a one-off token refresh on 401, and the CLI. An account X refuses
 with a 4xx is skipped with an alert per occurrence (not deduped: at most a handful a day). 86 unit and 104
-integration tests pass. Left in this phase: T018 and T019, both the owner's.
+integration tests pass. Phase 3 closed: T018 and T019 settled by the owner (no rehearsal; the feed goes live with the next deploy).
 
 ---
 
@@ -91,10 +91,18 @@ integration tests pass. Left in this phase: T018 and T019, both the owner's.
 
 **Independent test**: queue 3 items, run `content:tick -- original` three times (dry run off on a test account or in the integration DB): each posted once, in order, then an alert.
 
-- [ ] T020 [US2] `src/cli/content-queue.ts` + script: `add "<text>"` (checked: ≤ 280 as X counts, `hasTagsOrLinks` false), `list`, `remove <id>`.
-- [ ] T021 [US2] `src/content/original-run.ts`: next unposted item by position → reserve (`original`, cap 1) → post standalone → mark item and row; empty queue → alert once a day (Sentry message).
-- [ ] T022 [US2] Schedule `original` daily at a random time (cron 12:00 UTC + random 0–180 min delay) in `src/jobs/scheduler.ts`; add to `content:tick`.
-- [ ] T023 [US2] Load the starter posts 2–10 from `docs/content-rules.md` into the queue (owner reviews the list first).
+- [x] T020 [US2] `src/cli/content-queue.ts` + script: `add "<text>"` (checked: ≤ 280 as X counts, `hasTagsOrLinks` false), `list`, `remove <id>`.
+- [x] T021 [US2] `src/content/original-run.ts`: next unposted item by position → reserve (`original`, cap 1) → post standalone → mark item and row; empty queue → alert once a day (Sentry message).
+- [x] T022 [US2] Schedule `original` daily at a random time (cron 12:00 UTC + random 0–180 min delay) in `src/jobs/scheduler.ts`; add to `content:tick`.
+- [x] T023 [US2] Starter posts 2–10 written out as final text in `src/content/starter-posts.ts` and loaded with `npm run content:queue -- load-starters` (idempotent: an item already in the queue is skipped). Loaded locally; the owner runs the same command against the server database when ready.
+
+- [x] T023a Review fix (2026-10-05): the queue skips an item that already has a `feed_posts` row, so a lost `posted_at` mark (a crash right after the post went out) can neither republish that post nor jam the queue for good — found by the test, which now proves both.
+
+**Checkpoint**: US2 done ✅ — `npm run content:queue -- add "…" | load-starters | list | remove <id>`
+manages the queue (each item checked against X's limit and refused if it carries a tag, link or hashtag);
+the `original` job posts the next item at 13:41 UTC when `ENABLE_FEED=true`, one a day, in order, marks
+the item, and alerts when the queue runs dry. `npm run content:tick -- original` runs it by hand. The
+daily cap, "never twice" and the crash cases are covered by integration tests (107 pass, 86 unit).
 
 ---
 

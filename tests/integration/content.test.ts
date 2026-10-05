@@ -5,6 +5,7 @@ import { after, before, beforeEach, test } from 'node:test';
 import { recordCost } from '../../src/db/costs.js';
 import { feedSpentTodayUsd, logDryRun, markFailed, markPosted, previousAccountId, reserveSlot, utcDay } from '../../src/content/slots.js';
 import { runPoolPost, type ContentDeps } from '../../src/content/pool-run.js';
+import { runOriginalPost, type OriginalDeps } from '../../src/content/original-run.js';
 import { XApiError, type UserPost } from '../../src/x/client.js';
 import { setupTestDb, type TestDb } from './helpers.js';
 
@@ -176,4 +177,50 @@ test('the spend cap stops the day, and an unreadable account is skipped', async 
 
   const gone = contentDeps({ readPosts: async () => { throw new XApiError(403, 'forbidden', null); } });
   assert.equal((await runPoolPost(gone, NOW)).done, 'no_candidate');
+});
+
+// The daily owner-written post (US2): in order, once each, and never twice even after a crash.
+function originalDeps(over: Partial<OriginalDeps> = {}): OriginalDeps {
+  const posted: string[] = [];
+  return { ...contentDeps({ dryRun: false }), postText: async (text) => { posted.push(text); return { id: `own${posted.length}` }; }, ...over } as OriginalDeps;
+}
+
+test('queued own posts go out one a day, in order, then the queue runs dry', async () => {
+  const texts = ['"Soon" is not a deadline.', 'Predictions fade. Records do not.', 'Say it now.'];
+  for (const [i, text] of texts.entries()) await t.sql`insert into feed_queue ${t.sql({ text, position: i + 1 })}`;
+  const sent: string[] = [];
+  const deps = originalDeps({ postText: async (text) => { sent.push(text); return { id: `own${sent.length}` }; } });
+
+  for (const [i, day] of ['2027-01-01', '2027-01-02', '2027-01-03'].entries()) {
+    const run = await runOriginalPost(deps, new Date(`${day}T13:41:00Z`));
+    assert.equal(run.done, 'posted', `day ${i + 1}`);
+  }
+  assert.deepEqual(sent, texts);
+  // A second run the same day is capped, and an empty queue just says so.
+  assert.equal((await runOriginalPost(deps, new Date('2027-01-03T18:00:00Z'))).done, 'empty_queue');
+  const rows = await t.sql`select count(*)::int as n from feed_queue where posted_at is not null`;
+  assert.equal(rows[0]!.n, 3);
+});
+
+test('a lost mark never republishes an own post, and never jams the queue', async () => {
+  const [first] = await t.sql`insert into feed_queue ${t.sql({ text: 'On the record.', position: 1 })} returning id`;
+  await t.sql`insert into feed_queue ${t.sql({ text: 'Second one.', position: 2 })}`;
+  const sent: string[] = [];
+  const deps = originalDeps({ postText: async (text) => { sent.push(text); return { id: `own${sent.length}` }; } });
+  assert.equal((await runOriginalPost(deps, NOW)).done, 'posted');
+
+  // A crash lost the mark on the queue item: its feed_posts row is the real record.
+  await t.sql`update feed_queue set posted_at = null where id = ${first!.id}`;
+  assert.equal((await runOriginalPost(deps, new Date('2027-01-02T13:41:00Z'))).done, 'posted');
+  assert.deepEqual(sent, ['On the record.', 'Second one.'], 'the first post never went out twice');
+});
+
+test('X refusing an own post frees the day and never retries it', async () => {
+  await t.sql`insert into feed_queue ${t.sql({ text: 'Third one.', position: 1 })}`;
+  const refusing = originalDeps({ postText: async () => { throw new Error('duplicate content'); } });
+  assert.equal((await runOriginalPost(refusing, NOW)).done, 'failed');
+  const [failed] = await t.sql`select status, slot from feed_posts where kind = 'original'`;
+  assert.deepEqual([failed!.status, failed!.slot], ['failed', null]);
+  // Its row still names the item, so the item is never attempted again.
+  assert.equal((await runOriginalPost(refusing, new Date('2027-01-02T13:41:00Z'))).done, 'empty_queue');
 });
