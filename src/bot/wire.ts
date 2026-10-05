@@ -3,6 +3,7 @@ import { loadConfig } from '../config.js';
 import type { ExtrasDeps } from './extras.js';
 import { log } from '../log.js';
 import { createXClient, postReply, XApiError } from '../x/client.js';
+import { humanDates, weightedLength, X_MAX_CHARS } from '../replies/templates.js';
 import { getValidAccessToken } from '../x/oauth.js';
 import type { BotDeps } from './mentions.js';
 import { createXSourceReader } from './x-source-reader.js';
@@ -24,7 +25,11 @@ export function buildBotDeps(claimDeps: ExtrasDeps): BotDeps {
     caps: { perAuthorPerHour: config.REPLY_MAX_PER_AUTHOR_PER_HOUR, perDay: config.REPLY_MAX_PER_DAY },
     // HACK(x): SPECULATIVE — a 401 can mean a stale stored expiry: refresh once and retry (the token rotates). See src/x/oauth.ts.
     // REVISIT: if 401s after a refresh show up in Sentry, the stored token is broken, not stale.
-    postReply: async (inReplyTo, text) => {
+    postReply: async (inReplyTo, replyText) => {
+      // One place for every reply (mentions, fixes, verdicts): ISO dates become "16 Oct 2026", unless
+      // that would push the reply over X's limit, in which case the shorter ISO form stands.
+      const human = humanDates(replyText);
+      const text = weightedLength(human) <= X_MAX_CHARS ? human : replyText;
       try {
         return await postReply(await getValidAccessToken(creds), inReplyTo, text);
       } catch (error) {

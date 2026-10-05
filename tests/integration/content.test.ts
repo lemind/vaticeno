@@ -155,10 +155,10 @@ test('a quote turn adds our own line, and X refusing it frees the slot without a
   const quoted: Array<{ id: string; text: string }> = [];
   const deps = contentDeps({
     dryRun: false,
-    random: () => 0.95, // the quote turn, joke half
     quotePost: async (id, text) => { quoted.push({ id, text }); return { id: 'own1' }; },
   });
-  assert.equal((await runPoolPost(deps, NOW)).done, 'posted');
+  // X refuses quoting a third party for now (REPOST_SHARE = 1), so the quote turn is asked for by hand.
+  assert.equal((await runPoolPost(deps, NOW, { mode: 'joke' })).done, 'posted');
   assert.deepEqual(quoted, [{ id: 'src1', text: 'That one is on the record now.' }]);
 
   const refusing = contentDeps({

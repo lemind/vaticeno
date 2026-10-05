@@ -147,6 +147,8 @@ in this spec is implemented and verified; what is left is the owner's deploy and
 - [x] T033 Hand-picked post kind, and a closed claim records anew (owner decisions 2026-10-05): `content:tick -- pool --mode repost|quote|joke` forces one kind instead of the roll; a reply under a claim that can no longer change (locked, closed, expired, out of fixes) is recorded as a NEW claim instead of being answered "can no longer be changed" — only a mid-flight conflict still gets the refusal.
 - [x] T034 X blocks quoting third parties (OBSERVED 2026-10-05): a quote post of a pool account's post is refused with 403 "You can only reply to or quote posts where you are mentioned or are the author". Pool runs are plain reposts for now (`REPOST_SHARE = 1`, tagged `HACK(x)` with a REVISIT); receipts still work because we quote our own verdict replies. FR-004 marked blocked in the spec.
 
+- [x] T035 Dates in posted text read as "16 Oct 2026" (owner decision 2026-10-05): one rewrite on the way out of every reply — recordings, fixes, verdicts — so nobody has to guess whether the middle number is the month; ISO stays in the database, the contract and the claim pages, and the rewrite is skipped if it would push a reply past X's limit.
+
 ## Dependencies & Execution Order
 
 - T001 blocks every task that posts (T016 live mode, T021, T024); dry run (T019) may start before it.

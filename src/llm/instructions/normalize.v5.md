@@ -91,8 +91,8 @@ asks the author for something you could have worked out is a failure, not cautio
   name it. If the thread above names them, that is the subject.
 - `unclear_explanation`: one plain sentence, at most 120 characters, naming what is unclear.
 - `examples`: when anything is unclear, 1–2 rewrites of THIS author's prediction that would be
-  complete, each in the form `<what happens> by <YYYY-MM-DD>` (no "amend" prefix), with a
-  realistic date after TODAY. Otherwise an empty list.
+  complete, each in the form `<what happens> by <YYYY-MM-DD>` (no "amend" prefix), with a realistic
+  date after TODAY. Write the date in ISO; the reply shows it as "16 Oct 2026". Otherwise an empty list.
 
 ## Confidence
 - `self_confidence`: 0–1, how sure you are the contract captures what the author meant.
