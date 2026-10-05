@@ -1,6 +1,9 @@
 <!--
 Sync Impact Report
-- Version change: 2.2.0 → 2.3.0 (2026-10-04, MINOR): VI — the final verdict is posted once as a reply in the
+- Version change: 2.3.0 → 2.4.0 (2026-10-05, MINOR): IV and VI — own-feed posts allowed (spec 002, owner
+  decision): pool reposts and quote posts, owner-written originals, receipts; capped per day; no @mentions,
+  links or hashtags in text the bot adds; no prediction of its own; dry-run by default.
+- Earlier: 2.2.0 → 2.3.0 (2026-10-04, MINOR): VI — the final verdict is posted once as a reply in the
   claim's thread, under the author's summon (owner decision); part of the same interaction, capped per day.
 - Earlier: 2.1.0 → 2.2.0 (2026-09-30, MINOR): IV — STOP lasts until the author tags the bot again
   (owner decision), not permanently.
@@ -36,6 +39,8 @@ Sync Impact Report
   ✅ CLAUDE.md — SPECKIT block now points at this constitution
   ✅ AGENTS.md, README.md — consistent; no edit needed
 - VI amended 2026-09-30: mention-triggered replies go live without separate X approval.
+- IV, VI amended 2026-10-05: own-feed posts allowed, capped, dry-run by default (spec 002).
+  ✅ CLAUDE.md updated in the same change; specs/002-content-feed/plan.md Constitution Check satisfied.
 - Deferred TODOs: none
 -->
 
@@ -114,7 +119,8 @@ Rationale: our downtime must never cost a user their verdict, and a guess is wor
 ### IV. Speak Only When Spoken To
 
 - The bot replies once per inbound user interaction, in the thread it was summoned in. It MUST NOT
-  create standalone posts that mention a user.
+  create standalone posts that mention a user. Own-feed posts (VI) are the only posts the bot makes
+  without being summoned, and they never mention a user.
 - Only the author of a prediction can put it on the record; a summon on someone else's post is
   rejected.
 - Self-imposed rate caps MUST be enforced in code: 3 replies per author per hour and 300 per day,
@@ -146,7 +152,13 @@ entire class of problems, and it is what X's terms require.
   (keyword search, replying where not mentioned) is forbidden. One exception, part of the same interaction:
   the claim's final verdict is posted once as a reply in its thread, under the author's summon (owner
   decision 2026-10-04), through the same allowlist and caps; never to an author who sent STOP.
-- There are no topic exclusions, but content the bot republishes MUST comply with X's rules.
+- Own-feed posts are allowed (owner decision 2026-10-05, spec 002): reposts and quote posts of a fixed
+  owner-chosen pool, owner-written originals, and receipts of the bot's own verdicts. They MUST be capped
+  per day in code, MUST NOT contain @mentions, links or hashtags in text the bot adds, MUST NOT state a
+  prediction of the bot's own, and default to dry-run (logged, not posted) until the owner switches
+  posting on. No keyword search, no unsolicited replies: the pool is editorial, chosen by the owner.
+- There are no topic exclusions, but content the bot republishes MUST comply with X's rules. X allows
+  automated reposts and quote posts that are not bulk, aggressive or spammy (X's automation rules).
 - Behavior that depends on X's answers (third-party recording) MUST be configuration, not code, and MUST
   default to the most conservative option. Verdict delivery is a reply in the thread (owner decision).
 
@@ -199,4 +211,4 @@ Rationale: a one-person proto survives on code it can read in one sitting.
 - Every plan passes the Constitution Check before design and again after it. A justified violation
   is recorded in the plan's Complexity Tracking table; an unjustified one blocks the work.
 
-**Version**: 2.3.0 | **Ratified**: 2026-09-28 | **Last Amended**: 2026-10-04
+**Version**: 2.4.0 | **Ratified**: 2026-09-28 | **Last Amended**: 2026-10-05

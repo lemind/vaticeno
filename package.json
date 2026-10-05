@@ -17,6 +17,7 @@
     "claim:reply": "tsx --env-file-if-exists=.env src/cli/claim-reply.ts",
     "claim:edit": "tsx --env-file-if-exists=.env src/cli/claim-edit.ts",
     "jobs:tick": "tsx --env-file-if-exists=.env src/cli/jobs-tick.ts",
+    "content:pool-ids": "tsx --env-file-if-exists=.env src/cli/pool-ids.ts",
     "review:list": "tsx --env-file-if-exists=.env src/cli/review-list.ts",
     "resolve:manual": "tsx --env-file-if-exists=.env src/cli/resolve-manual.ts",
     "poc:whoami": "tsx --env-file=.env src/poc/whoami.ts",

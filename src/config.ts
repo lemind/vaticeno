@@ -52,10 +52,22 @@ const CoreEnvSchema = z
     ENABLE_JOBS: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
     // With ENABLE_JOBS: read mentions on X, record claims and post replies (needs the X_* variables).
     ENABLE_X: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
+    // Own-feed content jobs (spec 002): pool reposts, the daily original, receipts.
+    ENABLE_FEED: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
+    // On (the default): picks are logged, nothing is posted. Posting needs an explicit false.
+    FEED_DRY_RUN: z.enum(['true', 'false']).default('true').transform((v) => v === 'true'),
+    // The pool account the owner keeps outside the repo; empty = that account is skipped.
+    FEED_PLATFORM_ACCOUNT_ID: z.string().regex(/^\d{1,19}$/).optional(),
+    // The feed stops for the day once its recorded X and model costs reach this.
+    FEED_DAILY_USD_CAP: z.coerce.number().min(0).default(0.3),
   })
   .superRefine((env, ctx) => {
     if (env.LLM_MODE !== 'replay' && !env.GEMINI_API_KEY) {
       ctx.addIssue({ code: 'custom', path: ['GEMINI_API_KEY'], message: `GEMINI_API_KEY is required when LLM_MODE=${env.LLM_MODE}` });
+    }
+    // The content jobs live in the scheduler, so ENABLE_FEED alone would silently do nothing.
+    if (env.ENABLE_FEED && !env.ENABLE_JOBS) {
+      ctx.addIssue({ code: 'custom', path: ['ENABLE_FEED'], message: 'ENABLE_FEED needs ENABLE_JOBS=true (the content jobs run in the scheduler)' });
     }
   });
 

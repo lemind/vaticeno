@@ -23,3 +23,15 @@ test('DATABASE_URL is required and must be postgres', () => {
   assert.throws(() => loadCoreConfig({}), /DATABASE_URL/);
   assert.throws(() => loadCoreConfig({ DATABASE_URL: 'mysql://x' }), /postgres/);
 });
+
+// The feed must never post by accident: off, and dry-run even when switched on (spec 002 FR-007).
+test('the content feed is off and dry-run by default', () => {
+  const config = loadCoreConfig({ DATABASE_URL: DB });
+  assert.equal(config.ENABLE_FEED, false);
+  assert.equal(config.FEED_DRY_RUN, true);
+  assert.equal(config.FEED_DAILY_USD_CAP, 0.3);
+  assert.equal(config.FEED_PLATFORM_ACCOUNT_ID, undefined);
+  assert.equal(loadCoreConfig({ DATABASE_URL: DB, ENABLE_FEED: 'true', ENABLE_JOBS: 'true' }).FEED_DRY_RUN, true);
+  assert.throws(() => loadCoreConfig({ DATABASE_URL: DB, ENABLE_FEED: 'true' }), /ENABLE_JOBS/);
+  assert.throws(() => loadCoreConfig({ DATABASE_URL: DB, FEED_PLATFORM_ACCOUNT_ID: 'kalshi' }), /FEED_PLATFORM_ACCOUNT_ID/);
+});
