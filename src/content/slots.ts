@@ -24,8 +24,10 @@ export const utcDay = (now: Date): string => now.toISOString().slice(0, 10);
 
 // Takes the first free slot of the day, or returns null: the cap is reached, or this source post is
 // already used (by an earlier run, or by another run inserting at the same moment).
-export async function reserveSlot(db: Db, reservation: Reservation): Promise<{ id: string; slot: number } | null> {
-  const cap = FEED_CAPS[capGroupOf(reservation.kind)];
+// `extraSlots` is the hand-run allowance: `content:tick` is the owner asking for a post now, so the
+// day's cap steps aside. "Never the same post twice" does not: that one is X's rule, not ours.
+export async function reserveSlot(db: Db, reservation: Reservation, extraSlots = 0): Promise<{ id: string; slot: number } | null> {
+  const cap = FEED_CAPS[capGroupOf(reservation.kind)] + extraSlots;
   for (let slot = 1; slot <= cap; slot++) {
     const [row] = await db
       .insert(feedPosts)

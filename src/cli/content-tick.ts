@@ -1,4 +1,4 @@
-// npm run content:tick -- pool|original|receipts [--now <ISO>] — one content run by hand, under the advisory lock the
+// npm run content:tick -- pool|original|receipts [--respect-caps] [--now <ISO>] — one content run by hand, under the advisory lock the
 // scheduler uses. It obeys FEED_DRY_RUN: with the default (true) it only records and logs the pick.
 // Reading a pool account's posts costs money even in a dry run (spec 002: ~$0.025 per account read).
 import { getSql } from '../db/client.js';
@@ -10,7 +10,7 @@ import { buildContentDeps } from '../content/wire.js';
 import { buildDeps, cliArgs, nowFrom, printJson, runCli } from './run.js';
 
 await runCli('content-tick', async (config) => {
-  const { values, positionals } = cliArgs({ now: { type: 'string' } });
+  const { values, positionals } = cliArgs({ now: { type: 'string' }, 'respect-caps': { type: 'boolean' } });
   const job = positionals[0] ?? 'pool';
   if (job !== 'pool' && job !== 'original' && job !== 'receipts') throw new Error(`unknown content job: ${job} (pool | original | receipts)`);
   // No ENABLE_FEED check: that flag is for the scheduler. Typing this command is the intent.
@@ -18,7 +18,10 @@ await runCli('content-tick', async (config) => {
 
   const now = nowFrom(values.now);
   const content = buildContentDeps(buildDeps(config), config);
+  // A hand-run posts even when the day's slots are used: the caps exist to pace the scheduler, not the
+  // owner. `--respect-caps` keeps them. Nothing ever posts the same post twice, forced or not.
+  const options = { force: !values['respect-caps'] };
   const jobs = { pool: runPoolPost, original: runOriginalPost, receipts: runReceipts };
-  const run = await withJobLock(getSql(), job, async (): Promise<unknown> => jobs[job](content, now));
+  const run = await withJobLock(getSql(), job, async (): Promise<unknown> => jobs[job](content, now, options));
   printJson({ now: now.toISOString(), job, dry_run: config.FEED_DRY_RUN, result: run.ran ? run.result : 'skipped' });
 });

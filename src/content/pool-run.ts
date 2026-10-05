@@ -23,6 +23,7 @@ export type ContentDeps = QuoteDeps & {
 
 // 9 runs in 10 repost plainly; the rest split evenly between a sourced quote and a joke (FR-003/FR-004).
 const REPOST_SHARE = 0.9;
+export const HAND_RUN_SLOTS = 10; // room for a hand-run on top of the day's cap
 const MAX_TRIES = 3;
 
 export type PoolRunResult =
@@ -30,9 +31,11 @@ export type PoolRunResult =
   | { done: 'logged'; account: string; postId: string; mode: 'repost' | QuoteMode }
   | { done: 'posted'; account: string; postId: string; kind: 'repost' | 'quote'; postedId: string | null };
 
-export async function runPoolPost(deps: ContentDeps, now: Date): Promise<PoolRunResult> {
+export type RunOptions = { force?: boolean }; // a hand-run: past the day's caps, by the owner's choice
+
+export async function runPoolPost(deps: ContentDeps, now: Date, options: RunOptions = {}): Promise<PoolRunResult> {
   const random = deps.random ?? Math.random;
-  if (await overSpendCap(deps, now)) return { done: 'spend_cap' };
+  if (!options.force && await overSpendCap(deps, now)) return { done: 'spend_cap' };
 
   const found = await findCandidate(deps, now, random);
   if (!found) return { done: 'no_candidate' };
@@ -53,7 +56,7 @@ export async function runPoolPost(deps: ContentDeps, now: Date): Promise<PoolRun
   }
 
   // Reserved before posting, and never retried afterwards (INIT_SPEC §6.7).
-  const slot = await reserveSlot(deps.db, { kind, day, sourcePostId: post.id, accountId: account.id });
+  const slot = await reserveSlot(deps.db, { kind, day, sourcePostId: post.id, accountId: account.id }, options.force ? HAND_RUN_SLOTS : 0);
   if (!slot) {
     log('info', 'feed slot not reserved; nothing posted', { event: 'feed.no_slot', handle: account.handle, post_id: post.id, kind });
     return { done: 'cap_reached' };

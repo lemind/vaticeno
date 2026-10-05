@@ -291,3 +291,17 @@ test('an author who sent STOP gets no receipt', async () => {
   assert.deepEqual(await runReceipts(deps, NOW), { posted: 0 });
   assert.deepEqual(quoted, []);
 });
+
+test('a hand-run posts even when the day is used up, but never the same thing twice', async () => {
+  await t.sql`insert into feed_queue ${t.sql({ text: 'First today.', position: 1 })}`;
+  await t.sql`insert into feed_queue ${t.sql({ text: 'Second today.', position: 2 })}`;
+  const sent: string[] = [];
+  const deps = originalDeps({ postText: async (text) => { sent.push(text); return { id: `own${sent.length}` }; } });
+
+  assert.equal((await runOriginalPost(deps, NOW)).done, 'posted'); // the scheduler's one slot
+  assert.equal((await runOriginalPost(deps, NOW)).done, 'cap_reached'); // the scheduler again: capped
+  assert.equal((await runOriginalPost(deps, NOW, { force: true })).done, 'posted'); // the owner asked
+  assert.deepEqual(sent, ['First today.', 'Second today.']);
+  // Nothing is left to post, so even a forced run has nothing to say.
+  assert.equal((await runOriginalPost(deps, NOW, { force: true })).done, 'empty_queue');
+});

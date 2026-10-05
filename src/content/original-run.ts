@@ -4,7 +4,7 @@ import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import { feedPosts, feedQueue } from '../db/schema.js';
 import { log } from '../log.js';
 import { alert, captureError } from '../observe.js';
-import type { ContentDeps } from './pool-run.js';
+import { HAND_RUN_SLOTS, type ContentDeps, type RunOptions } from './pool-run.js';
 import { markFailed, markPosted, reserveSlot, utcDay } from './slots.js';
 import { overSpendCap, recordFeedPost } from './spend.js';
 import { X_POST_CREATE_USD } from '../x/prices.js';
@@ -15,8 +15,8 @@ export type OriginalRunResult =
   | { done: 'empty_queue' | 'cap_reached' | 'failed' }
   | { done: 'logged' | 'posted'; itemId: string; postedId?: string };
 
-export async function runOriginalPost(deps: OriginalDeps, now: Date): Promise<OriginalRunResult> {
-  if (await overSpendCap(deps, now)) return { done: 'cap_reached' };
+export async function runOriginalPost(deps: OriginalDeps, now: Date, options: RunOptions = {}): Promise<OriginalRunResult> {
+  if (!options.force && await overSpendCap(deps, now)) return { done: 'cap_reached' };
   // The next item that is neither marked as posted nor already recorded in feed_posts. The second check
   // matters: if a crash lost the mark after a post went out, that item must not block the whole queue
   // (its row keeps it from being posted again, so without this the feed would go quiet for good).
@@ -41,7 +41,7 @@ export async function runOriginalPost(deps: OriginalDeps, now: Date): Promise<Or
     return { done: 'logged', itemId: item.id };
   }
 
-  const slot = await reserveSlot(deps.db, { kind: 'original', day, queueItemId: item.id });
+  const slot = await reserveSlot(deps.db, { kind: 'original', day, queueItemId: item.id }, options.force ? HAND_RUN_SLOTS : 0);
   if (!slot) {
     log('info', 'no original posted: the day is used or the item is already out', { event: 'feed.no_slot_original', item_id: item.id });
     return { done: 'cap_reached' };

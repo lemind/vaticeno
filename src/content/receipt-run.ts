@@ -6,6 +6,7 @@ import { claims, feedPosts, optOuts, resolutions } from '../db/schema.js';
 import { log } from '../log.js';
 import { captureError } from '../observe.js';
 import type { OriginalDeps } from './original-run.js';
+import { HAND_RUN_SLOTS, type RunOptions } from './pool-run.js';
 import { FEED_CAPS, markFailed, markPosted, reserveSlot, utcDay } from './slots.js';
 import { overSpendCap, recordFeedPost } from './spend.js';
 import { X_POST_CREATE_USD } from '../x/prices.js';
@@ -14,8 +15,8 @@ const RECENT_MS = 7 * 24 * 3_600_000; // an old verdict is not news; receipts fo
 
 export type ReceiptDeps = OriginalDeps;
 
-export async function runReceipts(deps: ReceiptDeps, now: Date): Promise<{ posted: number }> {
-  if (await overSpendCap(deps, now)) return { posted: 0 };
+export async function runReceipts(deps: ReceiptDeps, now: Date, options: RunOptions = {}): Promise<{ posted: number }> {
+  if (!options.force && await overSpendCap(deps, now)) return { posted: 0 };
   const since = new Date(now.getTime() - RECENT_MS);
   const due = await deps.db
     .select({ slug: claims.slug, authorId: claims.authorXUserId, replyId: claims.verdictReplyTweetId, outcome: resolutions.outcome })
@@ -45,7 +46,7 @@ export async function runReceipts(deps: ReceiptDeps, now: Date): Promise<{ poste
       continue;
     }
     // The verdict reply is the source: one receipt per verdict, whatever happens next.
-    const slot = await reserveSlot(deps.db, { kind: 'receipt', day, sourcePostId: claim.replyId! });
+    const slot = await reserveSlot(deps.db, { kind: 'receipt', day, sourcePostId: claim.replyId! }, options.force ? HAND_RUN_SLOTS : 0);
     if (!slot) continue; // already posted, or both of today's receipt slots are used
 
     try {
