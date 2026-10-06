@@ -278,8 +278,8 @@ export async function pollMentions(deps: BotDeps, now: Date): Promise<{ mentions
       }
       log('info', 'mention handled', { event: 'mention.handled', tweet_id: mention.id, author_id: mention.author_id, action: routed.action, text_chars: mention.text.length });
       if (routed.deferQuote) {
-      state.pending_quotes.push({ tweet_id: mention.id, author_id: mention.author_id, attempts: 0, next_at: inMinutes(now, QUOTE_RETRY_MINUTES[0]!), topic: routed.quoteTopic });
-    }
+        state.pending_quotes.push({ tweet_id: mention.id, author_id: mention.author_id, attempts: 0, next_at: inMinutes(now, QUOTE_RETRY_MINUTES[0]!), topic: routed.quoteTopic });
+      }
       const replyId = routed.reply ? await sendReply(deps, state, mention, routed.reply, now) : null;
       if (replyId) replies++;
       if (routed.slug && replyId) await rememberThread(deps, routed.slug, [mention.id, replyId]); // only threads the bot answered in
