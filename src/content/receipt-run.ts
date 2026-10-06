@@ -2,12 +2,13 @@
 // shows the product working. Our text is the verdict line only — no tags, no links, nothing of the
 // author's words (constitution V, VI 2.4.0). At most two a day, never the same verdict twice.
 import { and, desc, eq, gt, isNotNull, notExists } from 'drizzle-orm';
-import { claims, feedPosts, optOuts, resolutions } from '../db/schema.js';
+import { claims, evidences, feedPosts, optOuts, resolutions } from '../db/schema.js';
 import { log } from '../log.js';
 import { captureError } from '../observe.js';
 import type { OriginalDeps } from './original-run.js';
 import { HAND_RUN_SLOTS, type RunOptions } from './pool-run.js';
 import { FEED_CAPS, markFailed, markPosted, reserveSlot, utcDay } from './slots.js';
+import { hasTagsOrLinks, weightedLength, X_MAX_CHARS } from '../replies/templates.js';
 import { overSpendCap, recordFeedPost } from './spend.js';
 import { X_POST_CREATE_USD } from '../x/prices.js';
 
@@ -19,9 +20,14 @@ export async function runReceipts(deps: ReceiptDeps, now: Date, options: RunOpti
   if (!options.force && await overSpendCap(deps, now)) return { posted: 0 };
   const since = new Date(now.getTime() - RECENT_MS);
   const due = await deps.db
-    .select({ slug: claims.slug, authorId: claims.authorXUserId, replyId: claims.verdictReplyTweetId, outcome: resolutions.outcome })
+    .select({
+      slug: claims.slug, authorId: claims.authorXUserId, replyId: claims.verdictReplyTweetId,
+      outcome: resolutions.outcome, result: evidences.resultSummary,
+    })
     .from(claims)
     .innerJoin(resolutions, eq(resolutions.claimId, claims.id))
+    // The deciding evidence carries the outcome in the judge's own words — a final score, a close price.
+    .leftJoin(evidences, eq(evidences.id, resolutions.decidingEvidenceId))
     .where(and(
       isNotNull(claims.verdictReplyTweetId),
       gt(claims.verdictReplyAt, since),
@@ -38,8 +44,15 @@ export async function runReceipts(deps: ReceiptDeps, now: Date, options: RunOpti
 
   let posted = 0;
   for (const claim of due) {
-    // No "#" before the slug: X would turn it into a hashtag, which own-feed text must not carry.
-    const text = `RECEIPT · ${claim.outcome!.toUpperCase()} · claim ${claim.slug}`;
+    // `#slug` is the house style, in replies and here (owner decision 2026-10-06): the one hashtag an
+    // own-feed post may carry, because it is the claim's own id and nothing else. A match shows its
+    // score, a price its close — the number is the point of a receipt.
+    const result = (claim.result ?? '').trim();
+    const line = `RECEIPT · ${claim.outcome!.toUpperCase()} · #${claim.slug}`;
+    // The slug's "#" is ours and intended; the judge's words are checked for anything else (a handle,
+    // a link, another hashtag) and dropped whole if they carry it or make the post too long.
+    const withResult = `${line} · ${result}`;
+    const text = result && !hasTagsOrLinks(result) && weightedLength(withResult) <= X_MAX_CHARS ? withResult : line;
     const day = utcDay(now);
     if (deps.dryRun) {
       log('info', 'feed dry run: would post a receipt', { event: 'feed.dry_run_receipt', slug: claim.slug, text });

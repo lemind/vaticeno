@@ -258,9 +258,9 @@ test('X refusing an own post frees the day and never retries it', async () => {
 });
 
 // Receipts (US3): one per verdict, at most two a day, never for an author who sent STOP.
-async function verdictClaim(outcome: 'hit' | 'miss', replyId: string) {
+async function verdictClaim(outcome: 'hit' | 'miss', replyId: string, result?: string) {
   const claim = await insertClaim(t.sql, 'resolved', { verdict_reply_at: NOW.toISOString(), verdict_reply_tweet_id: replyId });
-  const evidence = await insertEvidence(t.sql, claim.id, { says: outcome, value: '151000' });
+  const evidence = await insertEvidence(t.sql, claim.id, { says: outcome, value: '151000', ...(result ? { result_summary: result } : {}) });
   await t.sql`insert into resolutions ${t.sql({ claim_id: claim.id, review_status: 'final', outcome, decided_by: 'evidence', deciding_evidence_id: evidence.id, decided_at: NOW.toISOString() })}`;
   return claim;
 }
@@ -275,12 +275,13 @@ test('a verdict is quoted once as a receipt, two a day at most', async () => {
   assert.deepEqual(await runReceipts(deps, NOW), { posted: 2 }, "today's two receipt slots");
   assert.deepEqual(await runReceipts(deps, NOW), { posted: 0 }, 'the day is used up');
   assert.equal(quoted.length, 2);
-  assert.match(quoted[0]!.text, /^RECEIPT · (HIT|MISS) · claim \w+$/);
+  // The slug's hash is ours by design (constitution VI 2.4.1), and a score is appended when there is one.
+  assert.match(quoted[0]!.text, /^RECEIPT · (HIT|MISS) · #\w+( · .+)?$/);
   // Tomorrow the one left over goes out, and nothing is ever quoted twice.
   assert.deepEqual(await runReceipts(deps, new Date('2027-01-02T07:00:00Z')), { posted: 1 });
   assert.equal(new Set(quoted.map((q) => q.id)).size, 3);
   assert.deepEqual([...quoted.map((q) => q.id)].sort(), ['vr1', 'vr2', 'vr3']);
-  assert.ok(quoted.some((q) => q.text.endsWith(`claim ${first.slug}`)));
+  assert.ok(quoted.some((q) => q.text.includes(`#${first.slug}`)));
 });
 
 test('an author who sent STOP gets no receipt', async () => {
@@ -304,4 +305,17 @@ test('a hand-run posts even when the day is used up, but never the same thing tw
   assert.deepEqual(sent, ['First today.', 'Second today.']);
   // Nothing is left to post, so even a forced run has nothing to say.
   assert.equal((await runOriginalPost(deps, NOW, { force: true })).done, 'empty_queue');
+});
+
+test("a match receipt carries the score, and the judge's words are checked like any other text", async () => {
+  await verdictClaim('miss', 'vrscore', 'Real Madrid 2-1 Barcelona');
+  const quoted: string[] = [];
+  const deps = originalDeps({ quotePost: async (_id, text) => { quoted.push(text); return { id: 'own1' }; } });
+  assert.deepEqual(await runReceipts(deps, NOW), { posted: 1 });
+  assert.match(quoted[0]!, /^RECEIPT · MISS · #\w+ · Real Madrid 2-1 Barcelona$/);
+
+  // A result that smuggles in a handle or a link is dropped whole; the receipt still goes out.
+  await verdictClaim('hit', 'vrtag', 'per @espn and espn.com');
+  assert.deepEqual(await runReceipts(deps, new Date('2027-01-02T07:00:00Z')), { posted: 1 });
+  assert.match(quoted[1]!, /^RECEIPT · HIT · #\w+$/);
 });

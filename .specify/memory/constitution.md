@@ -1,6 +1,8 @@
 <!--
 Sync Impact Report
-- Version change: 2.3.0 → 2.4.0 (2026-10-05, MINOR): IV and VI — own-feed posts allowed (spec 002, owner
+- Version change: 2.4.0 → 2.4.1 (2026-10-06, PATCH): VI — the claim's own slug may appear as `#slug` in
+  an own-feed post; it is an id, not a topic (owner decision).
+- Earlier: 2.3.0 → 2.4.0 (2026-10-05, MINOR): IV and VI — own-feed posts allowed (spec 002, owner
   decision): pool reposts and quote posts, owner-written originals, receipts; capped per day; no @mentions,
   links or hashtags in text the bot adds; no prediction of its own; dry-run by default.
 - Earlier: 2.2.0 → 2.3.0 (2026-10-04, MINOR): VI — the final verdict is posted once as a reply in the
@@ -154,8 +156,9 @@ entire class of problems, and it is what X's terms require.
   decision 2026-10-04), through the same allowlist and caps; never to an author who sent STOP.
 - Own-feed posts are allowed (owner decision 2026-10-05, spec 002): reposts and quote posts of a fixed
   owner-chosen pool, owner-written originals, and receipts of the bot's own verdicts. They MUST be capped
-  per day in code, MUST NOT contain @mentions, links or hashtags in text the bot adds, MUST NOT state a
-  prediction of the bot's own, and default to dry-run (logged, not posted) until the owner switches
+  per day in code, MUST NOT contain @mentions, links or hashtags in text the bot adds — with one
+  exception, the claim's own slug (`#ab12c`), which is an id, not a topic (owner decision 2026-10-06) —
+  MUST NOT state a prediction of the bot's own, and default to dry-run (logged, not posted) until the owner switches
   posting on. No keyword search, no unsolicited replies: the pool is editorial, chosen by the owner.
 - There are no topic exclusions, but content the bot republishes MUST comply with X's rules. X allows
   automated reposts and quote posts that are not bulk, aggressive or spammy (X's automation rules).
@@ -211,4 +214,4 @@ Rationale: a one-person proto survives on code it can read in one sitting.
 - Every plan passes the Constitution Check before design and again after it. A justified violation
   is recorded in the plan's Complexity Tracking table; an unjustified one blocks the work.
 
-**Version**: 2.4.0 | **Ratified**: 2026-09-28 | **Last Amended**: 2026-10-05
+**Version**: 2.4.1 | **Ratified**: 2026-09-28 | **Last Amended**: 2026-10-06

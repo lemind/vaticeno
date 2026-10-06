@@ -129,8 +129,10 @@ feed, at most 2 per day, so the profile shows the product working.
   counting a repost at the post price ($0.015) until X's repost price is measured; UNRECONCILED until
   the dry run measures X's prices.
 - **SC-003**: A visitor to the profile sees at least 10 own or curated posts before the first invite.
-- **SC-004**: Text Vaticeno adds (quote lines, jokes, originals, receipt lines) never contains @mentions,
-  links or hashtags and never makes a prediction of its own. Reposting or quoting another account's post is
+- **SC-004**: Text Vaticeno adds (quote lines, jokes, originals, receipt lines) never contains @mentions
+  or links, never makes a prediction of its own, and carries no hashtag other than the claim's own slug
+  (`#ab12c`, constitution VI 2.4.1). A receipt shows the result the judge read — a final score, a close
+  price — when there is one. Reposting or quoting another account's post is
   allowed.
 
 ## Assumptions

@@ -187,6 +187,8 @@ and the reply's action carries the same step. 94 unit and 113 integration tests 
 
 ---
 
+- [x] T041 Receipts read like the replies (owner decision 2026-10-06): the claim's slug is back as `#slug` — an id, not a topic, so constitution VI is amended to 2.4.1 to allow that one hashtag — and the receipt now carries the result the judge read (a match's score, a close price) when the deciding evidence has one. The judge's words go through the same check as any posted text: a result that smuggles in a handle, a link or another hashtag is dropped whole and the receipt still goes out.
+
 ## Dependencies & Execution Order
 
 - T001 blocks every task that posts (T016 live mode, T021, T024); dry run (T019) may start before it.

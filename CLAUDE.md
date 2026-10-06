@@ -1,7 +1,7 @@
 @AGENTS.md
 
 <!-- SPECKIT START -->
-**Constitution**: `.specify/memory/constitution.md` (v2.4.0) — principles every plan must pass.
+**Constitution**: `.specify/memory/constitution.md` (v2.4.1) — principles every plan must pass.
 
 **Active plan**: `specs/002-content-feed/plan.md` (001's plan, research, data-model and contracts/ stay the reference for the claim pipeline).
 
@@ -23,7 +23,7 @@ model-decided) proven on seeded claims, public pages. Where INIT_SPEC (v1.1.1) i
 - **Never retry a post after a failed existence check** — that is how duplicates happen (§6.7).
 - **No post text stored**, IDs only (§6.9). `x_user_id` is identity; handle is a display cache (§3).
 - **Replies only where mentioned** (constitution VI): one reply per mention, in that thread; no unsolicited replies. The final verdict is posted once in the claim's thread (constitution VI 2.3.0).
-- **Own-feed posts** (constitution VI 2.4.0, spec 002): only from `src/content/` — pool reposts and quote posts, owner-written originals, receipts. Capped per day in code, dry-run by default, and text the bot adds carries no @mentions, links, hashtags or prediction of its own.
+- **Own-feed posts** (constitution VI 2.4.0, spec 002): only from `src/content/` — pool reposts and quote posts, owner-written originals, receipts. Capped per day in code, dry-run by default, and text the bot adds carries no @mentions, links or prediction of its own; the only hashtag allowed is the claim's own slug (constitution VI 2.4.1).
 - **Infer, never interrogate** (owner decisions 2026-10-04/05): the bot fills in what follows from the
   post, the thread or a public schedule and shows it in the reply, where the author can fix it in 15
   minutes. The platform is X; a date is computed from TODAY ("next month", "in a week"); an event with a
