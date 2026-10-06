@@ -1,6 +1,6 @@
 // X intake (Stage 1): each new mention of the bot becomes one engine call and at most one reply, in the same
 // thread (constitution IV). Mention and post text live in memory only — logs and DB get ids and lengths.
-import { arrayContains, desc, eq, or, sql } from 'drizzle-orm';
+import { and, arrayContains, desc, eq, or, sql } from 'drizzle-orm';
 import { claims, optOuts } from '../db/schema.js';
 import { readIngestState, writeIngestState, type IngestState } from '../ingest/state.js';
 import { amendClaim, type ClaimDeps, submitClaim } from '../lifecycle/claims.js';
@@ -283,6 +283,7 @@ export async function pollMentions(deps: BotDeps, now: Date): Promise<{ mentions
       const replyId = routed.reply ? await sendReply(deps, state, mention, routed.reply, now) : null;
       if (replyId) replies++;
       if (routed.slug && replyId) await rememberThread(deps, routed.slug, [mention.id, replyId]); // only threads the bot answered in
+      else if (routed.slug && routed.reply) await withholdLock(deps, routed.slug);
     }
     state.failing = undefined;
     state.mentions_since_id = mention.id;
@@ -355,6 +356,22 @@ async function sendReply(deps: BotDeps, state: IngestState, mention: Mention, te
     const detail = error instanceof XApiError ? { status: error.status } : {};
     captureError(error, { event: 'reply.failed', tweet_id: mention.id, ...detail });
     return null;
+  }
+}
+
+// The author's 15 minutes only exist if they were shown the contract. When the reply never posted (dead
+// token, X down) the draft must not lock itself and bind them to wording they never saw — the lock is the
+// trust primitive (INIT_SPEC §4, §6.6). A draft with no lock_at is skipped by the lock job for good, so
+// `expireWithheldDrafts` closes it a day later. A fix sent anyway is refused and recorded as a new claim.
+async function withholdLock(deps: BotDeps, slug: string) {
+  try {
+    const held = await deps.db.update(claims).set({ lockAt: null })
+      .where(and(eq(claims.slug, slug), eq(claims.status, 'draft')))
+      .returning({ id: claims.id });
+    if (held.length > 0) alert('claim.lock_withheld', { slug }); // the author is owed this reply: it needs a human
+  } catch (error) {
+    // Never thrown: the mention is already marked answered, and a throw here would replay it (INIT_SPEC §6.7).
+    captureError(error, { event: 'claim.lock_withheld_failed', slug });
   }
 }
 

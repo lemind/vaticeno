@@ -8,6 +8,8 @@ import { type BotDeps, pollMentions } from '../../src/bot/mentions.js';
 import { readIngestState } from '../../src/ingest/state.js';
 import type { Proposal } from '../../src/contract/proposal.js';
 import type { Coinbase } from '../../src/feeds/coinbase.js';
+import { expireWithheldDrafts } from '../../src/lifecycle/expire.js';
+import { lockDueDrafts } from '../../src/lifecycle/lock.js';
 import { createMemorySourceReader } from '../../src/lifecycle/source-reader.js';
 import { type LlmClient, LlmSchemaError, LlmUnavailable } from '../../src/llm/client.js';
 import type { Mention, XClient } from '../../src/x/client.js';
@@ -322,5 +324,31 @@ describe('failures and limits', () => {
     await pollMentions(deps, NOW);
     assert.equal(calls, 1);
     assert.equal(replies.length, 0);
+  });
+
+  // The live defect of 2026-10-06: the token died, the RECORDED reply failed, and the claim locked itself
+  // 15 minutes later — binding the author to a contract they were never shown.
+  test('a recorded claim whose reply never posts does not lock, and expires a day later', async () => {
+    const m = mention('96', '@vaticeno BTC daily close above $150,000 by 2026-12-31');
+    const { deps } = await bot([[m]]);
+    deps.postReply = async () => { throw new Error('token invalid'); };
+    await pollMentions(deps, NOW);
+
+    const [recorded] = await t.sql`select slug, status, lock_at from claims`;
+    assert.equal(recorded!.status, 'draft');
+    assert.equal(recorded!.lock_at, null, 'no lock_at: the 15 minutes never started');
+
+    // Well past the window the author would have had: the lock job leaves it alone.
+    const later = new Date(NOW.getTime() + 60 * 60_000);
+    const locked = await lockDueDrafts({ ...deps, reader: createMemorySourceReader() }, later);
+    assert.deepEqual(locked, []);
+    assert.equal((await t.sql`select status from claims where slug = ${recorded!.slug}`)[0]!.status, 'draft');
+
+    // Not left open forever either: same 24 h clock as needs info, and not an hour earlier. Measured from
+    // the real clock, because created_at is the database's own now().
+    const recordedAt = Date.now();
+    assert.equal(await expireWithheldDrafts(t.db, new Date(recordedAt + 23 * 3_600_000)), 0);
+    assert.equal(await expireWithheldDrafts(t.db, new Date(recordedAt + 24 * 3_600_000)), 1);
+    assert.equal((await t.sql`select status from claims where slug = ${recorded!.slug}`)[0]!.status, 'expired');
   });
 });

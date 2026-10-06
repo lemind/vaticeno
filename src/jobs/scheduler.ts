@@ -2,7 +2,7 @@
 // manual tick never overlaps. One process runs this (ENABLE_JOBS=true on exactly one instance).
 import cron from 'node-cron';
 import type { Sql } from 'postgres';
-import { expireNeedsInfo } from '../lifecycle/expire.js';
+import { expireNeedsInfo, expireWithheldDrafts } from '../lifecycle/expire.js';
 import { lockDueDrafts } from '../lifecycle/lock.js';
 import type { SourceReader } from '../lifecycle/source-reader.js';
 import { log } from '../log.js';
@@ -33,7 +33,8 @@ export function startScheduler(deps: SchedulerDeps): { stop: () => Promise<void>
       if (deps.bot) await postLockReplies(deps.bot, results);
       return results;
     }),
-    expire: () => expireNeedsInfo(deps.db, now()),
+    // Needs info with no amend in 24 h, and drafts whose reply never reached their author (lock withheld).
+    expire: async () => ({ needsInfo: await expireNeedsInfo(deps.db, now()), withheldDrafts: await expireWithheldDrafts(deps.db, now()) }),
     resolve: () => resolveDueClaims(deps, now()),
     // Verdict replies on X (ENABLE_X): one per final verdict, in the claim's thread.
     verdicts: async () => (deps.bot ? deliverVerdicts(deps.bot, now()) : null),
