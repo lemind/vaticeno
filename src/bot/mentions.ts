@@ -11,6 +11,7 @@ import { type Intent, type ThreadPost, classifyIntent } from '../llm/intent.js';
 import { type CallCost, LlmSchemaError } from '../llm/client.js';
 import { recordCosts } from '../db/costs.js';
 import { type ExtrasDeps, quoteReply, selfpromoReply } from './extras.js';
+import { logTopic, resolveQuoteTopic } from './quote-topic.js';
 import { alert, captureError } from '../observe.js';
 import { HELP_REPLY, hasTagsOrLinks, STOPPED_REPLY, THIRD_PARTY_REPLY, weightedLength, X_MAX_CHARS } from '../replies/templates.js';
 import { type Mention, XApiError, type XClient } from '../x/client.js';
@@ -25,7 +26,9 @@ export type BotDeps = ExtrasDeps & {
   statePath?: string;
 };
 
-type Routed = { action: string; reply: string | null; slug?: string | null; deferQuote?: boolean }; // slug: the claim this mention belongs to
+// slug: the claim this mention belongs to. quoteTopic: the page a deferred quote should try first, so a
+// retry never pays the topic cascade again.
+type Routed = { action: string; reply: string | null; slug?: string | null; deferQuote?: boolean; quoteTopic?: string };
 
 const HOUR_MS = 3_600_000;
 const DAY_MS = 24 * HOUR_MS;
@@ -127,8 +130,14 @@ async function runCommand(deps: BotDeps, mention: Mention, command: Command, now
   if (command === 'help') return { action: 'help', reply: HELP_REPLY };
   if (command === 'selfpromo') return { action: 'selfpromo', reply: await selfpromoReply(deps) };
   if (command === 'quote') {
-    const quote = await quoteReply(deps);
-    return quote ? { action: 'quote', reply: quote } : { action: 'quote_deferred', reply: null, deferQuote: true };
+    const repliedTo = mention.referenced_tweets?.find((ref) => ref.type === 'replied_to')?.id;
+    // The posts above are read only if the request itself says nothing about a subject (spec 002 phase 7).
+    const decided = await resolveQuoteTopic(deps, mention.text, readerAbove(deps, repliedTo));
+    logTopic(mention.id, decided);
+    const quote = await quoteReply(deps, decided.topic ?? undefined);
+    return quote
+      ? { action: `quote_${decided.step}`, reply: quote }
+      : { action: 'quote_deferred', reply: null, deferQuote: true, quoteTopic: decided.topic ?? undefined };
   }
   // HACK(x): SPECULATIVE (carried from the POC) — X rejects a post identical to a recent one, so pong carries the time. See src/poc/poll.ts.
   // REVISIT: if a repeated pong without the time is ever accepted.
@@ -182,20 +191,41 @@ function echoes(answer: string, texts: string[]): boolean {
   });
 }
 
-async function threadAbove(deps: BotDeps, repliedTo: string | undefined): Promise<ThreadPost[]> {
-  const thread: ThreadPost[] = [];
-  let id = repliedTo;
-  for (let depth = 0; id && depth < THREAD_DEPTH; depth++) {
+async function threadAbove(deps: BotDeps, repliedTo: string | undefined, maxPosts = THREAD_DEPTH): Promise<ThreadPost[]> {
+  return (await threadWalk(deps, repliedTo, maxPosts)).posts;
+}
+
+// The walk itself, which also hands back where it stopped: a later step can then read the next posts
+// up without paying for the ones already read (each post read is billed).
+async function threadWalk(deps: BotDeps, from: string | undefined, maxPosts: number): Promise<{ posts: ThreadPost[]; nextId: string | undefined }> {
+  const posts: ThreadPost[] = [];
+  let id = from;
+  for (let depth = 0; id && depth < maxPosts; depth++) {
     try {
       const post = await deps.x.getTweet(id);
-      thread.push({ from: post.author_id === deps.botUserId ? 'bot' : 'user', text: post.text });
+      posts.push({ from: post.author_id === deps.botUserId ? 'bot' : 'user', text: post.text });
       id = post.referenced_tweets?.find((ref) => ref.type === 'replied_to')?.id;
     } catch (error) {
       log('info', 'thread post unreadable', { event: 'thread.unreadable', error: String(error) });
-      break;
+      return { posts, nextId: undefined };
     }
   }
-  return thread;
+  return { posts, nextId: id };
+}
+
+// A reader for the topic cascade: asking for more posts reads only the ones not read yet.
+function readerAbove(deps: BotDeps, repliedTo: string | undefined): (depth: number) => Promise<readonly string[]> {
+  const posts: ThreadPost[] = [];
+  let nextId = repliedTo;
+  return async (depth) => {
+    while (posts.length < depth && nextId) {
+      const walked = await threadWalk(deps, nextId, depth - posts.length);
+      posts.push(...walked.posts);
+      nextId = walked.nextId;
+      if (walked.posts.length === 0) break;
+    }
+    return posts.slice(0, depth).map((post) => post.text);
+  };
 }
 
 // The claim whose thread the mention replies into: its parent is the claim's post, the summon, a fix or a bot
@@ -247,7 +277,9 @@ export async function pollMentions(deps: BotDeps, now: Date): Promise<{ mentions
         routed = { action: 'given_up', reply: null };
       }
       log('info', 'mention handled', { event: 'mention.handled', tweet_id: mention.id, author_id: mention.author_id, action: routed.action, text_chars: mention.text.length });
-      if (routed.deferQuote) state.pending_quotes.push({ tweet_id: mention.id, author_id: mention.author_id, attempts: 0, next_at: inMinutes(now, QUOTE_RETRY_MINUTES[0]!) });
+      if (routed.deferQuote) {
+      state.pending_quotes.push({ tweet_id: mention.id, author_id: mention.author_id, attempts: 0, next_at: inMinutes(now, QUOTE_RETRY_MINUTES[0]!), topic: routed.quoteTopic });
+    }
       const replyId = routed.reply ? await sendReply(deps, state, mention, routed.reply, now) : null;
       if (replyId) replies++;
       if (routed.slug && replyId) await rememberThread(deps, routed.slug, [mention.id, replyId]); // only threads the bot answered in
@@ -289,7 +321,8 @@ async function retryPendingQuotes(deps: BotDeps, state: IngestState, now: Date):
       waiting.push({ ...pending, next_at: inMinutes(now, QUOTE_RETRY_MINUTES[pending.attempts]!) }); // a cap is not a failed try
       continue;
     }
-    const quote = await quoteReply(deps);
+    // The topic was decided when the request came in: a retry re-reads Wikiquote, never X or the model.
+    const quote = await quoteReply(deps, pending.topic);
     if (quote) {
       if (await sendReply(deps, state, { id: pending.tweet_id, author_id: pending.author_id, text: '' }, quote, now)) replies++;
       continue;

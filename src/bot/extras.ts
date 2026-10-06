@@ -12,7 +12,7 @@ import { type Quote, wikiquoteQuote } from './wikiquote.js';
 import type { ClaimDeps } from '../lifecycle/claims.js';
 
 // quoteSource: Wikiquote by default; tests pass their own.
-export type ExtrasDeps = ClaimDeps & { fetchPage: PageFetcher; quoteSource?: () => Promise<Quote | null> };
+export type ExtrasDeps = ClaimDeps & { fetchPage: PageFetcher; quoteSource?: (topic?: string) => Promise<Quote | null> };
 
 export const MOTTOS = [
   "Vaticeno doesn't make predictions. Vaticeno records yours.",
@@ -51,9 +51,11 @@ export async function selfpromoReply(deps: ExtrasDeps): Promise<string> {
 
 // A quote from Wikiquote (free, attributed, never stored); null when it can't be fetched right now — the
 // caller retries later instead of replying with a fallback.
-export async function quoteReply(deps: ExtrasDeps): Promise<string | null> {
+// `topic` (chosen by src/bot/quote-topic.ts) is the page tried first; without one the topics are random,
+// exactly as before. A quote always goes out either way — the topic only changes where we look.
+export async function quoteReply(deps: ExtrasDeps, topic?: string): Promise<string | null> {
   try {
-    const quote = await (deps.quoteSource ?? (() => wikiquoteQuote(pick)))();
+    const quote = await (deps.quoteSource ?? ((t?: string) => wikiquoteQuote(pick, 3, t)))(topic);
     if (!quote) return null;
     const reply = `“${quote.text}” — ${quote.by}`;
     // Never an unattributed, cut or half-parsed quote: one that doesn't pass is skipped (the next try

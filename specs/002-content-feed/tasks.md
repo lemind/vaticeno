@@ -172,13 +172,18 @@ when the previous one came up empty.
 the shares turn out five times worse (50% / 25%), it stays under $1 a month at today's traffic. Prices:
 flash-lite topic call ≈ $0.0002, one X post read $0.005 (UNRECONCILED, `src/x/prices.ts`).
 
-- [ ] T037 `src/bot/quote-topic.ts`: `topicFromWords(text)` — a keyword map over the 9 topics (btc, bitcoin, sats → Bitcoin; odds, wager, bookie → Betting; forecast, model, poll → Forecasting; …), matched on whole words, case-insensitive, no model call. Unit-tested; returns null when nothing matches.
-- [ ] T038 `src/bot/quote-topic.ts`: `topicFromModel(deps, text, context)` — one flash-lite call on `quote-topic.v1` (instruction file written), Zod `{ topic: enum | null }`, cost recorded as `normalize` on the extras path; any failure returns null, never an exception into the reply path.
-- [ ] T039 `src/bot/extras.ts`: the cascade in `quoteReply` — keywords → model on the request → (only if still null and the mention is a reply) read the parent and ask again → (only if still null) read 2 more posts above and ask again → random. The chosen topic goes to `wikiquoteQuote(pick, 3, topic)`, which already tries it first. Every quote logs which step decided it (`event: 'quote.topic'`, `step`, `topic`), so the estimated shares above can be replaced by measured ones.
+- [x] T037 `src/bot/quote-topic.ts`: `topicFromWords(text)` — a keyword map over the 9 topics (btc, bitcoin, sats → Bitcoin; odds, wager, bookie → Betting; forecast, model, poll → Forecasting; …), matched on whole words, case-insensitive, no model call. Unit-tested; returns null when nothing matches.
+- [x] T038 `src/bot/quote-topic.ts`: `topicFromModel(deps, text, context)` — one flash-lite call on `quote-topic.v1` (instruction file written), Zod `{ topic: enum | null }`, cost recorded as `normalize` on the extras path; any failure returns null, never an exception into the reply path.
+- [x] T039 `src/bot/extras.ts`: the cascade in `quoteReply` — keywords → model on the request → (only if still null and the mention is a reply) read the parent and ask again → (only if still null) read 2 more posts above and ask again → random. The chosen topic goes to `wikiquoteQuote(pick, 3, topic)`, which already tries it first. Every quote logs which step decided it (`event: 'quote.topic'`, `step`, `topic`), so the estimated shares above can be replaced by measured ones.
 - [ ] T040 Two weeks after T039 ships: read the `quote.topic` logs, write the real shares into this phase, and drop step 4 if it never changes the topic the parent already gave.
 
-**Checkpoint**: a `quote` under a Bitcoin thread answers with a Bitcoin quote; a bare `quote` with no
-thread still answers, from a random topic, with no paid read.
+- [x] T039a Review fix (2026-10-06): the reader hands back where the walk stopped, so step 4 reads only the two posts above the parent instead of re-reading the parent it already paid for (step 4 is 2 reads, as the table says, not 3).
+
+**Checkpoint**: done ✅ — a `quote` under a Bitcoin thread answers with a Bitcoin quote; a bare `quote`
+with no thread still answers, from a random topic, with no paid read. The chosen topic is kept with a
+deferred quote, so a retry re-reads Wikiquote only — never X or the model. Each quote logs
+`event: 'quote.topic'` with the step that decided it (`words`, `model`, `parent`, `thread`, `random`),
+and the reply's action carries the same step. 94 unit and 113 integration tests pass.
 
 ---
 
