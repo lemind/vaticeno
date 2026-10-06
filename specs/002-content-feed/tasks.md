@@ -151,6 +151,37 @@ in this spec is implemented and verified; what is left is the owner's deploy and
 
 - [x] T036 The thread is read only when it is needed (owner question 2026-10-06): recording a prediction makes no extra reads; if the first answer is "unclear" and the author was replying to someone, the posts above are read then and the claim is judged again with them. A fix starts from the claim's own criterion, which is free, and reads the thread only if that still leaves it unclear. Before this, every mention in a thread paid for up to 3 post reads whether it needed them or not (~$0.015 each).
 
+---
+
+## Phase 7: The `quote` command picks its topic from context (owner decision 2026-10-06)
+
+**Why**: `quote` searches 3 of 9 Wikiquote topic pages at random today, so a request under a crypto
+thread can come back with a gambling aphorism. A quote always goes out either way — the question is only
+which page is searched first. Reading X is the only part that costs money, so each step below runs only
+when the previous one came up empty.
+
+| Step | When it runs | Share (estimate) | Cost when it runs | Average per quote |
+|---|---|---:|---:|---:|
+| 1. Keyword match on the request, in code | always | 100% | $0 | $0 |
+| 2. `quote-topic.v1` on the request text alone | no keyword matched | 100% | $0.0002 | $0.0002 |
+| 3. + the parent post, asked again | step 2 answered `null`, or it is a bare "quote" | 10% | $0.0052 | $0.0005 |
+| 4. + 2 more posts above, asked again | the parent did not settle it either | 5% | $0.0102 | $0.0005 |
+| 5. Random topic, as today | no topic was found | rest | $0 | $0 |
+
+**Total ≈ $0.0012 per quote**: $0.19 a month at 5 a day, $0.74 at 20 a day, $1.85 at 50 a day. Even if
+the shares turn out five times worse (50% / 25%), it stays under $1 a month at today's traffic. Prices:
+flash-lite topic call ≈ $0.0002, one X post read $0.005 (UNRECONCILED, `src/x/prices.ts`).
+
+- [ ] T037 `src/bot/quote-topic.ts`: `topicFromWords(text)` — a keyword map over the 9 topics (btc, bitcoin, sats → Bitcoin; odds, wager, bookie → Betting; forecast, model, poll → Forecasting; …), matched on whole words, case-insensitive, no model call. Unit-tested; returns null when nothing matches.
+- [ ] T038 `src/bot/quote-topic.ts`: `topicFromModel(deps, text, context)` — one flash-lite call on `quote-topic.v1` (instruction file written), Zod `{ topic: enum | null }`, cost recorded as `normalize` on the extras path; any failure returns null, never an exception into the reply path.
+- [ ] T039 `src/bot/extras.ts`: the cascade in `quoteReply` — keywords → model on the request → (only if still null and the mention is a reply) read the parent and ask again → (only if still null) read 2 more posts above and ask again → random. The chosen topic goes to `wikiquoteQuote(pick, 3, topic)`, which already tries it first. Every quote logs which step decided it (`event: 'quote.topic'`, `step`, `topic`), so the estimated shares above can be replaced by measured ones.
+- [ ] T040 Two weeks after T039 ships: read the `quote.topic` logs, write the real shares into this phase, and drop step 4 if it never changes the topic the parent already gave.
+
+**Checkpoint**: a `quote` under a Bitcoin thread answers with a Bitcoin quote; a bare `quote` with no
+thread still answers, from a random topic, with no paid read.
+
+---
+
 ## Dependencies & Execution Order
 
 - T001 blocks every task that posts (T016 live mode, T021, T024); dry run (T019) may start before it.

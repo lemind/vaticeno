@@ -109,6 +109,15 @@ exactly those. X list prices: `src/x/prices.ts`.
 - A dry-run pick is stored as a `dry_run` row with no slot: it holds none of the day's cap, yet it keeps
   the rehearsal honest (the same account never twice in a row, the same post never twice).
 
+## The `quote` command's topic (phase 7)
+
+A quote is always returned; the topic only decides which Wikiquote page is searched first. The cascade is
+keywords (free) → one flash-lite call on the request text (~$0.0002) → the parent post, but only when
+that answered nothing (+$0.005) → two more posts above, only if the parent did not settle it (+$0.010) →
+a random topic, as today. About $0.0012 per quote on the estimated shares (10% reach the parent, 5% the
+thread), i.e. ~$0.19 a month at 5 quotes a day. Each quote logs which step decided it, so the shares get
+measured instead of assumed.
+
 ## Phases
 
 1. **Constitution amendment** (VI), pool with ids and weights in config, follow the pool.
