@@ -55,14 +55,22 @@ export async function routeMention(deps: BotDeps, mention: Mention, now: Date): 
   // claim gets the refusal — no model call either way.
   const claim = body ? await claimInThread(deps, mention, repliedTo) : null;
   if (claim) {
-    // The thread above the fix: it names what "she", "it" or "the case count" refers to (normalize.v4).
-    const context = (await threadAbove(deps, repliedTo)).map((post) => post.text);
-    const fixed = await amendClaim({ ...deps, reader: deps.reader }, { slug: claim.slug, authorId: mention.author_id, text: body, now, context });
+    // What the claim already says is the context a fix needs, and it is free: it is ours, in the
+    // database. The thread above is read only when that still leaves the fix unclear.
+    const own = criterionOf(claim.contract);
+    let fixed = await amendClaim({ ...deps, reader: deps.reader }, { slug: claim.slug, authorId: mention.author_id, text: body, now, context: own });
+    if (fixed.outcome === 'still_needs_info' && repliedTo) {
+      const context = [...(await threadAbove(deps, repliedTo)).map((post) => post.text), ...own];
+      if (context.length > own.length) {
+        fixed = await amendClaim({ ...deps, reader: deps.reader }, { slug: claim.slug, authorId: mention.author_id, text: body, now, context });
+      }
+    }
     // A claim that can no longer change (locked, closed, expired, out of fixes) does not end the
     // conversation: the author is predicting again, so the reply is recorded as a NEW claim further
     // down (owner decision 2026-10-05). Only a mid-flight conflict still gets the refusal.
-    const recordAnew = fixed.outcome === 'refused' && fixed.reason !== 'conflict';
-    if (!recordAnew) return { action: `fix_${fixed.outcome}`, reply: fixed.reply, slug: claim.slug };
+    if (fixed.outcome !== 'refused' || fixed.reason === 'conflict') {
+      return { action: `fix_${fixed.outcome}`, reply: fixed.reply, slug: claim.slug };
+    }
     log('info', 'closed claim: recording this reply as a new one', { event: 'claim.amend_to_new', slug: claim.slug, reason: fixed.reason });
   }
 
@@ -192,9 +200,15 @@ async function threadAbove(deps: BotDeps, repliedTo: string | undefined): Promis
 
 // The claim whose thread the mention replies into: its parent is the claim's post, the summon, a fix or a bot
 // reply. Only the direct parent counts; the conversation root can be an older, unrelated post.
+// The claim's own criterion, when it has one: a needs-info claim has no contract yet.
+function criterionOf(contract: unknown): string[] {
+  const criterion = (contract as { criterion?: unknown } | null)?.criterion;
+  return typeof criterion === 'string' && criterion.length > 0 ? [criterion] : [];
+}
+
 async function claimInThread(deps: BotDeps, mention: Mention, repliedTo: string | undefined) {
   if (!repliedTo) return null;
-  const [claim] = await deps.db.select({ slug: claims.slug, sourceTweetId: claims.sourceTweetId, summonTweetId: claims.summonTweetId }).from(claims)
+  const [claim] = await deps.db.select({ slug: claims.slug, sourceTweetId: claims.sourceTweetId, summonTweetId: claims.summonTweetId, contract: claims.contract }).from(claims)
     .where(or(eq(claims.sourceTweetId, repliedTo), eq(claims.summonTweetId, repliedTo), arrayContains(claims.threadTweetIds, [repliedTo])))
     // An open claim wins over a closed one sharing the post (a fix mistaken for a new claim before T094).
     .orderBy(sql`${claims.status} in ('needs_info', 'draft') desc`, desc(claims.createdAt)).limit(1);

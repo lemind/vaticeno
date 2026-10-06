@@ -149,6 +149,8 @@ in this spec is implemented and verified; what is left is the owner's deploy and
 
 - [x] T035 Dates in posted text read as "16 Oct 2026" (owner decision 2026-10-05): one rewrite on the way out of every reply — recordings, fixes, verdicts — so nobody has to guess whether the middle number is the month; ISO stays in the database, the contract and the claim pages, and the rewrite is skipped if it would push a reply past X's limit.
 
+- [x] T036 The thread is read only when it is needed (owner question 2026-10-06): recording a prediction makes no extra reads; if the first answer is "unclear" and the author was replying to someone, the posts above are read then and the claim is judged again with them. A fix starts from the claim's own criterion, which is free, and reads the thread only if that still leaves it unclear. Before this, every mention in a thread paid for up to 3 post reads whether it needed them or not (~$0.015 each).
+
 ## Dependencies & Execution Order
 
 - T001 blocks every task that posts (T016 live mode, T021, T024); dry run (T019) may start before it.
