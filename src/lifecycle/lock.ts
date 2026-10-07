@@ -52,10 +52,10 @@ async function lockDraft(deps: ClaimDeps & { reader: SourceReader }, claim: Clai
 
   let post;
   try {
-    // Every claim is re-read once here to catch an edit: a post read, charged by X and, before
-    // 2026-10-07, recorded nowhere.
-    await recordCosts(db, [{ provider: 'x', operation: 'thread_read', units: 1, usdCost: X_POST_READ_USD, claimId: claim.id }]);
     post = await deps.reader.readVersion(claim.sourceTweetId);
+    // Recorded only once the post is in hand: X bills for posts it returns, and an unreadable post is
+    // re-tried every minute for a day — billing each attempt would invent most of the ledger.
+    await recordCosts(db, [{ provider: 'x', operation: 'thread_read', units: 1, usdCost: X_POST_READ_USD, claimId: claim.id }]);
   } catch (error) {
     // Can't see the post: never lock blind (constitution I); retry, and give up after a day.
     log('warn', 'post unreadable at lock; waiting', { event: 'claim.lock_wait', claim_id: claim.id, slug, error: String(error) });

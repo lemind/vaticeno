@@ -210,9 +210,9 @@ function cachedReads(deps: BotDeps): BotDeps {
     if (held) return held;
     const fresh = read();
     cache.set(key, fresh); // a rejection is cached too: a post we cannot read is not read again either
-    // Counted where it is paid. UNRECONCILED: an edited post costs a second read inside the reader and is
-    // counted here as one.
-    void recordReads(deps, 1, 'thread.post_read');
+    // Charged on arrival, never on the attempt: a deleted post returns nothing, so there is nothing to
+    // pay for. UNRECONCILED: an edited post costs a second read inside the reader, counted here as one.
+    void fresh.then(() => recordReads(deps, 1, 'thread.post_read'), () => {});
     return fresh;
   };
   return {
