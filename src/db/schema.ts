@@ -14,6 +14,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
@@ -32,8 +33,13 @@ export const OUTCOMES = ['hit', 'miss', 'void'] as const;
 export const DECIDED_BY = ['evidence', 'arbiter', 'human'] as const;
 export const REVIEW_STATUSES = ['final', 'needs_human'] as const;
 export const VOID_REASONS = ['insufficient_evidence', 'unresolvable'] as const;
-export const COST_PROVIDERS = ['gemini', 'google_search', 'coinbase', 'web_fetch'] as const;
-export const COST_OPERATIONS = ['normalize', 'search', 'judge', 'arbitrate', 'fetch', 'price'] as const;
+export const COST_PROVIDERS = ['gemini', 'google_search', 'coinbase', 'web_fetch', 'x'] as const;
+// feed_* are the content jobs' own operations (spec 002): the daily feed spend cap sums exactly these.
+export const COST_OPERATIONS = ['normalize', 'search', 'judge', 'arbitrate', 'fetch', 'price', 'feed_read', 'feed_post', 'feed_model'] as const;
+export const FEED_COST_OPERATIONS = ['feed_read', 'feed_post', 'feed_model'] as const;
+export const FEED_KINDS = ['repost', 'quote', 'original', 'receipt'] as const;
+// dry_run: the pick the owner reviews before posting is switched on — recorded, but it holds no slot.
+export const FEED_STATUSES = ['reserved', 'posted', 'failed', 'dry_run'] as const;
 
 // `col IN ('a','b')` for a CHECK constraint; values are our own constants, never user input.
 function oneOf(column: AnyPgColumn, values: readonly string[]) {
@@ -201,3 +207,50 @@ export const optOuts = pgTable('opt_outs', {
   xUserId: text('x_user_id').primaryKey(),
   createdAt: utc('created_at').notNull().defaultNow(),
 });
+
+// Own-feed posts (spec 002, constitution VI 2.4.0). A row is inserted BEFORE the post goes out: it both
+// reserves the day's slot and records that this source post is used, so nothing is ever posted twice.
+export const feedQueue = pgTable('feed_queue', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  // Our own writing, queued by the owner — never anyone else's post text (constitution V).
+  text: text('text').notNull(),
+  position: integer('position').notNull().unique(),
+  postedAt: utc('posted_at'),
+  createdAt: utc('created_at').notNull().defaultNow(),
+});
+
+export const feedPosts = pgTable(
+  'feed_posts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    kind: text('kind', { enum: FEED_KINDS }).notNull(),
+    // Reposts and quote posts share one daily cap (FR-005), so the group owns the slot, not the kind.
+    capGroup: text('cap_group').generatedAlwaysAs(sql`case when kind in ('repost', 'quote') then 'pool' else kind end`),
+    status: text('status', { enum: FEED_STATUSES }).notNull().default('reserved'),
+    day: date('day').notNull(),
+    slot: integer('slot'),
+    sourcePostId: text('source_post_id'),
+    accountId: text('account_id'),
+    queueItemId: uuid('queue_item_id').references(() => feedQueue.id),
+    postedId: text('posted_id'),
+    createdAt: utc('created_at').notNull().defaultNow(),
+  },
+  (t) => [
+    check('feed_posts_kind_check', oneOf(t.kind, FEED_KINDS)),
+    check('feed_posts_status_check', oneOf(t.status, FEED_STATUSES)),
+    // A post X refused frees its slot and keeps its source: never retried, never a lost day (FR-005).
+    // A dry-run pick never held a slot at all.
+    check('feed_posts_slot_check', sql`(${t.status} in ('failed', 'dry_run')) = (${t.slot} is null) and (${t.slot} is null or ${t.slot} >= 1)`),
+    // A repost creates no post of ours, so it has no posted id; everything else must have one.
+    check('feed_posts_posted_id_check', sql`${t.status} <> 'posted' or ${t.kind} = 'repost' or ${t.postedId} is not null`),
+    check('feed_posts_pool_check', sql`${t.kind} not in ('repost', 'quote') or (${t.accountId} is not null and ${t.sourcePostId} is not null)`),
+    check('feed_posts_original_check', sql`${t.kind} <> 'original' or ${t.queueItemId} is not null`),
+    check('feed_posts_receipt_check', sql`${t.kind} <> 'receipt' or ${t.sourcePostId} is not null`),
+    // Never the same post twice, even from two runs at once: pool posts and receipts are keyed by the
+    // post they carry, an owner-written original by its queue item.
+    uniqueIndex('feed_posts_source_key').on(t.sourcePostId).where(sql`source_post_id is not null`),
+    uniqueIndex('feed_posts_queue_item_key').on(t.queueItemId).where(sql`queue_item_id is not null`),
+    // The day's caps: one row per slot. A failed row's slot is null, and nulls never collide.
+    unique('feed_posts_slot_unique').on(t.capGroup, t.day, t.slot),
+  ],
+);

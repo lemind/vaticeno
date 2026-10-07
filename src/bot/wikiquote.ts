@@ -4,14 +4,20 @@ import { hasTagsOrLinks } from '../replies/templates.js';
 
 const API = 'https://en.wikiquote.org/w/api.php';
 const USER_AGENT = 'VaticenoBot/1.0 (https://x.com/vaticeno)'; // Wikimedia asks every client to identify itself
-const TOPICS = ['Gambling', 'Betting', 'Luck', 'Chance', 'Risk', 'Prediction', 'Forecasting', 'Speculation', 'Sports', 'Bitcoin'];
+// Also offered to the model that matches a quote to a post (spec 002 T012); it may only pick from these.
+// "Sports" is out (owner report 2026-10-05): that page is mostly song lyrics and film dialogue, which
+// read as nonsense under a prediction ("Flirting is just like a sport. Yes Sir.").
+export const QUOTE_TOPICS = ['Gambling', 'Betting', 'Luck', 'Chance', 'Risk', 'Prediction', 'Forecasting', 'Speculation', 'Bitcoin'] as const;
+const TOPICS: readonly string[] = QUOTE_TOPICS;
 const STOP_SECTIONS = /^==+\s*(misattributed|disputed|unsourced|see also|external links|about|quotes about)/i;
 const TIMEOUT_MS = 10_000;
 
 export type Quote = { text: string; by: string };
 
-export async function wikiquoteQuote(pick: <T>(items: readonly T[]) => T, pagesTried = 3): Promise<Quote | null> {
-  const topics = [...TOPICS].sort(() => Math.random() - 0.5).slice(0, pagesTried);
+// `topic` (the feed's chosen one) is tried first; the random topics are the fallback, as before.
+export async function wikiquoteQuote(pick: <T>(items: readonly T[]) => T, pagesTried = 3, topic?: string): Promise<Quote | null> {
+  const shuffled = [...TOPICS].sort(() => Math.random() - 0.5).slice(0, pagesTried);
+  const topics = topic ? [topic, ...shuffled.filter((t) => t !== topic)] : shuffled;
   for (const topic of topics) {
     const quotes = quotesOn(await pageWikitext(topic));
     if (quotes.length > 0) return pick(quotes);
@@ -36,12 +42,36 @@ export function quotesOn(wikitext: string): Quote[] {
     if (!/^\*[^*]/.test(lines[i]!) || !/^\*\*[^*]/.test(lines[i + 1] ?? '')) continue;
     if (/^\*\*\*/.test(lines[i + 2] ?? '')) continue; // original / translation / author: not a plain attribution
     const text = plain(lines[i]!.slice(1));
-    const by = plain(lines[i + 1]!.slice(2)).replace(/[.,;]\s*(p|pp|vol|ch)\.\s.*$/i, '').slice(0, 90).replace(/[.,;:\s]+$/, '').trim();
-    const postable = text.length >= 30 && text.length <= 200 && text.length + by.length <= 270 && !hasTagsOrLinks(text + ' ' + by);
+    const source = plain(lines[i + 1]!.slice(2));
+    // Lyrics, dialogue and episode quotes are not aphorisms: they make no sense under a prediction.
+    if (/\b(song|songs|lyrics|album|single|film|movie|episode|season|soundtrack|musical)\b/i.test(source)) continue;
+    const by = authorOf(source);
+    // Markup that survived the cleaning means we do not understand this entry: skip it rather than post
+    // it ("— Warren Buffett. {{cite news" reached X on 2026-10-05).
+    // Doubled braces or brackets, a pipe and <ref are wikitext; single [brackets] are the editorial
+    // insertions a quotation is allowed to carry.
+    const clean = !/\{\{|\}\}|\[\[|\]\]|\||<ref|https?:/i.test(`${text} ${by}`);
+    const postable = clean && text.length >= 30 && text.length <= 200 && text.length + by.length <= 270 && !hasTagsOrLinks(text + ' ' + by);
     // The author line must be a name, not a translation note ("Original: …").
     if (postable && /^\p{L}/u.test(by) && !/^(original|variant|translation|translated)\b/i.test(by)) quotes.push({ text, by });
   }
   return quotes;
+}
+
+// Just the name: a Wikiquote source line is "Author, ''Work'' (year), Publisher: City" and only the
+// first part belongs under a quote. Cutting the whole line at 90 characters used to leave fragments
+// like "…A Little Bit of Mambo (19 July 1999), New York: R" (owner report 2026-10-05).
+function authorOf(source: string): string {
+  const name = source.split(/\s[—–-]\s|,|;|\s\(|\.\s|\{/)[0]!.replace(/[.,;:\s]+$/, '').trim();
+  if (name.length > 0 && name.length <= 48) return name;
+  // No comma and still long: keep whole words only, never a mid-word cut.
+  const words = name.split(/\s+/);
+  let kept = '';
+  for (const word of words) {
+    if (`${kept} ${word}`.trim().length > 48) break;
+    kept = `${kept} ${word}`.trim();
+  }
+  return kept.replace(/[.,;:\s]+$/, '');
 }
 
 function plain(wiki: string): string {
@@ -50,6 +80,9 @@ function plain(wiki: string): string {
     .replace(/\{\{\s*w\s*\|(?:[^|}]*\|)?([^|}]*)\}\}/gi, '$1') // {{w|Name}} / {{w|Page|Name}} → Name
     .replace(/\{\{[^{}]*\}\}/g, '')
     .replace(/\{\{[^{}]*\}\}/g, '') // nested templates: a second pass
+    // A template that opens on this line and closes on the next one ("{{cite news |url=…") survives the
+    // passes above, because the wikitext is read line by line. Everything from such an opening is dropped.
+    .replace(/\{\{[\s\S]*$/, '')
     .replace(/\[\[(?:[^|\]]*\|)?([^\]]*)\]\]/g, '$1') // [[link|text]] → text
     .replace(/^(?:w|wikipedia|s|wikisource):/i, '')
     .replace(/(?<=\s|^)(?:w|wikipedia):(?=\S)/gi, '')

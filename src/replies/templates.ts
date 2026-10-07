@@ -4,6 +4,18 @@ import type { RejectReason } from '../contract/checks.js';
 
 export const X_MAX_CHARS = 280;
 
+// Dates in posted text read as "16 Oct 2026" (owner decision 2026-10-05): a reader never has to work
+// out whether the middle number is the month or the day. ISO stays everywhere else — the database, the
+// contract, the claim pages — and the model keeps producing ISO, which this rewrites on the way out.
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+export function humanDates(text: string): string {
+  return text.replace(/\b(\d{4})-(\d{2})-(\d{2})\b/g, (iso, year, month, day) => {
+    const name = MONTHS[Number(month) - 1];
+    return name && Number(day) >= 1 && Number(day) <= 31 ? `${Number(day)} ${name} ${year}` : iso;
+  });
+}
+
 // X's weighting (twitter-text v3): these code-point ranges count 1, everything else 2 (•, →, CJK, emoji).
 const SINGLE_WEIGHT: Array<[number, number]> = [[0, 4351], [8192, 8205], [8208, 8223], [8242, 8247]];
 const charWeight = (ch: string) => (SINGLE_WEIGHT.some(([lo, hi]) => ch.codePointAt(0)! >= lo && ch.codePointAt(0)! <= hi) ? 1 : 2);

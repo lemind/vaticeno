@@ -71,6 +71,27 @@
       "when": 1791120184866,
       "tag": "0009_evidence_result",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791190148306,
+      "tag": "0010_feed",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1791190490476,
+      "tag": "0011_feed_dry_run",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1791193484473,
+      "tag": "0012_feed_guards",
+      "breakpoints": true
     }
   ]
 }

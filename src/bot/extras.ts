@@ -12,7 +12,7 @@ import { type Quote, wikiquoteQuote } from './wikiquote.js';
 import type { ClaimDeps } from '../lifecycle/claims.js';
 
 // quoteSource: Wikiquote by default; tests pass their own.
-export type ExtrasDeps = ClaimDeps & { fetchPage: PageFetcher; quoteSource?: () => Promise<Quote | null> };
+export type ExtrasDeps = ClaimDeps & { fetchPage: PageFetcher; quoteSource?: (topic?: string) => Promise<Quote | null> };
 
 export const MOTTOS = [
   "Vaticeno doesn't make predictions. Vaticeno records yours.",
@@ -23,6 +23,9 @@ export const MOTTOS = [
 ];
 
 const pick = <T>(items: readonly T[]): T => items[Math.floor(Math.random() * items.length)]!;
+// Doubled braces or brackets, a pipe or a <ref are wikitext, never prose: such a reply is not posted.
+// Single [brackets] stay: they are the editorial insertions a quotation is allowed to carry.
+const WIKI_MARKUP = /\{\{|\}\}|\[\[|\]\]|\||<ref/i;
 const seed = () => Math.random().toString(36).slice(2, 10);
 
 // A motto always; the joke only if the model answers, it fits, and it tags no one.
@@ -48,13 +51,17 @@ export async function selfpromoReply(deps: ExtrasDeps): Promise<string> {
 
 // A quote from Wikiquote (free, attributed, never stored); null when it can't be fetched right now — the
 // caller retries later instead of replying with a fallback.
-export async function quoteReply(deps: ExtrasDeps): Promise<string | null> {
+// `topic` (chosen by src/bot/quote-topic.ts) is the page tried first; without one the topics are random,
+// exactly as before. A quote always goes out either way — the topic only changes where we look.
+export async function quoteReply(deps: ExtrasDeps, topic?: string): Promise<string | null> {
   try {
-    const quote = await (deps.quoteSource ?? (() => wikiquoteQuote(pick)))();
+    const quote = await (deps.quoteSource ?? ((t?: string) => wikiquoteQuote(pick, 3, t)))(topic);
     if (!quote) return null;
     const reply = `“${quote.text}” — ${quote.by}`;
-    // Never an unattributed or cut quote: one that doesn't fit is skipped (the next try picks another).
-    return weightedLength(reply) <= X_MAX_CHARS && !hasTagsOrLinks(reply) ? reply : null;
+    // Never an unattributed, cut or half-parsed quote: one that doesn't pass is skipped (the next try
+    // picks another). WIKI_MARKUP is the guard for a template we failed to strip.
+    const fits = weightedLength(reply) <= X_MAX_CHARS && !hasTagsOrLinks(reply) && !WIKI_MARKUP.test(reply);
+    return fits ? reply : null;
   } catch (error) {
     log('info', 'quote source unavailable', { event: 'quote.unavailable', error: String(error) });
     return null;

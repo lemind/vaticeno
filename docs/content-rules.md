@@ -35,32 +35,56 @@ odds or betting feed.
 
 ## What runs automatically now
 
-| Automated (replies, only when someone tags the bot) | Manual (the owner posts) |
-|---|---|
-| record, fix, help, STOP, ping | the pinned intro |
-| `quote`: a verified quote about bets and predictions | all own-feed posts (ON THE RECORD, HOW IT WORKS, jokes) |
-| `selfpromo`: a motto and a joke | reposts and PREDICTION SPOTTED quote posts |
-| | RECEIPT posts from real verdicts |
+| Replies (only when someone tags the bot) | Own feed (spec 002, `ENABLE_FEED`) | Still by hand |
+|---|---|---|
+| record, fix, help, STOP, ping | 2 pool posts a day: a repost, or a quote post with our own line | the pinned intro |
+| `quote`: a verified quote about bets and predictions | 1 own post a day from the owner's queue (`content:queue`) | writing new queue items |
+| `selfpromo`: a motto and a joke | up to 2 RECEIPT quote posts a day from real verdicts | deleting a bad repost, changing a weight |
+
+Caps, "never the same post twice" and "never the same account twice in a row" are enforced by the
+database, so a restart or two runs at once cannot double-post. Nothing posts while `FEED_DRY_RUN=true`.
 
 ## What can be automated later
 
 | Next | Needs |
 |---|---|
-| RECEIPT post when a claim gets a final verdict | constitution VI amendment (today the bot only replies to mentions) and a daily cap |
-| ON THE RECORD from a hand-written queue, 1 a day | the same amendment; the queue is written by the owner, never by the AI |
-| Reposts | stay manual: choosing what to amplify is editorial |
+| A weekly stats post (profile opens, mentions) | one X call a week, about $0.03; not built |
+| Choosing new pool accounts | stays with the owner: a handle can change hands (see `@ESPNStatsInfo`) |
 
-## Repost pool (Prediction spotted)
+## Repost pool (spec 002)
 
-Accounts to read for concrete predictions; 1–2 quote posts a day at most, never the same account twice
-in a row. Handles are from memory, not checked live.
+Twice a day the bot picks one account by weight, takes its latest eligible post (no replies or reposts,
+at most 48 h old, never posted by us before) and reposts it; 1 time in 10 it quote-posts it instead, with a verified quote or an AI joke (half and half).
+Never the same account twice in a row, never the same post twice. The bot follows all pool accounts.
 
-| Field | Accounts |
-|---|---|
-| Forecasting platforms | @Kalshi · @ManifoldMarkets · @metaculus · one more platform account kept by the owner outside the repo |
-| Statistics / forecasting | @NateSilver538 · @gelliottmorris · @OurWorldInData · @StatMuse |
-| Crypto | @saylor · @PeterSchiff · @CryptoHayes · @woonomic · @100trillionUSD · @RaoulGMI |
-| Sport | @FabrizioRomano · @OptaJoe · @OptaAnalyst · @ESPNStatsInfo · @StatsBomb · @AdamSchefter |
+Score = popularity + virality + Vaticeno relevance (each 1–10, owner research 2026-10-05).
+Weight = score − 15, so the top accounts come up about 5× as often as the weakest.
+Chance = weight / 144 per pick; picks per month at 60 picks.
+
+| Account | Field | Score | Weight | Chance | Picks/month |
+|---|---|---:|---:|---:|---:|
+| @FabrizioRomano | sport | 30 | 15 | 10.4% | ~6.2 |
+| @AdamSchefter | sport | 30 | 15 | 10.4% | ~6.2 |
+| platform account kept by the owner outside the repo | forecasting | 29 | 14 | 9.7% | ~5.8 |
+| @NateSilver538 | statistics | 28 | 13 | 9.0% | ~5.4 |
+| @Kalshi | forecasting | 27 | 12 | 8.3% | ~5.0 |
+| @100trillionUSD | crypto | 27 | 12 | 8.3% | ~5.0 |
+| @RaoulGMI | crypto | 25 | 10 | 6.9% | ~4.2 |
+| @StatMuse | sport | 25 | 10 | 6.9% | ~4.2 |
+| @OptaJoe | sport | 25 | 10 | 6.9% | ~4.2 |
+| @OptaAnalyst | sport | 23 | 8 | 5.6% | ~3.3 |
+| @OurWorldInData | statistics | 21 | 6 | 4.2% | ~2.5 |
+| @gelliottmorris | statistics | 21 | 6 | 4.2% | ~2.5 |
+| @metaculus | forecasting | 20 | 5 | 3.5% | ~2.1 |
+| @Statsbomb | sport | 19 | 4 | 2.8% | ~1.7 |
+| @ManifoldMarkets | forecasting | 19 | 4 | 2.8% | ~1.7 |
+| **15 accounts** | | | **144** | 100% | 60 |
+
+Left out: `@CryptoHayes` (unavailable on X since 2026-07-07), `@ESPNStatsInfo` (the handle no longer
+belongs to ESPN — it now carries a betting brand, 2026-10-05), `@_1woonomic` (dormant, owner call
+2026-10-05), `@saylor`, `@PeterSchiff`. A handle can
+change hands: check an account before adding it, and the dry run's logged picks show who we would repost.
+Scores and weights live in config next to each account's numeric id; the owner can change them.
 
 ## Starter posts (before inviting anyone)
 

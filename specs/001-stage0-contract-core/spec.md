@@ -68,7 +68,15 @@ reported.
 
 When a prediction cannot be judged as written — the deadline, the measurable threshold, the exact
 subject, what counts as success or an authoritative source is missing or ambiguous — the system
-does not guess and does not start a conversation. It sends one NEEDS INFO reply: what is unclear,
+does not guess and does not start a conversation. **First, though, it works out everything it can**
+(owner decisions 2026-10-04/05): the platform is X; a relative date is computed from today ("next
+month", "in a week"); an event on a known schedule is a date ("the next US presidential election" →
+2028-11-07, the end of a league season → its last matchday); a missing league, side or venue follows
+from the post or the thread above it. Anything inferred is shown in the reply and the author can fix
+it inside the edit window. Dates in anything the bot posts read as "16 Oct 2026" (owner decision
+2026-10-05), never as a bare numeric date that could be read month-first; ISO stays in the database,
+the contract and the public pages. Asking for something the system could have worked out — in particular a
+date it can put in its own example — is a defect, not caution. It sends one NEEDS INFO reply: what is unclear,
 one or two concrete example rewrites tailored to the author's topic, and how to fix it: reply with
 the prediction and a date. There is no command word — any reply from the author under the bot's
 reply is the fix (an **amend**).

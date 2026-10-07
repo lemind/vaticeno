@@ -1,11 +1,13 @@
 @AGENTS.md
 
 <!-- SPECKIT START -->
-**Constitution**: `.specify/memory/constitution.md` (v2.3.0) — principles every plan must pass.
+**Constitution**: `.specify/memory/constitution.md` (v2.5.0) — principles every plan must pass.
 
-**Active plan**: `specs/001-stage0-contract-core/plan.md` (research, data-model, contracts/, quickstart alongside).
+**Active plan**: `specs/002-content-feed/plan.md` (001's plan, research, data-model and contracts/ stay the reference for the claim pipeline).
 
-**Active feature**: `specs/001-stage0-contract-core/spec.md` — Stage 0, offline: contracts for any
+**Active feature**: `specs/002-content-feed/spec.md` — the account's own feed: weighted pool reposts, the
+owner's queue of own posts; caps and "never twice" in the database, behind
+`ENABLE_FEED`/`FEED_DRY_RUN`. Shipped before it: `specs/001-stage0-contract-core/spec.md` — Stage 0, offline: contracts for any
 topic, checks CLI over fixtures, NEEDS INFO case A, resolver (crypto deterministic, everything else
 model-decided) proven on seeded claims, public pages. Where INIT_SPEC (v1.1.1) is narrower
 (deterministic-only, crypto + one league), the constitution and this spec win.
@@ -21,6 +23,13 @@ model-decided) proven on seeded claims, public pages. Where INIT_SPEC (v1.1.1) i
 - **Never retry a post after a failed existence check** — that is how duplicates happen (§6.7).
 - **No post text stored**, IDs only (§6.9). `x_user_id` is identity; handle is a display cache (§3).
 - **Replies only where mentioned** (constitution VI): one reply per mention, in that thread; no unsolicited replies. The final verdict is posted once in the claim's thread (constitution VI 2.3.0).
+- **Own-feed posts** (constitution VI 2.5.0, spec 002): only from `src/content/` — pool reposts and quote posts, owner-written originals. The feed never republishes a verdict: a verdict is told once, in the claim's thread, because a hit or a miss belongs to its author (owner decision 2026-10-07). Capped per day in code, dry-run by default, and text the bot adds carries no @mentions, links or prediction of its own; the only hashtag allowed is the claim's own slug.
+- **Infer, never interrogate** (owner decisions 2026-10-04/05): the bot fills in what follows from the
+  post, the thread or a public schedule and shows it in the reply, where the author can fix it in 15
+  minutes. The platform is X; a date is computed from TODAY ("next month", "in a week"); an event with a
+  known schedule IS a deadline ("the next US presidential election" → 2028-11-07). If a date could be
+  written into the suggested example, it must be recorded instead. NEEDS INFO is only for what is
+  genuinely absent: no measurable outcome, no datable event, or a name the thread never settles.
 - All timestamps UTC; bare date = `23:59:59 UTC` (§8).
 
 ## Conventions

@@ -8,6 +8,8 @@ import { type BotDeps, pollMentions } from '../../src/bot/mentions.js';
 import { readIngestState } from '../../src/ingest/state.js';
 import type { Proposal } from '../../src/contract/proposal.js';
 import type { Coinbase } from '../../src/feeds/coinbase.js';
+import { expireWithheldDrafts } from '../../src/lifecycle/expire.js';
+import { lockDueDrafts } from '../../src/lifecycle/lock.js';
 import { createMemorySourceReader } from '../../src/lifecycle/source-reader.js';
 import { type LlmClient, LlmSchemaError, LlmUnavailable } from '../../src/llm/client.js';
 import type { Mention, XClient } from '../../src/x/client.js';
@@ -304,11 +306,38 @@ describe('failures and limits', () => {
     assert.equal((await t.sql`select count(*)::int as n from claims`)[0]!.n, 0, 'no silent claim past the cap');
   });
 
-  test('a mention that keeps failing is skipped after 3 polls, then the next one is handled', async () => {
+  // 2026-10-07: Gemini answered 503 "try again later" and the mention got three one-minute tries; it
+  // landed on the third. A transient outage now gets five tries over ~23 minutes (owner decision).
+  test('a failing mention waits longer before each retry, and is dropped only after five tries', async () => {
+    const m = mention('97', '@vaticeno down for a bit');
+    const { deps, replies } = await bot([[m], [m], [m], [m], [m], [m], [m]]);
+    const at = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000);
+    const attempts = async (minutes: number) => {
+      await pollMentions(deps, at(minutes));
+      return (await readIngestState(deps.statePath)).failing?.attempts;
+    };
+
+    assert.equal(await attempts(0), 1);
+    assert.equal(await attempts(0.5), 1, 'inside the pause: not tried again');
+    assert.equal(await attempts(1), 2, 'after 1 min');
+    assert.equal(await attempts(2), 2, 'the second pause is 2 min, so not yet');
+    assert.equal(await attempts(3), 3, 'after 1 + 2 min');
+    assert.equal(await attempts(8), 4, 'after 1 + 2 + 5 min');
+
+    // The fifth try is the last: the mention is given up, and the cursor moves past it.
+    await pollMentions(deps, at(23));
+    const state = await readIngestState(deps.statePath);
+    assert.equal(state.failing, undefined);
+    assert.equal(state.mentions_since_id, '97');
+    assert.equal(replies.length, 0);
+  });
+
+  test('a mention that keeps failing is skipped after 5 tries, then the next one is handled', async () => {
     const bad = mention('90', '@vaticeno down: BTC above 150k by 2026-12-31');
     const good = mention('91', '@vaticeno ping');
-    const { deps, replies } = await bot([[bad, good], [bad, good], [bad, good]]);
-    for (let i = 0; i < 3; i++) await pollMentions(deps, NOW);
+    const { deps, replies } = await bot([[bad, good], [bad, good], [bad, good], [bad, good], [bad, good]]);
+    // One poll per try, each after its pause: 0, 1, 3, 8, 23 minutes.
+    for (const minutes of [0, 1, 3, 8, 23]) await pollMentions(deps, new Date(NOW.getTime() + minutes * 60_000));
     assert.deepEqual(replies.map((r) => r.to), ['91']);
     assert.equal((await readIngestState(deps.statePath)).mentions_since_id, '91');
   });
@@ -322,5 +351,48 @@ describe('failures and limits', () => {
     await pollMentions(deps, NOW);
     assert.equal(calls, 1);
     assert.equal(replies.length, 0);
+  });
+
+  // Review 2026-10-07: withholding the lock on ANY failed reply also un-showed claims the author had
+  // already read, and the sweep then expired them a day later.
+  test('a failed reply about a claim the author already saw leaves its lock alone', async () => {
+    const first = mention('98', '@vaticeno BTC daily close above $150,000 by 2026-12-31');
+    const again = mention('99', '@vaticeno BTC daily close above $150,000 by 2026-12-31', { referenced_tweets: [{ type: 'replied_to', id: '98' }] });
+    const { deps } = await bot([[first], [again]]);
+    await pollMentions(deps, NOW);
+    const [shown] = await t.sql`select slug, lock_at from claims`;
+    assert.ok(shown!.lock_at, 'the contract reached the author, so the window is running');
+
+    // A second mention about the same claim: whatever it answers, that answer shows nothing new.
+    deps.postReply = async () => { throw new Error('network'); };
+    await pollMentions(deps, new Date(NOW.getTime() + 60_000));
+    const [after] = await t.sql`select lock_at from claims where slug = ${shown!.slug}`;
+    assert.deepEqual(after!.lock_at, shown!.lock_at, 'the window the author was given is untouched');
+  });
+
+  // The live defect of 2026-10-06: the token died, the RECORDED reply failed, and the claim locked itself
+  // 15 minutes later — binding the author to a contract they were never shown.
+  test('a recorded claim whose reply never posts does not lock, and expires a day later', async () => {
+    const m = mention('96', '@vaticeno BTC daily close above $150,000 by 2026-12-31');
+    const { deps } = await bot([[m]]);
+    deps.postReply = async () => { throw new Error('token invalid'); };
+    await pollMentions(deps, NOW);
+
+    const [recorded] = await t.sql`select slug, status, lock_at from claims`;
+    assert.equal(recorded!.status, 'draft');
+    assert.equal(recorded!.lock_at, null, 'no lock_at: the 15 minutes never started');
+
+    // Well past the window the author would have had: the lock job leaves it alone.
+    const later = new Date(NOW.getTime() + 60 * 60_000);
+    const locked = await lockDueDrafts({ ...deps, reader: createMemorySourceReader() }, later);
+    assert.deepEqual(locked, []);
+    assert.equal((await t.sql`select status from claims where slug = ${recorded!.slug}`)[0]!.status, 'draft');
+
+    // Not left open forever either: same 24 h clock as needs info, and not an hour earlier. Measured from
+    // the real clock, because created_at is the database's own now().
+    const recordedAt = Date.now();
+    assert.equal(await expireWithheldDrafts(t.db, new Date(recordedAt + 23 * 3_600_000)), 0);
+    assert.equal(await expireWithheldDrafts(t.db, new Date(recordedAt + 24 * 3_600_000)), 1);
+    assert.equal((await t.sql`select status from claims where slug = ${recorded!.slug}`)[0]!.status, 'expired');
   });
 });

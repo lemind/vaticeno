@@ -27,6 +27,7 @@ export type ClaimDeps = { db: Db; llm: LlmClient; coinbase: Coinbase; normalizer
 
 export type SubmitInput = {
   text: string; // used for the proposal only — never stored or logged (FR-029)
+  context?: readonly string[]; // posts above it in the thread, same rule: read, never stored
   authorId: string;
   sourceTweetId: string;
   summonTweetId: string;
@@ -50,8 +51,8 @@ type Evaluation = { decision: Decision; modelId: string; selfConfidence: number 
 
 // Proposal → checks → price feed confirmation. Shared by submit, fixes and edits found at lock. Paid calls go
 // into `costs` as they happen, so a feed outage after the model call still leaves its cost to record.
-export async function evaluateClaimText(deps: ClaimDeps, text: string, now: Date, costs: CallCost[]): Promise<Evaluation> {
-  const proposed = await proposeContract(deps.llm, deps.normalizerModel, text, now.toISOString().slice(0, 10));
+export async function evaluateClaimText(deps: ClaimDeps, text: string, now: Date, costs: CallCost[], context: readonly string[] = []): Promise<Evaluation> {
+  const proposed = await proposeContract(deps.llm, deps.normalizerModel, text, now.toISOString().slice(0, 10), undefined, context);
   costs.push(...proposed.costs);
   if (proposed.kind === 'malformed') {
     const explanation = "I couldn't turn this into a checkable prediction.";
@@ -90,7 +91,7 @@ export async function submitClaim(deps: ClaimDeps, input: SubmitInput): Promise<
 
   const costs: CallCost[] = [];
   const { decision, modelId, selfConfidence, slug, reply } = await recordingCostsOnFailure(db, null, costs, async () => {
-    const evaluated = await evaluateClaimText(deps, input.text, input.now, costs);
+    const evaluated = await evaluateClaimText(deps, input.text, input.now, costs, input.context ?? []);
     const newSlugValue = await newSlug(async (candidate) => (await db.select({ id: claims.id }).from(claims).where(eq(claims.slug, candidate)).limit(1)).length > 0);
     return { ...evaluated, slug: newSlugValue, reply: await replyFor(deps, evaluated.decision, newSlugValue, input.text, input.now, costs) };
   });
@@ -119,10 +120,13 @@ export async function submitClaim(deps: ClaimDeps, input: SubmitInput): Promise<
   return { outcome: decision.outcome, slug, reply, ...(decision.outcome === 'rejected' ? { rejectReason: decision.reason } : {}) };
 }
 
-export type AmendInput = { slug: string; authorId: string; text: string; now: Date };
+export type AmendInput = { slug: string; authorId: string; text: string; now: Date; context?: readonly string[] };
 // `ignored` (someone other than the author): no reply at all (FR-010).
 export type AmendResult =
-  | { outcome: 'recorded' | 'amended' | 'still_needs_info' | 'not_changed' | 'refused'; reply: string }
+  | { outcome: 'recorded' | 'amended' | 'still_needs_info' | 'not_changed'; reply: string }
+  // `reason` lets the caller decide what a refusal means: a reply under a claim that can no longer
+  // change is usually a new prediction, not a failed fix (owner decision 2026-10-05).
+  | { outcome: 'refused'; reply: string; reason: RefusalReason }
   | { outcome: 'ignored'; reply: null };
 
 export const MAX_AMENDS = 2;
@@ -147,7 +151,7 @@ export async function amendClaim(deps: ClaimDeps & { reader: SourceReader }, inp
   }
 
   const costs: CallCost[] = [];
-  const { decision, modelId, selfConfidence } = await recordingCostsOnFailure(db, claim.id, costs, () => evaluateClaimText(deps, input.text, input.now, costs));
+  const { decision, modelId, selfConfidence } = await recordingCostsOnFailure(db, claim.id, costs, () => evaluateClaimText(deps, input.text, input.now, costs, input.context ?? []));
 
   if (decision.outcome !== 'recorded') {
     const why = decision.outcome === 'rejected' ? rejectReasonWords(decision.reason) : decision.explanation;
@@ -194,7 +198,7 @@ async function amendDraft(deps: ClaimDeps & { reader: SourceReader }, claim: Cla
   if (claim.amendCount >= MAX_AMENDS) return refused(claim, 'limit');
 
   const costs: CallCost[] = [];
-  const { decision, modelId, selfConfidence } = await recordingCostsOnFailure(deps.db, claim.id, costs, () => evaluateClaimText(deps, input.text, input.now, costs));
+  const { decision, modelId, selfConfidence } = await recordingCostsOnFailure(deps.db, claim.id, costs, () => evaluateClaimText(deps, input.text, input.now, costs, input.context ?? []));
   if (decision.outcome !== 'recorded') {
     await recordCosts(deps.db, costs.map((cost) => ({ ...cost, claimId: claim.id })));
     const why = decision.outcome === 'rejected' ? rejectReasonWords(decision.reason) : decision.explanation;
@@ -326,7 +330,7 @@ function duplicate(slug: string, input: SubmitInput): SubmitResult {
 
 function refused(claim: ClaimRow, reason: RefusalReason): AmendResult {
   log('info', 'amend refused', { event: 'claim.amend_refused', claim_id: claim.id, reason });
-  return { outcome: 'refused', reply: refusedReply(reason, claim.slug) };
+  return { outcome: 'refused', reply: refusedReply(reason, claim.slug), reason };
 }
 
 const sumUsd = (costs: CallCost[]) => costs.reduce((sum, c) => sum + c.usdCost, 0);

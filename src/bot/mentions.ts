@@ -1,6 +1,6 @@
 // X intake (Stage 1): each new mention of the bot becomes one engine call and at most one reply, in the same
 // thread (constitution IV). Mention and post text live in memory only — logs and DB get ids and lengths.
-import { arrayContains, desc, eq, or, sql } from 'drizzle-orm';
+import { and, arrayContains, desc, eq, or, sql } from 'drizzle-orm';
 import { claims, optOuts } from '../db/schema.js';
 import { readIngestState, writeIngestState, type IngestState } from '../ingest/state.js';
 import { amendClaim, type ClaimDeps, submitClaim } from '../lifecycle/claims.js';
@@ -11,9 +11,10 @@ import { type Intent, type ThreadPost, classifyIntent } from '../llm/intent.js';
 import { type CallCost, LlmSchemaError } from '../llm/client.js';
 import { recordCosts } from '../db/costs.js';
 import { type ExtrasDeps, quoteReply, selfpromoReply } from './extras.js';
+import { logTopic, resolveQuoteTopic } from './quote-topic.js';
 import { alert, captureError } from '../observe.js';
 import { HELP_REPLY, hasTagsOrLinks, STOPPED_REPLY, THIRD_PARTY_REPLY, weightedLength, X_MAX_CHARS } from '../replies/templates.js';
-import { type Mention, XApiError, type XClient } from '../x/client.js';
+import { type Mention, PostNotSent, XApiError, type XClient } from '../x/client.js';
 
 export type BotDeps = ExtrasDeps & {
   x: XClient;
@@ -25,7 +26,12 @@ export type BotDeps = ExtrasDeps & {
   statePath?: string;
 };
 
-type Routed = { action: string; reply: string | null; slug?: string | null; deferQuote?: boolean }; // slug: the claim this mention belongs to
+// slug: the claim this mention belongs to. quoteTopic: the page a deferred quote should try first, so a
+// retry never pays the topic cascade again.
+// `discloses` marks the one reply that shows the author a contract they have not seen: a new claim or an
+// amended one. Only that reply's failure withholds the lock — a duplicate notice or a no-op fix must not
+// un-show a claim the author already read (review 2026-10-07).
+type Routed = { action: string; reply: string | null; slug?: string | null; discloses?: boolean; deferQuote?: boolean; quoteTopic?: string };
 
 const HOUR_MS = 3_600_000;
 const DAY_MS = 24 * HOUR_MS;
@@ -33,7 +39,9 @@ const FIRST_RUN_PAGE_SIZE = 10; // no cursor yet: only recent mentions, keep the
 const PAGE_SIZE = 100;
 const MAX_PAGES = 5;
 const REPLIED_IDS_KEPT = 1000;
-const MAX_ATTEMPTS = 3;
+// Tries for one mention before it is dropped, and the pause before each retry: a transient model or
+// network fault gets ~23 minutes to pass, not three (owner decision 2026-10-07).
+const MENTION_RETRY_MINUTES = [1, 2, 5, 15];
 // A quote is always answered: if Wikiquote is down, retry after 1, 5, 30 and 120 minutes, then give up with an alert.
 const QUOTE_RETRY_MINUTES = [1, 5, 30, 120]; // polls a failing mention is retried before it is skipped with an alert
 // A mention that only points at the post above ("this", "👆", nothing) means that post is the prediction.
@@ -55,8 +63,23 @@ export async function routeMention(deps: BotDeps, mention: Mention, now: Date): 
   // claim gets the refusal — no model call either way.
   const claim = body ? await claimInThread(deps, mention, repliedTo) : null;
   if (claim) {
-    const fixed = await amendClaim({ ...deps, reader: deps.reader }, { slug: claim.slug, authorId: mention.author_id, text: body, now });
-    return { action: `fix_${fixed.outcome}`, reply: fixed.reply, slug: claim.slug };
+    // What the claim already says is the context a fix needs, and it is free: it is ours, in the
+    // database. The thread above is read only when that still leaves the fix unclear.
+    const own = criterionOf(claim.contract);
+    let fixed = await amendClaim({ ...deps, reader: deps.reader }, { slug: claim.slug, authorId: mention.author_id, text: body, now, context: own });
+    if (fixed.outcome === 'still_needs_info' && repliedTo) {
+      const context = [...(await threadAbove(deps, repliedTo)).map((post) => post.text), ...own];
+      if (context.length > own.length) {
+        fixed = await amendClaim({ ...deps, reader: deps.reader }, { slug: claim.slug, authorId: mention.author_id, text: body, now, context });
+      }
+    }
+    // A claim that can no longer change (locked, closed, expired, out of fixes) does not end the
+    // conversation: the author is predicting again, so the reply is recorded as a NEW claim further
+    // down (owner decision 2026-10-05). Only a mid-flight conflict still gets the refusal.
+    if (fixed.outcome !== 'refused' || fixed.reason === 'conflict') {
+      return { action: `fix_${fixed.outcome}`, reply: fixed.reply, slug: claim.slug, discloses: fixed.outcome === 'amended' || fixed.outcome === 'recorded' };
+    }
+    log('info', 'closed claim: recording this reply as a new one', { event: 'claim.amend_to_new', slug: claim.slug, reason: fixed.reason });
   }
 
   // Empty mention (or "this") under a post: that post is the prediction — only if it is the summoner's own.
@@ -64,10 +87,11 @@ export async function routeMention(deps: BotDeps, mention: Mention, now: Date): 
     if (!repliedTo) return { action: 'help', reply: HELP_REPLY };
     if (mention.in_reply_to_user_id !== mention.author_id) return { action: 'third_party', reply: THIRD_PARTY_REPLY };
     const post = await deps.reader.readVersion(repliedTo);
+    // The summon's own words are context for the parent post ("@vaticeno this, by next month").
     const result = await submitClaim(deps, {
-      text: post.text, authorId: mention.author_id, sourceTweetId: repliedTo, summonTweetId: mention.id, sourceVersion: post.versionId, now,
+      text: post.text, context: [body], authorId: mention.author_id, sourceTweetId: repliedTo, summonTweetId: mention.id, sourceVersion: post.versionId, now,
     });
-    return { action: `record_parent_${result.outcome}`, reply: result.reply, slug: result.slug };
+    return { action: `record_parent_${result.outcome}`, reply: result.reply, slug: result.slug, discloses: result.outcome === 'recorded' };
   }
 
   // A command word with more text: the model decides, seeing the thread (a prediction goes on below).
@@ -84,15 +108,17 @@ export async function routeMention(deps: BotDeps, mention: Mention, now: Date): 
   const current = latest === mention.id ? { versionId: mention.id, text: body } : await currentVersion(deps, mention.id);
   // An edit of the mention gets a new id: the claim is keyed on the first version, so edits never record twice.
   const original = mention.edit_history_tweet_ids?.[0] ?? mention.id;
+  // The posts above resolve "she", "it" and bare names; they are already paid for when this is a reply.
+  const context = repliedTo ? (await threadAbove(deps, repliedTo)).map((post) => post.text) : [];
   const result = await submitClaim(deps, {
-    text: current.text, authorId: mention.author_id, sourceTweetId: original, summonTweetId: mention.id, sourceVersion: current.versionId, now,
+    text: current.text, context, authorId: mention.author_id, sourceTweetId: original, summonTweetId: mention.id, sourceVersion: current.versionId, now,
   });
   // Not a prediction: the model reads the thread — once per mention (a command word already had its turn).
   if (result.outcome === 'rejected' && result.rejectReason === 'not_prediction' && !firstAssessed) {
     const assessed = await assess(deps, mention, current.text, repliedTo, now, { predictionRuledOut: true });
     if (assessed) return assessed;
   }
-  return { action: `record_inline_${result.outcome}`, reply: result.reply, slug: result.slug };
+  return { action: `record_inline_${result.outcome}`, reply: result.reply, slug: result.slug, discloses: result.outcome === 'recorded' };
 }
 
 async function currentVersion(deps: BotDeps, tweetId: string): Promise<{ versionId: string; text: string }> {
@@ -109,8 +135,14 @@ async function runCommand(deps: BotDeps, mention: Mention, command: Command, now
   if (command === 'help') return { action: 'help', reply: HELP_REPLY };
   if (command === 'selfpromo') return { action: 'selfpromo', reply: await selfpromoReply(deps) };
   if (command === 'quote') {
-    const quote = await quoteReply(deps);
-    return quote ? { action: 'quote', reply: quote } : { action: 'quote_deferred', reply: null, deferQuote: true };
+    const repliedTo = mention.referenced_tweets?.find((ref) => ref.type === 'replied_to')?.id;
+    // The posts above are read only if the request itself says nothing about a subject (spec 002 phase 7).
+    const decided = await resolveQuoteTopic(deps, mention.text, readerAbove(deps, repliedTo));
+    logTopic(mention.id, decided);
+    const quote = await quoteReply(deps, decided.topic ?? undefined);
+    return quote
+      ? { action: `quote_${decided.step}`, reply: quote }
+      : { action: 'quote_deferred', reply: null, deferQuote: true, quoteTopic: decided.topic ?? undefined };
   }
   // HACK(x): SPECULATIVE (carried from the POC) — X rejects a post identical to a recent one, so pong carries the time. See src/poc/poll.ts.
   // REVISIT: if a repeated pong without the time is ever accepted.
@@ -164,27 +196,54 @@ function echoes(answer: string, texts: string[]): boolean {
   });
 }
 
-async function threadAbove(deps: BotDeps, repliedTo: string | undefined): Promise<ThreadPost[]> {
-  const thread: ThreadPost[] = [];
-  let id = repliedTo;
-  for (let depth = 0; id && depth < THREAD_DEPTH; depth++) {
+async function threadAbove(deps: BotDeps, repliedTo: string | undefined, maxPosts = THREAD_DEPTH): Promise<ThreadPost[]> {
+  return (await threadWalk(deps, repliedTo, maxPosts)).posts;
+}
+
+// The walk itself, which also hands back where it stopped: a later step can then read the next posts
+// up without paying for the ones already read (each post read is billed).
+async function threadWalk(deps: BotDeps, from: string | undefined, maxPosts: number): Promise<{ posts: ThreadPost[]; nextId: string | undefined }> {
+  const posts: ThreadPost[] = [];
+  let id = from;
+  for (let depth = 0; id && depth < maxPosts; depth++) {
     try {
       const post = await deps.x.getTweet(id);
-      thread.push({ from: post.author_id === deps.botUserId ? 'bot' : 'user', text: post.text });
+      posts.push({ from: post.author_id === deps.botUserId ? 'bot' : 'user', text: post.text });
       id = post.referenced_tweets?.find((ref) => ref.type === 'replied_to')?.id;
     } catch (error) {
       log('info', 'thread post unreadable', { event: 'thread.unreadable', error: String(error) });
-      break;
+      return { posts, nextId: undefined };
     }
   }
-  return thread;
+  return { posts, nextId: id };
+}
+
+// A reader for the topic cascade: asking for more posts reads only the ones not read yet.
+function readerAbove(deps: BotDeps, repliedTo: string | undefined): (depth: number) => Promise<readonly string[]> {
+  const posts: ThreadPost[] = [];
+  let nextId = repliedTo;
+  return async (depth) => {
+    while (posts.length < depth && nextId) {
+      const walked = await threadWalk(deps, nextId, depth - posts.length);
+      posts.push(...walked.posts);
+      nextId = walked.nextId;
+      if (walked.posts.length === 0) break;
+    }
+    return posts.slice(0, depth).map((post) => post.text);
+  };
 }
 
 // The claim whose thread the mention replies into: its parent is the claim's post, the summon, a fix or a bot
 // reply. Only the direct parent counts; the conversation root can be an older, unrelated post.
+// The claim's own criterion, when it has one: a needs-info claim has no contract yet.
+function criterionOf(contract: unknown): string[] {
+  const criterion = (contract as { criterion?: unknown } | null)?.criterion;
+  return typeof criterion === 'string' && criterion.length > 0 ? [criterion] : [];
+}
+
 async function claimInThread(deps: BotDeps, mention: Mention, repliedTo: string | undefined) {
   if (!repliedTo) return null;
-  const [claim] = await deps.db.select({ slug: claims.slug, sourceTweetId: claims.sourceTweetId, summonTweetId: claims.summonTweetId }).from(claims)
+  const [claim] = await deps.db.select({ slug: claims.slug, sourceTweetId: claims.sourceTweetId, summonTweetId: claims.summonTweetId, contract: claims.contract }).from(claims)
     .where(or(eq(claims.sourceTweetId, repliedTo), eq(claims.summonTweetId, repliedTo), arrayContains(claims.threadTweetIds, [repliedTo])))
     // An open claim wins over a closed one sharing the post (a fix mistaken for a new claim before T094).
     .orderBy(sql`${claims.status} in ('needs_info', 'draft') desc`, desc(claims.createdAt)).limit(1);
@@ -200,6 +259,8 @@ export async function pollMentions(deps: BotDeps, now: Date): Promise<{ mentions
   const mentions = await fetchNewMentions(deps, state.mentions_since_id);
   let replies = 0;
   for (const mention of mentions) {
+    // Still inside the pause after a failed try: leave the cursor where it is and come back later.
+    if (state.failing?.tweet_id === mention.id && state.failing.next_at && now < new Date(state.failing.next_at)) break;
     const cap = capHit(deps, state, mention.author_id, now);
     if (!deps.allowAuthor(mention.author_id)) {
       log('info', 'mention from an author outside the allowlist; skipped', { event: 'mention.skipped', tweet_id: mention.id });
@@ -214,19 +275,24 @@ export async function pollMentions(deps: BotDeps, now: Date): Promise<{ mentions
       } catch (error) {
         const attempts = state.failing?.tweet_id === mention.id ? state.failing.attempts + 1 : 1;
         captureError(error, { event: 'mention.failed', tweet_id: mention.id, attempts });
-        if (attempts < MAX_ATTEMPTS) {
-          state.failing = { tweet_id: mention.id, attempts };
+        if (attempts < MENTION_RETRY_MINUTES.length + 1) {
+          // The pause grows between tries: a model answering 503 "try again later" means later, not in
+          // sixty seconds (owner decision 2026-10-07). Five tries over ~23 min, then the mention is dropped.
+          state.failing = { tweet_id: mention.id, attempts, next_at: inMinutes(now, MENTION_RETRY_MINUTES[attempts - 1]!) };
           await writeIngestState(state, deps.statePath);
-          break; // cursor stays before this mention: retried next poll
+          break; // cursor stays before this mention: retried once the pause is over
         }
         alert('mention.given_up', { tweet_id: mention.id, attempts }); // a mention that always fails must not block the rest
         routed = { action: 'given_up', reply: null };
       }
       log('info', 'mention handled', { event: 'mention.handled', tweet_id: mention.id, author_id: mention.author_id, action: routed.action, text_chars: mention.text.length });
-      if (routed.deferQuote) state.pending_quotes.push({ tweet_id: mention.id, author_id: mention.author_id, attempts: 0, next_at: inMinutes(now, QUOTE_RETRY_MINUTES[0]!) });
+      if (routed.deferQuote) {
+        state.pending_quotes.push({ tweet_id: mention.id, author_id: mention.author_id, attempts: 0, next_at: inMinutes(now, QUOTE_RETRY_MINUTES[0]!), topic: routed.quoteTopic });
+      }
       const replyId = routed.reply ? await sendReply(deps, state, mention, routed.reply, now) : null;
       if (replyId) replies++;
       if (routed.slug && replyId) await rememberThread(deps, routed.slug, [mention.id, replyId]); // only threads the bot answered in
+      else if (routed.slug && routed.discloses) await withholdLock(deps, routed.slug);
     }
     state.failing = undefined;
     state.mentions_since_id = mention.id;
@@ -265,7 +331,8 @@ async function retryPendingQuotes(deps: BotDeps, state: IngestState, now: Date):
       waiting.push({ ...pending, next_at: inMinutes(now, QUOTE_RETRY_MINUTES[pending.attempts]!) }); // a cap is not a failed try
       continue;
     }
-    const quote = await quoteReply(deps);
+    // The topic was decided when the request came in: a retry re-reads Wikiquote, never X or the model.
+    const quote = await quoteReply(deps, pending.topic);
     if (quote) {
       if (await sendReply(deps, state, { id: pending.tweet_id, author_id: pending.author_id, text: '' }, quote, now)) replies++;
       continue;
@@ -295,9 +362,26 @@ async function sendReply(deps: BotDeps, state: IngestState, mention: Mention, te
     log('info', 'reply posted', { event: 'reply.posted', tweet_id: mention.id, reply_tweet_id: posted.id, reply_chars: text.length });
     return posted.id;
   } catch (error) {
+    // The reply never left the machine (no usable token): the account is failing to post at all, so this
+    // is an alert, not a log line. The claim's lock is withheld below, so nothing locks unseen.
+    if (error instanceof PostNotSent) alert('reply.not_sent', { tweet_id: mention.id });
     const detail = error instanceof XApiError ? { status: error.status } : {};
     captureError(error, { event: 'reply.failed', tweet_id: mention.id, ...detail });
     return null;
+  }
+}
+
+// The 15 minutes cannot start before the author can read the contract (INIT_SPEC §4, §6.6): a draft with
+// no lock_at never locks, and `expireWithheldDrafts` closes it a day later.
+async function withholdLock(deps: BotDeps, slug: string) {
+  try {
+    const held = await deps.db.update(claims).set({ lockAt: null })
+      .where(and(eq(claims.slug, slug), eq(claims.status, 'draft')))
+      .returning({ id: claims.id });
+    if (held.length > 0) alert('claim.lock_withheld', { slug }); // the author is owed this reply: it needs a human
+  } catch (error) {
+    // Never thrown: the mention is already marked answered, and a throw here would replay it (INIT_SPEC §6.7).
+    captureError(error, { event: 'claim.lock_withheld_failed', slug });
   }
 }
 
