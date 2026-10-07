@@ -353,6 +353,23 @@ describe('failures and limits', () => {
     assert.equal(replies.length, 0);
   });
 
+  // Review 2026-10-07: withholding the lock on ANY failed reply also un-showed claims the author had
+  // already read, and the sweep then expired them a day later.
+  test('a failed reply about a claim the author already saw leaves its lock alone', async () => {
+    const first = mention('98', '@vaticeno BTC daily close above $150,000 by 2026-12-31');
+    const again = mention('99', '@vaticeno BTC daily close above $150,000 by 2026-12-31', { referenced_tweets: [{ type: 'replied_to', id: '98' }] });
+    const { deps } = await bot([[first], [again]]);
+    await pollMentions(deps, NOW);
+    const [shown] = await t.sql`select slug, lock_at from claims`;
+    assert.ok(shown!.lock_at, 'the contract reached the author, so the window is running');
+
+    // A second mention about the same claim: whatever it answers, that answer shows nothing new.
+    deps.postReply = async () => { throw new Error('network'); };
+    await pollMentions(deps, new Date(NOW.getTime() + 60_000));
+    const [after] = await t.sql`select lock_at from claims where slug = ${shown!.slug}`;
+    assert.deepEqual(after!.lock_at, shown!.lock_at, 'the window the author was given is untouched');
+  });
+
   // The live defect of 2026-10-06: the token died, the RECORDED reply failed, and the claim locked itself
   // 15 minutes later — binding the author to a contract they were never shown.
   test('a recorded claim whose reply never posts does not lock, and expires a day later', async () => {

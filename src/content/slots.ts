@@ -3,6 +3,7 @@
 import { and, desc, eq, gte, inArray, sql } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
 import { FEED_COST_OPERATIONS, costEvents, feedPosts } from '../db/schema.js';
+import { PostNotSent } from '../x/client.js';
 
 export type FeedKind = 'repost' | 'quote' | 'original' | 'receipt';
 
@@ -59,6 +60,12 @@ export async function markPosted(db: Db, id: string, postedId: string | null): P
 
 // X refused the post: never retried (the source stays used), but the day's slot is freed. Guarded the
 // same way, so an error raised *after* a successful post can never free a slot that was really used.
+// What a failed post costs, decided in one place for all three feed runs: a request that never left the
+// machine spends nothing, anything that may have reached X spends its slot and its source.
+export async function recordPostFailure(db: Db, id: string, error: unknown): Promise<boolean> {
+  return error instanceof PostNotSent ? releaseSlot(db, id) : markFailed(db, id);
+}
+
 // The post never left the machine (PostNotSent): the reservation is deleted rather than marked failed, so
 // neither the day's slot nor the source post is spent — a token fault must not burn an owner-written post
 // (live defect 2026-10-06/07). Only ever called when X provably never saw the request.

@@ -81,6 +81,8 @@ src/content/
   receipt-run.ts   receipts
 src/cli/content-tick.ts, src/cli/content-queue.ts   run one job by hand; manage the originals queue
 src/jobs/scheduler.ts   pool (2×/day), original (daily), receipts (hourly), only with ENABLE_FEED
+                        reconcile (every 2 h) names work that was owed and never done, feed or not
+src/lifecycle/reconcile.ts  the owed-work sweep: verdicts owed, claims never shown, posts in flight
 drizzle/0010_feed.sql, 0011_feed_dry_run.sql   feed_posts (kind, cap_group generated, status, day, slot,
                         source_post_id, account_id, queue_item_id, posted_id, created_at),
                         feed_queue (text, position, posted_at)
@@ -106,6 +108,8 @@ exactly those. X list prices: `src/x/prices.ts`.
   slot is free again (null is outside the unique key), so caps count only `reserved` and `posted`.
 - A crash between posting and storing leaves `reserved`: the slot stays taken and the post is not retried
   (the post may have gone out).
+- A post that provably never left the machine (no usable token) is not an attempt at all: the reservation
+  is deleted, so neither the slot nor the source is spent and the post is made later.
 - A dry-run pick is stored as a `dry_run` row with no slot: it holds none of the day's cap, yet it keeps
   the rehearsal honest (the same account never twice in a row, the same post never twice).
 

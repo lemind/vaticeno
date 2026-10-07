@@ -66,6 +66,7 @@ export async function deliverVerdicts(deps: BotDeps, now: Date): Promise<{ poste
         // permission fault loses the verdict for good — exactly what happened on 2026-10-07 at 00:05.
         await deps.db.update(claims).set({ verdictReplyAt: null }).where(and(eq(claims.id, claim.id), isNull(claims.verdictReplyTweetId)));
         alert('verdict.not_sent', { slug: claim.slug }); // loud: the whole account is failing to post
+        captureError(error, { event: 'verdict.not_sent', slug: claim.slug }); // and the cause, with its stack
         break; // the next claim would fail the same way
       }
       captureError(error, { event: 'verdict.failed', slug: claim.slug }); // not retried: it may have landed

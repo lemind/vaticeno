@@ -8,11 +8,12 @@
 // Redoing those is how an account posts twice (INIT_SPEC §6.7). The failures we can prove never left the
 // machine are already retried where they happen (PostNotSent, src/x/client.ts), so whatever surfaces here
 // is the uncertain kind and wants a human. A silent cracks sweep would be worthless, so each find alerts.
-import { and, eq, inArray, isNull, isNotNull, lt, sql } from 'drizzle-orm';
+import { and, eq, isNull, isNotNull, lt, sql } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
 import { claims, feedPosts, resolutions } from '../db/schema.js';
 import { log } from '../log.js';
 import { alert } from '../observe.js';
+import { dueClaims } from '../resolve/resolver.js';
 
 // A verdict or a feed post in flight is normal for a moment; owed for an hour is not.
 const IN_FLIGHT_MS = 60 * 60 * 1000;
@@ -39,15 +40,14 @@ export async function auditOwedWork(db: Db, now: Date): Promise<OwedWork> {
   const [reserved] = await db.select({ n: sql<number>`count(*)::int` }).from(feedPosts)
     .where(and(eq(feedPosts.status, 'reserved'), lt(feedPosts.createdAt, inFlightBefore)));
 
+  // Withheld by src/bot/mentions.ts; the same grace as the rest, so one incident is not alerted twice
+  // within the hour by both the withholding itself and this sweep.
   const neverShown = await db.select({ slug: claims.slug }).from(claims)
-    .where(and(eq(claims.status, 'draft'), isNull(claims.lockAt)));
+    .where(and(eq(claims.status, 'draft'), isNull(claims.lockAt), lt(claims.createdAt, inFlightBefore)));
 
-  const stuck = await db.select({ slug: claims.slug }).from(claims)
-    .where(and(
-      inArray(claims.status, ['locked', 'resolving']),
-      isNotNull(claims.nextCheckAt),
-      lt(claims.nextCheckAt, inFlightBefore),
-    ));
+  // The resolver's own definition of its queue, asked an hour late: a claim waiting on a human already has
+  // a resolution row and is not stuck (src/resolve/resolver.ts).
+  const stuck = await db.select({ slug: claims.slug }).from(claims).where(dueClaims(inFlightBefore));
 
   const owed: OwedWork = {
     verdictsOwed: verdicts.map((row) => row.slug),

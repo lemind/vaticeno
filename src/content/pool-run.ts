@@ -2,14 +2,13 @@
 // quoted with a line of our own 1 time in 10. Dry-run by default: the pick is recorded, nothing is posted.
 // Nothing of anyone else's post is stored, only ids (constitution V).
 import { log } from '../log.js';
-import { PostNotSent } from '../x/client.js';
 import { alert, captureError } from '../observe.js';
 import { XApiError, type UserPost } from '../x/client.js';
 import { X_POST_READ_USD, X_POST_CREATE_USD, X_REPOST_USD } from '../x/prices.js';
 import { latestEligible } from './eligible.js';
 import { type PoolAccount, pickAccount, poolAccounts } from './pool.js';
 import { type QuoteDeps, type QuoteMode, ourLineFor } from './quote.js';
-import { logDryRun, markFailed, markPosted, previousAccountId, releaseSlot, reserveSlot, usedPostIds, utcDay } from './slots.js';
+import { logDryRun, markPosted, previousAccountId, recordPostFailure, reserveSlot, usedPostIds, utcDay } from './slots.js';
 import { overSpendCap, recordFeedPost, recordFeedRead } from './spend.js';
 
 export type ContentDeps = QuoteDeps & {
@@ -80,8 +79,7 @@ export async function runPoolPost(deps: ContentDeps, now: Date, options: RunOpti
   } catch (error) {
     // One attempt per post: the slot is freed, the post stays used, nothing is retried — unless the
     // request never left the machine, when neither the slot nor the post is spent.
-    if (error instanceof PostNotSent) await releaseSlot(deps.db, slot.id);
-    else await markFailed(deps.db, slot.id);
+    await recordPostFailure(deps.db, slot.id, error);
     captureError(error, { event: 'feed.post_failed', handle: account.handle, post_id: post.id, kind });
     return { done: 'cap_reached' };
   }

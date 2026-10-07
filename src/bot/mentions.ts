@@ -28,7 +28,10 @@ export type BotDeps = ExtrasDeps & {
 
 // slug: the claim this mention belongs to. quoteTopic: the page a deferred quote should try first, so a
 // retry never pays the topic cascade again.
-type Routed = { action: string; reply: string | null; slug?: string | null; deferQuote?: boolean; quoteTopic?: string };
+// `discloses` marks the one reply that shows the author a contract they have not seen: a new claim or an
+// amended one. Only that reply's failure withholds the lock — a duplicate notice or a no-op fix must not
+// un-show a claim the author already read (review 2026-10-07).
+type Routed = { action: string; reply: string | null; slug?: string | null; discloses?: boolean; deferQuote?: boolean; quoteTopic?: string };
 
 const HOUR_MS = 3_600_000;
 const DAY_MS = 24 * HOUR_MS;
@@ -74,7 +77,7 @@ export async function routeMention(deps: BotDeps, mention: Mention, now: Date): 
     // conversation: the author is predicting again, so the reply is recorded as a NEW claim further
     // down (owner decision 2026-10-05). Only a mid-flight conflict still gets the refusal.
     if (fixed.outcome !== 'refused' || fixed.reason === 'conflict') {
-      return { action: `fix_${fixed.outcome}`, reply: fixed.reply, slug: claim.slug };
+      return { action: `fix_${fixed.outcome}`, reply: fixed.reply, slug: claim.slug, discloses: fixed.outcome === 'amended' || fixed.outcome === 'recorded' };
     }
     log('info', 'closed claim: recording this reply as a new one', { event: 'claim.amend_to_new', slug: claim.slug, reason: fixed.reason });
   }
@@ -88,7 +91,7 @@ export async function routeMention(deps: BotDeps, mention: Mention, now: Date): 
     const result = await submitClaim(deps, {
       text: post.text, context: [body], authorId: mention.author_id, sourceTweetId: repliedTo, summonTweetId: mention.id, sourceVersion: post.versionId, now,
     });
-    return { action: `record_parent_${result.outcome}`, reply: result.reply, slug: result.slug };
+    return { action: `record_parent_${result.outcome}`, reply: result.reply, slug: result.slug, discloses: result.outcome === 'recorded' };
   }
 
   // A command word with more text: the model decides, seeing the thread (a prediction goes on below).
@@ -115,7 +118,7 @@ export async function routeMention(deps: BotDeps, mention: Mention, now: Date): 
     const assessed = await assess(deps, mention, current.text, repliedTo, now, { predictionRuledOut: true });
     if (assessed) return assessed;
   }
-  return { action: `record_inline_${result.outcome}`, reply: result.reply, slug: result.slug };
+  return { action: `record_inline_${result.outcome}`, reply: result.reply, slug: result.slug, discloses: result.outcome === 'recorded' };
 }
 
 async function currentVersion(deps: BotDeps, tweetId: string): Promise<{ versionId: string; text: string }> {
@@ -289,7 +292,7 @@ export async function pollMentions(deps: BotDeps, now: Date): Promise<{ mentions
       const replyId = routed.reply ? await sendReply(deps, state, mention, routed.reply, now) : null;
       if (replyId) replies++;
       if (routed.slug && replyId) await rememberThread(deps, routed.slug, [mention.id, replyId]); // only threads the bot answered in
-      else if (routed.slug && routed.reply) await withholdLock(deps, routed.slug);
+      else if (routed.slug && routed.discloses) await withholdLock(deps, routed.slug);
     }
     state.failing = undefined;
     state.mentions_since_id = mention.id;
@@ -368,10 +371,8 @@ async function sendReply(deps: BotDeps, state: IngestState, mention: Mention, te
   }
 }
 
-// The author's 15 minutes only exist if they were shown the contract. When the reply never posted (dead
-// token, X down) the draft must not lock itself and bind them to wording they never saw — the lock is the
-// trust primitive (INIT_SPEC §4, §6.6). A draft with no lock_at is skipped by the lock job for good, so
-// `expireWithheldDrafts` closes it a day later. A fix sent anyway is refused and recorded as a new claim.
+// The 15 minutes cannot start before the author can read the contract (INIT_SPEC §4, §6.6): a draft with
+// no lock_at never locks, and `expireWithheldDrafts` closes it a day later.
 async function withholdLock(deps: BotDeps, slug: string) {
   try {
     const held = await deps.db.update(claims).set({ lockAt: null })

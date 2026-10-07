@@ -3,10 +3,9 @@
 import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import { feedPosts, feedQueue } from '../db/schema.js';
 import { log } from '../log.js';
-import { PostNotSent } from '../x/client.js';
 import { alert, captureError } from '../observe.js';
 import { HAND_RUN_SLOTS, type ContentDeps, type RunOptions } from './pool-run.js';
-import { markFailed, markPosted, releaseSlot, reserveSlot, utcDay } from './slots.js';
+import { markPosted, recordPostFailure, reserveSlot, utcDay } from './slots.js';
 import { overSpendCap, recordFeedPost } from './spend.js';
 import { X_POST_CREATE_USD } from '../x/prices.js';
 
@@ -52,9 +51,7 @@ export async function runOriginalPost(deps: OriginalDeps, now: Date, options: Ru
   try {
     postedId = (await deps.postText(item.text)).id;
   } catch (error) {
-    // Never sent → the reservation goes, so this queued post is not spent on a token fault.
-    if (error instanceof PostNotSent) await releaseSlot(deps.db, slot.id);
-    else await markFailed(deps.db, slot.id);
+    await recordPostFailure(deps.db, slot.id, error); // never sent → this queued post is not spent
     captureError(error, { event: 'feed.original_failed', item_id: item.id });
     return { done: 'failed' };
   }
