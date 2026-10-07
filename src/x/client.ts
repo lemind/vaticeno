@@ -117,12 +117,16 @@ export function createXClient(bearerToken: string) {
 
     // Recent search over one conversation. X's smallest page is 10 and billing is per post returned, so
     // this costs ~10 post reads: the caller only asks when the cheap walk up the parents found nothing.
-    async getConversation(conversationId: string, maxResults = 10): Promise<Array<{ id: string; text: string; created_at?: string; author_id?: string }>> {
-      const json = await getJson('/tweets/search/recent', {
+    // `untilId` buys the 10 posts before that one instead of the 10 newest in the thread — in a busy
+    // conversation the posts that explain a prediction are the ones just before it, not the latest.
+    async getConversation(conversationId: string, opts: { untilId?: string; maxResults?: number } = {}): Promise<Array<{ id: string; text: string; created_at?: string; author_id?: string }>> {
+      const params: Record<string, string> = {
         query: `conversation_id:${conversationId}`,
-        max_results: String(maxResults),
+        max_results: String(opts.maxResults ?? 10),
         'tweet.fields': 'created_at,author_id',
-      });
+      };
+      if (opts.untilId) params.until_id = opts.untilId;
+      const json = await getJson('/tweets/search/recent', params);
       return ConversationResponseSchema.parse(json).data ?? [];
     },
 

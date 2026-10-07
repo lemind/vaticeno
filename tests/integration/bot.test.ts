@@ -79,7 +79,10 @@ async function bot(mentionsByPoll: Mention[][], posts: Record<string, { versionI
   const x = {
     getMentionsPage: async () => ({ data: [...(mentionsByPoll[poll++] ?? [])].reverse(), meta: { result_count: 0 } }),
     getTweet: async (id: string) => threadPosts[id] ?? Promise.reject(new Error('404')),
-    getConversation: async (id: string) => { conversationReads.push(id); return conversation; },
+    getConversation: async (id: string, opts?: { untilId?: string }) => {
+      conversationReads.push(`${id}${opts?.untilId ? `<${opts.untilId}` : ''}`); // the page must end at the mention
+      return conversation;
+    },
   } as unknown as XClient;
   const deps: BotDeps = {
     db: t.db, llm, coinbase: { productStatus: async () => 'online' } as unknown as Coinbase, normalizerModel: 'm',
@@ -159,7 +162,7 @@ describe('sports matches', () => {
     ]);
 
     await pollMentions(deps, NOW);
-    assert.deepEqual(conversationReads, ['conv1'], 'read once, only because the parents fell short');
+    assert.deepEqual(conversationReads, ['conv1<300'], 'read once, ending at the mention, only because the parents fell short');
     const [claim] = await t.sql`select status, contract->>'criterion' as criterion from claims`;
     assert.equal(claim!.status, 'draft', 'recorded, not refused');
     assert.match(claim!.criterion, /Liverpool/);

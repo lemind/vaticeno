@@ -233,7 +233,7 @@ async function conversationBefore(deps: BotDeps, mention: Mention, already: read
   const isReply = mention.referenced_tweets?.some((ref) => ref.type === 'replied_to') ?? false;
   if (!mention.conversation_id || !isReply || mention.conversation_id === mention.id) return already;
   try {
-    const posts = await deps.x.getConversation(mention.conversation_id);
+    const posts = await deps.x.getConversation(mention.conversation_id, { untilId: mention.id });
     await recordReads(deps, posts.length, 'thread.conversation_read');
     // Every post of the conversation that came before, oldest first. Not a window of the last few: the
     // post that names the subject is often older than the chatter around it (the answer naming a fight
