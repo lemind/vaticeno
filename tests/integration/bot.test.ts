@@ -306,11 +306,38 @@ describe('failures and limits', () => {
     assert.equal((await t.sql`select count(*)::int as n from claims`)[0]!.n, 0, 'no silent claim past the cap');
   });
 
-  test('a mention that keeps failing is skipped after 3 polls, then the next one is handled', async () => {
+  // 2026-10-07: Gemini answered 503 "try again later" and the mention got three one-minute tries; it
+  // landed on the third. A transient outage now gets five tries over ~23 minutes (owner decision).
+  test('a failing mention waits longer before each retry, and is dropped only after five tries', async () => {
+    const m = mention('97', '@vaticeno down for a bit');
+    const { deps, replies } = await bot([[m], [m], [m], [m], [m], [m], [m]]);
+    const at = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000);
+    const attempts = async (minutes: number) => {
+      await pollMentions(deps, at(minutes));
+      return (await readIngestState(deps.statePath)).failing?.attempts;
+    };
+
+    assert.equal(await attempts(0), 1);
+    assert.equal(await attempts(0.5), 1, 'inside the pause: not tried again');
+    assert.equal(await attempts(1), 2, 'after 1 min');
+    assert.equal(await attempts(2), 2, 'the second pause is 2 min, so not yet');
+    assert.equal(await attempts(3), 3, 'after 1 + 2 min');
+    assert.equal(await attempts(8), 4, 'after 1 + 2 + 5 min');
+
+    // The fifth try is the last: the mention is given up, and the cursor moves past it.
+    await pollMentions(deps, at(23));
+    const state = await readIngestState(deps.statePath);
+    assert.equal(state.failing, undefined);
+    assert.equal(state.mentions_since_id, '97');
+    assert.equal(replies.length, 0);
+  });
+
+  test('a mention that keeps failing is skipped after 5 tries, then the next one is handled', async () => {
     const bad = mention('90', '@vaticeno down: BTC above 150k by 2026-12-31');
     const good = mention('91', '@vaticeno ping');
-    const { deps, replies } = await bot([[bad, good], [bad, good], [bad, good]]);
-    for (let i = 0; i < 3; i++) await pollMentions(deps, NOW);
+    const { deps, replies } = await bot([[bad, good], [bad, good], [bad, good], [bad, good], [bad, good]]);
+    // One poll per try, each after its pause: 0, 1, 3, 8, 23 minutes.
+    for (const minutes of [0, 1, 3, 8, 23]) await pollMentions(deps, new Date(NOW.getTime() + minutes * 60_000));
     assert.deepEqual(replies.map((r) => r.to), ['91']);
     assert.equal((await readIngestState(deps.statePath)).mentions_since_id, '91');
   });

@@ -36,7 +36,9 @@ const FIRST_RUN_PAGE_SIZE = 10; // no cursor yet: only recent mentions, keep the
 const PAGE_SIZE = 100;
 const MAX_PAGES = 5;
 const REPLIED_IDS_KEPT = 1000;
-const MAX_ATTEMPTS = 3;
+// Tries for one mention before it is dropped, and the pause before each retry: a transient model or
+// network fault gets ~23 minutes to pass, not three (owner decision 2026-10-07).
+const MENTION_RETRY_MINUTES = [1, 2, 5, 15];
 // A quote is always answered: if Wikiquote is down, retry after 1, 5, 30 and 120 minutes, then give up with an alert.
 const QUOTE_RETRY_MINUTES = [1, 5, 30, 120]; // polls a failing mention is retried before it is skipped with an alert
 // A mention that only points at the post above ("this", "👆", nothing) means that post is the prediction.
@@ -254,6 +256,8 @@ export async function pollMentions(deps: BotDeps, now: Date): Promise<{ mentions
   const mentions = await fetchNewMentions(deps, state.mentions_since_id);
   let replies = 0;
   for (const mention of mentions) {
+    // Still inside the pause after a failed try: leave the cursor where it is and come back later.
+    if (state.failing?.tweet_id === mention.id && state.failing.next_at && now < new Date(state.failing.next_at)) break;
     const cap = capHit(deps, state, mention.author_id, now);
     if (!deps.allowAuthor(mention.author_id)) {
       log('info', 'mention from an author outside the allowlist; skipped', { event: 'mention.skipped', tweet_id: mention.id });
@@ -268,10 +272,12 @@ export async function pollMentions(deps: BotDeps, now: Date): Promise<{ mentions
       } catch (error) {
         const attempts = state.failing?.tweet_id === mention.id ? state.failing.attempts + 1 : 1;
         captureError(error, { event: 'mention.failed', tweet_id: mention.id, attempts });
-        if (attempts < MAX_ATTEMPTS) {
-          state.failing = { tweet_id: mention.id, attempts };
+        if (attempts < MENTION_RETRY_MINUTES.length + 1) {
+          // The pause grows between tries: a model answering 503 "try again later" means later, not in
+          // sixty seconds (owner decision 2026-10-07). Five tries over ~23 min, then the mention is dropped.
+          state.failing = { tweet_id: mention.id, attempts, next_at: inMinutes(now, MENTION_RETRY_MINUTES[attempts - 1]!) };
           await writeIngestState(state, deps.statePath);
-          break; // cursor stays before this mention: retried next poll
+          break; // cursor stays before this mention: retried once the pause is over
         }
         alert('mention.given_up', { tweet_id: mention.id, attempts }); // a mention that always fails must not block the rest
         routed = { action: 'given_up', reply: null };

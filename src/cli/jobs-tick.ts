@@ -2,6 +2,7 @@
 // under its own advisory lock, so cron and a manual tick never overlap.
 import { getSql } from '../db/client.js';
 import { expireNeedsInfo, expireWithheldDrafts } from '../lifecycle/expire.js';
+import { auditOwedWork } from '../lifecycle/reconcile.js';
 import { lockDueDrafts } from '../lifecycle/lock.js';
 import { createFileSourceReader } from '../lifecycle/source-reader.js';
 import { withJobLock } from '../jobs/lock.js';
@@ -17,11 +18,13 @@ await runCli('jobs-tick', async (config) => {
   const lock = await withJobLock(sql, 'lock', () => lockDueDrafts({ ...deps, reader: createFileSourceReader() }, now));
   const expire = await withJobLock(sql, 'expire', async () => await expireNeedsInfo(deps.db, now) + await expireWithheldDrafts(deps.db, now));
   const resolve = await withJobLock(sql, 'resolve', () => resolveDueClaims(deps, now));
+  const owed = await withJobLock(sql, 'reconcile', () => auditOwedWork(deps.db, now));
 
   printJson({
     now: now.toISOString(),
     lock: lock.ran ? lock.result : 'skipped',
     expired_needs_info: expire.ran ? expire.result : 'skipped',
     resolve: resolve.ran ? resolve.result : 'skipped',
+    owed: owed.ran ? owed.result : 'skipped',
   });
 });
