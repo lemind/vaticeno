@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { after, before, beforeEach, test } from 'node:test';
 import { recordCost } from '../../src/db/costs.js';
-import { feedSpentTodayUsd, logDryRun, markFailed, markPosted, previousAccountId, reserveSlot, utcDay } from '../../src/content/slots.js';
+import { feedSpentTodayUsd, logDryRun, markFailed, markPosted, previousAccountId, releaseSlot, reserveSlot, utcDay } from '../../src/content/slots.js';
 import { runPoolPost, type ContentDeps } from '../../src/content/pool-run.js';
 import { runOriginalPost, type OriginalDeps } from '../../src/content/original-run.js';
 import { XApiError, type UserPost } from '../../src/x/client.js';
@@ -42,6 +42,21 @@ test('a post X refused frees its slot but is never retried', async () => {
   assert.equal((await reserveSlot(t.db, pool('p2')))?.slot, 1);
   // …but that source post is used up.
   assert.equal(await reserveSlot(t.db, pool('p1')), null);
+});
+
+// The live defect of 2026-10-06/07: the token file became unreadable, so posts that never left the
+// machine still spent their slot and their source — an owner-written post was lost that way.
+test('a post that never left the machine spends neither the slot nor the source', async () => {
+  const neverSent = await reserveSlot(t.db, pool('p1'));
+  assert.equal(await releaseSlot(t.db, neverSent!.id), true);
+  // Both the day's slots are free…
+  assert.equal((await reserveSlot(t.db, pool('p2')))?.slot, 1);
+  // …and the post nobody ever saw can still be posted.
+  assert.equal((await reserveSlot(t.db, pool('p1')))?.slot, 2);
+  // A reservation already marked is never released: that post may have landed.
+  const landed = await reserveSlot(t.db, { kind: 'receipt', day: DAY, sourcePostId: 'p9' });
+  await markPosted(t.db, landed!.id, 'x1');
+  assert.equal(await releaseSlot(t.db, landed!.id), false);
 });
 
 test('a crash after posting keeps the slot taken, so nothing is posted twice', async () => {

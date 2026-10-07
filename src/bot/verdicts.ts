@@ -8,6 +8,7 @@ import { log } from '../log.js';
 import { alert, captureError } from '../observe.js';
 import { assertReplyFits, hasTagsOrLinks, weightedLength, X_MAX_CHARS } from '../replies/templates.js';
 import type { LockResult } from '../lifecycle/lock.js';
+import { PostNotSent } from '../x/client.js';
 import type { BotDeps } from './mentions.js';
 
 const RECENT_MS = 7 * 24 * 3_600_000; // older verdicts (e.g. before this shipped) are not posted
@@ -60,6 +61,13 @@ export async function deliverVerdicts(deps: BotDeps, now: Date): Promise<{ poste
       log('info', 'verdict posted', { event: 'verdict.posted', slug: claim.slug, outcome: claim.outcome, reply_tweet_id: reply.id });
       posted++;
     } catch (error) {
+      if (error instanceof PostNotSent) {
+        // Nothing reached X, so the mark comes off and the next run posts it. Without this a token or
+        // permission fault loses the verdict for good — exactly what happened on 2026-10-07 at 00:05.
+        await deps.db.update(claims).set({ verdictReplyAt: null }).where(and(eq(claims.id, claim.id), isNull(claims.verdictReplyTweetId)));
+        alert('verdict.not_sent', { slug: claim.slug }); // loud: the whole account is failing to post
+        break; // the next claim would fail the same way
+      }
       captureError(error, { event: 'verdict.failed', slug: claim.slug }); // not retried: it may have landed
     }
   }

@@ -59,6 +59,15 @@ export type UserPost = z.infer<typeof UserPostSchema>;
 export type XUser = z.infer<typeof XUserSchema>;
 export type MentionsPage = z.infer<typeof MentionsResponseSchema>;
 
+// The request never left this machine (no token to send it with, bad config): X cannot have seen it, so
+// the caller may safely try again — unlike a failure after the request went out, which may have landed and
+// must never be retried (INIT_SPEC §6.7). Only provably pre-flight failures may use this.
+export class PostNotSent extends Error {
+  constructor(readonly reason: unknown) {
+    super(`post not sent: ${reason instanceof Error ? reason.message : String(reason)}`);
+  }
+}
+
 export class XApiError extends Error {
   constructor(
     readonly status: number,

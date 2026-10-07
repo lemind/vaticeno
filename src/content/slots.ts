@@ -59,6 +59,14 @@ export async function markPosted(db: Db, id: string, postedId: string | null): P
 
 // X refused the post: never retried (the source stays used), but the day's slot is freed. Guarded the
 // same way, so an error raised *after* a successful post can never free a slot that was really used.
+// The post never left the machine (PostNotSent): the reservation is deleted rather than marked failed, so
+// neither the day's slot nor the source post is spent — a token fault must not burn an owner-written post
+// (live defect 2026-10-06/07). Only ever called when X provably never saw the request.
+export async function releaseSlot(db: Db, id: string): Promise<boolean> {
+  const rows = await db.delete(feedPosts).where(and(eq(feedPosts.id, id), eq(feedPosts.status, 'reserved'))).returning({ id: feedPosts.id });
+  return rows.length > 0;
+}
+
 export async function markFailed(db: Db, id: string): Promise<boolean> {
   const rows = await db
     .update(feedPosts)

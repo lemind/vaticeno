@@ -14,7 +14,7 @@ import { type ExtrasDeps, quoteReply, selfpromoReply } from './extras.js';
 import { logTopic, resolveQuoteTopic } from './quote-topic.js';
 import { alert, captureError } from '../observe.js';
 import { HELP_REPLY, hasTagsOrLinks, STOPPED_REPLY, THIRD_PARTY_REPLY, weightedLength, X_MAX_CHARS } from '../replies/templates.js';
-import { type Mention, XApiError, type XClient } from '../x/client.js';
+import { type Mention, PostNotSent, XApiError, type XClient } from '../x/client.js';
 
 export type BotDeps = ExtrasDeps & {
   x: XClient;
@@ -353,6 +353,9 @@ async function sendReply(deps: BotDeps, state: IngestState, mention: Mention, te
     log('info', 'reply posted', { event: 'reply.posted', tweet_id: mention.id, reply_tweet_id: posted.id, reply_chars: text.length });
     return posted.id;
   } catch (error) {
+    // The reply never left the machine (no usable token): the account is failing to post at all, so this
+    // is an alert, not a log line. The claim's lock is withheld below, so nothing locks unseen.
+    if (error instanceof PostNotSent) alert('reply.not_sent', { tweet_id: mention.id });
     const detail = error instanceof XApiError ? { status: error.status } : {};
     captureError(error, { event: 'reply.failed', tweet_id: mention.id, ...detail });
     return null;

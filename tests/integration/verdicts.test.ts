@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { after, before, beforeEach, test } from 'node:test';
 import type { BotDeps } from '../../src/bot/mentions.js';
 import { deliverVerdicts, postLockReplies } from '../../src/bot/verdicts.js';
+import { PostNotSent } from '../../src/x/client.js';
 import { insertClaim, insertEvidence, setupTestDb, type TestDb } from './helpers.js';
 
 let t: TestDb;
@@ -35,6 +36,30 @@ test('a final verdict is posted once under the summon, with the price proof, and
   const [row] = await t.sql`select verdict_reply_tweet_id, thread_tweet_ids from claims where id = ${claim.id}`;
   assert.equal(row!.verdict_reply_tweet_id, 'v1');
   assert.ok(row!.thread_tweet_ids.includes('v1'));
+});
+
+// 2026-10-07 00:05 UTC: the token file was unreadable, two verdicts were marked, and both were lost —
+// the rule against retrying exists for posts that may have landed, not for ones never sent.
+test('a verdict that never left the machine keeps its turn and goes out next run', async () => {
+  const claim = await resolvedClaim('miss');
+  let attempts = 0;
+  const deps = bot(async () => {
+    attempts++;
+    if (attempts === 1) throw new PostNotSent(new Error('EACCES .state/x-oauth.json'));
+    return { id: 'v2' };
+  });
+
+  assert.deepEqual(await deliverVerdicts(deps, NOW), { posted: 0 });
+  const [unsent] = await t.sql`select verdict_reply_at, verdict_reply_tweet_id from claims where id = ${claim.id}`;
+  assert.equal(unsent!.verdict_reply_at, null, 'the mark comes off: this verdict is still owed');
+  assert.equal(unsent!.verdict_reply_tweet_id, null);
+
+  // The token is readable again: the next run posts it, exactly once.
+  assert.deepEqual(await deliverVerdicts(deps, NOW), { posted: 1 });
+  assert.deepEqual(await deliverVerdicts(deps, NOW), { posted: 0 });
+  assert.equal(attempts, 2);
+  const [sent] = await t.sql`select verdict_reply_tweet_id from claims where id = ${claim.id}`;
+  assert.equal(sent!.verdict_reply_tweet_id, 'v2');
 });
 
 test('a failed post is never retried; an author who sent STOP gets nothing', async () => {

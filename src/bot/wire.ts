@@ -2,7 +2,7 @@
 import { loadConfig } from '../config.js';
 import type { ExtrasDeps } from './extras.js';
 import { log } from '../log.js';
-import { createXClient, postReply, XApiError } from '../x/client.js';
+import { createXClient, PostNotSent, postReply, XApiError } from '../x/client.js';
 import { humanDates, weightedLength, X_MAX_CHARS } from '../replies/templates.js';
 import { getValidAccessToken } from '../x/oauth.js';
 import type { BotDeps } from './mentions.js';
@@ -30,13 +30,25 @@ export function buildBotDeps(claimDeps: ExtrasDeps): BotDeps {
       // that would push the reply over X's limit, in which case the shorter ISO form stands.
       const human = humanDates(replyText);
       const text = weightedLength(human) <= X_MAX_CHARS ? human : replyText;
+      const token = await accessToken(creds);
       try {
-        return await postReply(await getValidAccessToken(creds), inReplyTo, text);
+        return await postReply(token, inReplyTo, text);
       } catch (error) {
         if (!(error instanceof XApiError) || error.status !== 401) throw error;
         log('warn', 'reply got 401; refreshing the token once', { event: 'reply.token_refresh', tweet_id: inReplyTo });
-        return postReply(await getValidAccessToken(creds, { forceRefresh: true }), inReplyTo, text);
+        return postReply(await accessToken(creds, { forceRefresh: true }), inReplyTo, text);
       }
     },
   };
+}
+
+// No token, no request: the live defect of 2026-10-06/07, when the token file became unreadable and every
+// caller treated "never sent" as "may have landed". PostNotSent says it provably did not, so the caller
+// can try again instead of dropping the reply (INIT_SPEC §6.7 only forbids retrying an uncertain post).
+export async function accessToken(creds: Parameters<typeof getValidAccessToken>[0], opts?: { forceRefresh: boolean }): Promise<string> {
+  try {
+    return await getValidAccessToken(creds, opts);
+  } catch (error) {
+    throw new PostNotSent(error);
+  }
 }

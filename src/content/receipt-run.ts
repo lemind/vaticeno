@@ -4,10 +4,11 @@
 import { and, desc, eq, gt, isNotNull, notExists } from 'drizzle-orm';
 import { claims, evidences, feedPosts, optOuts, resolutions } from '../db/schema.js';
 import { log } from '../log.js';
+import { PostNotSent } from '../x/client.js';
 import { captureError } from '../observe.js';
 import type { OriginalDeps } from './original-run.js';
 import { HAND_RUN_SLOTS, type RunOptions } from './pool-run.js';
-import { FEED_CAPS, markFailed, markPosted, reserveSlot, utcDay } from './slots.js';
+import { FEED_CAPS, markFailed, markPosted, releaseSlot, reserveSlot, utcDay } from './slots.js';
 import { hasTagsOrLinks, weightedLength, X_MAX_CHARS } from '../replies/templates.js';
 import { overSpendCap, recordFeedPost } from './spend.js';
 import { X_POST_CREATE_USD } from '../x/prices.js';
@@ -69,7 +70,8 @@ export async function runReceipts(deps: ReceiptDeps, now: Date, options: RunOpti
       posted += 1;
       log('info', 'receipt posted', { event: 'feed.receipt_posted', slug: claim.slug, outcome: claim.outcome, posted_id: quote.id });
     } catch (error) {
-      await markFailed(deps.db, slot.id);
+      if (error instanceof PostNotSent) await releaseSlot(deps.db, slot.id); // never sent: this verdict keeps its receipt
+      else await markFailed(deps.db, slot.id);
       captureError(error, { event: 'feed.receipt_failed', slug: claim.slug });
     }
   }

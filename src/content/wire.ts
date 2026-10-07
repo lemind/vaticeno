@@ -3,7 +3,7 @@
 import { loadConfig, type CoreConfig } from '../config.js';
 import { log } from '../log.js';
 import { createXClient, postStandalone, quotePost, repost, XApiError } from '../x/client.js';
-import { getValidAccessToken } from '../x/oauth.js';
+import { accessToken } from '../bot/wire.js';
 import type { ContentDeps } from './pool-run.js';
 import type { QuoteDeps } from './quote.js';
 
@@ -19,12 +19,13 @@ export function buildContentDeps(quoteDeps: QuoteDeps, core: CoreConfig): Conten
   // rotates), the same way replies do. See src/x/oauth.ts and src/bot/wire.ts.
   // REVISIT: if 401s after a refresh show up in Sentry, the stored token is broken, not stale.
   const withToken = async <T>(call: (token: string) => Promise<T>, event: string): Promise<T> => {
+    const token = await accessToken(creds); // unreadable token file → PostNotSent, so the slot is released
     try {
-      return await call(await getValidAccessToken(creds));
+      return await call(token);
     } catch (error) {
       if (!(error instanceof XApiError) || error.status !== 401) throw error;
       log('warn', 'feed call got 401; refreshing the token once', { event });
-      return call(await getValidAccessToken(creds, { forceRefresh: true }));
+      return call(await accessToken(creds, { forceRefresh: true }));
     }
   };
 
