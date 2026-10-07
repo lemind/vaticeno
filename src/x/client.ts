@@ -46,6 +46,13 @@ const UserPostsResponseSchema = z.object({
   meta: z.object({ result_count: z.number() }).optional(),
 });
 
+// Posts of one conversation, flat: what a person sees above a reply, which is not the same as its
+// ancestors — an answer from another account can sit directly above without being the parent.
+const ConversationResponseSchema = z.object({
+  data: z.array(z.object({ id: z.string(), text: z.string(), author_id: z.string().optional(), created_at: z.string().optional() })).optional(),
+  meta: z.object({ result_count: z.number() }).optional(),
+});
+
 // One post with its edit history; the last id in edit_history_tweet_ids is the current version.
 const TweetResponseSchema = z.object({
   data: z.object({
@@ -106,6 +113,17 @@ export function createXClient(bearerToken: string) {
         'tweet.fields': 'created_at',
       });
       return UserPostsResponseSchema.parse(json).data ?? [];
+    },
+
+    // Recent search over one conversation. X's smallest page is 10 and billing is per post returned, so
+    // this costs ~10 post reads: the caller only asks when the cheap walk up the parents found nothing.
+    async getConversation(conversationId: string, maxResults = 10): Promise<Array<{ id: string; text: string; created_at?: string }>> {
+      const json = await getJson('/tweets/search/recent', {
+        query: `conversation_id:${conversationId}`,
+        max_results: String(maxResults),
+        'tweet.fields': 'created_at,author_id',
+      });
+      return ConversationResponseSchema.parse(json).data ?? [];
     },
 
     async getTweet(id: string): Promise<z.infer<typeof TweetResponseSchema>['data']> {

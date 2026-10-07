@@ -56,9 +56,11 @@ const llm = {
       return { data: { found, home: found ? 'Liverpool' : null, away: found ? 'Real Madrid' : null, competition: found ? 'UEFA Champions League' : null,
         kickoff_utc: found ? '2026-10-01T19:00:00Z' : null, criterion: found ? 'Liverpool beat Real Madrid 3–1 (UEFA Champions League)' : null }, costs: [] };
     }
-    const { text } = JSON.parse(input) as { text: string };
+    const { text, context } = JSON.parse(input) as { text: string; context?: string[] };
     if (text.startsWith('match')) {
-      const subject = text.includes('Invented') ? 'Invented FC' : 'Liverpool';
+      // "Invented" names no real fixture — unless something in the thread says which match it is.
+      const named = (context ?? []).some((post) => post.includes('Liverpool'));
+      const subject = text.includes('Invented') && !named ? 'Invented FC' : 'Liverpool';
       return { data: { is_prediction: true, x_rules_ok: true, contract: { ...MATCH_CONTRACT, subject }, unclear: [], unclear_explanation: '', examples: [], self_confidence: 0.8 }, costs: [] };
     }
     if (text.startsWith('down')) throw new LlmUnavailable('model down');
@@ -70,12 +72,14 @@ const llm = {
   },
 } as unknown as LlmClient;
 
-async function bot(mentionsByPoll: Mention[][], posts: Record<string, { versionId: string; text: string }> = {}, pageText = '') {
+async function bot(mentionsByPoll: Mention[][], posts: Record<string, { versionId: string; text: string }> = {}, pageText = '', conversation: Array<{ id: string; text: string; created_at?: string }> = []) {
   const replies: Array<{ to: string; text: string }> = [];
   let poll = 0;
+  const conversationReads: string[] = [];
   const x = {
     getMentionsPage: async () => ({ data: [...(mentionsByPoll[poll++] ?? [])].reverse(), meta: { result_count: 0 } }),
     getTweet: async (id: string) => threadPosts[id] ?? Promise.reject(new Error('404')),
+    getConversation: async (id: string) => { conversationReads.push(id); return conversation; },
   } as unknown as XClient;
   const deps: BotDeps = {
     db: t.db, llm, coinbase: { productStatus: async () => 'online' } as unknown as Coinbase, normalizerModel: 'm',
@@ -85,7 +89,7 @@ async function bot(mentionsByPoll: Mention[][], posts: Record<string, { versionI
     allowAuthor: (id) => id !== '666', caps: { perAuthorPerHour: 3, perDay: 300 },
     statePath: join(await mkdtemp(join(tmpdir(), 'vaticeno-bot-')), 'ingest.json'),
   };
-  return { deps, replies };
+  return { deps, replies, conversationReads };
 }
 
 const mention = (id: string, text: string, extra: Partial<Mention> = {}): Mention => ({ id, text, author_id: ME, conversation_id: id, ...extra });
@@ -133,6 +137,34 @@ describe('sports matches', () => {
     const { deps, replies } = await bot([[mention('110', '@vaticeno match Liverpool vs Madrid tomorrow 3:1')]]);
     await pollMentions(deps, NOW);
     assert.match(replies[0]!.text, /^RECORDED[\s\S]*Liverpool beat Real Madrid 3–1 \(UEFA Champions League\)/);
+  });
+
+  // 2026-10-07: the fight was named by another account in a reply to the same parent, so walking the
+  // parents never saw it and a real prediction was refused. What sits above a post on X is not its ancestry.
+  test('a prediction the parents cannot explain is rescued by the rest of the conversation', async () => {
+    const m = mention('300', '@vaticeno match Invented wins', {
+      conversation_id: 'conv1', created_at: '2026-09-30T12:00:00Z',
+      referenced_tweets: [{ type: 'replied_to', id: '301' }],
+    });
+    threadPosts['301'] = { id: '301', text: 'who is fighting next?', author_id: ME }; // says nothing about which match
+    const { deps, replies, conversationReads } = await bot([[m]], {}, '', [
+      { id: '302', text: 'Liverpool vs Real Madrid, kickoff tonight', created_at: '2026-09-30T11:58:00Z' },
+      { id: '303', text: 'posted after the prediction, must be ignored', created_at: '2026-09-30T12:30:00Z' },
+    ]);
+
+    await pollMentions(deps, NOW);
+    assert.deepEqual(conversationReads, ['conv1'], 'read once, only because the parents fell short');
+    const [claim] = await t.sql`select status, contract->>'criterion' as criterion from claims`;
+    assert.equal(claim!.status, 'draft', 'recorded, not refused');
+    assert.match(claim!.criterion, /Liverpool/);
+    assert.match(replies[0]!.text, /^RECORDED/);
+  });
+
+  test('a prediction that stands on its own costs no conversation read', async () => {
+    const m = mention('310', '@vaticeno BTC daily close above $150,000 by 2026-12-31', { conversation_id: 'conv2' });
+    const { deps, conversationReads } = await bot([[m]]);
+    await pollMentions(deps, NOW);
+    assert.deepEqual(conversationReads, [], 'nothing was missing, so nothing was paid for');
   });
 
   test('a malformed match search answer does not kill the claim: recorded unchecked', async () => {

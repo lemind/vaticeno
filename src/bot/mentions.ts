@@ -15,6 +15,7 @@ import { logTopic, resolveQuoteTopic } from './quote-topic.js';
 import { alert, captureError } from '../observe.js';
 import { HELP_REPLY, hasTagsOrLinks, STOPPED_REPLY, THIRD_PARTY_REPLY, weightedLength, X_MAX_CHARS } from '../replies/templates.js';
 import { type Mention, PostNotSent, XApiError, type XClient } from '../x/client.js';
+import { X_POST_READ_USD } from '../x/prices.js';
 
 export type BotDeps = ExtrasDeps & {
   x: XClient;
@@ -112,6 +113,7 @@ export async function routeMention(deps: BotDeps, mention: Mention, now: Date): 
   const context = repliedTo ? (await threadAbove(deps, repliedTo)).map((post) => post.text) : [];
   const result = await submitClaim(deps, {
     text: current.text, context, authorId: mention.author_id, sourceTweetId: original, summonTweetId: mention.id, sourceVersion: current.versionId, now,
+    moreContext: () => conversationBefore(deps, mention, context),
   });
   // Not a prediction: the model reads the thread — once per mention (a command word already had its turn).
   if (result.outcome === 'rejected' && result.rejectReason === 'not_prediction' && !firstAssessed) {
@@ -194,6 +196,28 @@ function echoes(answer: string, texts: string[]): boolean {
     for (let i = 0; i + 20 <= t.length; i += 5) if (a.includes(t.slice(i, i + 20))) return true;
     return false;
   });
+}
+
+// What a person sees above the mention, which is not what walking the parents gives: on X an answer from
+// another account sits beside the post, not above it (owner decision 2026-10-07 — a bot named the fight in
+// a reply to the same parent, so the chain we walked never mentioned it). One conversation read, ~10 posts
+// at X's smallest page, and only when the parents left the prediction unrecordable. Posts are kept in
+// memory, never stored (INIT_SPEC §6.9).
+async function conversationBefore(deps: BotDeps, mention: Mention, already: readonly string[]): Promise<readonly string[]> {
+  if (!mention.conversation_id) return already;
+  try {
+    const posts = await deps.x.getConversation(mention.conversation_id);
+    await recordCosts(deps.db, [{ provider: 'x', operation: 'thread_read', units: posts.length, usdCost: posts.length * X_POST_READ_USD, claimId: null }]);
+    const before = posts
+      .filter((post) => post.id !== mention.id && (!post.created_at || !mention.created_at || post.created_at < mention.created_at))
+      .sort((a, b) => (a.created_at ?? '').localeCompare(b.created_at ?? ''))
+      .slice(-THREAD_DEPTH); // the ones immediately above, oldest first
+    log('info', 'conversation read for context', { event: 'thread.conversation_read', tweet_id: mention.id, posts: posts.length, used: before.length });
+    return before.length > 0 ? before.map((post) => post.text) : already;
+  } catch (error) {
+    captureError(error, { event: 'thread.conversation_failed', tweet_id: mention.id });
+    return already;
+  }
 }
 
 async function threadAbove(deps: BotDeps, repliedTo: string | undefined, maxPosts = THREAD_DEPTH): Promise<ThreadPost[]> {

@@ -35,7 +35,7 @@ export const REVIEW_STATUSES = ['final', 'needs_human'] as const;
 export const VOID_REASONS = ['insufficient_evidence', 'unresolvable'] as const;
 export const COST_PROVIDERS = ['gemini', 'google_search', 'coinbase', 'web_fetch', 'x'] as const;
 // feed_* are the content jobs' own operations (spec 002): the daily feed spend cap sums exactly these.
-export const COST_OPERATIONS = ['normalize', 'search', 'judge', 'arbitrate', 'fetch', 'price', 'feed_read', 'feed_post', 'feed_model'] as const;
+export const COST_OPERATIONS = ['normalize', 'search', 'judge', 'arbitrate', 'fetch', 'price', 'feed_read', 'feed_post', 'feed_model', 'thread_read'] as const;
 export const FEED_COST_OPERATIONS = ['feed_read', 'feed_post', 'feed_model'] as const;
 export const FEED_KINDS = ['repost', 'quote', 'original', 'receipt'] as const;
 // dry_run: the pick the owner reviews before posting is switched on — recorded, but it holds no slot.

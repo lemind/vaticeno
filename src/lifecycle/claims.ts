@@ -28,6 +28,10 @@ export type ClaimDeps = { db: Db; llm: LlmClient; coinbase: Coinbase; normalizer
 export type SubmitInput = {
   text: string; // used for the proposal only — never stored or logged (FR-029)
   context?: readonly string[]; // posts above it in the thread, same rule: read, never stored
+  // The rest of the conversation, paid for and read only if the context above left the prediction
+  // unrecordable (owner decision 2026-10-07): an answer that names the match can sit beside the post
+  // rather than above it, so asking for more beats refusing.
+  moreContext?: () => Promise<readonly string[]>;
   authorId: string;
   sourceTweetId: string;
   summonTweetId: string;
@@ -68,6 +72,12 @@ export async function evaluateClaimText(deps: ClaimDeps, text: string, now: Date
   return { decision, modelId: proposed.modelId, selfConfidence: proposal.self_confidence };
 }
 
+// Which refusals the thread can still rescue: something was missing, or the event was named too vaguely
+// to find. A text that is not a prediction, or a deadline out of range, is not a context problem.
+function worthMoreContext(decision: Decision): boolean {
+  return decision.outcome === 'needs_info' || (decision.outcome === 'rejected' && decision.reason === 'event_not_found');
+}
+
 // A step that throws after paid calls (feed outage, unreadable post) still records what was spent (FR-031).
 export async function recordingCostsOnFailure<T>(db: Db, claimId: string | null, costs: CallCost[], step: () => Promise<T>): Promise<T> {
   try {
@@ -91,7 +101,18 @@ export async function submitClaim(deps: ClaimDeps, input: SubmitInput): Promise<
 
   const costs: CallCost[] = [];
   const { decision, modelId, selfConfidence, slug, reply } = await recordingCostsOnFailure(db, null, costs, async () => {
-    const evaluated = await evaluateClaimText(deps, input.text, input.now, costs, input.context ?? []);
+    let evaluated = await evaluateClaimText(deps, input.text, input.now, costs, input.context ?? []);
+    // Nothing is written yet, so a second look is free of consequences: only the reads cost.
+    if (input.moreContext && worthMoreContext(evaluated.decision)) {
+      const wider = await input.moreContext();
+      // Different posts, not more of them: the conversation read can return as many as the parent walk
+      // did and still be the only one that names the subject.
+      if (wider.length > 0 && wider.join('\u0000') !== (input.context ?? []).join('\u0000')) {
+        const second = await evaluateClaimText(deps, input.text, input.now, costs, wider);
+        // The wider read only ever helps: a worse answer is discarded and the first one stands.
+        if (second.decision.outcome === 'recorded') evaluated = second;
+      }
+    }
     const newSlugValue = await newSlug(async (candidate) => (await db.select({ id: claims.id }).from(claims).where(eq(claims.slug, candidate)).limit(1)).length > 0);
     return { ...evaluated, slug: newSlugValue, reply: await replyFor(deps, evaluated.decision, newSlugValue, input.text, input.now, costs) };
   });
