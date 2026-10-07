@@ -228,7 +228,10 @@ function cachedReads(deps: BotDeps): BotDeps {
 // at X's smallest page, and only when the parents left the prediction unrecordable. Posts are kept in
 // memory, never stored (INIT_SPEC §6.9).
 async function conversationBefore(deps: BotDeps, mention: Mention, already: readonly string[]): Promise<readonly string[]> {
-  if (!mention.conversation_id) return already;
+  // A post that starts its own conversation has nothing before it: the search would return the post
+  // itself and bill us for it. Only a reply can have anything above or beside it.
+  const isReply = mention.referenced_tweets?.some((ref) => ref.type === 'replied_to') ?? false;
+  if (!mention.conversation_id || !isReply || mention.conversation_id === mention.id) return already;
   try {
     const posts = await deps.x.getConversation(mention.conversation_id);
     await recordReads(deps, posts.length, 'thread.conversation_read');
