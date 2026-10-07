@@ -17,7 +17,7 @@ Gemini flash-lite, X API v2 (pay-per-use). No new dependencies.
 
 - **VI (replies only where mentioned)**: own-feed posts are a new kind of activity. Needs an amendment
   before posting is switched on: "Own-feed posts allowed: pool reposts and quote posts, owner-written
-  originals, receipts; capped per day; no @mentions, links or hashtags in our text; dry-run by default."
+  originals; capped per day; no @mentions, links or hashtags in our text; dry-run by default."
   **Blocking.**
 - **No post text stored (FR-009)**: only pool post ids and handles are stored; a post's text stays in
   memory for the one AI call on quote turns.
@@ -38,7 +38,6 @@ pool run (2×/day, random minute in a morning and an evening window)
       quote:   feed.v1 (one call): topic for the quote source, or the joke → checks → reserve slot →
                POST /2/tweets with quote_tweet_id; no quote / failed checks → plain repost
 original (1×/day)       next queue item → reserve slot → post
-receipts (hourly, ≤ 2/day)  new verdict replies, author not STOPped → reserve → quote post
 ```
 
 Verified quote: the AI names a topic that fits the post (from the `quote` command's topics); the quote
@@ -63,7 +62,7 @@ measured).
 | Reads: 2 runs × 5 posts (X's minimum page), rarely a retry | ~10 | ~$1.50 |
 | Reposts / quote posts | 2 | ~$0.90 |
 | AI: quote turns only | ~0.2 | < $0.01 |
-| Originals 1/day + receipts ≤ 2/day | 1–3 | ~$0.45–1.35 |
+| Originals 1/day | 1 | ~$0.45 |
 
 Pool part ~$2.40 a month; whole feed ~$2.85–3.75 at full caps (under $4, SC-002), with reposts priced
 like posts until measured.
@@ -78,9 +77,8 @@ src/content/
   slots.ts         slot reservation, posted/failed marks, daily spend cap
   pool-run.ts      the pool run (dry run logs only)
   original-run.ts  the daily original
-  receipt-run.ts   receipts
 src/cli/content-tick.ts, src/cli/content-queue.ts   run one job by hand; manage the originals queue
-src/jobs/scheduler.ts   pool (2×/day), original (daily), receipts (hourly), only with ENABLE_FEED
+src/jobs/scheduler.ts   pool (2×/day), original (daily), only with ENABLE_FEED
                         reconcile (every 2 h) names work that was owed and never done, feed or not
 src/lifecycle/reconcile.ts  the owed-work sweep: verdicts owed, claims never shown, posts in flight
 drizzle/0010_feed.sql, 0011_feed_dry_run.sql   feed_posts (kind, cap_group generated, status, day, slot,
@@ -100,7 +98,7 @@ exactly those. X list prices: `src/x/prices.ts`.
 
 - `feed_posts` has `status` (`reserved → posted | failed`), a unique key on `source_post_id` (when set)
   and on `(cap group, day, slot)`, where reposts and quote posts share the `pool` group; slots are 1–2 for
-  pool posts, 1 for original, 1–2 for receipts.
+  pool posts and 1 for original.
 - Posting = insert the row first with the first free slot (`on conflict do nothing`; no row → skip),
   then post, then store the posted id and `posted`. Same rule as replies: marked before posting, never
   retried (INIT_SPEC §6.7).

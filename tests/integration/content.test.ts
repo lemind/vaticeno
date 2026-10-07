@@ -7,7 +7,6 @@ import { feedSpentTodayUsd, logDryRun, markFailed, markPosted, previousAccountId
 import { runPoolPost, type ContentDeps } from '../../src/content/pool-run.js';
 import { runOriginalPost, type OriginalDeps } from '../../src/content/original-run.js';
 import { XApiError, type UserPost } from '../../src/x/client.js';
-import { runReceipts } from '../../src/content/receipt-run.js';
 import { insertClaim, insertEvidence, setupTestDb, type TestDb } from './helpers.js';
 
 let t: TestDb;
@@ -198,22 +197,18 @@ test('a dry run of the daily own post leaves the queue alone', async () => {
 test('the spend cap stops every job, not just the pool', async () => {
   await recordCost(t.db, { claimId: null, provider: 'x', operation: 'feed_read', units: 1, usdCost: 0.2 });
   await t.sql`insert into feed_queue ${t.sql({ text: 'Not today.', position: 1 })}`;
-  await verdictClaim('hit', 'vrcap');
-  const deps = originalDeps({ dailyUsdCap: 0.15, postText: async () => { throw new Error('must not post'); }, quotePost: async () => { throw new Error('must not post'); } });
+  const deps = originalDeps({ dailyUsdCap: 0.15, postText: async () => { throw new Error('must not post'); } });
   assert.equal((await runOriginalPost(deps, new Date())).done, 'cap_reached');
-  assert.deepEqual(await runReceipts(deps, new Date()), { posted: 0 });
 });
 
 test('every posting job records what it spent', async () => {
   await t.sql`insert into feed_queue ${t.sql({ text: 'Costed post.', position: 1 })}`;
-  await verdictClaim('hit', 'vrcost');
   const deps = originalDeps();
   await runOriginalPost(deps, NOW);
-  await runReceipts(deps, NOW);
   await runPoolPost(contentDeps({ dryRun: false }), NOW);
   const rows = await t.sql`select operation, count(*)::int as n from cost_events group by operation order by operation`;
   const byOp = Object.fromEntries(rows.map((r) => [r.operation, r.n]));
-  assert.equal(byOp['feed_post'], 3, 'the own post, the receipt and the pool post');
+  assert.equal(byOp['feed_post'], 2, 'the own post and the pool post');
   assert.ok((byOp['feed_read'] ?? 0) >= 1, 'the pool read');
 });
 
@@ -272,42 +267,6 @@ test('X refusing an own post frees the day and never retries it', async () => {
   assert.equal((await runOriginalPost(refusing, new Date('2027-01-02T13:41:00Z'))).done, 'empty_queue');
 });
 
-// Receipts (US3): one per verdict, at most two a day, never for an author who sent STOP.
-async function verdictClaim(outcome: 'hit' | 'miss', replyId: string, result?: string) {
-  const claim = await insertClaim(t.sql, 'resolved', { verdict_reply_at: NOW.toISOString(), verdict_reply_tweet_id: replyId });
-  const evidence = await insertEvidence(t.sql, claim.id, { says: outcome, value: '151000', ...(result ? { result_summary: result } : {}) });
-  await t.sql`insert into resolutions ${t.sql({ claim_id: claim.id, review_status: 'final', outcome, decided_by: 'evidence', deciding_evidence_id: evidence.id, decided_at: NOW.toISOString() })}`;
-  return claim;
-}
-
-test('a verdict is quoted once as a receipt, two a day at most', async () => {
-  const first = await verdictClaim('hit', 'vr1');
-  await verdictClaim('miss', 'vr2');
-  await verdictClaim('hit', 'vr3');
-  const quoted: Array<{ id: string; text: string }> = [];
-  const deps = originalDeps({ quotePost: async (id, text) => { quoted.push({ id, text }); return { id: `own${quoted.length}` }; } });
-
-  assert.deepEqual(await runReceipts(deps, NOW), { posted: 2 }, "today's two receipt slots");
-  assert.deepEqual(await runReceipts(deps, NOW), { posted: 0 }, 'the day is used up');
-  assert.equal(quoted.length, 2);
-  // The slug's hash is ours by design (constitution VI 2.4.1), and a score is appended when there is one.
-  assert.match(quoted[0]!.text, /^RECEIPT · (HIT|MISS) · #\w+( · .+)?$/);
-  // Tomorrow the one left over goes out, and nothing is ever quoted twice.
-  assert.deepEqual(await runReceipts(deps, new Date('2027-01-02T07:00:00Z')), { posted: 1 });
-  assert.equal(new Set(quoted.map((q) => q.id)).size, 3);
-  assert.deepEqual([...quoted.map((q) => q.id)].sort(), ['vr1', 'vr2', 'vr3']);
-  assert.ok(quoted.some((q) => q.text.includes(`#${first.slug}`)));
-});
-
-test('an author who sent STOP gets no receipt', async () => {
-  await verdictClaim('hit', 'vr9');
-  await t.sql`insert into opt_outs ${t.sql({ x_user_id: '200' })}`; // insertClaim's author
-  const quoted: string[] = [];
-  const deps = originalDeps({ quotePost: async (id) => { quoted.push(id); return { id: 'own1' } ; } });
-  assert.deepEqual(await runReceipts(deps, NOW), { posted: 0 });
-  assert.deepEqual(quoted, []);
-});
-
 test('a hand-run posts even when the day is used up, but never the same thing twice', async () => {
   await t.sql`insert into feed_queue ${t.sql({ text: 'First today.', position: 1 })}`;
   await t.sql`insert into feed_queue ${t.sql({ text: 'Second today.', position: 2 })}`;
@@ -322,15 +281,3 @@ test('a hand-run posts even when the day is used up, but never the same thing tw
   assert.equal((await runOriginalPost(deps, NOW, { force: true })).done, 'empty_queue');
 });
 
-test("a match receipt carries the score, and the judge's words are checked like any other text", async () => {
-  await verdictClaim('miss', 'vrscore', 'Real Madrid 2-1 Barcelona');
-  const quoted: string[] = [];
-  const deps = originalDeps({ quotePost: async (_id, text) => { quoted.push(text); return { id: 'own1' }; } });
-  assert.deepEqual(await runReceipts(deps, NOW), { posted: 1 });
-  assert.match(quoted[0]!, /^RECEIPT · MISS · #\w+ · Real Madrid 2-1 Barcelona$/);
-
-  // A result that smuggles in a handle or a link is dropped whole; the receipt still goes out.
-  await verdictClaim('hit', 'vrtag', 'per @espn and espn.com');
-  assert.deepEqual(await runReceipts(deps, new Date('2027-01-02T07:00:00Z')), { posted: 1 });
-  assert.match(quoted[1]!, /^RECEIPT · HIT · #\w+$/);
-});

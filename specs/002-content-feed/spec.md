@@ -8,7 +8,7 @@
 
 **Input**: Owner: the account's own feed must not be empty. Twice a day, repost the latest post of an
 account from a fixed, weighted pool; sometimes quote it with a verified quote or a joke instead. Plus
-owner-written originals and receipts. Overall goal: spend as little money as possible. See
+owner-written originals. Overall goal: spend as little money as possible. See
 `docs/content-rules.md` for identity, tone and the pool with its weights.
 
 ## User Scenarios & Testing *(mandatory)*
@@ -57,20 +57,13 @@ the next unposted one at most once a day, at a varied time. No AI writes these.
 
 ---
 
-### User Story 3 - Receipts (Priority: P3)
+### User Story 3 - Receipts (WITHDRAWN 2026-10-07)
 
-When a claim gets a final verdict, the bot quote-posts its own verdict reply as a RECEIPT on the main
-feed, at most 2 per day, so the profile shows the product working.
+Built and run for two days, then withdrawn by the owner: a verdict is answered in the claim's thread and
+nowhere else. A hit or a miss belongs to the person who predicted it, so the feed does not repeat it.
 
-**Why this priority**: strongest proof once there are verdicts; depends on real usage.
-
-**Independent Test**: a new final verdict with a posted verdict reply produces one RECEIPT quote post.
-
-**Acceptance Scenarios**:
-
-1. **Given** a final verdict whose reply was posted, **When** the receipts run, **Then** one RECEIPT quote
-   post is made, once.
-2. **Given** the author sent STOP, **When** the receipts run, **Then** no RECEIPT is posted for their claim.
+**What this means**: the feed is pool reposts and the owner's own posts. Verdicts still go out once, as a
+reply in the claim's thread (constitution VI 2.3.0), which is the only place anyone is told the result.
 
 ### Edge Cases
 
@@ -94,12 +87,12 @@ feed, at most 2 per day, so the profile shows the product working.
 - **FR-003**: About 9 runs in 10 repost the latest post plainly; no AI call.
 - **FR-004**: **Blocked by X since 2026-10-05**: quoting a pool account's post is refused with 403
   ("You can only reply to or quote posts where you are mentioned or are the author"), so every pool run
-  reposts plainly and Vaticeno's own words appear only on posts it authored (receipts). If X's access
+  reposts plainly, and Vaticeno's own words appear only on posts it wrote itself. If X's access
   changes, this returns as written: about 1 run in 10 quote-posts instead: half the time with a verified quote (the same
   checked source as the `quote` command, the AI only picks the topic), half the time with a short AI joke
   about the post. Our text: ≤ 200 characters, no tags, links or hashtags, no prediction of its own;
   anything that fails falls back to a plain repost.
-- **FR-005**: Caps: at most 2 pool posts, 1 original and 2 receipts per day, never the same post twice.
+- **FR-005**: Caps: at most 2 pool posts and 1 original per day, never the same post twice.
   The caps and the never-twice rule are enforced by the database (a post or a day's slot is reserved
   before posting; a second reservation fails), not only by code checks. A post X rejects is never tried
   again, but it frees its day's slot: only posts that went out (or are in flight) count toward a cap.
@@ -116,7 +109,8 @@ feed, at most 2 per day, so the profile shows the product working.
 ### Key Entities
 
 - **Pool account**: numeric id, handle, field, weight, enabled.
-- **Feed post**: kind (repost, quote, original, receipt), day and slot, source post id or queue item,
+- **Feed post**: kind (repost, quote, original; receipt is kept for the rows already posted), day and
+  slot, source post id or queue item,
   posted id, time. One row per source post and one per day's slot.
 - **Queue item**: owner-written text, order, posted at.
 
@@ -129,11 +123,9 @@ feed, at most 2 per day, so the profile shows the product working.
   counting a repost at the post price ($0.015) until X's repost price is measured; UNRECONCILED until
   the dry run measures X's prices.
 - **SC-003**: A visitor to the profile sees at least 10 own or curated posts before the first invite.
-- **SC-004**: Text Vaticeno adds (quote lines, jokes, originals, receipt lines) never contains @mentions
+- **SC-004**: Text Vaticeno adds (quote lines, jokes, originals) never contains @mentions
   or links, never makes a prediction of its own, and carries no hashtag other than the claim's own slug
-  (`#ab12c`, constitution VI 2.4.1). A receipt shows the result the judge read — a final score, a close
-  price — when there is one. Reposting or quoting another account's post is
-  allowed.
+  (`#ab12c`, constitution VI 2.4.1). Reposting another account's post is allowed.
 
 ## Assumptions
 

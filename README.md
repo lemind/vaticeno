@@ -29,7 +29,7 @@ the picks and posts nothing.
 | Sports: the match must exist (web search), competition filled in, recordable until kickoff | Public pages on a domain (HTTPS config is ready in `deploy/`) |
 | Database: lock and verdict rules enforced by Postgres, locally and on Supabase | Nightly backups (scripts in `deploy/`, not installed) |
 | Verdicts after the deadline: Coinbase daily close, or AI reading web pages behind code gates; human review | |
-| Own feed (spec 002): 2 pool posts a day (repost, or a quote post with our own line), 1 owner-written post a day from a queue, up to 2 verdict receipts; caps and "never twice" enforced by Postgres; off until `ENABLE_FEED=true` | Switch the feed on the server; a weekly stats post |
+| Own feed (spec 002): 2 pool posts a day (repost, or a quote post with our own line), 1 owner-written post a day from a queue; caps and "never twice" enforced by Postgres; off until `ENABLE_FEED=true` | Switch the feed on the server; a weekly stats post |
 | Claim and author pages (localhost on the server) | |
 | Error tracking, logs and alerts (Sentry, production only); tests on every pull request | |
 
@@ -75,7 +75,7 @@ contain post text.
 | `npm run poc:whoami` / `poc:auth` | bot user ID / one-time browser login for posting |
 | `npm run dev` | public pages on `PORT` (default 3000): `/c/<slug>`, `/u/<x_user_id>`, `/healthz` |
 | `npm run db:migrate` | apply database migrations (uses `DATABASE_URL`) |
-| `npm run content:tick -- pool|original|receipts` | run one feed job by hand (needs `ENABLE_FEED=true`) |
+| `npm run content:tick -- pool|original` | run one feed job by hand (needs `ENABLE_FEED=true`) |
 | `npm run content:queue -- add "…" / load-starters / list / remove <id>` | the owner's queue of own posts |
 | `npm run content:pool-ids` | one-off, paid: resolve new pool handles to numeric X ids |
 | `npm run db:generate` / `db:studio` | new migration from schema changes / browse tables |
