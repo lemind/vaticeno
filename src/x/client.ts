@@ -117,7 +117,7 @@ export function createXClient(bearerToken: string) {
 
     // Recent search over one conversation. X's smallest page is 10 and billing is per post returned, so
     // this costs ~10 post reads: the caller only asks when the cheap walk up the parents found nothing.
-    async getConversation(conversationId: string, maxResults = 10): Promise<Array<{ id: string; text: string; created_at?: string }>> {
+    async getConversation(conversationId: string, maxResults = 10): Promise<Array<{ id: string; text: string; created_at?: string; author_id?: string }>> {
       const json = await getJson('/tweets/search/recent', {
         query: `conversation_id:${conversationId}`,
         max_results: String(maxResults),

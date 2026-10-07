@@ -11,6 +11,7 @@ import { amendedReply, expiredReply } from '../replies/templates.js';
 import { type ClaimDeps, evaluateClaimText, MAX_AMENDS, recordingCostsOnFailure, replaceDraftContract } from './claims.js';
 import type { CallCost } from '../llm/client.js';
 import type { SourceReader } from './source-reader.js';
+import { X_POST_READ_USD } from '../x/prices.js';
 
 const MAX_DRAFTS_PER_RUN = 100;
 // A draft that still can't be locked a day after lock_at (post unreadable, model or feed down) expires with an
@@ -51,6 +52,9 @@ async function lockDraft(deps: ClaimDeps & { reader: SourceReader }, claim: Clai
 
   let post;
   try {
+    // Every claim is re-read once here to catch an edit: a post read, charged by X and, before
+    // 2026-10-07, recorded nowhere.
+    await recordCosts(db, [{ provider: 'x', operation: 'thread_read', units: 1, usdCost: X_POST_READ_USD, claimId: claim.id }]);
     post = await deps.reader.readVersion(claim.sourceTweetId);
   } catch (error) {
     // Can't see the post: never lock blind (constitution I); retry, and give up after a day.

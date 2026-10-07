@@ -72,7 +72,7 @@ const llm = {
   },
 } as unknown as LlmClient;
 
-async function bot(mentionsByPoll: Mention[][], posts: Record<string, { versionId: string; text: string }> = {}, pageText = '', conversation: Array<{ id: string; text: string; created_at?: string }> = []) {
+async function bot(mentionsByPoll: Mention[][], posts: Record<string, { versionId: string; text: string }> = {}, pageText = '', conversation: Array<{ id: string; text: string; created_at?: string; author_id?: string }> = []) {
   const replies: Array<{ to: string; text: string }> = [];
   let poll = 0;
   const conversationReads: string[] = [];
@@ -148,8 +148,14 @@ describe('sports matches', () => {
     });
     threadPosts['301'] = { id: '301', text: 'who is fighting next?', author_id: ME }; // says nothing about which match
     const { deps, replies, conversationReads } = await bot([[m]], {}, '', [
-      { id: '302', text: 'Liverpool vs Real Madrid, kickoff tonight', created_at: '2026-09-30T11:58:00Z' },
-      { id: '303', text: 'posted after the prediction, must be ignored', created_at: '2026-09-30T12:30:00Z' },
+      // The useful post is the oldest and sits behind our own reply and an unrelated argument — exactly
+      // the shape that defeated a window of the last few posts (2026-10-07).
+      { id: '302', text: 'Liverpool vs Real Madrid, kickoff tonight', created_at: '2026-09-30T10:00:00Z' },
+      { id: '303', text: 'NOT RECORDED — I can\u2019t find that match', created_at: '2026-09-30T11:00:00Z', author_id: BOT },
+      { id: '304', text: 'unrelated argument between strangers', created_at: '2026-09-30T11:30:00Z' },
+      { id: '305', text: 'another unrelated post', created_at: '2026-09-30T11:40:00Z' },
+      { id: '306', text: 'and one more', created_at: '2026-09-30T11:50:00Z' },
+      { id: '307', text: 'posted after the prediction, must be ignored', created_at: '2026-09-30T12:30:00Z' },
     ]);
 
     await pollMentions(deps, NOW);
@@ -158,6 +164,49 @@ describe('sports matches', () => {
     assert.equal(claim!.status, 'draft', 'recorded, not refused');
     assert.match(claim!.criterion, /Liverpool/);
     assert.match(replies[0]!.text, /^RECORDED/);
+  });
+
+  // X bills per post returned: the intent check, the record after it and the not-a-prediction second look
+  // all walk the same posts, and before 2026-10-07 each walk paid again.
+  test('the posts above a mention are read once, however many times they are needed', async () => {
+    const reads: string[] = [];
+    const m = mention('330', '@vaticeno quote this prediction: match Invented wins', {
+      referenced_tweets: [{ type: 'replied_to', id: '331' }],
+    });
+    threadPosts['331'] = { id: '331', text: 'parent post', author_id: ME, referenced_tweets: [{ type: 'replied_to', id: '332' }] };
+    threadPosts['332'] = { id: '332', text: 'grandparent post', author_id: ME };
+    const { deps } = await bot([[m]]);
+    const x = deps.x as unknown as { getTweet: (id: string) => Promise<unknown> };
+    const inner = x.getTweet;
+    x.getTweet = async (id) => { reads.push(id); return inner(id); };
+
+    await pollMentions(deps, NOW);
+    assert.deepEqual(reads.length, new Set(reads).size, `each post read once, got ${reads.join(',')}`);
+  });
+
+  test("the conversation context leaves out the bot's own posts", async () => {
+    const seen: string[][] = [];
+    const m = mention('320', '@vaticeno match Invented wins', {
+      conversation_id: 'conv3', created_at: '2026-09-30T12:00:00Z',
+      referenced_tweets: [{ type: 'replied_to', id: '321' }],
+    });
+    threadPosts['321'] = { id: '321', text: 'who is fighting next?', author_id: ME };
+    const { deps } = await bot([[m]], {}, '', [
+      { id: '322', text: 'Liverpool vs Real Madrid, kickoff tonight', created_at: '2026-09-30T10:00:00Z' },
+      { id: '323', text: 'NOT RECORDED — our own words', created_at: '2026-09-30T11:00:00Z', author_id: BOT },
+    ]);
+    const llmSpy = deps.llm as unknown as { generateJson: (args: { input: string; instructionVersion: string }) => Promise<unknown> };
+    const inner = llmSpy.generateJson;
+    llmSpy.generateJson = async (args) => {
+      const parsed = JSON.parse(args.input) as { context?: string[] };
+      if (args.instructionVersion.startsWith('normalize') && parsed.context) seen.push(parsed.context);
+      return inner(args);
+    };
+
+    await pollMentions(deps, NOW);
+    const widest = seen.at(-1) ?? [];
+    assert.ok(widest.some((post) => post.includes('Liverpool')), 'the post that names the match is there');
+    assert.ok(!widest.some((post) => post.includes('our own words')), "the bot's own reply is not context");
   });
 
   test('a prediction that stands on its own costs no conversation read', async () => {
