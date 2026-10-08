@@ -29,8 +29,9 @@ test('it names the verdict nobody was told, and ignores one still in flight', as
 });
 
 test('it names a claim its author was never shown, and a feed post stuck mid-flight', async () => {
-  const unseen = await insertClaim(t.sql, 'draft', { lock_at: null });
-  await insertClaim(t.sql, 'draft', { lock_at: hoursAgo(-1) }); // a normal draft, still inside its window
+  const unseen = await insertClaim(t.sql, 'draft', { lock_at: null, created_at: hoursAgo(3) });
+  await insertClaim(t.sql, 'draft', { lock_at: hoursAgo(-1), created_at: hoursAgo(3) }); // a normal draft, still inside its window
+  await insertClaim(t.sql, 'draft', { lock_at: null }); // withheld this minute: still settling, not alerted
   await t.sql`insert into feed_posts ${t.sql({ kind: 'repost', status: 'reserved', day: '2026-10-07', slot: 1, source_post_id: 'p1', account_id: 'acc1', created_at: hoursAgo(3) })}`;
   await t.sql`insert into feed_posts ${t.sql({ kind: 'receipt', status: 'reserved', day: '2026-10-07', slot: 1, source_post_id: 'p2', created_at: hoursAgo(0) })}`;
 

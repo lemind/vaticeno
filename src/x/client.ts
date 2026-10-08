@@ -46,6 +46,13 @@ const UserPostsResponseSchema = z.object({
   meta: z.object({ result_count: z.number() }).optional(),
 });
 
+// Posts of one conversation, flat: what a person sees above a reply, which is not the same as its
+// ancestors — an answer from another account can sit directly above without being the parent.
+const ConversationResponseSchema = z.object({
+  data: z.array(z.object({ id: z.string(), text: z.string(), author_id: z.string().optional(), created_at: z.string().optional() })).optional(),
+  meta: z.object({ result_count: z.number() }).optional(),
+});
+
 // One post with its edit history; the last id in edit_history_tweet_ids is the current version.
 const TweetResponseSchema = z.object({
   data: z.object({
@@ -106,6 +113,21 @@ export function createXClient(bearerToken: string) {
         'tweet.fields': 'created_at',
       });
       return UserPostsResponseSchema.parse(json).data ?? [];
+    },
+
+    // Recent search over one conversation. X's smallest page is 10 and billing is per post returned, so
+    // this costs ~10 post reads: the caller only asks when the cheap walk up the parents found nothing.
+    // `untilId` buys the 10 posts before that one instead of the 10 newest in the thread — in a busy
+    // conversation the posts that explain a prediction are the ones just before it, not the latest.
+    async getConversation(conversationId: string, opts: { untilId?: string; maxResults?: number } = {}): Promise<Array<{ id: string; text: string; created_at?: string; author_id?: string }>> {
+      const params: Record<string, string> = {
+        query: `conversation_id:${conversationId}`,
+        max_results: String(opts.maxResults ?? 10),
+        'tweet.fields': 'created_at,author_id',
+      };
+      if (opts.untilId) params.until_id = opts.untilId;
+      const json = await getJson('/tweets/search/recent', params);
+      return ConversationResponseSchema.parse(json).data ?? [];
     },
 
     async getTweet(id: string): Promise<z.infer<typeof TweetResponseSchema>['data']> {

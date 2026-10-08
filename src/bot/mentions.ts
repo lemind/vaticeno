@@ -15,6 +15,7 @@ import { logTopic, resolveQuoteTopic } from './quote-topic.js';
 import { alert, captureError } from '../observe.js';
 import { HELP_REPLY, hasTagsOrLinks, STOPPED_REPLY, THIRD_PARTY_REPLY, weightedLength, X_MAX_CHARS } from '../replies/templates.js';
 import { type Mention, PostNotSent, XApiError, type XClient } from '../x/client.js';
+import { X_POST_READ_USD } from '../x/prices.js';
 
 export type BotDeps = ExtrasDeps & {
   x: XClient;
@@ -112,6 +113,7 @@ export async function routeMention(deps: BotDeps, mention: Mention, now: Date): 
   const context = repliedTo ? (await threadAbove(deps, repliedTo)).map((post) => post.text) : [];
   const result = await submitClaim(deps, {
     text: current.text, context, authorId: mention.author_id, sourceTweetId: original, summonTweetId: mention.id, sourceVersion: current.versionId, now,
+    moreContext: () => conversationBefore(deps, mention, context),
   });
   // Not a prediction: the model reads the thread — once per mention (a command word already had its turn).
   if (result.outcome === 'rejected' && result.rejectReason === 'not_prediction' && !firstAssessed) {
@@ -196,6 +198,59 @@ function echoes(answer: string, texts: string[]): boolean {
   });
 }
 
+// X bills per post returned, so the same post must never be fetched twice while one mention is handled
+// (owner decision 2026-10-07). Three paths used to re-read the posts above: the intent check, the record
+// that follows it, and the second look when the text turns out not to be a prediction. The cache lives
+// for one mention only — the lock job reads the post again later, on purpose, to catch edits.
+function cachedReads(deps: BotDeps): BotDeps {
+  const posts = new Map<string, Promise<Awaited<ReturnType<XClient['getTweet']>>>>();
+  const versions = new Map<string, Promise<Awaited<ReturnType<SourceReader['readVersion']>>>>();
+  const once = <T>(cache: Map<string, Promise<T>>, key: string, read: () => Promise<T>): Promise<T> => {
+    const held = cache.get(key);
+    if (held) return held;
+    const fresh = read();
+    cache.set(key, fresh); // a rejection is cached too: a post we cannot read is not read again either
+    // Charged on arrival, never on the attempt: a deleted post returns nothing, so there is nothing to
+    // pay for. UNRECONCILED: an edited post costs a second read inside the reader, counted here as one.
+    void fresh.then(() => recordReads(deps, 1, 'thread.post_read'), () => {});
+    return fresh;
+  };
+  return {
+    ...deps,
+    x: { ...deps.x, getTweet: (id: string) => once(posts, id, () => deps.x.getTweet(id)) },
+    reader: { ...deps.reader, readVersion: (id: string) => once(versions, id, () => deps.reader.readVersion(id)) },
+  };
+}
+
+// What a person sees above the mention, which is not what walking the parents gives: on X an answer from
+// another account sits beside the post, not above it (owner decision 2026-10-07 — a bot named the fight in
+// a reply to the same parent, so the chain we walked never mentioned it). One conversation read, ~10 posts
+// at X's smallest page, and only when the parents left the prediction unrecordable. Posts are kept in
+// memory, never stored (INIT_SPEC §6.9).
+async function conversationBefore(deps: BotDeps, mention: Mention, already: readonly string[]): Promise<readonly string[]> {
+  // A post that starts its own conversation has nothing before it: the search would return the post
+  // itself and bill us for it. Only a reply can have anything above or beside it.
+  const isReply = mention.referenced_tweets?.some((ref) => ref.type === 'replied_to') ?? false;
+  if (!mention.conversation_id || !isReply || mention.conversation_id === mention.id) return already;
+  try {
+    const posts = await deps.x.getConversation(mention.conversation_id, { untilId: mention.id });
+    await recordReads(deps, posts.length, 'thread.conversation_read');
+    // Every post of the conversation that came before, oldest first. Not a window of the last few: the
+    // post that names the subject is often older than the chatter around it (the answer naming a fight
+    // sat four posts back, behind our own refusal and an argument between strangers). They are all paid
+    // for by the one read above, so keeping fewer buys nothing. Our own posts are not context.
+    const before = posts
+      .filter((post) => post.id !== mention.id && post.author_id !== deps.botUserId
+        && (!post.created_at || !mention.created_at || post.created_at < mention.created_at))
+      .sort((a, b) => (a.created_at ?? '').localeCompare(b.created_at ?? ''))
+    log('info', 'conversation read for context', { event: 'thread.conversation_read', tweet_id: mention.id, posts: posts.length, used: before.length });
+    return before.length > 0 ? before.map((post) => post.text) : already;
+  } catch (error) {
+    captureError(error, { event: 'thread.conversation_failed', tweet_id: mention.id });
+    return already;
+  }
+}
+
 async function threadAbove(deps: BotDeps, repliedTo: string | undefined, maxPosts = THREAD_DEPTH): Promise<ThreadPost[]> {
   return (await threadWalk(deps, repliedTo, maxPosts)).posts;
 }
@@ -271,7 +326,7 @@ export async function pollMentions(deps: BotDeps, now: Date): Promise<{ mentions
     } else {
       let routed: Routed;
       try {
-        routed = await routeMention(deps, mention, now);
+        routed = await routeMention(cachedReads(deps), mention, now);
       } catch (error) {
         const attempts = state.failing?.tweet_id === mention.id ? state.failing.attempts + 1 : 1;
         captureError(error, { event: 'mention.failed', tweet_id: mention.id, attempts });
@@ -399,6 +454,17 @@ async function rememberThread(deps: BotDeps, slug: string, known: string[]) {
 }
 
 // Self-imposed caps (constitution IV): per author per hour, and per day overall.
+// Every X post this path reads is money (src/x/prices.ts). Before 2026-10-07 none of it was recorded:
+// the mention poll and the posts read for context were spend nobody could see.
+async function recordReads(deps: BotDeps, posts: number, event: string): Promise<void> {
+  if (posts === 0) return;
+  try {
+    await recordCosts(deps.db, [{ provider: 'x', operation: 'thread_read', units: posts, usdCost: posts * X_POST_READ_USD, claimId: null }]);
+  } catch (error) {
+    captureError(error, { event: `${event}_costs_failed` }); // never fails the poll: the reads are already paid
+  }
+}
+
 function capHit(deps: BotDeps, state: IngestState, authorId: string, now: Date): 'per_author_hour' | 'per_day' | null {
   state.reply_log = state.reply_log.filter((entry) => now.getTime() - Date.parse(entry.at) < DAY_MS);
   if (state.reply_log.length >= deps.caps.perDay) return 'per_day';
@@ -412,6 +478,7 @@ async function fetchNewMentions(deps: BotDeps, sinceId: string | undefined): Pro
   for (let page = 0; page < MAX_PAGES; page++) {
     const result = await deps.x.getMentionsPage({ userId: deps.botUserId, sinceId, paginationToken, maxResults: sinceId ? PAGE_SIZE : FIRST_RUN_PAGE_SIZE });
     mentions.push(...(result.data ?? []));
+    await recordReads(deps, result.data?.length ?? 0, 'mentions.poll'); // a quiet poll returns nothing and costs nothing
     paginationToken = result.meta.next_token;
     if (!sinceId || !paginationToken) return mentions.reverse(); // oldest first
   }
