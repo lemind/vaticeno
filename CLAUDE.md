@@ -3,11 +3,15 @@
 <!-- SPECKIT START -->
 **Constitution**: `.specify/memory/constitution.md` (v2.5.0) — principles every plan must pass.
 
-**Active plan**: `specs/002-content-feed/plan.md` (001's plan, research, data-model and contracts/ stay the reference for the claim pipeline).
+**Active plan**: `specs/003-python-platform/plan.md` (001's plan, research, data-model and contracts/ stay the reference for the claim pipeline).
 
-**Active feature**: `specs/002-content-feed/spec.md` — the account's own feed: weighted pool reposts, the
+**Active feature**: `specs/003-python-platform/spec.md` — operations, capacity and cost, in three deploy
+stages: a private status page over job state and build info; a measured capacity baseline replacing the
+UNRECONCILED numbers; a local entailment verifier in front of the paid model, shadow first and behind a
+switch. The service layer is Python, which needs the constitution VII amendment first.
+Shipped before it: `specs/002-content-feed/spec.md` — the account's own feed: weighted pool reposts, the
 owner's queue of own posts; caps and "never twice" in the database, behind
-`ENABLE_FEED`/`FEED_DRY_RUN`. Shipped before it: `specs/001-stage0-contract-core/spec.md` — Stage 0, offline: contracts for any
+`ENABLE_FEED`/`FEED_DRY_RUN`. And `specs/001-stage0-contract-core/spec.md` — Stage 0, offline: contracts for any
 topic, checks CLI over fixtures, NEEDS INFO case A, resolver (crypto deterministic, everything else
 model-decided) proven on seeded claims, public pages. Where INIT_SPEC (v1.1.1) is narrower
 (deterministic-only, crypto + one league), the constitution and this spec win.
