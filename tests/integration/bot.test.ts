@@ -86,7 +86,7 @@ async function bot(mentionsByPoll: Mention[][], posts: Record<string, { versionI
   } as unknown as XClient;
   const deps: BotDeps = {
     db: t.db, llm, coinbase: { productStatus: async () => 'online' } as unknown as Coinbase, normalizerModel: 'm',
-    x, reader: createMemorySourceReader(posts), botUserId: BOT,
+    x, reader: createMemorySourceReader(posts), botUserId: BOT, botHandle: 'vaticeno',
     fetchPage: async (url: string) => ({ url, text: pageText, sha256: 'x', simhash: null, retrievedAt: NOW }),
     postReply: async (to, text) => { replies.push({ to, text }); return { id: `r-${to}` }; },
     allowAuthor: (id) => id !== '666', caps: { perAuthorPerHour: 3, perDay: 300 },
@@ -278,9 +278,24 @@ describe('fixes from X', () => {
     assert.equal((await t.sql`select count(*)::int as n from claims`)[0]!.n, 1);
   });
 
+  // The handle is in the body, not the prepended block: in a thread the bot has already answered, that is the
+  // only way to summon it again while replying to someone else (src/commands/parse.ts addressesBot).
+  test('strangers talking under our answer get no reply, no claim and no model call', async () => {
+    const summon = mention('70a', '@vaticeno BTC daily close above $150,000 by 2026-12-31');
+    // X prepends our handle because we answered in this thread; nobody asked us anything (owner report 2026-10-09).
+    const carried = mention('71a', '@vaticeno @alice lol no way that happens', { author_id: '400', conversation_id: '70a', in_reply_to_user_id: '401', referenced_tweets: [{ type: 'replied_to', id: 'someone-else' }] });
+    const { deps, replies } = await bot([[summon], [carried]]);
+    await pollMentions(deps, NOW);
+    const before = replies.length;
+    await pollMentions(deps, NOW);
+    assert.equal(replies.length, before, 'no reply to a handle X carried');
+    assert.equal((await t.sql`select count(*)::int as n from claims`)[0]!.n, 1, 'no claim from a carried handle');
+    assert.equal((await t.sql`select count(*)::int as n from cost_events where operation in ('normalize', 'thread_read')`)[0]!.n > 0, true, 'the real summons still cost its normalize');
+  });
+
   test('a new prediction elsewhere in the thread of an open claim is a new claim, not a fix', async () => {
     const summon = mention('60a', '@vaticeno vague BTC to the moon');
-    const other = mention('61a', '@vaticeno BTC daily close above $150,000 by 2026-12-31', { conversation_id: '60a', referenced_tweets: [{ type: 'replied_to', id: 'someone-else-in-thread' }] });
+    const other = mention('61a', 'hey @vaticeno BTC daily close above $150,000 by 2026-12-31', { conversation_id: '60a', referenced_tweets: [{ type: 'replied_to', id: 'someone-else-in-thread' }] });
     const { deps } = await bot([[summon], [other]]);
     await pollMentions(deps, NOW);
     await pollMentions(deps, NOW);

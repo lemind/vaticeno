@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { parseCommand } from './parse.js';
+import { addressesBot, parseCommand } from './parse.js';
 
 const cases: Array<[string, ReturnType<typeof parseCommand>]> = [
   ['@vaticeno record — BTC closes above $150k before 31 Dec 2026', { kind: 'record', body: 'BTC closes above $150k before 31 Dec 2026' }],
@@ -45,3 +45,29 @@ test('parseCommand: record after several leading handles', () => {
     body: 'BTC > 150k by 2026-12-31',
   });
 });
+
+// X prepends participants' handles to replies, so being in a thread is not being asked (owner report 2026-10-09).
+const reply = (text: string, inReplyToUserId?: string) => ({
+  text, author_id: 'author', in_reply_to_user_id: inReplyToUserId, referenced_tweets: [{ type: 'replied_to', id: 'parent' }],
+});
+const own = (text: string) => ({ text, author_id: 'author' });
+
+// [name, expected, mention, we already replied in this thread]
+const addressed: Array<[string, boolean, ReturnType<typeof reply> | ReturnType<typeof own>, boolean]> = [
+  ['a post of its own naming us', true, own('@vaticeno BTC above $150k by 2026-12-31'), false],
+  ['a reply to one of our posts (a fix)', true, reply('@vaticeno make it the daily close', 'bot'), true],
+  ['a reply under their own post', true, reply('@vaticeno this, by next month', 'author'), true],
+  ['tagged into a thread we are not in', true, reply('@vaticeno BTC above $150k by 2026-12-31', 'stranger'), false],
+  ['tagged into a thread we are not in, handle carried too', true, reply('@alice @vaticeno Arsenal win the league by 2027-05-31', 'alice'), false],
+  ['our handle typed into the body of a thread we are in', true, reply('@alice ask @vaticeno to judge this', 'alice'), true],
+  ['strangers talking to each other in a thread we answered', false, reply('@vaticeno @alice no way that happens', 'alice'), true],
+  ['the same, several carried handles', false, reply('@alice @vaticeno @bob you are both wrong', 'alice'), true],
+  ['a carried handle in front of a bare command word', false, reply('@vaticeno ping', 'alice'), true],
+  ['a carried handle and nothing of their own', false, reply('@vaticeno', 'alice'), true],
+];
+
+for (const [name, expected, mention, inThread] of addressed) {
+  test(`addressesBot: ${name}`, () => {
+    assert.equal(addressesBot(mention, 'vaticeno', 'bot', inThread), expected);
+  });
+}

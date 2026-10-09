@@ -7,6 +7,7 @@ import { amendClaim, type ClaimDeps, submitClaim } from '../lifecycle/claims.js'
 import type { SourceReader } from '../lifecycle/source-reader.js';
 import { log } from '../log.js';
 import { type Command, commandWordIn, resolveCommand } from './commands.js';
+import { addressesBot } from '../commands/parse.js';
 import { type Intent, type ThreadPost, classifyIntent } from '../llm/intent.js';
 import { type CallCost, LlmSchemaError } from '../llm/client.js';
 import { recordCosts } from '../db/costs.js';
@@ -21,6 +22,7 @@ export type BotDeps = ExtrasDeps & {
   x: XClient;
   reader: SourceReader;
   botUserId: string;
+  botHandle: string;
   postReply: (inReplyToTweetId: string, text: string) => Promise<{ id: string }>;
   allowAuthor: (authorId: string) => boolean; // pre-launch gate: REPLY_ALLOWLIST_USER_IDS ('*' = anyone)
   caps: { perAuthorPerHour: number; perDay: number };
@@ -49,9 +51,16 @@ const QUOTE_RETRY_MINUTES = [1, 5, 30, 120]; // polls a failing mention is retri
 const POINTS_AT_PARENT = /^(this|that|it|this one|that one|above|here|[^\p{L}\p{N}]*)$/iu;
 
 // What one mention means and what the bot answers (null = say nothing).
-export async function routeMention(deps: BotDeps, mention: Mention, now: Date): Promise<Routed> {
+export async function routeMention(deps: BotDeps, mention: Mention, now: Date, weRepliedInThread = false): Promise<Routed> {
   if (mention.author_id === deps.botUserId) return { action: 'ignored_self', reply: null };
   if (mention.referenced_tweets?.some((ref) => ref.type === 'retweeted')) return { action: 'ignored_repost', reply: null };
+  // No mention, no reply (constitution VI): a handle X carried into a thread we already answered is not a
+  // request. Before anything that spends or changes state — no model call, no thread read, and a carried
+  // mention never resumes an author who sent STOP (owner report 2026-10-09).
+  if (!addressesBot(mention, deps.botHandle, deps.botUserId, weRepliedInThread)) {
+    log('info', 'mention not addressed to us; no reply', { event: 'mention.not_addressed', tweet_id: mention.id, author_id: mention.author_id });
+    return { action: 'ignored_not_addressed', reply: null };
+  }
 
   const body = mention.text.replace(/@\w+/g, ' ').replace(/\s+/g, ' ').trim();
   const command = resolveCommand(body); // a bare command, matched in code: no model call
@@ -326,7 +335,8 @@ export async function pollMentions(deps: BotDeps, now: Date): Promise<{ mentions
     } else {
       let routed: Routed;
       try {
-        routed = await routeMention(cachedReads(deps), mention, now);
+        const inThread = Boolean(mention.conversation_id && state.answered_conversation_ids.includes(mention.conversation_id));
+        routed = await routeMention(cachedReads(deps), mention, now, inThread);
       } catch (error) {
         const attempts = state.failing?.tweet_id === mention.id ? state.failing.attempts + 1 : 1;
         captureError(error, { event: 'mention.failed', tweet_id: mention.id, attempts });
@@ -410,6 +420,9 @@ const inMinutes = (now: Date, minutes: number) => new Date(now.getTime() + minut
 // a crash mid-post never replays it, and a failed post is never retried (INIT_SPEC §6.7).
 async function sendReply(deps: BotDeps, state: IngestState, mention: Mention, text: string, now: Date): Promise<string | null> {
   state.replied_tweet_ids = [...state.replied_tweet_ids, mention.id].slice(-REPLIED_IDS_KEPT);
+  if (mention.conversation_id && !state.answered_conversation_ids.includes(mention.conversation_id)) {
+    state.answered_conversation_ids = [...state.answered_conversation_ids, mention.conversation_id].slice(-REPLIED_IDS_KEPT);
+  }
   state.reply_log = [...state.reply_log, { author_id: mention.author_id, at: now.toISOString() }];
   await writeIngestState(state, deps.statePath);
   try {
