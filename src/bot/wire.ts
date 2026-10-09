@@ -21,6 +21,7 @@ export function buildBotDeps(claimDeps: ExtrasDeps): BotDeps {
     x,
     reader: createXSourceReader(x),
     botUserId: config.X_BOT_USER_ID,
+    botHandle: config.X_BOT_HANDLE,
     allowAuthor: (authorId) => allow.has('*') || allow.has(authorId),
     caps: { perAuthorPerHour: config.REPLY_MAX_PER_AUTHOR_PER_HOUR, perDay: config.REPLY_MAX_PER_DAY },
     // HACK(x): SPECULATIVE — a 401 can mean a stale stored expiry: refresh once and retry (the token rotates). See src/x/oauth.ts.

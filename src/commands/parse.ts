@@ -51,6 +51,24 @@ function stripLeadingHandles(text: string): string {
   return text.replace(/^(\s*@\w{1,15})+/, '').trim();
 }
 
+export type AddressableMention = {
+  text: string;
+  author_id: string;
+  in_reply_to_user_id?: string;
+  referenced_tweets?: Array<{ type: string; id: string }>;
+};
+
+// Addressed to us, or did we just end up in it? See specs/001-stage0-contract-core/spec.md.
+// HACK(x): OBSERVED 2026-10-08 — v2 marks nothing as a carried handle. REVISIT: drop the body test if it does.
+export function addressesBot(mention: AddressableMention, botHandle: string, botUserId: string, weRepliedInThread: boolean): boolean {
+  if (!mention.referenced_tweets?.some((ref) => ref.type === 'replied_to')) return true; // its own post, naming us
+  if (mention.in_reply_to_user_id === botUserId) return true; // answering us: a fix, or a question
+  if (mention.in_reply_to_user_id === mention.author_id) return true; // "@vaticeno" under their own post
+  if (!weRepliedInThread) return true; // tagged into someone else's thread: deliberate, nothing to carry
+  // We are in this thread, and they are talking to someone else: only their own words can summon us.
+  return new RegExp(`@${escapeRegExp(botHandle)}\\b`, 'i').test(stripLeadingHandles(mention.text));
+}
+
 function cleanBody(text: string): string {
   return text.replace(LEADING_SEPARATORS, '').trim();
 }

@@ -281,6 +281,11 @@ async function confirmFixture(deps: ClaimDeps, contract: Contract, now: Date, co
     log('warn', 'fixture check unreadable; recorded without it', { event: 'fixture.unreadable' });
     return { outcome: 'recorded', contract };
   }
+  // The event is real but nobody can tell who it is about ("my folks' horse"): that is a missing
+  // detail, not a wrong prediction, so the author is asked for the name and keeps their claim.
+  if (!fixture.found && fixture.missing_participant) {
+    return { outcome: 'needs_info', unclear: ['subject'], explanation: 'Name who this is about — a horse, a driver or a team, as it appears on the card.', proposal: null };
+  }
   if (!fixture.found) return { outcome: 'rejected', reason: 'event_not_found' };
 
   const kickoff = fixture.kickoff_utc ? Date.parse(fixture.kickoff_utc) : NaN;

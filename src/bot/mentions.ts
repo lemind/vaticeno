@@ -7,6 +7,7 @@ import { amendClaim, type ClaimDeps, submitClaim } from '../lifecycle/claims.js'
 import type { SourceReader } from '../lifecycle/source-reader.js';
 import { log } from '../log.js';
 import { type Command, commandWordIn, resolveCommand } from './commands.js';
+import { addressesBot } from '../commands/parse.js';
 import { type Intent, type ThreadPost, classifyIntent } from '../llm/intent.js';
 import { type CallCost, LlmSchemaError } from '../llm/client.js';
 import { recordCosts } from '../db/costs.js';
@@ -21,6 +22,7 @@ export type BotDeps = ExtrasDeps & {
   x: XClient;
   reader: SourceReader;
   botUserId: string;
+  botHandle: string;
   postReply: (inReplyToTweetId: string, text: string) => Promise<{ id: string }>;
   allowAuthor: (authorId: string) => boolean; // pre-launch gate: REPLY_ALLOWLIST_USER_IDS ('*' = anyone)
   caps: { perAuthorPerHour: number; perDay: number };
@@ -40,6 +42,9 @@ const FIRST_RUN_PAGE_SIZE = 10; // no cursor yet: only recent mentions, keep the
 const PAGE_SIZE = 100;
 const MAX_PAGES = 5;
 const REPLIED_IDS_KEPT = 1000;
+// Conversations outlive replies: a verdict can land a year after the first reply in that thread, and X carries
+// our handle there the whole time. Kept 5× longer, so the thread is still known when the verdict posts.
+const CONVERSATIONS_KEPT = 5000;
 // Tries for one mention before it is dropped, and the pause before each retry: a transient model or
 // network fault gets ~23 minutes to pass, not three (owner decision 2026-10-07).
 const MENTION_RETRY_MINUTES = [1, 2, 5, 15];
@@ -49,12 +54,24 @@ const QUOTE_RETRY_MINUTES = [1, 5, 30, 120]; // polls a failing mention is retri
 const POINTS_AT_PARENT = /^(this|that|it|this one|that one|above|here|[^\p{L}\p{N}]*)$/iu;
 
 // What one mention means and what the bot answers (null = say nothing).
-export async function routeMention(deps: BotDeps, mention: Mention, now: Date): Promise<Routed> {
+export async function routeMention(deps: BotDeps, mention: Mention, now: Date, weRepliedInThread = false): Promise<Routed> {
   if (mention.author_id === deps.botUserId) return { action: 'ignored_self', reply: null };
   if (mention.referenced_tweets?.some((ref) => ref.type === 'retweeted')) return { action: 'ignored_repost', reply: null };
-
   const body = mention.text.replace(/@\w+/g, ' ').replace(/\s+/g, ' ').trim();
   const command = resolveCommand(body); // a bare command, matched in code: no model call
+
+  // No mention, no reply (constitution VI, owner decision 2026-10-09). Decided before any spend.
+  if (!addressesBot(mention, deps.botHandle, deps.botUserId, weRepliedInThread)) {
+    // STOP is honoured wherever it is seen — silence is what they asked for — but earns no reply (§6.5).
+    if (command === 'stop') {
+      await deps.db.insert(optOuts).values({ xUserId: mention.author_id }).onConflictDoNothing();
+      log('info', 'STOP in a post that did not address us; recorded, no reply', { event: 'mention.stop_unaddressed', tweet_id: mention.id, author_id: mention.author_id });
+      return { action: 'stop_unaddressed', reply: null };
+    }
+    log('info', 'mention not addressed to us; no reply', { event: 'mention.not_addressed', tweet_id: mention.id, author_id: mention.author_id });
+    return { action: 'ignored_not_addressed', reply: null };
+  }
+
   if (command) return runCommand(deps, mention, command, now);
   // Tagging the bot again after STOP resumes (owner decision 2026-09-30, constitution IV).
   await deps.db.delete(optOuts).where(eq(optOuts.xUserId, mention.author_id));
@@ -326,7 +343,8 @@ export async function pollMentions(deps: BotDeps, now: Date): Promise<{ mentions
     } else {
       let routed: Routed;
       try {
-        routed = await routeMention(cachedReads(deps), mention, now);
+        const inThread = Boolean(mention.conversation_id && state.answered_conversation_ids.includes(mention.conversation_id));
+        routed = await routeMention(cachedReads(deps), mention, now, inThread);
       } catch (error) {
         const attempts = state.failing?.tweet_id === mention.id ? state.failing.attempts + 1 : 1;
         captureError(error, { event: 'mention.failed', tweet_id: mention.id, attempts });
@@ -342,7 +360,7 @@ export async function pollMentions(deps: BotDeps, now: Date): Promise<{ mentions
       }
       log('info', 'mention handled', { event: 'mention.handled', tweet_id: mention.id, author_id: mention.author_id, action: routed.action, text_chars: mention.text.length });
       if (routed.deferQuote) {
-        state.pending_quotes.push({ tweet_id: mention.id, author_id: mention.author_id, attempts: 0, next_at: inMinutes(now, QUOTE_RETRY_MINUTES[0]!), topic: routed.quoteTopic });
+        state.pending_quotes.push({ tweet_id: mention.id, author_id: mention.author_id, attempts: 0, next_at: inMinutes(now, QUOTE_RETRY_MINUTES[0]!), topic: routed.quoteTopic, conversation_id: mention.conversation_id });
       }
       const replyId = routed.reply ? await sendReply(deps, state, mention, routed.reply, now) : null;
       if (replyId) replies++;
@@ -389,7 +407,7 @@ async function retryPendingQuotes(deps: BotDeps, state: IngestState, now: Date):
     // The topic was decided when the request came in: a retry re-reads Wikiquote, never X or the model.
     const quote = await quoteReply(deps, pending.topic);
     if (quote) {
-      if (await sendReply(deps, state, { id: pending.tweet_id, author_id: pending.author_id, text: '' }, quote, now)) replies++;
+      if (await sendReply(deps, state, { id: pending.tweet_id, author_id: pending.author_id, text: '', conversation_id: pending.conversation_id }, quote, now)) replies++;
       continue;
     }
     const attempts = pending.attempts + 1;
@@ -406,6 +424,12 @@ async function retryPendingQuotes(deps: BotDeps, state: IngestState, now: Date):
 
 const inMinutes = (now: Date, minutes: number) => new Date(now.getTime() + minutes * 60_000).toISOString();
 
+// Threads we have posted in: X prepends our handle to every later reply there (src/commands/parse.ts).
+function rememberConversation(state: IngestState, conversationId: string | undefined): void {
+  if (!conversationId || state.answered_conversation_ids.includes(conversationId)) return;
+  state.answered_conversation_ids = [...state.answered_conversation_ids, conversationId].slice(-CONVERSATIONS_KEPT);
+}
+
 // The posted reply's id, or null when nothing was posted. The mention is saved as answered BEFORE the post:
 // a crash mid-post never replays it, and a failed post is never retried (INIT_SPEC §6.7).
 async function sendReply(deps: BotDeps, state: IngestState, mention: Mention, text: string, now: Date): Promise<string | null> {
@@ -414,6 +438,9 @@ async function sendReply(deps: BotDeps, state: IngestState, mention: Mention, te
   await writeIngestState(state, deps.statePath);
   try {
     const posted = await deps.postReply(mention.id, text);
+    // Only a reply that went out puts us in the thread: X carries nothing for a post that never existed.
+    rememberConversation(state, mention.conversation_id);
+    await writeIngestState(state, deps.statePath);
     log('info', 'reply posted', { event: 'reply.posted', tweet_id: mention.id, reply_tweet_id: posted.id, reply_chars: text.length });
     return posted.id;
   } catch (error) {

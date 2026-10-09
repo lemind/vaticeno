@@ -46,7 +46,7 @@ const REJECT_WORDS: Record<Exclude<RejectReason, 'x_rules' | 'duplicate'>, strin
   not_prediction: "that doesn't read as a prediction",
   deadline_too_close: 'the deadline must be more than 24 hours away (a sports match: just before it starts)',
   deadline_too_far: 'the deadline must be within 10 years',
-  event_not_found: "I can't find that match scheduled — name both teams and the day",
+  event_not_found: "I can't find that event scheduled — name who is taking part and the day",
 };
 
 // Anything that isn't a prediction ("@vaticeno cancel", "hi", …) gets what the bot can do.

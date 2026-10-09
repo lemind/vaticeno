@@ -26,7 +26,7 @@ the picks and posts nothing.
 |---|---|
 | X: mentions → one reply each; fixes by replying under the bot's answer; STOP; help; verdict replies | Per-claim AI budget in the live resolver |
 | Predictions → contracts by AI, checked in code; price + date = daily close; unclear ones get a checked example | |
-| Sports: the match must exist (web search), competition filled in, recordable until kickoff | Public pages on a domain (HTTPS config is ready in `deploy/`) |
+| Sports: the event and its competitor must exist (web search), competition filled in, recordable until the start | Public pages on a domain (HTTPS config is ready in `deploy/`) |
 | Database: lock and verdict rules enforced by Postgres, locally and on Supabase | Nightly backups (scripts in `deploy/`, not installed) |
 | Verdicts after the deadline: Coinbase daily close, or AI reading web pages behind code gates; human review | |
 | Own feed (spec 002): 2 pool posts a day (repost, or a quote post with our own line), 1 owner-written post a day from a queue; caps and "never twice" enforced by Postgres; off until `ENABLE_FEED=true` | Switch the feed on the server; a weekly stats post |
@@ -48,6 +48,13 @@ the picks and posts nothing.
 
 Bare commands and typos (`quote`, `qoute 2`) are matched instantly; anything else unclear ("quote me something
 nice", "so?" under a quote, a question) is read by the AI together with the thread above it.
+
+**It answers only where it was addressed.** X puts the handles of everyone in a thread at the front of every
+reply there, so once the bot has answered once, later replies arrive looking tagged even when two other people
+are talking to each other. Those get nothing. A post reaches the bot when it answers one of the bot's own
+posts, when `@vaticeno` sits under a post of your own, when it pulls the bot into a thread it was not in, or
+when the handle is in the words you typed rather than only in the prefix X added. STOP is recorded wherever it
+appears, addressed or not.
 
 ## Run locally
 

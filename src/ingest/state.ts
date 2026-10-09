@@ -13,8 +13,11 @@ const IngestStateSchema = z.object({
   // The mention that failed on the last poll(s), so one that always fails is skipped instead of blocking the rest.
   // `next_at` is absent in state written before the retry ladder shipped: an absent one means "try now".
   failing: z.object({ tweet_id: z.string(), attempts: z.number(), next_at: z.string().optional() }).optional(),
+  // Conversations the bot has already replied in. X prepends our handle to every later reply there, so this
+  // is what tells a thread we were dragged into from one we were tagged into (src/commands/parse.ts).
+  answered_conversation_ids: z.array(z.string()).default([]),
   // `quote` mentions whose quote couldn't be fetched yet: retried on a ladder (src/bot/mentions.ts).
-  pending_quotes: z.array(z.object({ tweet_id: z.string(), author_id: z.string(), attempts: z.number(), next_at: z.string(), topic: z.string().optional() })).default([]),
+  pending_quotes: z.array(z.object({ tweet_id: z.string(), author_id: z.string(), attempts: z.number(), next_at: z.string(), topic: z.string().optional(), conversation_id: z.string().optional() })).default([]),
 });
 
 export type IngestState = z.infer<typeof IngestStateSchema>;
