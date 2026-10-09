@@ -1,7 +1,7 @@
 @AGENTS.md
 
 <!-- SPECKIT START -->
-**Constitution**: `.specify/memory/constitution.md` (v2.5.0) — principles every plan must pass.
+**Constitution**: `.specify/memory/constitution.md` (v2.6.0) — principles every plan must pass.
 
 **Active plan**: `specs/003-python-platform/plan.md` (001's plan, research, data-model and contracts/ stay the reference for the claim pipeline).
 

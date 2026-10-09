@@ -203,12 +203,39 @@ and the reply's action carries the same step. 94 unit and 113 integration tests 
 
 - [x] T048 Each post is read once, and every read is counted (owner decision 2026-10-07). X charges per post it returns, and three paths walked the same posts above a mention — the intent check, the record that followed it, and the second look when the text turned out not to be a prediction — paying again each time. A cache that lives for one mention now serves them all; the lock job still re-reads the post later, on purpose, to catch an edit. The wider conversation read was also keeping only the three most recent posts of the ten it paid for, which is how an answer naming a fight was read and thrown away while our own refusal and an argument between strangers took its place: every post of the conversation that came before the mention is now used, minus the bot's own. Spend that was invisible is recorded: the mention poll, the posts read for context, and the lock job's re-read of every claim. Three tests, including one that fails if any post is fetched twice.
 
+## Phase 8: The record is the content (owner review 2026-10-09)
+
+**Why**: the profile is reposts and nine starter posts, so between them there is no reason to follow it.
+The suggested fix — a daily source-backed post about whatever happened in the world — has no edge (every
+wire service is faster), needs a link in text that is not allowed to carry one, and would be AI-written
+filler, which US2 rules out on purpose. What nobody else has is our own record: what is on the record
+now, what comes due soon, how the judged ones turned out in aggregate. Up to five of each a week,
+Monday to Friday, from the database, no AI call, one X post each (~$0.15 a week at the UNRECONCILED
+post price, if every slot is used; a quiet week costs nothing because a post with nothing new to say is
+not posted). Five is a ceiling, not a quota — the "nothing new" rule in T050/T051 is what keeps it from
+becoming ten repetitions of the same three slugs.
+
+- [x] T049 Owner decision 2026-10-09, before any code: a count of verdicts with no claim named ("4 came due, 1 hit, 2 missed, 1 void") does **not** republish a verdict, so the record post is allowed; and a claim carrying money is never the subject of an own-feed post, by name or inside a count, because the account does not advertise a wager it is also judging. Constitution amended to VI 2.6.0; `CLAUDE.md` version line updated; FR-012 and FR-012a written.
+- [ ] T050 [P] [US4] `src/content/digest.ts`: `deadlineDigest(claims, now, namedRecently)` — pure. Locked claims whose deadline falls in the next 7 days, soonest first, at most 5, as one line each (`#slug · 14 Oct`); the total count when more are open than fit. A claim named in a digest within the last 7 days is dropped, so a slug is never posted twice in a week however often the job runs; nothing left → null. A claim carrying money is excluded, in the query and again here (FR-012a). Checked like any own-feed text: `weightedLength` ≤ 280, `hasTagsOrLinks` false, no author handle, no prediction of its own, no hashtag but the slugs (constitution VI 2.4.1). Nothing due → null.
+- [ ] T051 [P] [US4] `src/content/record-post.ts`: `recordPost(counts, lastPosted)` — pure. One line of the trailing week's numbers (recorded, came due, hit, miss, void, still open), no slug and no claim singled out, same text checks. Counts identical to the last posted record → null, so the same numbers never go out twice; no claims and no verdicts → null. Staked claims are outside every count (FR-012a).
+- [ ] T052 [US4] `src/content/digest-run.ts`: the queries (claims due in the next 7 days; slugs named in a digest in the last 7 days; the trailing week's recorded and resolved counts; the last record post's counts) and both runs through the shared money guard in `src/content/spend.ts` — reserve, post, mark. New `feed_posts` kinds `digest` and `record` in `src/db/schema.ts` plus a migration (next free number; 003's data model reserves 0014–0018) extending `feed_posts_kind_check`, with a down migration. The reservation's `day` is the run's date and the cap is 1, so the generated `cap_group` and the existing unique index refuse a second post of that kind on the same day; five a week comes from the schedule, not from a counter. Recovering what a digest named needs the slugs on the row — add `payload jsonb` to `feed_posts` in the same migration rather than re-deriving them from text we never store.
+- [ ] T053 [US4] Schedule both in `src/jobs/scheduler.ts` Monday to Friday at fixed off-the-hour times, only when `ENABLE_FEED`; add both to `content:tick`. The digest runs in the morning, the record post in the afternoon, so the two never land together.
+- [ ] T054 [P] [US4] Tests: `src/content/digest.test.ts` — a line carrying a handle, a link or a foreign hashtag → null; over 280 as X counts → null; nothing due → null; every due claim already named in the last 7 days → null; record counts unchanged since the last post → null. One integration test: two runs of a kind on the same day → one row; five runs across a week → five rows; a dry run reserves nothing.
+- [ ] T055 [US4] `docs/content-rules.md`: the editorial rule in one table — what the account posts (pool reposts, owner-written originals, the weekly digest, the weekly record) and what it never posts (news it has no edge on, AI-written originals, a single verdict, any link). An outcome post the owner wants goes into the existing queue, not a new path. Update `README.md` (status table, commands) and this spec's FR-011–FR-013.
+- [ ] T056 Two weeks after T053 ships (owner): read followers, profile visits and replies, and decide — keep five a week, cut the cadence, or drop it (SC-005). Also read how many of the ten weekly slots actually produced a post; if it is consistently two or three, the ceiling is wrong, not the idea. Write both numbers into this phase.
+
+**Checkpoint**: the feed is pool reposts, the owner's queue and up to ten posts a week written from the
+record. Still off until `ENABLE_FEED=true`.
+
+---
+
 ## Dependencies & Execution Order
 
 - T001 blocks every task that posts (T016 live mode, T021, T024); dry run (T019) may start before it.
 - Phase 2 (T004–T010) blocks all stories. T004 → T005 → T008 → T009.
 - US1, US2, US3 are independent after Phase 2; US1 first (MVP).
-- Owner tasks: T003 (paid lookup, ~$0.16), T018, T019 review, T023 review.
+- Owner tasks: T003 (paid lookup, ~$0.16), T018, T019 review, T023 review, T049 (decision), T056 (read the numbers).
+- Phase 8: T049 blocks T051. T050 and T051 are pure and parallel; T052 needs both; T053 needs T052.
 
 ## Parallel Examples
 
