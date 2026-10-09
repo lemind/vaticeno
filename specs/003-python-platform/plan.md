@@ -71,9 +71,11 @@ deploy/                    two more systemd units; the deploy writes build info
 docs/progress.md           hand-edited, rendered with its own modification time
 ```
 
-The three processes share no mutable runtime state, no memory and no in-process calls. The status service
-also reads two files the deploy and the owner write — build info and the progress note — and never writes
-anything itself; the verifier never connects to the database.
+The three processes share no mutable runtime state, no memory and no in-process calls. Each integrates one
+way only: the status service reads the database through a read-only role (plus two files the deploy and the
+owner write — build info and the progress note — and it writes nothing); the settlement worker reads and
+marks the outbox table; the verifier holds no database connection at all and is reached by one call on
+localhost that Node treats as optional (FR-012a).
 
 ## Deploy stages
 
@@ -98,9 +100,11 @@ no real value and no fee until the contract has been reviewed by someone else.
 
 | A process holding a signing key (VII) | Settlement must be able to move funds; the process that handles untrusted text from strangers must not hold the key that can | Signing inside the Node service keeps one runtime but puts a funds-moving key in the process that parses posts from the public |
 
-Proposed VII amendment: *a second runtime is allowed for read-only operational services and for advisory
-components the pipeline can run without; the claim pipeline, the X client and anything that posts stay in one
-TypeScript process.*
+VII amended 2026-10-09 (2.6.0 → 2.7.0, `docs/decisions/001-second-runtime.md`): a second runtime is allowed
+for read-only operational services, for advisory components the pipeline can run without, and for a
+settlement worker holding a signing key and nothing else; the claim pipeline, the X client and anything that
+posts stay in one TypeScript process; the integration is a database table or one optional bounded call, and
+database access is never signing authority.
 
 ## Out of scope
 

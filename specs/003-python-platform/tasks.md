@@ -105,7 +105,7 @@ the timeout window.
 
 - [ ] T031 [US4] Migration `drizzle/0017_settlement.sql` + `src/db/schema.ts` per data-model.md: `settlement_outbox` with its `status_ro` policy
 - [ ] T032 [US4] `src/resolve/resolver.ts` writes an outbox row when a verdict is final and a stake exists; no chain call from Node (FR-027)
-- [ ] T033 [US4] `settle/worker.py`: poll the outbox, read on-chain state first, sign, send, record the transaction; its own systemd unit, the key from the environment and nothing else in the process (FR-025, FR-028)
+- [ ] T033 [US4] `settle/worker.py`: poll the outbox, read on-chain state first, sign, send, record the transaction; its own systemd unit, the key readable by its own system user alone and nothing else in the process. It builds the transaction from the claim and verdict rather than signing a payload from the table, and checks state, destination, amount, chain id, contract address and prior settlement before signing (FR-025, FR-028, FR-028a)
 - [ ] T034 [US4] Test `tests/integration/settlement-outbox.test.ts`: a final verdict with no stake writes nothing; a replayed row sends nothing twice (FR-026)
 - [ ] T035 [US4] Status page: outbox pending / sent / failed, the contract address, the chain (FR-029)
 - [ ] T036 [US4] The fast path never settles: a verdict decided by the local verifier alone does not produce an outbox row (FR-031)
@@ -149,7 +149,7 @@ binary-options bans, and says a new name does not avoid them (FR-031h).
 
 - [ ] T045 [US3] Migration `drizzle/0016_verifier.sql` + `src/db/schema.ts` per data-model.md: `verifier_shadow` with its append-only trigger and its `status_ro` policy, the two `resolutions` columns (FR-015, FR-016)
 - [ ] T046 [US3] `verifier/serve/app.py`: one endpoint, no database, `127.0.0.1:3002`; `deploy/vaticeno-verifier.service` + its install line (FR-020)
-- [ ] T047 [US3] `src/resolve/verifier.ts`: short timeout, Zod-parsed, "no opinion" on any failure (FR-012)
+- [ ] T047 [US3] `src/resolve/verifier.ts`: one localhost call with a hard timeout, Zod-parsed, "no opinion" on any failure — timeout, refusal, malformed answer or nothing listening all take the paid path (FR-012, FR-012a)
 - [ ] T048 [US3] Shadow mode in `src/resolve/resolver.ts`: ask, **ignore**, record one row per attempt — what the gate would have concluded, beside what the paid model did; `VERIFIER_URL` and `VERIFIER_MODE` (`off|shadow|live`, default `off`) in `src/config.ts`
 - [ ] T049 [US3] Test `tests/integration/verifier-shadow.test.ts`: a shadow run leaves the resolution row byte-identical, writes exactly one shadow row, and UPDATE or DELETE on that row is rejected
 
