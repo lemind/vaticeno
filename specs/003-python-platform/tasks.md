@@ -29,7 +29,7 @@ else. ~55% coverage is a cap, not a floor.
 
 ## Phase 1: Setup
 
-- [ ] T001 Amend constitution VII (2.5.0 → 2.6.0) per plan.md → Complexity Tracking, record `docs/decisions/001-second-runtime.md`, bump the version in `CLAUDE.md`. **Blocks every Python task.**
+- [ ] T001 Amend constitution VII (2.6.0 → 2.7.0) per plan.md → Complexity Tracking, record `docs/decisions/001-second-runtime.md`, bump the version in `CLAUDE.md`. **Blocks every Python task.**
 - [ ] T002 [P] Get owner approval for the new dependencies in plan.md → Technical Context
 - [ ] T003 [P] Root `pyproject.toml` (3.12, ruff, pytest) with `status` and `load` groups. `.gitignore`: `__pycache__/`, `.venv/`, `*.pyc`, `load/results/`, `verifier/model/`, `verifier/eval/data/`, `.build-info.json`
 - [ ] T004 [P] Python job in `.github/workflows/test.yml`: `ruff check .`, `pytest status load` (FR-021)
