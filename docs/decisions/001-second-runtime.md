@@ -31,22 +31,58 @@ components the pipeline runs fine without (the local verifier). The settlement w
 the one exception to "read-only or advisory": it holds a signing key and does nothing else, precisely so
 that the process parsing posts from strangers never holds one.
 
+That separation is about responsibility. The key also needs isolating, which is three further rules, all of
+them because the two runtimes share a database and a row in a table is not an instruction:
+
+- The key is readable by the worker's own operating-system user and by nobody else. It is not in the
+  repository, not in the database and not in the environment of any other unit.
+- The worker **builds the transaction itself** from the claim and the verdict it reads. It never signs a
+  payload handed to it. There is no code path from a database column to bytes that get signed.
+- Before signing, it checks the whole shape of what it is about to do against the chain and the record:
+  the stake's on-chain state, the destination, the amount, the chain id, the contract address, and that
+  this stake has not been settled already. Any mismatch stops and reports instead of signing.
+
+Database access is not signing authority. An attacker who can write an outbox row must still be unable to
+make the worker sign anything the contract and the verdict do not already imply.
+
 **Python may not hold** the claim pipeline, the X client, the resolver's decision rules, or anything that
 posts. A verdict is decided and published by the TypeScript service, as it is today.
 
-**They share a database and nothing else.** No shared files, no shared memory, no calls between the
-processes, no importing one from the other. If the two sides need to agree on something, it is a table.
+**How they talk to each other**, service by service — there is no single answer, and saying "they share a
+database" would be wrong about the verifier:
+
+| Service | Interface | Direction |
+|---|---|---|
+| Status page | the database, through a read-only role | reads only; never contacts Node |
+| Settlement worker | the outbox table | reads rows, writes results; never contacts Node |
+| Load harness | the public HTTP surface of a local copy | never touches production |
+| Local verifier | one HTTP call on localhost, from Node | holds no database connection at all |
+
+The verifier is the only synchronous dependency, and it is deliberately the weakest one. Node calls it
+with a hard timeout, in front of the paid model; a timeout, a refusal, a malformed answer or a closed port
+all mean the same thing — **no opinion** — and the resolution continues down the paid path it would have
+taken anyway. The call is an optimisation that can be removed at any moment by switching it off, not a
+step the pipeline depends on. It never decides alone (FR-013) and it is never consulted at all for anything
+carrying money (FR-031).
+
+**What is forbidden in every direction**: shared files, shared memory, importing one side's code from the
+other, and any call from Python into the claim pipeline. Python is never upstream of a verdict.
 
 **Failure is one-directional.** If the Python side is missing, slow or broken, the Node side behaves exactly
-as if it had never been deployed: the verifier falls through to the paid model (constitution III), the
-status page is simply down, the load harness is not running anyway. Nothing in the claim pipeline waits on
-a Python process, ever.
+as if it had never been deployed: the verifier call fails and the paid model answers (constitution III), the
+status page is simply down, the settlement outbox fills up until the worker returns — and if it never does,
+the contract's timeout refund makes everyone whole without us. Nothing in the claim pipeline waits on a
+Python process, ever.
 
 ## What it costs
 
-A second set of dependencies to keep current, a second deploy path, a second systemd unit, a second thing
-that can be down at three in the morning, and a second language for anyone reading the repo. Principle VII
-exists to stop exactly this, and the cost is accepted knowingly rather than argued away.
+A second set of dependencies to keep current, a second deploy path, a second language for anyone reading
+the repo, and **three more systemd units** — the status page, the verifier and the settlement worker are
+separate long-lived processes, each supervised and restarted on its own, not one unit running several
+things. Each stage brings its unit with it: the status page in Stage 1, the settlement worker in Stage 2,
+the verifier in Stage 3, so the cost arrives in three instalments rather than at once. Three more things
+that can be down at three in the morning. Principle VII exists to stop exactly this, and the cost is
+accepted knowingly rather than argued away.
 
 Every new Python dependency still needs explicit approval and a stated reason, the same as a Node one.
 
@@ -61,10 +97,11 @@ and this decision should be revisited rather than defended.
 
 Principle VII gains:
 
-> A second runtime is allowed for read-only operational services and for advisory components the pipeline
-> can run without, and for a settlement worker that holds a signing key and does nothing else; the claim
-> pipeline, the X client and anything that posts stay in one TypeScript process. The runtimes share a
-> database and nothing else, and a failure on the second side never changes what the first one does.
+> A second runtime is allowed for read-only operational services, for advisory components the pipeline can
+> run without, and for a settlement worker that holds a signing key and does nothing else; the claim
+> pipeline, the X client and anything that posts stay in one TypeScript process. The runtimes integrate
+> only through a database table or one bounded call the caller treats as optional — never shared files,
+> shared memory or imported code — and a failure on the second side never changes what the first one does.
 
 See [specs/003-python-platform/plan.md](../../specs/003-python-platform/plan.md) → Complexity Tracking for
 the alternatives that were rejected.

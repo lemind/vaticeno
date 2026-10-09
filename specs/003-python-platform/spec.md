@@ -184,8 +184,9 @@ with VOID, and the same with the worker switched off for the whole timeout windo
 - **The verifier is confidently wrong**: this is the failure that matters. The threshold is tuned for zero
   wrong verdicts on the held-out set, not for the highest savings, and a single wrong auto-verdict in
   production is grounds for turning the fast path off.
-- **Two runtimes drift**: the Python service and the Node service share nothing but the database. No shared
-  files, no shared memory, no in-process calls between them.
+- **Two runtimes drift**: the two sides integrate only through a database table, or — for the verifier
+  alone — one bounded call on localhost whose every failure means "no answer". No shared files, no shared
+  memory, no imported code, and nothing from Python upstream of a verdict.
 - **The settlement worker dies for good**: the timeout refund is the answer and it needs nobody from our side.
   Without it, a dead worker would mean funds locked forever — it is the single most important behaviour in
   Story 4.
@@ -231,6 +232,10 @@ with VOID, and the same with the worker switched off for the whole timeout windo
   with the measurement date (project rule: a documented number is not a verified one).
 - **FR-012**: The local verifier runs only on evidence that has already passed the existing code gates. It
   produces no evidence, reads no sources, and cannot change what evidence says.
+- **FR-012a**: The verifier is reached by one call on localhost with a hard timeout, and it holds no
+  database connection. A timeout, a refusal, a malformed answer or nothing listening all mean the same
+  thing — no opinion — and the resolution continues on the paid path. The call is an optimisation, never a
+  step the pipeline depends on.
 - **FR-013**: The fast path may finalise a verdict only when all of these hold: confidence above the
   threshold, at least two passed evidence items agreeing that the **existing independence gate** counts as
   independent (001's definition is reused, not redefined — two excerpts from one page are one item), every
@@ -282,6 +287,12 @@ with VOID, and the same with the worker switched off for the whole timeout windo
 - **FR-028**: The settlement worker is a separate process holding the signing key, and does nothing else — no
   HTTP, no X, no model calls, no untrusted input. The key never exists in the process that handles text from
   strangers.
+- **FR-028a**: A row in a table is not an instruction. The key is readable by the worker's own system user
+  alone; the worker **builds the transaction itself** from the claim and the verdict rather than signing
+  any payload it is handed; and before signing it checks the stake's on-chain state, the destination, the
+  amount, the chain id, the contract address and that the stake is not already settled, stopping and
+  reporting on any mismatch. Whoever can write an outbox row still cannot make it sign something the
+  contract and the verdict do not already imply.
 - **FR-029**: Every settlement attempt is recorded — stake, verdict, transaction reference, outcome, failure
   reason — and the status page shows the queue's pending, sent and failed counts plus the contract address.
 - **FR-030**: If a stake is unsettled longer than the timeout after its deadline, **anyone** may trigger the
