@@ -65,6 +65,46 @@ nowhere else. A hit or a miss belongs to the person who predicted it, so the fee
 **What this means**: the feed is pool reposts and the owner's own posts. Verdicts still go out once, as a
 reply in the claim's thread (constitution VI 2.3.0), which is the only place anyone is told the result.
 
+---
+
+### User Story 4 - The record as the feed (Priority: P2)
+
+Between reposts the profile gives nobody a reason to follow it. The one thing Vaticeno has that no news
+account has is its own record: what is on the record right now, what comes due soon, and how the
+predictions it has judged have turned out in aggregate. Up to five of each a week, Monday to Friday,
+both written from the database, neither naming a person and neither repeating a single verdict. Five is
+a ceiling, not a quota: a day with nothing new to say produces nothing.
+
+**Why this priority**: it is the only own-feed content with an edge — a news post about a hurricane
+competes with every wire service, and a post about three predictions coming due on Friday competes with
+nobody. It is also the only own content that never runs out, because the database writes it. One X post
+each, no AI call.
+
+**Independent Test**: with claims seeded across a week, each run produces one post of the right shape or
+nothing at all, never two of a kind in one day, never the same content twice, and no post names an
+author or carries a link.
+
+**Acceptance Scenarios**:
+
+1. **Given** locked claims whose deadlines fall in the next 7 days, **When** the digest runs, **Then**
+   one post lists them by slug and date, and says nothing about who predicted them.
+2. **Given** no claim comes due in the next 7 days, **When** the digest runs, **Then** nothing is posted
+   and nothing is alerted — an empty day is not a fault.
+3. **Given** every claim due this week was named in a digest within the last 7 days, **When** the digest
+   runs again, **Then** nothing is posted: a claim is named at most once a week, however often the job
+   runs.
+4. **Given** a week's resolutions, **When** the record post runs, **Then** it states the counts only
+   (recorded, came due, hit, miss, void), with no slug and no claim singled out.
+5. **Given** the counts are the same as the last record post's, **When** the job runs, **Then** nothing
+   is posted — the same numbers are not news twice.
+6. **Given** either kind has already gone out today, **When** its job runs again, **Then** the database
+   refuses the second reservation.
+7. **Given** any generated line would carry an @mention, a link or a hashtag other than a claim's slug,
+   **When** it is checked, **Then** nothing is posted that run.
+
+**Out of scope**: posts about events Vaticeno has not recorded. An outcome post the owner wants to make
+goes into the existing queue as an owner-written original (US2); the bot does not write news.
+
 ### Edge Cases
 
 - A pool account is renamed, suspended or protected: skip it, alert once, keep the rest (accounts are
@@ -105,6 +145,20 @@ reply in the claim's thread (constitution VI 2.3.0), which is the only place any
   one; a daily spend cap stops the whole feed for the day when reached.
 - **FR-009**: Nothing is stored from other people's posts except their ids and the account handle.
 - **FR-010**: Own-feed posting requires a constitution amendment (VI) before it is switched on.
+- **FR-011**: Two kinds of post are written from Vaticeno's own record and from nothing else: the claims
+  coming due in the next 7 days (by slug and date) and the past week's counts. Each may go out on up to
+  five days a week, at most once a day, Monday to Friday (owner decision 2026-10-09). No AI call, no
+  outside source, no link, and no author named — in either post.
+- **FR-012**: Neither post states the result of a single claim. Counts are allowed because a count with
+  no claim named is not a verdict republished (owner decision 2026-10-09, constitution VI 2.6.0).
+- **FR-012a**: A claim that carries money is never the subject of an own-feed post — not by name in the
+  digest, not inside a count. The account does not advertise a wager it is also judging (owner decision
+  2026-10-09). Until staking exists, no claim is excluded; the filter ships with the field that marks
+  one.
+- **FR-013**: Nothing new to say produces no post and no alert, and the database holds each kind to one
+  a day the same way it holds the other feed posts to their caps. "Nothing new" is defined, not judged:
+  a claim is named in at most one digest in any 7 days, and a record post whose counts match the last
+  one's is not posted. Five a week is therefore a ceiling that a quiet week never reaches.
 
 ### Key Entities
 
@@ -126,6 +180,10 @@ reply in the claim's thread (constitution VI 2.3.0), which is the only place any
 - **SC-004**: Text Vaticeno adds (quote lines, jokes, originals) never contains @mentions
   or links, never makes a prediction of its own, and carries no hashtag other than the claim's own slug
   (`#ab12c`, constitution VI 2.4.1). Reposting another account's post is allowed.
+
+- **SC-005**: Two weeks after these posts start, the owner can say whether they moved anything —
+  followers, profile visits or replies. If they did not, they stop; the feature is judged on that, not
+  on how regularly it posted.
 
 ## Assumptions
 
