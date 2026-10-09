@@ -1,6 +1,10 @@
 <!--
 Sync Impact Report
-- Version change: 2.4.1 → 2.5.0 (2026-10-07, MINOR): VI narrowed — the own feed no longer republishes the
+- Version change: 2.5.0 → 2.6.0 (2026-10-09, MINOR): VI widened and narrowed in one step (owner decision).
+  Widened: the own feed may post counts of verdicts with no claim named — an aggregate is not a verdict
+  republished. Narrowed: a claim carrying money is never the subject of an own-feed post. Spec 002 US4,
+  FR-011–FR-013, SC-005 and tasks Phase 8 written against it; templates unaffected.
+- Earlier: 2.4.1 → 2.5.0 (2026-10-07, MINOR): VI narrowed — the own feed no longer republishes the
   bot's verdicts. A verdict is told once, as a reply in the claim's thread (owner decision): a hit or a
   miss belongs to the author who predicted it. Templates unaffected; spec 002 US3 withdrawn, plan.md,
   tasks.md, CLAUDE.md and README.md updated.
@@ -165,6 +169,11 @@ entire class of problems, and it is what X's terms require.
   exception, the claim's own slug (`#ab12c`), which is an id, not a topic (owner decision 2026-10-06) —
   MUST NOT state a prediction of the bot's own, and default to dry-run (logged, not posted) until the owner switches
   posting on. No keyword search, no unsolicited replies: the pool is editorial, chosen by the owner.
+- The feed MAY post counts drawn from the record — how many claims were recorded, came due, hit, missed
+  or were void in a period — because a count with no claim named is not a verdict republished (owner
+  decision 2026-10-09). It MUST NOT name, link or single out any claim whose result is in that count.
+- A claim that carries money MUST NOT be the subject of an own-feed post, in a count or by name (owner
+  decision 2026-10-09): the account does not advertise a wager it is also judging.
 - There are no topic exclusions, but content the bot republishes MUST comply with X's rules. X allows
   automated reposts and quote posts that are not bulk, aggressive or spammy (X's automation rules).
 - Behavior that depends on X's answers (third-party recording) MUST be configuration, not code, and MUST
@@ -219,4 +228,4 @@ Rationale: a one-person proto survives on code it can read in one sitting.
 - Every plan passes the Constitution Check before design and again after it. A justified violation
   is recorded in the plan's Complexity Tracking table; an unjustified one blocks the work.
 
-**Version**: 2.5.0 | **Ratified**: 2026-09-28 | **Last Amended**: 2026-10-07
+**Version**: 2.6.0 | **Ratified**: 2026-09-28 | **Last Amended**: 2026-10-09
