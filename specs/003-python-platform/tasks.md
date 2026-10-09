@@ -12,11 +12,11 @@ else. ~55% coverage is a cap, not a floor.
 
 | | |
 |---|---|
-| Stage 1 | not started — T001 blocks it |
+| Stage 1 | not started; unblocked — T001 done 2026-10-09 |
 | Stage 2 | not started; testnet only, no real value, no fee. Price-feed claims only; real value is a separate decision (FR-031h) |
 | Escrow v1 | T026a must answer FR-031f before anything is deployed — a live contract gains nothing later |
 | Stage 3 | not started; may end at T044 |
-| `docs/decisions/` | created by T001 |
+| `docs/decisions/` | 001 second runtime (done); 002 escrow v1 is T026a |
 | `verifier` dependency group | added by T042, once the runtime is chosen |
 
 ## Format: `[ID] [P?] [Story] Description`
@@ -29,7 +29,7 @@ else. ~55% coverage is a cap, not a floor.
 
 ## Phase 1: Setup
 
-- [ ] T001 Amend constitution VII (2.6.0 → 2.7.0) per plan.md → Complexity Tracking, record `docs/decisions/001-second-runtime.md`, bump the version in `CLAUDE.md`. **Blocks every Python task.**
+- [x] T001 Constitution VII amended 2.6.0 → 2.7.0 (owner decision 2026-10-09): a second runtime is allowed for read-only operational services, advisory components the pipeline runs without, and a settlement worker holding a signing key and nothing else; the claim pipeline, the X client and anything that posts stay in one TypeScript process; the runtimes share a database and nothing else, and a Python failure never changes what Node does. Reason, boundary, cost and what would reverse it in `docs/decisions/001-second-runtime.md`; `CLAUDE.md` version line updated. **Stage 1 is unblocked.**
 - [ ] T002 [P] Get owner approval for the new dependencies in plan.md → Technical Context
 - [ ] T003 [P] Root `pyproject.toml` (3.12, ruff, pytest) with `status` and `load` groups. `.gitignore`: `__pycache__/`, `.venv/`, `*.pyc`, `load/results/`, `verifier/model/`, `verifier/eval/data/`, `.build-info.json`
 - [ ] T004 [P] Python job in `.github/workflows/test.yml`: `ruff check .`, `pytest status load` (FR-021)

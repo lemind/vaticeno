@@ -1,6 +1,11 @@
 <!--
 Sync Impact Report
-- Version change: 2.5.0 → 2.6.0 (2026-10-09, MINOR): VI widened and narrowed in one step (owner decision).
+- Version change: 2.6.0 → 2.7.0 (2026-10-09, MINOR): VII — a second runtime is allowed, narrowly. Python
+  for read-only operational services, advisory components the pipeline runs without, and a settlement
+  worker that holds a signing key and nothing else; the claim pipeline, the X client and anything that
+  posts stay in one TypeScript process. Reason, boundary and reversal in docs/decisions/001-second-runtime.md;
+  spec 003 unblocked (T001), CLAUDE.md version line updated.
+- Earlier: 2.5.0 → 2.6.0 (2026-10-09, MINOR): VI widened and narrowed in one step (owner decision).
   Widened: the own feed may post counts of verdicts with no claim named — an aggregate is not a verdict
   republished. Narrowed: a claim carrying money is never the subject of an own-feed post. Spec 002 US4,
   FR-011–FR-013, SC-005 and tasks Phase 8 written against it; templates unaffected.
@@ -186,7 +191,13 @@ Rationale: the account is the product's only distribution channel. Losing it end
 - KISS over DRY; no abstraction before its third real use; explicit over clever.
 - Deliberately absent until justified by measurement: Redis, message brokers, frontend
   frameworks, user auth, payments, microservices. (Web search is allowed, for model resolution.)
-- New dependencies require explicit approval and a stated reason.
+- One runtime, with one exception (owner decision 2026-10-09, `docs/decisions/001-second-runtime.md`): a
+  second runtime is allowed for read-only operational services, for advisory components the pipeline can
+  run without, and for a settlement worker that holds a signing key and does nothing else. The claim
+  pipeline, the X client and anything that posts stay in one TypeScript process. The runtimes share a
+  database and nothing else — no shared files, no shared memory, no calls between them — and a failure on
+  the second side never changes what the first one does.
+- New dependencies require explicit approval and a stated reason, in either runtime.
 - Every external boundary (X, LLM output, data sources, env, HTTP input) is validated with Zod.
   Every enum column carries a database CHECK constraint.
 
@@ -228,4 +239,4 @@ Rationale: a one-person proto survives on code it can read in one sitting.
 - Every plan passes the Constitution Check before design and again after it. A justified violation
   is recorded in the plan's Complexity Tracking table; an unjustified one blocks the work.
 
-**Version**: 2.6.0 | **Ratified**: 2026-09-28 | **Last Amended**: 2026-10-09
+**Version**: 2.7.0 | **Ratified**: 2026-09-28 | **Last Amended**: 2026-10-09
