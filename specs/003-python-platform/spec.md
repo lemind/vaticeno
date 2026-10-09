@@ -1,4 +1,4 @@
-# Feature Specification: Operations, capacity and cost
+# Feature Specification: Visibility, settlement and cost
 
 **Feature Branch**: `003-planing`
 
@@ -117,6 +117,46 @@ useless before there is a way to measure its mistakes — which Story 1 and the 
    the local model's answer is recorded **separately**, alongside what the paid model concluded — the
    resolution record still names the paid model as the decider, because it was.
 
+---
+
+### User Story 4 - Settlement on a testnet (Priority: P3)
+
+Two people who disagree about a recorded claim each put up the same amount on a testnet. The claim's existing
+verdict decides who gets it, and the payout is carried out by a worker that reads the verdict already written
+in the database. No real money, and nothing about how a claim is recorded or judged changes.
+
+**Why this priority**: last because everything before it is useful without it, and worth doing because it is
+the only part that turns the referee into something enforceable. Testnet is the whole scope: the proof is that
+a verdict can settle a contract, not that anyone should stake on it.
+
+**Independent test**: two addresses stake equally on a recorded claim, the deadline passes, the resolver writes
+its verdict as it does today, and the winner's balance changes without anyone touching a wallet. Then the same
+with VOID, and the same with the worker switched off for the whole timeout window.
+
+**Acceptance Scenarios**:
+
+1. **Given** a recorded claim, **When** one party opens a stake and another accepts with an equal amount,
+   **Then** the contract holds both and neither party can withdraw unilaterally.
+2. **Given** a final verdict, **When** the worker runs, **Then** the winner is paid once and the transaction
+   reference is recorded against the claim.
+3. **Given** VOID, **When** the worker runs, **Then** both parties are refunded in full and nothing is taken.
+4. **Given** a stake already settled, **When** the worker runs again, **Then** nothing is sent — it reads the
+   contract's state first, and the contract rejects a second settlement.
+5. **Given** the deadline passed longer ago than the timeout and nothing was settled, **When** either party
+   asks for a refund, **Then** both are refunded without the operator being involved at all.
+6. **Given** the operator's key, **When** any attempt is made to move staked funds other than settling a final
+   verdict or refunding, **Then** no function exists that permits it.
+7. **Given** a claim with no stake on it, **When** its verdict is written, **Then** nothing on-chain happens.
+8. **Given** a verdict the local verifier decided alone, **When** a stake exists, **Then** it is not settled on
+   that verdict.
+9. **Given** someone who wants their stake attributed to them, **When** they link a wallet, **Then** they prove
+   the X account on one side and the wallet on the other, and the page shows which account is being linked
+   before it asks for a signature.
+10. **Given** a code copied from a public reply and returned by a different account, **When** the page checks
+    it, **Then** the code is rejected and discarded — not retried — and no link is written.
+11. **Given** nobody has linked a wallet, **When** a stake is opened and settled, **Then** everything works:
+    linking is never required to take a side.
+
 ### Edge Cases
 
 - **The status page's own health**: if the status service is down, nothing says so. It reports the main
@@ -135,6 +175,15 @@ useless before there is a way to measure its mistakes — which Story 1 and the 
   production is grounds for turning the fast path off.
 - **Two runtimes drift**: the Python service and the Node service share nothing but the database. No shared
   files, no shared memory, no in-process calls between them.
+- **The settlement worker dies for good**: the timeout refund is the answer and it needs nobody from our side.
+  Without it, a dead worker would mean funds locked forever — it is the single most important behaviour in
+  Story 4.
+- **A source outage delays a verdict past the timeout**: the refund path opens and both parties are made
+  whole. An outage is never a verdict (INIT_SPEC §6.7), so it must never become a payout either.
+- **The signing key leaks**: the worst case is wrong settlements, not stolen stakes, because the contract has
+  no withdrawal path. That is the property the design exists to guarantee.
+- **Gas runs out**: settlement stalls, the timeout eventually refunds everyone, and the status page shows the
+  stalled queue.
 
 ## Requirements *(mandatory)*
 
@@ -178,8 +227,9 @@ useless before there is a way to measure its mistakes — which Story 1 and the 
   Anything else escalates to the paid model. One resolution per claim stays the rule (constitution II).
 - **FR-014**: Absence of evidence is VOID, never MISS, on the fast path exactly as on the slow one
   (constitution II; a source outage is still never a verdict, INIT_SPEC §6.7).
-- **FR-015**: Every resolution records **who actually decided it** and that decider's version. A verdict the
-  paid model decided says so, even when the local model also had an opinion.
+- **FR-015**: Every resolution records **who actually decided it**, and when the fast path decided, which
+  verifier and version confirmed it. A verdict the paid model decided says so, even when the local model also
+  had an opinion.
 - **FR-016**: The local model's answers in shadow mode are recorded **apart from** the resolution record,
   with what the paid model concluded for the same case. Shadow answers decide nothing and must never be
   readable as the decision that was taken.
@@ -203,6 +253,48 @@ useless before there is a way to measure its mistakes — which Story 1 and the 
   gate is exhaustively tested, like the other gates and the resolver; the status page is not (project rule:
   ~55% coverage is a cap, not a floor).
 
+- **FR-022**: Stage 2 is **testnet only** — no mainnet deployment, no real value and no fee, until the
+  contract has been reviewed by someone outside the project. A per-stake maximum is enforced in the contract
+  from the first deployment regardless.
+- **FR-023**: One escrow contract holds all stakes as a mapping, not one contract per stake. It stores the
+  claim's identifier, the two addresses, the amount, the deadline and the state — and **no text**, the same
+  rule the rest of the system follows (INIT_SPEC §6.9).
+- **FR-024**: Both sides stake the same amount on a binary outcome. No odds, no partial fills, no pricing —
+  that is what keeps the contract small enough to reason about.
+- **FR-025**: Only the oracle address may settle, and only according to a verdict already final in the
+  database. The contract has **no function that lets the operator move staked funds**, and none can be added
+  without a new deployment.
+- **FR-026**: Settlement is idempotent at two levels: the worker reads on-chain state before sending, and the
+  contract rejects a second settlement of the same stake.
+- **FR-027**: The resolver writes an outbox row when a verdict is final and a stake exists; it makes no chain
+  calls itself. The worker reads that table, which is the entire interface between the two runtimes.
+- **FR-028**: The settlement worker is a separate process holding the signing key, and does nothing else — no
+  HTTP, no X, no model calls, no untrusted input. The key never exists in the process that handles text from
+  strangers.
+- **FR-029**: Every settlement attempt is recorded — stake, verdict, transaction reference, outcome, failure
+  reason — and the status page shows the queue's pending, sent and failed counts plus the contract address.
+- **FR-030**: If a stake is unsettled longer than the timeout after its deadline, **anyone** may trigger the
+  refund and both parties are made whole. This path does not depend on the operator being alive.
+- **FR-031**: A verdict decided by the local verifier alone never settles a stake. Anything with value
+  attached is decided by the paid model or a human.
+
+- **FR-032**: Wallet linking is **optional**. Opening, accepting, settling and refunding a stake all work
+  with no link, because the contract knows only addresses. Linking exists to attribute a stake to the author
+  of a claim, and nothing else depends on it.
+- **FR-033**: A link proves both halves. The wallet is proved by a signature over a single-use, short-lived
+  challenge bound to one numeric X user id (the EIP-4361 pattern, with ERC-1271 for contract wallets); the X
+  account is proved by the code coming back through the API with that author id. A signature alone proves
+  nothing about who owns the account, and an account alone proves nothing about the wallet.
+- **FR-034**: The signature is submitted privately, never in a public post, because a public one ties a handle
+  to an address — and so to its whole balance and history — permanently. The reply that starts the flow
+  carries only a code. Session tokens MUST NOT travel in a URL that appears in a public post.
+- **FR-035**: The code is public, so the first reply wins: the page MUST show which X account the code bound
+  to and require an explicit confirmation before asking for a signature, and a mismatch MUST discard the code
+  rather than retry it. Without that step, a stranger who answers first has the victim signing a link to
+  their identity.
+- **FR-036**: One network and one stake token for the whole feature. A second chain family is a second
+  verification path, a second toolchain and a second settlement worker — not a configuration value.
+
 ### Key Entities
 
 - **Job state**: which job, when it last started, finished and last succeeded, the last outcome (`ok` or
@@ -214,6 +306,9 @@ useless before there is a way to measure its mistakes — which Story 1 and the 
 - **Capacity measurement**: what was measured, the number, the hardware, the date.
 - **Verifier decision**: claim, evidence item, entailment outcome, confidence, model version, whether it
   finalised, escalated, or only observed (shadow). Shadow observations live apart from the resolution record.
+- **Stake**: claim, the two addresses, amount, deadline, state, settlement reference — held on-chain.
+- **Settlement outbox row**: claim, verdict, state, attempts, transaction reference, last error.
+- **Wallet link**: X user id, wallet family, address, when it was verified, when it was revoked.
 
 ## Success Criteria *(mandatory)*
 
@@ -238,6 +333,20 @@ useless before there is a way to measure its mistakes — which Story 1 and the 
 - **SC-008**: All processes together fit the VPS with stated headroom, measured, not assumed.
 - **SC-009**: Turning the fast path off returns the system to today's behaviour exactly, with no migration
   and no deploy.
+- **SC-010**: A full round trip on a public testnet — open, accept, deadline, verdict, payout — with no manual
+  wallet interaction after the stake is accepted.
+- **SC-011**: The timeout refund works with the worker switched off for the whole window, triggered by a party
+  rather than by us.
+- **SC-012**: No stake is ever settled twice, and no settlement ever happens for a verdict that is not final,
+  across the whole test campaign.
+- **SC-013**: An independent reading of the contract confirms there is no path by which the operator can move
+  staked funds — demonstrated by tests that try.
+- **SC-014**: The contract's tests cover every branch of settle and refund, the standard the gates and the
+  resolver are held to rather than the ~55% repository target.
+- **SC-015**: A full stake, settled, with no wallet ever linked — proving linking is optional and not on the
+  critical path.
+- **SC-016**: A code returned by an account other than the one it was issued to never produces a link, and
+  the attempt is visible.
 
 ## Assumptions
 
@@ -257,3 +366,12 @@ useless before there is a way to measure its mistakes — which Story 1 and the 
   to lower the bar.
 - A second runtime is accepted for the service layer only. The bot, the resolver and anything that posts to
   X stay in TypeScript, unchanged by this feature.
+- The chain is a cheap EVM layer 2, on its testnet. Stablecoin-denominated if it ever leaves a testnet, which
+  it may never do.
+- The contract is Solidity. A Python-syntax alternative exists and is rejected for funds-holding code: a
+  smaller reviewer pool, and a compiler bug that once cost a protocol tens of millions.
+- Whether a fee is ever taken, and what would have to be registered first, is deliberately outside this spec.
+- The wallet-link page is the one place in this feature that accepts input from a person. It holds a
+  short-lived session and nothing else: no password, no email, no account. This is not user auth returning
+  through the back door (constitution VII) — there is nothing to log into, and a link can be revoked without
+  losing the history it covered.
