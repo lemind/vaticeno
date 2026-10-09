@@ -42,6 +42,9 @@ const FIRST_RUN_PAGE_SIZE = 10; // no cursor yet: only recent mentions, keep the
 const PAGE_SIZE = 100;
 const MAX_PAGES = 5;
 const REPLIED_IDS_KEPT = 1000;
+// Conversations outlive replies: a verdict can land a year after the first reply in that thread, and X carries
+// our handle there the whole time. Kept 5× longer, so the thread is still known when the verdict posts.
+const CONVERSATIONS_KEPT = 5000;
 // Tries for one mention before it is dropped, and the pause before each retry: a transient model or
 // network fault gets ~23 minutes to pass, not three (owner decision 2026-10-07).
 const MENTION_RETRY_MINUTES = [1, 2, 5, 15];
@@ -54,16 +57,21 @@ const POINTS_AT_PARENT = /^(this|that|it|this one|that one|above|here|[^\p{L}\p{
 export async function routeMention(deps: BotDeps, mention: Mention, now: Date, weRepliedInThread = false): Promise<Routed> {
   if (mention.author_id === deps.botUserId) return { action: 'ignored_self', reply: null };
   if (mention.referenced_tweets?.some((ref) => ref.type === 'retweeted')) return { action: 'ignored_repost', reply: null };
-  // No mention, no reply (constitution VI): a handle X carried into a thread we already answered is not a
-  // request. Before anything that spends or changes state — no model call, no thread read, and a carried
-  // mention never resumes an author who sent STOP (owner report 2026-10-09).
+  const body = mention.text.replace(/@\w+/g, ' ').replace(/\s+/g, ' ').trim();
+  const command = resolveCommand(body); // a bare command, matched in code: no model call
+
+  // No mention, no reply (constitution VI, owner decision 2026-10-09). Decided before any spend.
   if (!addressesBot(mention, deps.botHandle, deps.botUserId, weRepliedInThread)) {
+    // STOP is honoured wherever it is seen — silence is what they asked for — but earns no reply (§6.5).
+    if (command === 'stop') {
+      await deps.db.insert(optOuts).values({ xUserId: mention.author_id }).onConflictDoNothing();
+      log('info', 'STOP in a post that did not address us; recorded, no reply', { event: 'mention.stop_unaddressed', tweet_id: mention.id, author_id: mention.author_id });
+      return { action: 'stop_unaddressed', reply: null };
+    }
     log('info', 'mention not addressed to us; no reply', { event: 'mention.not_addressed', tweet_id: mention.id, author_id: mention.author_id });
     return { action: 'ignored_not_addressed', reply: null };
   }
 
-  const body = mention.text.replace(/@\w+/g, ' ').replace(/\s+/g, ' ').trim();
-  const command = resolveCommand(body); // a bare command, matched in code: no model call
   if (command) return runCommand(deps, mention, command, now);
   // Tagging the bot again after STOP resumes (owner decision 2026-09-30, constitution IV).
   await deps.db.delete(optOuts).where(eq(optOuts.xUserId, mention.author_id));
@@ -352,7 +360,7 @@ export async function pollMentions(deps: BotDeps, now: Date): Promise<{ mentions
       }
       log('info', 'mention handled', { event: 'mention.handled', tweet_id: mention.id, author_id: mention.author_id, action: routed.action, text_chars: mention.text.length });
       if (routed.deferQuote) {
-        state.pending_quotes.push({ tweet_id: mention.id, author_id: mention.author_id, attempts: 0, next_at: inMinutes(now, QUOTE_RETRY_MINUTES[0]!), topic: routed.quoteTopic });
+        state.pending_quotes.push({ tweet_id: mention.id, author_id: mention.author_id, attempts: 0, next_at: inMinutes(now, QUOTE_RETRY_MINUTES[0]!), topic: routed.quoteTopic, conversation_id: mention.conversation_id });
       }
       const replyId = routed.reply ? await sendReply(deps, state, mention, routed.reply, now) : null;
       if (replyId) replies++;
@@ -399,7 +407,7 @@ async function retryPendingQuotes(deps: BotDeps, state: IngestState, now: Date):
     // The topic was decided when the request came in: a retry re-reads Wikiquote, never X or the model.
     const quote = await quoteReply(deps, pending.topic);
     if (quote) {
-      if (await sendReply(deps, state, { id: pending.tweet_id, author_id: pending.author_id, text: '' }, quote, now)) replies++;
+      if (await sendReply(deps, state, { id: pending.tweet_id, author_id: pending.author_id, text: '', conversation_id: pending.conversation_id }, quote, now)) replies++;
       continue;
     }
     const attempts = pending.attempts + 1;
@@ -416,17 +424,23 @@ async function retryPendingQuotes(deps: BotDeps, state: IngestState, now: Date):
 
 const inMinutes = (now: Date, minutes: number) => new Date(now.getTime() + minutes * 60_000).toISOString();
 
+// Threads we have posted in: X prepends our handle to every later reply there (src/commands/parse.ts).
+function rememberConversation(state: IngestState, conversationId: string | undefined): void {
+  if (!conversationId || state.answered_conversation_ids.includes(conversationId)) return;
+  state.answered_conversation_ids = [...state.answered_conversation_ids, conversationId].slice(-CONVERSATIONS_KEPT);
+}
+
 // The posted reply's id, or null when nothing was posted. The mention is saved as answered BEFORE the post:
 // a crash mid-post never replays it, and a failed post is never retried (INIT_SPEC §6.7).
 async function sendReply(deps: BotDeps, state: IngestState, mention: Mention, text: string, now: Date): Promise<string | null> {
   state.replied_tweet_ids = [...state.replied_tweet_ids, mention.id].slice(-REPLIED_IDS_KEPT);
-  if (mention.conversation_id && !state.answered_conversation_ids.includes(mention.conversation_id)) {
-    state.answered_conversation_ids = [...state.answered_conversation_ids, mention.conversation_id].slice(-REPLIED_IDS_KEPT);
-  }
   state.reply_log = [...state.reply_log, { author_id: mention.author_id, at: now.toISOString() }];
   await writeIngestState(state, deps.statePath);
   try {
     const posted = await deps.postReply(mention.id, text);
+    // Only a reply that went out puts us in the thread: X carries nothing for a post that never existed.
+    rememberConversation(state, mention.conversation_id);
+    await writeIngestState(state, deps.statePath);
     log('info', 'reply posted', { event: 'reply.posted', tweet_id: mention.id, reply_tweet_id: posted.id, reply_chars: text.length });
     return posted.id;
   } catch (error) {

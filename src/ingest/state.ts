@@ -17,7 +17,7 @@ const IngestStateSchema = z.object({
   // is what tells a thread we were dragged into from one we were tagged into (src/commands/parse.ts).
   answered_conversation_ids: z.array(z.string()).default([]),
   // `quote` mentions whose quote couldn't be fetched yet: retried on a ladder (src/bot/mentions.ts).
-  pending_quotes: z.array(z.object({ tweet_id: z.string(), author_id: z.string(), attempts: z.number(), next_at: z.string(), topic: z.string().optional() })).default([]),
+  pending_quotes: z.array(z.object({ tweet_id: z.string(), author_id: z.string(), attempts: z.number(), next_at: z.string(), topic: z.string().optional(), conversation_id: z.string().optional() })).default([]),
 });
 
 export type IngestState = z.infer<typeof IngestStateSchema>;

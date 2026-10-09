@@ -286,11 +286,28 @@ describe('fixes from X', () => {
     const carried = mention('71a', '@vaticeno @alice lol no way that happens', { author_id: '400', conversation_id: '70a', in_reply_to_user_id: '401', referenced_tweets: [{ type: 'replied_to', id: 'someone-else' }] });
     const { deps, replies } = await bot([[summon], [carried]]);
     await pollMentions(deps, NOW);
-    const before = replies.length;
+    const repliesBefore = replies.length;
+    const modelCalls = async () => (await t.sql`select count(*)::int as n from cost_events where provider = 'gemini'`)[0]!.n;
+    // X bills for every post its timeline returns, so a carried mention costs that one read whatever we do.
+    const postsRead = async () => (await t.sql`select coalesce(sum(units), 0)::int as n from cost_events where operation = 'thread_read'`)[0]!.n;
+    const modelsBefore = await modelCalls();
+    const postsBefore = await postsRead();
     await pollMentions(deps, NOW);
-    assert.equal(replies.length, before, 'no reply to a handle X carried');
+    assert.equal(replies.length, repliesBefore, 'no reply to a handle X carried');
     assert.equal((await t.sql`select count(*)::int as n from claims`)[0]!.n, 1, 'no claim from a carried handle');
-    assert.equal((await t.sql`select count(*)::int as n from cost_events where operation in ('normalize', 'thread_read')`)[0]!.n > 0, true, 'the real summons still cost its normalize');
+    assert.equal(await modelCalls(), modelsBefore, 'no model call for a carried mention');
+    assert.equal(await postsRead(), postsBefore + 1, 'only the mention itself was paid for: no conversation read');
+  });
+
+  test('STOP is recorded even when our handle was only carried, and earns no reply', async () => {
+    const summon = mention('72a', '@vaticeno BTC daily close above $150,000 by 2026-12-31');
+    const stop = mention('73a', '@vaticeno @alice STOP', { author_id: '500', conversation_id: '72a', in_reply_to_user_id: '501', referenced_tweets: [{ type: 'replied_to', id: 'someone-else' }] });
+    const { deps, replies } = await bot([[summon], [stop]]);
+    await pollMentions(deps, NOW);
+    const repliesBefore = replies.length;
+    await pollMentions(deps, NOW);
+    assert.equal(replies.length, repliesBefore, 'silence is what they asked for');
+    assert.equal((await t.sql`select count(*)::int as n from opt_outs where x_user_id = '500'`)[0]!.n, 1, 'the opt-out is recorded anyway');
   });
 
   test('a new prediction elsewhere in the thread of an open claim is a new claim, not a fix', async () => {

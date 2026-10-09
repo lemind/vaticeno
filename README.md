@@ -49,6 +49,13 @@ the picks and posts nothing.
 Bare commands and typos (`quote`, `qoute 2`) are matched instantly; anything else unclear ("quote me something
 nice", "so?" under a quote, a question) is read by the AI together with the thread above it.
 
+**It answers only where it was addressed.** X puts the handles of everyone in a thread at the front of every
+reply there, so once the bot has answered once, later replies arrive looking tagged even when two other people
+are talking to each other. Those get nothing. A post reaches the bot when it answers one of the bot's own
+posts, when `@vaticeno` sits under a post of your own, when it pulls the bot into a thread it was not in, or
+when the handle is in the words you typed rather than only in the prefix X added. STOP is recorded wherever it
+appears, addressed or not.
+
 ## Run locally
 
 Requires Node 22.9+, Docker, and an X developer app for the bot ([docs/poc-x-setup.md](docs/poc-x-setup.md)).

@@ -399,6 +399,13 @@ shown but never count as a contradiction.
   evaluated through the same proposal and checks as a real amend; failing ones are discarded and
   regenerated once; if none survive, the reply uses a fixed generic example. An unchecked example
   is never sent.
+- **FR-008a**: The bot MUST reply only where it was addressed (constitution VI). X prepends every
+  participant's handle to a reply, so a thread the bot has answered keeps producing mentions nobody intended:
+  those MUST NOT be answered, and MUST cost no model call and no conversation read. A post counts as addressed
+  when it replies to one of the bot's own posts, when it replies to a post by its own author, when it arrives
+  in a thread the bot has not posted in, or when the handle appears outside the prepended block. STOP is
+  recorded wherever it is seen, addressed or not, and earns no reply when it was not (owner decision
+  2026-10-09, after ten unasked replies into one stranger's conversation).
 - **FR-009**: All replies MUST fit within X's post length limit and contain no link card; the public
   page link is plain text.
 - **FR-010**: Amends — any reply from the claim's author directly under the bot's reply, the claim's post,

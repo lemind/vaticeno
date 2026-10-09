@@ -58,11 +58,11 @@ export type AddressableMention = {
   referenced_tweets?: Array<{ type: string; id: string }>;
 };
 
-// X prepends every participant's handle to a reply, so a conversation the bot has answered keeps arriving in
-// its mentions timeline whether or not anyone wanted it (owner report 2026-10-09: ten replies into one
-// stranger's conversation, stopped only by the hourly cap). Nothing in the text separates a handle X carried
-// from one someone typed, so `weRepliedInThread` is the discriminator: in a thread we are not part of, our
-// handle can only be there because someone put it there.
+// Is this post addressed to us, or did we merely end up in it? (constitution VI, owner decision 2026-10-09.)
+// HACK(x): OBSERVED 2026-10-08 — X prepends every participant's handle to a reply, so a thread we answered
+// keeps arriving in our mentions timeline, and v2 exposes no field separating a carried handle from a typed one.
+// REVISIT: if X exposes the reply prefix (v1.1's display_text_range or similar) on v2 mentions, read it and
+// delete the position test below.
 export function addressesBot(mention: AddressableMention, botHandle: string, botUserId: string, weRepliedInThread: boolean): boolean {
   if (!mention.referenced_tweets?.some((ref) => ref.type === 'replied_to')) return true; // its own post, naming us
   if (mention.in_reply_to_user_id === botUserId) return true; // answering us: a fix, or a question
