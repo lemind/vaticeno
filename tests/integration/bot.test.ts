@@ -52,15 +52,21 @@ const llm = {
     }
     if (instructionVersion.startsWith('fixture')) {
       const { subject } = JSON.parse(input) as { subject: string };
+      // A subject that names nobody: the event may be real, but there is nothing to confirm in it.
+      if (/\b(my|his|her|their|the author's)\b/i.test(subject)) {
+        return { data: { found: false, home: null, away: null, competition: null, kickoff_utc: null, criterion: null, missing_participant: true }, costs: [] };
+      }
       const found = subject === 'Liverpool';
       return { data: { found, home: found ? 'Liverpool' : null, away: found ? 'Real Madrid' : null, competition: found ? 'UEFA Champions League' : null,
         kickoff_utc: found ? '2026-10-01T19:00:00Z' : null, criterion: found ? 'Liverpool beat Real Madrid 3–1 (UEFA Champions League)' : null }, costs: [] };
     }
     const { text, context } = JSON.parse(input) as { text: string; context?: string[] };
     if (text.startsWith('match')) {
-      // "Invented" names no real fixture — unless something in the thread says which match it is.
+      // "Invented" names no real fixture — unless something in the thread says which match it is, and
+      // "folks" is the live case where the model described a competitor instead of naming one.
       const named = (context ?? []).some((post) => post.includes('Liverpool'));
-      const subject = text.includes('Invented') && !named ? 'Invented FC' : 'Liverpool';
+      const subject = text.includes('folks') ? "the horse owned by the author's parents"
+        : text.includes('Invented') && !named ? 'Invented FC' : 'Liverpool';
       return { data: { is_prediction: true, x_rules_ok: true, contract: { ...MATCH_CONTRACT, subject }, unclear: [], unclear_explanation: '', examples: [], self_confidence: 0.8 }, costs: [] };
     }
     if (text.startsWith('down')) throw new LlmUnavailable('model down');
@@ -230,10 +236,24 @@ describe('sports matches', () => {
     assert.match(replies[0]!.text, /^RECORDED/);
   });
 
+  // 2026-10-09: "my folks horse win race 1" was recorded with the subject "the horse owned by the
+  // author's parents" — a claim no resolver can judge. The event check confirmed the race existed and
+  // had no notion of a runner.
+  test('an event whose competitor nobody named is not recorded: the name is asked for', async () => {
+    const m = mention('350', '@vaticeno match my folks horse wins race 1 at Sha Tin on 2026-12-20');
+    const { deps, replies } = await bot([[m]]);
+    await pollMentions(deps, NOW);
+    const [claim] = await t.sql`select status, unclear, contract from claims`;
+    assert.equal(claim!.status, 'needs_info', 'not recorded against a subject nobody can look up');
+    assert.deepEqual(claim!.unclear, ['subject']);
+    assert.equal(claim!.contract, null);
+    assert.match(replies[0]!.text, /NOT RECORDED/);
+  });
+
   test('a match search cannot find is not recorded', async () => {
     const { deps, replies } = await bot([[mention('111', '@vaticeno match Invented FC vs Nobody tomorrow 3:1')]]);
     await pollMentions(deps, NOW);
-    assert.match(replies[0]!.text, /^NOT RECORDED — I can't find that match/);
+    assert.match(replies[0]!.text, /^NOT RECORDED — I can't find that event/);
     const [claim] = await t.sql`select status, reject_reason from claims`;
     assert.deepEqual([claim!.status, claim!.reject_reason], ['rejected', 'event_not_found']);
   });

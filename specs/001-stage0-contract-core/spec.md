@@ -343,8 +343,13 @@ shown but never count as a contradiction.
   "next election", "after the merger") need a schedule to become a date, so they are needs info in
   the MVP. Both kinds are listed in the fixture corpus.
 - A bare date means 23:59:59 UTC; the recorded statement says so.
-- A sports claim must name a real, scheduled match (owner decision 2026-09-30): a web search confirms it and
-  fills in the competition; an invented or unfindable match is NOT RECORDED.
+- A sports claim must name a real, scheduled event AND whoever it is about (owner decisions 2026-09-30,
+  2026-10-09): a web search confirms the event and finds the competitor in its field or entry list, then
+  fills in the competition; an invented or unfindable event is NOT RECORDED. An event that is real but
+  whose competitor the author never named ("my folks' horse") is NEEDS INFO asking for the name, never a
+  recorded claim — a subject nobody can look up cannot be judged at the deadline. Names can read like
+  ordinary words (a horse called So My Folks), so the search tries the text as a name before reading it
+  as a description.
 - A crypto price target with a date is always recorded as a daily close (owner decision 2026-09-30):
   "hits", "touches", "would be" included. The RECORDED reply shows the exact terms, so the author can fix
   them within 15 min. Only a price without a date (or a date without a price) is needs info.
