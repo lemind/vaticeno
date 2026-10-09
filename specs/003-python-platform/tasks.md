@@ -13,7 +13,8 @@ else. ~55% coverage is a cap, not a floor.
 | | |
 |---|---|
 | Stage 1 | not started — T001 blocks it |
-| Stage 2 | not started; testnet only, no real value, no fee |
+| Stage 2 | not started; testnet only, no real value, no fee. Price-feed claims only; real value is a separate decision (FR-031h) |
+| Escrow v1 | T026a must answer FR-031f before anything is deployed — a live contract gains nothing later |
 | Stage 3 | not started; may end at T044 |
 | `docs/decisions/` | created by T001 |
 | `verifier` dependency group | added by T042, once the runtime is chosen |
@@ -86,11 +87,18 @@ else. ~55% coverage is a cap, not a floor.
 winner with nobody touching a wallet. Then the same with VOID, and the same with the worker switched off for
 the timeout window.
 
+### Before a line of Solidity
+
+- [ ] T026a [US4] `docs/decisions/002-escrow-v1.md` — answer every item of FR-031f in writing, because a deployed contract cannot gain any of them: terminal states and no double settlement, permissionless payout after the window, the void path, the timeout refund, expiry of an unmatched stake, the maximum stake, the fee ceiling and recipient, what happens when the oracle key is lost or compromised, whether new stakes can be stopped without blocking refunds owed, and which events carry the verdict and reason references. The same document records what must be true before any real value is involved — a legal opinion for the operator's own country, an independent reading of the contract, and a written incident policy — so that decision is never taken by momentum (FR-031f, FR-031h, SC-019)
+- [ ] T026b [US4] The settlement window and the void policy, written down and published: how many hours the contract holds a verdict before payout, the grounds a void needs, the reason codes, and the sentence that says a complaint alone pauses nothing (FR-031b, FR-031c, FR-031e)
+- [ ] T026c [US4] Say what the thing is, everywhere it is described: an escrow with a named referee and a published settlement policy, never trustless or impartially arbitrated — README, the spec, and the explainer page (FR-031g)
+
 ### The contract
 
 - [ ] T027 [US4] Contract toolchain and `contracts/` skeleton; **one network and one stake token**, its testnet RPC and chain id in `.env.example`, no key in git (FR-022, FR-036)
-- [ ] T028 [US4] `contracts/src/Escrow.sol`: `open`, `accept`, `settle`, `refund`; equal stakes, per-stake cap, a timeout refund anyone can trigger, **no withdrawal path** (FR-023, FR-024, FR-026, FR-030)
-- [ ] T029 [US4] Contract tests: every branch of settle and refund, a second settle rejected, the timeout refund callable by either party, and a test that tries and fails to move staked funds (SC-013, SC-014)
+- [ ] T028 [US4] `contracts/src/Escrow.sol`: `open`, `accept`, `settle`, `void`, `refund`, `expire`; equal stakes, per-stake cap, a fee ceiling and a fixed recipient, a settlement time stored with the verdict, payout callable by anyone after it, a timeout refund anyone can trigger, **no withdrawal path** (FR-023, FR-024, FR-026, FR-030, FR-031b, FR-031f)
+- [ ] T028a [US4] `void` in `contracts/src/Escrow.sol`: callable by the oracle address only, only while the settlement window is open, refunds each side its own stake and has no branch that pays either party, the operator or a fee. Void and the timeout refund are separate transitions (FR-031c, FR-031d)
+- [ ] T029 [US4] Contract tests: every branch of settle, void, refund and expire; a second settle rejected; payout refused before the window and accepted from an unrelated address after it; a void inside the window refunding both and paying nobody; a void after it refused; an unmatched stake recovered by its maker; and a test that tries and fails to move staked funds (SC-013, SC-014, SC-018)
 - [ ] T030 [US4] Deploy to the testnet with the source verified publicly; record the address in `.env.example` and on the status page (FR-029)
 
 ### The settlement path
@@ -101,6 +109,7 @@ the timeout window.
 - [ ] T034 [US4] Test `tests/integration/settlement-outbox.test.ts`: a final verdict with no stake writes nothing; a replayed row sends nothing twice (FR-026)
 - [ ] T035 [US4] Status page: outbox pending / sent / failed, the contract address, the chain (FR-029)
 - [ ] T036 [US4] The fast path never settles: a verdict decided by the local verifier alone does not produce an outbox row (FR-031)
+- [ ] T036a [US4] Only price-feed claims can be staked: the contract refuses a stake on any other claim, the page never offers one, and the outbox refuses to write one. Tested by trying on a model-judged claim (FR-031a, SC-017)
 - [ ] T037 [US4] End to end on the testnet — open, accept, deadline, verdict, payout — then VOID, then the timeout refund with the worker stopped (SC-010, SC-011, SC-012)
 
 ### Linking a wallet, optional
@@ -112,6 +121,12 @@ the timeout window.
 **Checkpoint**: a verdict settles a contract on a testnet, and money cannot be stuck: the timeout refund works with nothing of ours running.
 
 **🚀 Stage 2 deploys here** — testnet only, no real value, no fee.
+
+**Real value is not in this feature.** It needs a legal opinion for the country the operator lives in
+(the betting-intermediary role and the event types offered), an independent reading of the contract, and
+a written policy for oracle compromise, source corrections, voids and refunds. ESMA's statement of
+3 July 2026 puts event contracts that are financial instruments under the permanent national
+binary-options bans, and says a new name does not avoid them (FR-031h).
 
 ---
 

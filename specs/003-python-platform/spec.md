@@ -156,6 +156,17 @@ with VOID, and the same with the worker switched off for the whole timeout windo
     it, **Then** the code is rejected and discarded — not retried — and no link is written.
 11. **Given** nobody has linked a wallet, **When** a stake is opened and settled, **Then** everything works:
     linking is never required to take a side.
+12. **Given** a claim the model judged rather than the price feed, **When** a stake is attempted on it,
+    **Then** it is refused before anything is written.
+13. **Given** a final verdict on a staked claim, **When** the payout is attempted before the settlement
+    time, **Then** the contract refuses; after it, any address at all can trigger it.
+14. **Given** the window is still open and the operator can show the verdict read the wrong value, **When**
+    the void is called, **Then** both parties get their own stake back and nothing reaches either side or
+    the operator.
+15. **Given** the window has closed, **When** the void is called, **Then** it is refused — finality is a
+    time, not an opinion.
+16. **Given** a stake nobody accepted, **When** its offer expires, **Then** the maker recovers the full
+    amount without the operator.
 
 ### Edge Cases
 
@@ -277,6 +288,45 @@ with VOID, and the same with the worker switched off for the whole timeout windo
   refund and both parties are made whole. This path does not depend on the operator being alive.
 - **FR-031**: A verdict decided by the local verifier alone never settles a stake. Anything with value
   attached is decided by the paid model or a human.
+- **FR-031a**: Only a claim whose resolution method is the price feed may carry a stake (owner decision
+  2026-10-09). A price claim is decided by one number from the source the locked contract names, so a
+  dispute is "was the right number read", answerable from the stored evidence in a minute. A model-judged
+  claim is an argument about which source counts and what the evidence means, and that argument is not one
+  to have with someone's money on it. Model-judged claims stay free to record and judge, as today.
+- **FR-031b**: A stake is never paid out at the moment the verdict is written. The contract stores a
+  settlement time with the verdict and refuses to pay before it; after it, the payout is callable by
+  **anyone**, so finality does not depend on the operator being online. The window is a fixed number of
+  hours in the contract, not a policy anyone can change per stake.
+- **FR-031c**: During that window, and only then, the oracle address may **void** a stake: both parties
+  are refunded their own stake and nothing else happens. The function cannot pay either side, cannot pay
+  the operator and cannot take a fee — those paths do not exist in it. Its purpose is to bound the cost of
+  our own mistake to zero rather than to pay the wrong person.
+- **FR-031d**: Void and the timeout refund are separate transitions with separate conditions. A void says a
+  verdict should not stand; a timeout refund says no verdict arrived. Neither is reachable from the other's
+  state.
+- **FR-031e**: A complaint alone pauses nothing and refunds nothing. A stake is voided only for a material,
+  independently checkable fault — a demonstrably wrong source value, a resolver defect, or evidence that
+  does not satisfy the locked contract — and every void is published with a reason code and a reference to
+  the evidence. Disagreeing with a correct verdict is not a ground. There is no challenge bond and no
+  appeal body: the operator is the only referee, which is a limit of the product, stated rather than
+  dressed up.
+- **FR-031f**: The contract settles what cannot be added later. All of these exist in version one or not at
+  all: one terminal state per stake and no double settlement; permissionless payout after the window; the
+  void path; the timeout refund; expiry of a stake nobody matched, returning the maker's money; a maximum
+  stake per wager; a fee ceiling and a fixed fee recipient with no arbitrary withdrawal; what happens if
+  the oracle key is lost or compromised; whether new stakes can be stopped without blocking refunds owed;
+  and events carrying the verdict and reason references, so a case can be audited from the chain alone.
+- **FR-031g**: The product is described as an escrow with a named referee and a published settlement policy
+  — never as trustless or impartially arbitrated. Custody and payout mechanics are guaranteed by the code;
+  correctness of the verdict is not, and the void power is the proof that it is not.
+- **FR-031h**: Real value is a separate decision from this feature, gated on three things: a legal opinion
+  for the country the operator actually lives in, covering the betting-intermediary role and the event types
+  offered; an independent reading of the contract and its state machine; and a written policy for oracle
+  compromise, source corrections, voids and refunds. ESMA's statement of 3 July 2026 holds that event
+  contracts qualifying as financial instruments fall under the permanent national binary-options bans, and
+  that renaming the product does not avoid them; what is not a financial instrument can still be gambling
+  under national law or fall under MiCA. None of that is answered by deploying to an L2 or by having no
+  admin withdrawal.
 
 - **FR-032**: Wallet linking is **optional**. Opening, accepting, settling and refunding a stake all work
   with no link, because the contract knows only addresses. Linking exists to attribute a stake to the author
@@ -347,6 +397,11 @@ with VOID, and the same with the worker switched off for the whole timeout windo
   critical path.
 - **SC-016**: A code returned by an account other than the one it was issued to never produces a link, and
   the attempt is visible.
+- **SC-017**: A stake on a model-judged claim is impossible to create, proved by trying.
+- **SC-018**: On the testnet run, the payout cannot be pulled early and can be pulled by a third address
+  after the window; a void inside the window refunds both and pays nobody; a void after it is refused.
+- **SC-019**: Every item in FR-031f is answered in writing before the contract is deployed anywhere, test
+  network included — because the answers cannot be added to a deployed contract.
 
 ## Assumptions
 
