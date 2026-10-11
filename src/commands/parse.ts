@@ -13,7 +13,7 @@ const LEADING_SEPARATORS = /^[\s—–\-:,.]+/;
 const STOP_PATTERN = /(^|\s)STOP(?=\s|[.!]|$)/;
 const OPT_OUT_PATTERN = /\bopt[\s-]?out\b/i;
 
-function escapeRegExp(text: string): string {
+export function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 

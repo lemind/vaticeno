@@ -7,7 +7,7 @@ import { amendClaim, type ClaimDeps, submitClaim } from '../lifecycle/claims.js'
 import type { SourceReader } from '../lifecycle/source-reader.js';
 import { log } from '../log.js';
 import { type Command, commandWordIn, resolveCommand } from './commands.js';
-import { addressesBot } from '../commands/parse.js';
+import { addressesBot, escapeRegExp } from '../commands/parse.js';
 import { ContractSchema } from '../contract/schema.js';
 import { renderStatement } from '../contract/render.js';
 import { type Intent, type ThreadPost, classifyIntent } from '../llm/intent.js';
@@ -253,10 +253,14 @@ async function assess(deps: BotDeps, mention: Mention, body: string, repliedTo: 
   log('info', 'mention assessed', { event: 'mention.assessed', tweet_id: mention.id, intent, thread_posts: thread.length });
   if (intent === 'prediction') return opts.predictionRuledOut ? { action: 'help', reply: HELP_REPLY } : null;
   if (intent === 'question') {
-    const usable = answer && answer.length <= ANSWER_MAX_CHARS && !hasTagsOrLinks(answer) && !echoes(answer, [body, ...theirs.map((p) => p.text)]);
-    if (usable) return { action: 'answer', reply: answer };
-    // Nothing usable came back: the refusal already in hand beats a generic help reply.
-    return opts.onlyQuestion ? null : { action: 'help', reply: HELP_REPLY };
+    const problem = answerProblem(answer, body, theirs, opts.about?.slug);
+    if (!problem) return { action: 'answer', reply: answer as string };
+    // Why an answer was thrown away used to be invisible, so a bad reply could not be told from a bad
+    // gate (owner report 2026-10-11). It is one line and it costs nothing.
+    log('info', 'answer rejected', { event: 'mention.answer_rejected', tweet_id: mention.id, reason: problem, chars: answer?.length ?? 0 });
+    // The model says this is a question. Recording it as a prediction and refusing it is the worst of
+    // the three answers available, so the help reply stands even where the caller had a refusal ready.
+    return { action: 'help', reply: HELP_REPLY };
   }
   // Asked only about a question, and it was not one: the caller's own reply stands.
   if (opts.onlyQuestion) return null;
@@ -274,13 +278,30 @@ async function saveCosts(deps: BotDeps, costs: CallCost[]) {
   }
 }
 
-// An answer that repeats 20+ characters of what users wrote is likely an injected "reply exactly …".
+// Why an answer cannot be posted, or null when it can. Each rule earns its place: a link or a handle is
+// platform policy, a stray hashtag is constitution VI, and a long verbatim run is the "reply exactly …"
+// trick. Everything else goes out — a gate that silences good answers is worse than no gate, because the
+// mention then falls through and is refused as a failed prediction (owner report 2026-10-11).
+function answerProblem(answer: string | null, body: string, context: readonly ThreadPost[], slug?: string): string | null {
+  if (!answer) return 'empty';
+  if (answer.length > ANSWER_MAX_CHARS) return 'too_long';
+  // The claim's own slug is an id, not a topic, and is the one hashtag an answer may carry (VI 2.4.1).
+  const withoutSlug = slug ? answer.replace(new RegExp(`#${escapeRegExp(slug)}\\b`, 'gi'), '') : answer;
+  if (hasTagsOrLinks(withoutSlug)) return 'tags_or_links';
+  if (echoes(answer, [body, ...context.map((post) => post.text)])) return 'echo';
+  return null;
+}
+
+// A verbatim run this long is someone else's sentence, not an answer that happens to use the facts it was
+// given. It was 20 characters, which with a whole conversation in view caught every answer that quoted a
+// score or a date — exactly what the answer is now asked to do (owner report 2026-10-11).
+const ECHO_RUN = 40;
 function echoes(answer: string, texts: string[]): boolean {
   const norm = (t: string) => t.toLowerCase().replace(/\s+/g, ' ');
   const a = norm(answer);
   return texts.some((text) => {
     const t = norm(text);
-    for (let i = 0; i + 20 <= t.length; i += 5) if (a.includes(t.slice(i, i + 20))) return true;
+    for (let i = 0; i + ECHO_RUN <= t.length; i += 10) if (a.includes(t.slice(i, i + ECHO_RUN))) return true;
     return false;
   });
 }
