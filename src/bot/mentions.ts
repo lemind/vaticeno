@@ -15,6 +15,7 @@ import { type CallCost, LlmSchemaError } from '../llm/client.js';
 import { recordCosts } from '../db/costs.js';
 import { type ExtrasDeps, quoteReply, selfpromoReply } from './extras.js';
 import { logTopic, resolveQuoteTopic } from './quote-topic.js';
+import { loadInstruction } from '../llm/instructions.js';
 import { alert, captureError } from '../observe.js';
 import { HELP_REPLY, hasTagsOrLinks, STOPPED_REPLY, THIRD_PARTY_REPLY, weightedLength, X_MAX_CHARS } from '../replies/templates.js';
 import { type Mention, PostNotSent, XApiError, type XClient } from '../x/client.js';
@@ -206,7 +207,7 @@ const ANSWER_MAX_CHARS = 260;
 // that settles a question often sits beside the one being read rather than above it, which is why the
 // recorder already reads it this way (owner decision 2026-10-07, repeated for answers 2026-10-11). One
 // conversation read, ~10 posts, charged once per mention by the cache; the ancestors are already paid for.
-async function contextAround(deps: BotDeps, mention: Mention, repliedTo: string | undefined, before?: string): Promise<{ posts: ThreadPost[]; oldest?: string }> {
+async function contextAround(deps: BotDeps, mention: Mention, repliedTo: string | undefined, before?: string): Promise<{ posts: ThreadPost[]; conversation: ThreadPost[]; oldest?: string }> {
   const above = before ? [] : await threadAbove(deps, repliedTo);
   const seen = new Set(above.map((post) => post.text));
   // Everything said in the conversation before the mention, **including our own replies**: the recorder
@@ -217,7 +218,30 @@ async function contextAround(deps: BotDeps, mention: Mention, repliedTo: string 
   const wider = read
     .filter((post) => !seen.has(post.text))
     .map((post) => ({ from: post.author_id === deps.botUserId ? ('bot' as const) : ('user' as const), text: post.text }));
-  return { posts: [...above, ...wider], oldest: read[0]?.id };
+  // The oldest post by id, not by position: created_at is second-precision, and a tie at the page edge
+  // would otherwise page from the newer of the two and buy that post again (review 2026-10-11).
+  const oldest = read.map((post) => post.id).sort((a, b) => (a.length === b.length ? a.localeCompare(b) : a.length - b.length))[0];
+  return { posts: [...above, ...wider], conversation: wider, oldest };
+}
+
+// One web lookup for a question whose answer is a fact nobody in the thread stated. The model answers in
+// its own words; the links it found stay out of the reply, because X turns them into links and a reply
+// may not carry one (owner decision 2026-10-11). Any failure answers nothing and costs the search only.
+async function liveAnswer(deps: BotDeps, mention: Mention, body: string, thread: readonly ThreadPost[]): Promise<string | null> {
+  try {
+    const result = await deps.llm.groundedAnswer({
+      model: deps.answerModel,
+      instructionVersion: 'answer-live.v1',
+      system: loadInstruction('answer-live.v1'),
+      input: JSON.stringify({ question: body, conversation: thread.map((post) => `${post.from}: ${post.text}`) }),
+    });
+    await saveCosts(deps, result.costs);
+    log('info', 'answered from a live lookup', { event: 'mention.answer_live', tweet_id: mention.id, sources: result.urls.length, chars: result.text.length });
+    return result.text.length > 0 ? result.text : null;
+  } catch (error) {
+    captureError(error, { event: 'mention.answer_live_failed', tweet_id: mention.id });
+    return null;
+  }
 }
 
 // The conversation before the mention, oldest first, unfiltered beyond "it came before this mention".
@@ -265,28 +289,34 @@ async function assess(deps: BotDeps, mention: Mention, body: string, repliedTo: 
   // answer about a verdict naturally repeats the score we just handed the model (review 2026-10-11).
   const ours = opts.about ? await claimContext(deps, opts.about) : [];
   const first = await contextAround(deps, mention, repliedTo);
-  let theirs = first.posts;
-  let thread = [...ours, ...theirs];
+  // Nearest first, then the conversation oldest to newest, which is the order intent.v4 is told to expect.
+  const above = first.posts.filter((post) => !first.conversation.includes(post));
+  let pages = first.conversation;
+  let thread = [...ours, ...above, ...pages];
   let intent: Intent;
   let answer: string | null;
   let wantsOlder: boolean;
+  let needsLive: boolean;
   const ask = async () => {
     const assessed = await classifyIntent(deps.llm, deps.answerModel, body, thread);
     await saveCosts(deps, assessed.costs);
     return assessed;
   };
   try {
-    ({ intent, answer, wantsOlder } = await ask());
+    ({ intent, answer, wantsOlder, needsLive } = await ask());
     // One page of the conversation, then a second only if the model says the answer is probably further
     // up — ten posts are bought before twenty are (owner decision 2026-10-11). At most one extra page,
     // and never for a fact no earlier post could hold.
     if (intent === 'question' && wantsOlder && first.oldest) {
       const older = await contextAround(deps, mention, repliedTo, first.oldest);
-      if (older.posts.length > 0) {
-        theirs = [...older.posts, ...theirs];
-        thread = [...ours, ...theirs];
-        log('info', 'reading further up the conversation', { event: 'thread.second_page', tweet_id: mention.id, added: older.posts.length });
-        ({ intent, answer } = await ask());
+      if (older.conversation.length > 0) {
+        pages = [...older.conversation, ...pages];
+        thread = [...ours, ...above, ...pages];
+        log('info', 'reading further up the conversation', { event: 'thread.second_page', tweet_id: mention.id, added: older.conversation.length });
+        const again = await ask();
+        // A worse second answer never costs us the first: the page was bought to improve the answer.
+        ({ intent, needsLive } = again);
+        answer = again.answer ?? answer;
       }
     }
   } catch (error) {
@@ -301,7 +331,18 @@ async function assess(deps: BotDeps, mention: Mention, body: string, repliedTo: 
   });
   if (intent === 'prediction') return opts.predictionRuledOut ? { action: 'help', reply: HELP_REPLY } : null;
   if (intent === 'question') {
-    const problem = answerProblem(answer, body, theirs, opts.about?.slug);
+    // Only what other people wrote is checked for echoing. Our own posts are in the context on purpose,
+    // and an answer quoting the prediction we ourselves stated is the answer, not an injection
+    // (review 2026-10-11, the second time this gate ate a good reply).
+    const written = [...above, ...pages].filter((post) => post.from === 'user');
+    // A question about the world that nothing in the thread can settle: look it up once, then answer.
+    if (needsLive && !answerProblem(answer, body, written, opts.about?.slug)) {
+      // The model could answer anyway — take that, and keep the money.
+    } else if (needsLive) {
+      const live = await liveAnswer(deps, mention, body, thread);
+      if (live && !answerProblem(live, body, written, opts.about?.slug)) return { action: 'answer_live', reply: live };
+    }
+    const problem = answerProblem(answer, body, written, opts.about?.slug);
     if (!problem) return { action: 'answer', reply: answer as string };
     // Why an answer was thrown away used to be invisible, so a bad reply could not be told from a bad
     // gate (owner report 2026-10-11). It is one line and it costs nothing.
@@ -332,7 +373,9 @@ async function saveCosts(deps: BotDeps, costs: CallCost[]) {
 // mention then falls through and is refused as a failed prediction (owner report 2026-10-11).
 function answerProblem(answer: string | null, body: string, context: readonly ThreadPost[], slug?: string): string | null {
   if (!answer) return 'empty';
-  if (answer.length > ANSWER_MAX_CHARS) return 'too_long';
+  // X's own count, not the string's: a reply of emoji or Japanese is twice its length to X, and a reply
+  // over the limit is refused after the mention is already marked answered (review 2026-10-11).
+  if (weightedLength(answer) > X_MAX_CHARS) return 'too_long';
   // The claim's own slug is an id, not a topic, and is the one hashtag an answer may carry (VI 2.4.1).
   const withoutSlug = slug ? answer.replace(new RegExp(`#${escapeRegExp(slug)}\\b`, 'gi'), '') : answer;
   if (hasTagsOrLinks(withoutSlug)) return 'tags_or_links';

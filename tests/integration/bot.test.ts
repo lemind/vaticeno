@@ -82,6 +82,10 @@ const llm = {
       : { is_prediction: true, x_rules_ok: true, contract: VALID_CONTRACT as Proposal['contract'], unclear: [], unclear_explanation: '', examples: [], self_confidence: 0.8 };
     return { data, costs: [] };
   },
+  groundedAnswer: async ({ input }: { input: string }) => {
+    const { question } = JSON.parse(input) as { question: string };
+    return { text: question.includes('who won') ? 'Oklahoma beat Texas 27-24.' : 'I could not confirm that.', urls: ['https://example.com/x'], costs: [] };
+  },
 } as unknown as LlmClient;
 
 async function bot(mentionsByPoll: Mention[][], posts: Record<string, { versionId: string; text: string }> = {}, pageText = '', conversation: Array<{ id: string; text: string; created_at?: string; author_id?: string }> = []) {
@@ -775,5 +779,57 @@ describe('a refusal is not a dead end (FR-033)', () => {
     await pollMentions(watched, NOW);
     assert.equal(reads.length, 1, 'one page: scrolling up cannot supply a fact no post contains');
     assert.match(replies[0]!.text, /no live source/);
+  });
+
+  test('a question the thread cannot answer is looked up and answered, without links', async () => {
+    const asking = mention('900', '@vaticeno who won the game?', { in_reply_to_user_id: '77', referenced_tweets: [{ type: 'replied_to', id: 'z1' }] });
+    const { deps, replies } = await bot([[asking]]);
+    const spy = deps.llm as unknown as { generateJson: (a: { input: string; instructionVersion: string }) => Promise<unknown> };
+    const inner = spy.generateJson.bind(spy);
+    const watched = { ...deps, llm: { ...deps.llm, generateJson: async (a: { input: string; instructionVersion: string }) => {
+      if (!a.instructionVersion.startsWith('intent.')) return inner(a);
+      // The model cannot answer from the thread and says a live source is needed.
+      return { data: { intent: 'question', answer: null, older_posts_would_help: false, needs_live_source: true }, costs: [] };
+    } } } as unknown as BotDeps;
+    await pollMentions(watched, NOW);
+    assert.equal(replies.length, 1);
+    assert.match(replies[0]!.text, /Oklahoma beat Texas 27-24/);
+    assert.doesNotMatch(replies[0]!.text, /https?:|example\.com/, 'the sources it found never reach the reply');
+  });
+
+  test('an answer quoting our own earlier reply is posted, not binned as an echo', async () => {
+    const conversation = [
+      { id: 'y1', text: 'BTC above 150k by December', created_at: '2026-09-30T10:00:00Z', author_id: '77' },
+      { id: 'y2', text: 'RECORDED · #ab12c — BTC daily close above $150,000 by 31 Dec 2026, by the Coinbase daily close', created_at: '2026-09-30T10:01:00Z', author_id: BOT },
+    ];
+    const asking = mention('910', '@vaticeno what exactly did I predict?', {
+      conversation_id: 'y0', created_at: '2026-09-30T11:00:00Z',
+      in_reply_to_user_id: '77', referenced_tweets: [{ type: 'replied_to', id: 'y2' }],
+    });
+    const { deps, replies } = await bot([[asking]], {}, '', conversation);
+    const spy = deps.llm as unknown as { generateJson: (a: { input: string; instructionVersion: string }) => Promise<unknown> };
+    const inner = spy.generateJson.bind(spy);
+    const watched = { ...deps, llm: { ...deps.llm, generateJson: async (a: { input: string; instructionVersion: string }) => {
+      if (!a.instructionVersion.startsWith('intent.')) return inner(a);
+      return { data: { intent: 'question', answer: 'You predicted BTC daily close above $150,000 by 31 Dec 2026, by the Coinbase daily close.', older_posts_would_help: false, needs_live_source: false }, costs: [] };
+    } } } as unknown as BotDeps;
+    await pollMentions(watched, NOW);
+    assert.equal(replies.length, 1);
+    assert.match(replies[0]!.text, /You predicted BTC daily close/, 'our own words quoted back are an answer, not an injection');
+  });
+
+  test('an answer X would count as too long is refused before it is sent', async () => {
+    const asking = mention('920', '@vaticeno what is this?', { in_reply_to_user_id: '77', referenced_tweets: [{ type: 'replied_to', id: 'w1' }] });
+    const { deps, replies } = await bot([[asking]]);
+    const spy = deps.llm as unknown as { generateJson: (a: { input: string; instructionVersion: string }) => Promise<unknown> };
+    const inner = spy.generateJson.bind(spy);
+    const watched = { ...deps, llm: { ...deps.llm, generateJson: async (a: { input: string; instructionVersion: string }) => {
+      if (!a.instructionVersion.startsWith('intent.')) return inner(a);
+      // 200 Japanese characters: 200 to JavaScript, 400 to X.
+      return { data: { intent: 'question', answer: 'あ'.repeat(200), older_posts_would_help: false, needs_live_source: false }, costs: [] };
+    } } } as unknown as BotDeps;
+    await pollMentions(watched, NOW);
+    assert.equal(replies.length, 1);
+    assert.doesNotMatch(replies[0]!.text, /あ/, 'a reply X would refuse is never sent');
   });
 });
