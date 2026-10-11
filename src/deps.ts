@@ -13,6 +13,7 @@ export function buildDeps(config: CoreConfig) {
     llm: createLlmClient({ mode: config.LLM_MODE, apiKey: config.GEMINI_API_KEY, store }),
     coinbase: createCoinbase({ mode: config.LLM_MODE, store }),
     normalizerModel: config.NORMALIZER_MODEL,
+    answerModel: config.ANSWER_MODEL,
     fetchPage: createPageFetcher({ mode: config.LLM_MODE, store }),
     judgeModelA: config.JUDGE_MODEL_A,
     judgeModelB: config.JUDGE_MODEL_B,

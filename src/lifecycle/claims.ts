@@ -23,7 +23,7 @@ import type { SourceReader } from './source-reader.js';
 
 export const LOCK_DELAY_MS = 15 * 60 * 1000;
 
-export type ClaimDeps = { db: Db; llm: LlmClient; coinbase: Coinbase; normalizerModel: string };
+export type ClaimDeps = { db: Db; llm: LlmClient; coinbase: Coinbase; normalizerModel: string; answerModel: string };
 
 export type SubmitInput = {
   text: string; // used for the proposal only — never stored or logged (FR-029)

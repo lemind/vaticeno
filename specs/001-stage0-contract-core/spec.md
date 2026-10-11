@@ -516,6 +516,14 @@ shown but never count as a contradiction.
   too far, an event not found, a duplicate — ends the exchange, and a further reply in that thread is
   treated as a new prediction rather than as a question (owner report 2026-10-11). The answer stays one
   reply, short, with no links, tags or prediction of its own, and it never opts anyone out.
+- **FR-033a**: A question is answered from the whole conversation before it, not from the three posts
+  directly above — on X the post that settles a question often sits beside the one being read rather than
+  above it, which is why recording already reads it that way. One conversation read per mention, charged
+  once however many paths ask for it.
+- **FR-033b**: Replies written to people run on a fuller model than the one that parses predictions, and
+  may be as long as the platform allows. The model is configuration, not code. It answers from what it was
+  given — the conversation, and Vaticeno's own line about the prediction — and says it does not know
+  rather than guessing at a recent result it has no live source for.
 
 ### Key Entities
 

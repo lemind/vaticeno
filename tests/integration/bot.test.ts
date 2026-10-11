@@ -44,7 +44,7 @@ const llm = {
   mode: 'replay',
   generateJson: async ({ input, instructionVersion }: { input: string; instructionVersion: string }) => {
     if (instructionVersion === 'joke.v1') return { data: { joke: jokeText }, costs: [] };
-    if (instructionVersion === 'intent.v1') {
+    if (instructionVersion.startsWith('intent.')) {
       const { text, thread } = JSON.parse(input) as { text: string; thread: Array<{ from: string; text: string }> };
       if (text === 'so?' && thread[0]?.from === 'bot') return { data: { intent: 'quote', answer: null }, costs: [] };
       // Answers the question by quoting the claim line the bot itself supplied as context.
@@ -98,7 +98,7 @@ async function bot(mentionsByPoll: Mention[][], posts: Record<string, { versionI
   } as unknown as XClient;
   const deps: BotDeps = {
     db: t.db, llm, coinbase: { productStatus: async () => 'online' } as unknown as Coinbase, normalizerModel: 'm',
-    x, reader: createMemorySourceReader(posts), botUserId: BOT, botHandle: 'vaticeno',
+    x, reader: createMemorySourceReader(posts), botUserId: BOT, botHandle: 'vaticeno', answerModel: 'm',
     fetchPage: async (url: string) => ({ url, text: pageText, sha256: 'x', simhash: null, retrievedAt: NOW }),
     postReply: async (to, text) => { replies.push({ to, text }); return { id: `r-${to}` }; },
     allowAuthor: (id) => id !== '666', caps: { perAuthorPerHour: 3, perDay: 300 },
@@ -566,7 +566,7 @@ describe('a refusal is not a dead end (FR-033)', () => {
     let calls = 0;
     const spy = deps.llm as unknown as { generateJson: (a: { input: string; instructionVersion: string }) => Promise<unknown> };
     const inner = spy.generateJson.bind(spy);
-    const counted = { ...deps, llm: { ...deps.llm, generateJson: async (a: { input: string; instructionVersion: string }) => { if (a.instructionVersion === 'intent.v1') calls++; return inner(a); } } } as unknown as BotDeps;
+    const counted = { ...deps, llm: { ...deps.llm, generateJson: async (a: { input: string; instructionVersion: string }) => { if (a.instructionVersion.startsWith('intent.')) calls++; return inner(a); } } } as unknown as BotDeps;
 
     const predicting = mention('911', '@vaticeno BTC daily close above $150,000 by 2026-12-31', { in_reply_to_user_id: BOT, referenced_tweets: [{ type: 'replied_to', id: 'r-910' }] });
     const next = await bot([[predicting]]);
@@ -608,11 +608,55 @@ describe('a refusal is not a dead end (FR-033)', () => {
     let calls = 0;
     const spy = deps.llm as unknown as { generateJson: (a: { input: string; instructionVersion: string }) => Promise<unknown> };
     const inner = spy.generateJson.bind(spy);
-    const counted = { ...deps, llm: { ...deps.llm, generateJson: async (a: { input: string; instructionVersion: string }) => { if (a.instructionVersion === 'intent.v1') calls++; return inner(a); } } } as unknown as BotDeps;
+    const counted = { ...deps, llm: { ...deps.llm, generateJson: async (a: { input: string; instructionVersion: string }) => { if (a.instructionVersion.startsWith('intent.')) calls++; return inner(a); } } } as unknown as BotDeps;
 
     const asking = mention('821', '@vaticeno quote me something about this', { in_reply_to_user_id: BOT, referenced_tweets: [{ type: 'replied_to', id: 'r-820' }] });
     const next = await bot([[asking]]);
     await pollMentions({ ...counted, x: next.deps.x, postReply: next.deps.postReply, statePath: next.deps.statePath }, NOW);
     assert.equal(calls, 1, 'the command-word path must not ask the model a second time');
+  });
+
+  test('a question under a claim that is still open is answered, not told NOT CHANGED', async () => {
+    const first = mention('840', '@vaticeno BTC daily close above $150,000 by 2026-12-31');
+    const { deps, replies } = await bot([[first]]);
+    await pollMentions(deps, NOW);
+    assert.match(replies[0]!.text, /^RECORDED/);
+    assert.equal((await t.sql`select status from claims`)[0]!.status, 'draft', 'the claim is still open');
+
+    const asking = mention('841', '@vaticeno what does this mean?', { in_reply_to_user_id: BOT, referenced_tweets: [{ type: 'replied_to', id: 'r-840' }] });
+    const second = await bot([[asking]]);
+    await pollMentions(second.deps, NOW);
+    assert.equal(second.replies.length, 1);
+    assert.doesNotMatch(second.replies[0]!.text, /NOT CHANGED/);
+    assert.match(second.replies[0]!.text, /^That one is /);
+    assert.equal((await t.sql`select count(*)::int as n from claims`)[0]!.n, 1, 'still one claim, unchanged');
+  });
+
+  test('an answer sees the whole conversation, not only the three posts above', async () => {
+    let seen = 0;
+    const conversation = [
+      { id: 'c1', text: 'the match was moved to Sunday', created_at: '2026-09-30T10:00:00Z', author_id: '77' },
+      { id: 'c2', text: 'who is playing?', created_at: '2026-09-30T10:01:00Z', author_id: '78' },
+      { id: 'c3', text: 'Liverpool and Real Madrid', created_at: '2026-09-30T10:02:00Z', author_id: '79' },
+      { id: 'c4', text: 'kickoff is 8pm', created_at: '2026-09-30T10:03:00Z', author_id: '77' },
+      { id: 'c5', text: 'should be a good one', created_at: '2026-09-30T10:04:00Z', author_id: '78' },
+    ];
+    const asking = mention('850', '@vaticeno what is this about?', {
+      conversation_id: 'c0', created_at: '2026-09-30T11:00:00Z',
+      in_reply_to_user_id: '77', referenced_tweets: [{ type: 'replied_to', id: 'c5' }],
+    });
+    const { deps, replies } = await bot([[asking]], {}, '', conversation);
+    const spy = deps.llm as unknown as { generateJson: (a: { input: string; instructionVersion: string }) => Promise<unknown> };
+    const inner = spy.generateJson.bind(spy);
+    const watched = { ...deps, llm: { ...deps.llm, generateJson: async (a: { input: string; instructionVersion: string }) => {
+      if (a.instructionVersion.startsWith('intent.')) seen = (JSON.parse(a.input) as { thread: unknown[] }).thread.length;
+      return inner(a);
+    } } } as unknown as BotDeps;
+    await pollMentions(watched, NOW);
+    assert.equal(replies.length, 1);
+    assert.ok(seen >= 4, `the model saw ${seen} posts; the conversation read must beat the three ancestors`);
+    // One conversation read for the mention, however many paths wanted it.
+    const [cost] = await t.sql`select count(*)::int as n from cost_events where operation = 'thread_read'`;
+    assert.ok((cost!.n as number) > 0, 'the conversation read is charged');
   });
 });

@@ -32,7 +32,7 @@ function deps(answers: Record<string, Partial<Proposal>>, productStatus = 'onlin
       return { data, costs: [{ provider: 'gemini' as const, operation: 'normalize' as const, units: 1, usdCost: 0.001 }] };
     },
   } as unknown as LlmClient;
-  return { db: t.db, llm, coinbase: { productStatus: async () => productStatus } as unknown as Coinbase, normalizerModel: 'm' };
+  return { db: t.db, llm, coinbase: { productStatus: async () => productStatus } as unknown as Coinbase, normalizerModel: 'm', answerModel: 'm' };
 }
 
 const submit = async (d: ClaimDeps, text: string) => {

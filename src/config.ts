@@ -32,6 +32,10 @@ export function loadConfig(): Config {
 // Stage 0 core (DB, models, observability). Separate from the POC config so neither breaks the other.
 const optionalText = z.string().trim().transform((v) => v || undefined).optional();
 const DEFAULT_MODEL = 'gemini-3.1-flash-lite';
+// Answers to people are the one place the cheap model shows: parsing a prediction is a narrow job, holding
+// a short conversation is not (owner decision 2026-10-11). Overridable, so the model can change without a
+// code change; every other call stays on the lite model.
+const DEFAULT_ANSWER_MODEL = 'gemini-3.8-flash';
 // An empty `KEY=` line in .env means "use the default" — never 0, and never a validation error.
 const blankIsUnset = (v: unknown) => (typeof v === 'string' && v.trim() === '' ? undefined : v);
 const modelId = z.preprocess((v) => (typeof v === 'string' && v.trim() === '' ? undefined : v), z.string().trim().min(1).default(DEFAULT_MODEL));
@@ -44,6 +48,7 @@ const CoreEnvSchema = z
     // Model IDs are part of every replay key, so replay needs them too. Defaults = the tiers the
     // corpus / seeds runs chose (T035, T060); override in .env to try another tier.
     NORMALIZER_MODEL: modelId,
+    ANSWER_MODEL: z.preprocess((v) => (typeof v === 'string' && v.trim() === '' ? undefined : v), z.string().trim().min(1).default(DEFAULT_ANSWER_MODEL)),
     JUDGE_MODEL_A: modelId,
     JUDGE_MODEL_B: modelId,
     ARBITER_MODEL: modelId,

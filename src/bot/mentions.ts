@@ -97,6 +97,14 @@ export async function routeMention(deps: BotDeps, mention: Mention, now: Date, w
     // A claim that can no longer change (locked, closed, expired, out of fixes) does not end the
     // conversation: the author is predicting again, so the reply is recorded as a NEW claim further
     // down (owner decision 2026-10-05). Only a mid-flight conflict still gets the refusal.
+    // "NOT CHANGED — that doesn't read as a prediction" is the right answer to a bad fix and the wrong one
+    // to a question: the claim is open, so the question never reached the path that answers it
+    // (owner report 2026-10-11). Asked here, before that reply is handed back.
+    if (fixed.outcome === 'not_changed') {
+      const answered = await assess(deps, mention, body, repliedTo, now, { onlyQuestion: true, about: claim });
+      askedModel = true;
+      if (answered) return { ...answered, slug: claim.slug };
+    }
     if (fixed.outcome !== 'refused' || fixed.reason === 'conflict') {
       return { action: `fix_${fixed.outcome}`, reply: fixed.reply, slug: claim.slug, discloses: fixed.outcome === 'amended' || fixed.outcome === 'recorded' };
     }
@@ -186,6 +194,20 @@ async function runCommand(deps: BotDeps, mention: Mention, command: Command, now
 }
 
 const THREAD_DEPTH = 3; // posts above the mention shown to the model (paid X reads, in memory only)
+// X counts 280; the reply is the answer alone, and the few characters of headroom cover the ones X
+// weighs double (templates.ts weightedLength).
+const ANSWER_MAX_CHARS = 260;
+
+// Context for an answer is the whole conversation before the mention, not three ancestors: on X the post
+// that settles a question often sits beside the one being read rather than above it, which is why the
+// recorder already reads it this way (owner decision 2026-10-07, repeated for answers 2026-10-11). One
+// conversation read, ~10 posts, charged once per mention by the cache; the ancestors are already paid for.
+async function contextAround(deps: BotDeps, mention: Mention, repliedTo: string | undefined): Promise<ThreadPost[]> {
+  const above = await threadAbove(deps, repliedTo);
+  const wider = await conversationBefore(deps, mention, []);
+  const seen = new Set(above.map((post) => post.text));
+  return [...above, ...wider.filter((text) => !seen.has(text)).map((text) => ({ from: 'user' as const, text }))];
+}
 
 type ClaimRef = { slug: string; contract: unknown; status: string; deadlineAt: Date | null };
 
@@ -215,12 +237,12 @@ async function assess(deps: BotDeps, mention: Mention, body: string, repliedTo: 
   // in by a stranger; applied to our own claim line it silences the best answers there are, because an
   // answer about a verdict naturally repeats the score we just handed the model (review 2026-10-11).
   const ours = opts.about ? await claimContext(deps, opts.about) : [];
-  const theirs = await threadAbove(deps, repliedTo);
+  const theirs = await contextAround(deps, mention, repliedTo);
   const thread = [...ours, ...theirs];
   let intent: Intent;
   let answer: string | null;
   try {
-    const assessed = await classifyIntent(deps.llm, deps.normalizerModel, body, thread);
+    const assessed = await classifyIntent(deps.llm, deps.answerModel, body, thread);
     ({ intent, answer } = assessed);
     await saveCosts(deps, assessed.costs);
   } catch (error) {
@@ -231,7 +253,7 @@ async function assess(deps: BotDeps, mention: Mention, body: string, repliedTo: 
   log('info', 'mention assessed', { event: 'mention.assessed', tweet_id: mention.id, intent, thread_posts: thread.length });
   if (intent === 'prediction') return opts.predictionRuledOut ? { action: 'help', reply: HELP_REPLY } : null;
   if (intent === 'question') {
-    const usable = answer && answer.length <= 200 && !hasTagsOrLinks(answer) && !echoes(answer, [body, ...theirs.map((p) => p.text)]);
+    const usable = answer && answer.length <= ANSWER_MAX_CHARS && !hasTagsOrLinks(answer) && !echoes(answer, [body, ...theirs.map((p) => p.text)]);
     if (usable) return { action: 'answer', reply: answer };
     // Nothing usable came back: the refusal already in hand beats a generic help reply.
     return opts.onlyQuestion ? null : { action: 'help', reply: HELP_REPLY };
@@ -280,9 +302,25 @@ function cachedReads(deps: BotDeps): BotDeps {
     void fresh.then(() => recordReads(deps, 1, 'thread.post_read'), () => {});
     return fresh;
   };
+  // The conversation read is the expensive one (~10 posts). Both the recorder and an answer want it, so
+  // it is read and charged once per mention and handed to whoever asks second (owner decision 2026-10-11).
+  const conversations = new Map<string, Promise<Awaited<ReturnType<XClient['getConversation']>>>>();
+  const conversationOnce = (id: string, untilId: string | undefined) => {
+    const key = `${id}|${untilId ?? ''}`;
+    const held = conversations.get(key);
+    if (held) return held;
+    const fresh = deps.x.getConversation(id, untilId ? { untilId } : undefined);
+    conversations.set(key, fresh);
+    void fresh.then((read) => recordReads(deps, read.length, 'thread.conversation_read'), () => {});
+    return fresh;
+  };
   return {
     ...deps,
-    x: { ...deps.x, getTweet: (id: string) => once(posts, id, () => deps.x.getTweet(id)) },
+    x: {
+      ...deps.x,
+      getTweet: (id: string) => once(posts, id, () => deps.x.getTweet(id)),
+      getConversation: (id: string, opts?: { untilId?: string }) => conversationOnce(id, opts?.untilId),
+    },
     reader: { ...deps.reader, readVersion: (id: string) => once(versions, id, () => deps.reader.readVersion(id)) },
   };
 }
@@ -299,7 +337,6 @@ async function conversationBefore(deps: BotDeps, mention: Mention, already: read
   if (!mention.conversation_id || !isReply || mention.conversation_id === mention.id) return already;
   try {
     const posts = await deps.x.getConversation(mention.conversation_id, { untilId: mention.id });
-    await recordReads(deps, posts.length, 'thread.conversation_read');
     // Every post of the conversation that came before, oldest first. Not a window of the last few: the
     // post that names the subject is often older than the chatter around it (the answer naming a fight
     // sat four posts back, behind our own refusal and an argument between strangers). They are all paid
