@@ -194,6 +194,10 @@ async function runCommand(deps: BotDeps, mention: Mention, command: Command, now
 }
 
 const THREAD_DEPTH = 3; // posts above the mention shown to the model (paid X reads, in memory only)
+// One conversation read per mention, this many posts, shared by the recorder and the answer. X bills per
+// post it returns (~$0.005 each), so this is the price of a question that needs its thread: about $0.10.
+// Ten was X's smallest page and left a question answering half a conversation (owner decision 2026-10-11).
+const CONVERSATION_POSTS = 20;
 // X counts 280; the reply is the answer alone, and the few characters of headroom cover the ones X
 // weighs double (templates.ts weightedLength).
 const ANSWER_MAX_CHARS = 260;
@@ -204,9 +208,30 @@ const ANSWER_MAX_CHARS = 260;
 // conversation read, ~10 posts, charged once per mention by the cache; the ancestors are already paid for.
 async function contextAround(deps: BotDeps, mention: Mention, repliedTo: string | undefined): Promise<ThreadPost[]> {
   const above = await threadAbove(deps, repliedTo);
-  const wider = await conversationBefore(deps, mention, []);
   const seen = new Set(above.map((post) => post.text));
-  return [...above, ...wider.filter((text) => !seen.has(text)).map((text) => ({ from: 'user' as const, text }))];
+  // Everything said in the conversation before the mention, **including our own replies**: the recorder
+  // leaves those out on purpose (our refusal must never become the prediction's subject, T048), but a
+  // question is very often about what we ourselves said, and dropping them threw away six posts of ten
+  // on the live thread this came from (owner report 2026-10-11).
+  const wider = (await conversationPosts(deps, mention))
+    .filter((post) => !seen.has(post.text))
+    .map((post) => ({ from: post.author_id === deps.botUserId ? ('bot' as const) : ('user' as const), text: post.text }));
+  return [...above, ...wider];
+}
+
+// The conversation before the mention, oldest first, unfiltered beyond "it came before this mention".
+async function conversationPosts(deps: BotDeps, mention: Mention): Promise<Array<{ text: string; author_id?: string }>> {
+  const isReply = mention.referenced_tweets?.some((ref) => ref.type === 'replied_to') ?? false;
+  if (!mention.conversation_id || !isReply || mention.conversation_id === mention.id) return [];
+  try {
+    const posts = await deps.x.getConversation(mention.conversation_id, { untilId: mention.id });
+    return posts
+      .filter((post) => post.id !== mention.id && (!post.created_at || !mention.created_at || post.created_at < mention.created_at))
+      .sort((a, b) => (a.created_at ?? '').localeCompare(b.created_at ?? ''));
+  } catch (error) {
+    captureError(error, { event: 'thread.conversation_failed', tweet_id: mention.id });
+    return [];
+  }
 }
 
 type ClaimRef = { slug: string; contract: unknown; status: string; deadlineAt: Date | null };
@@ -250,7 +275,11 @@ async function assess(deps: BotDeps, mention: Mention, body: string, repliedTo: 
     await saveCosts(deps, error.costs);
     return opts.predictionRuledOut && !opts.onlyQuestion ? { action: 'help', reply: HELP_REPLY } : null;
   }
-  log('info', 'mention assessed', { event: 'mention.assessed', tweet_id: mention.id, intent, thread_posts: thread.length });
+  log('info', 'mention assessed', {
+    event: 'mention.assessed', tweet_id: mention.id, intent, thread_posts: thread.length,
+    ours: thread.filter((post) => post.from === 'bot').length, theirs: thread.filter((post) => post.from === 'user').length,
+    model: deps.answerModel,
+  });
   if (intent === 'prediction') return opts.predictionRuledOut ? { action: 'help', reply: HELP_REPLY } : null;
   if (intent === 'question') {
     const problem = answerProblem(answer, body, theirs, opts.about?.slug);
@@ -330,7 +359,7 @@ function cachedReads(deps: BotDeps): BotDeps {
     const key = `${id}|${untilId ?? ''}`;
     const held = conversations.get(key);
     if (held) return held;
-    const fresh = deps.x.getConversation(id, untilId ? { untilId } : undefined);
+    const fresh = deps.x.getConversation(id, { ...(untilId ? { untilId } : {}), maxResults: CONVERSATION_POSTS });
     conversations.set(key, fresh);
     void fresh.then((read) => recordReads(deps, read.length, 'thread.conversation_read'), () => {});
     return fresh;

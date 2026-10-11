@@ -655,6 +655,7 @@ describe('a refusal is not a dead end (FR-033)', () => {
     await pollMentions(watched, NOW);
     assert.equal(replies.length, 1);
     assert.ok(seen >= 4, `the model saw ${seen} posts; the conversation read must beat the three ancestors`);
+    assert.equal(seen, 5, 'every post of the conversation before the mention, plus the one above it');
     // One conversation read for the mention, however many paths wanted it.
     const [cost] = await t.sql`select count(*)::int as n from cost_events where operation = 'thread_read'`;
     assert.ok((cost!.n as number) > 0, 'the conversation read is charged');
@@ -697,5 +698,29 @@ describe('a refusal is not a dead end (FR-033)', () => {
     assert.doesNotMatch(replies[0]!.text, /NOT RECORDED/, 'a question must never come back as a failed prediction');
     // The attempt leaves a rejected row behind, as every refusal does; what matters is the reply.
     assert.equal((await t.sql`select status from claims`)[0]!.status, 'rejected');
+  });
+
+  test('the bot’s own posts are part of the context an answer sees', async () => {
+    const conversation = [
+      { id: 'e1', text: 'BTC above 150k by December', created_at: '2026-09-30T10:00:00Z', author_id: '77' },
+      { id: 'e2', text: 'RECORDED · #ab12c — BTC daily close above $150,000 by 31 Dec 2026', created_at: '2026-09-30T10:01:00Z', author_id: BOT },
+      { id: 'e3', text: 'what does that mean exactly', created_at: '2026-09-30T10:02:00Z', author_id: '77' },
+    ];
+    const asking = mention('880', '@vaticeno can you explain?', {
+      conversation_id: 'e0', created_at: '2026-09-30T11:00:00Z',
+      in_reply_to_user_id: '77', referenced_tweets: [{ type: 'replied_to', id: 'e3' }],
+    });
+    let ours = 0;
+    const { deps } = await bot([[asking]], {}, '', conversation);
+    const spy = deps.llm as unknown as { generateJson: (a: { input: string; instructionVersion: string }) => Promise<unknown> };
+    const inner = spy.generateJson.bind(spy);
+    const watched = { ...deps, llm: { ...deps.llm, generateJson: async (a: { input: string; instructionVersion: string }) => {
+      if (a.instructionVersion.startsWith('intent.')) {
+        ours = (JSON.parse(a.input) as { thread: Array<{ from: string }> }).thread.filter((post) => post.from === 'bot').length;
+      }
+      return inner(a);
+    } } } as unknown as BotDeps;
+    await pollMentions(watched, NOW);
+    assert.ok(ours >= 1, 'our own reply is context for a question about it, not noise to be filtered out');
   });
 });
