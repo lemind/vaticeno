@@ -163,9 +163,10 @@ goes into the existing queue as an owner-written original (US2); the bot does no
 ### Key Entities
 
 - **Pool account**: numeric id, handle, field, weight, enabled.
-- **Feed post**: kind (repost, quote, original; receipt is kept for the rows already posted), day and
-  slot, source post id or queue item,
-  posted id, time. One row per source post and one per day's slot.
+- **Feed post**: kind (repost, quote, original, digest, record; receipt is kept for the rows already
+  posted), day and slot, source post id or queue item, posted id, time, and for a digest the slugs it
+  named — post text is never stored, so the row is the only way to know what has already been mentioned
+  (FR-013). One row per source post and one per day's slot.
 - **Queue item**: owner-written text, order, posted at.
 
 ## Success Criteria *(mandatory)*

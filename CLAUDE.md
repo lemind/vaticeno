@@ -6,9 +6,11 @@
 **Active plan**: `specs/003-python-platform/plan.md` (001's plan, research, data-model and contracts/ stay the reference for the claim pipeline).
 
 **Active feature**: `specs/003-python-platform/spec.md` — operations, capacity and cost, in three deploy
-stages: a private status page over job state and build info; a measured capacity baseline replacing the
-UNRECONCILED numbers; a local entailment verifier in front of the paid model, shadow first and behind a
-switch. The service layer is Python, allowed by constitution VII since 2026-10-09 (`docs/decisions/001-second-runtime.md`).
+stages: (1) a private status page over job state and build info, plus a measured capacity baseline
+replacing the UNRECONCILED numbers; (2) settlement on a testnet — price-feed claims only, a hold before
+payout and a void that can only refund; (3) a local entailment verifier in front of the paid model, shadow
+first and behind a switch. The service layer is Python, allowed by constitution VII since 2026-10-09
+(`docs/decisions/001-second-runtime.md`).
 Shipped before it: `specs/002-content-feed/spec.md` — the account's own feed: weighted pool reposts, the
 owner's queue of own posts; caps and "never twice" in the database, behind
 `ENABLE_FEED`/`FEED_DRY_RUN`. And `specs/001-stage0-contract-core/spec.md` — Stage 0, offline: contracts for any

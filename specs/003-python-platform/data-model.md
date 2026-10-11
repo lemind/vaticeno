@@ -87,7 +87,8 @@ sends, and writes back. Nothing else touches it.
 | id | uuid PK | |
 | claim_id | uuid NOT NULL UNIQUE → claims | one row per claim: the unique key is what stops a replay creating a second payout |
 | outcome | text NOT NULL | CHECK `hit \| miss \| void` — copied from the final resolution, never recomputed |
-| state | text NOT NULL | CHECK `pending \| sent \| failed` |
+| state | text NOT NULL | CHECK `pending \| sent \| voided \| failed` — `voided` is the operator's refund inside the hold (FR-031c), which is not a failure and not a settlement |
+| void_reason | text null | the published reason code, set only with `voided` (FR-031e) |
 | attempts | int NOT NULL DEFAULT 0 | |
 | tx_reference | text null | set once the transaction is accepted |
 | last_error | text null | |
@@ -95,7 +96,9 @@ sends, and writes back. Nothing else touches it.
 | sent_at | timestamptz null | |
 
 A row is written only when the verdict is final **and** a stake exists on that claim, and never for a verdict
-the local verifier decided alone. The stake itself lives on-chain, not here: this table holds no addresses and
+the local verifier decided alone or for a claim the price feed did not decide (FR-031a). The hold itself is
+not a column: the contract stores the settlement time and refuses to pay before it, so a row that cannot be
+settled yet is simply still `pending`. The stake itself lives on-chain, not here: this table holds no addresses and
 no amounts, so a leak of the database tells an attacker nothing it could not read from the chain anyway.
 
 Idempotency is enforced in two places, the same shape as never retrying a post after a failed existence check
