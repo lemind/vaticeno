@@ -267,6 +267,9 @@ tags, an echo check against injected text — it is simply unreachable from four
 - [x] T118 **Done 2026-10-11.** `ANSWER_MODEL` in `src/config.ts` and `.env.example` (default `gemini-3.8-flash`): only replies written to people use it, every other call stays on the lite model. `intent.v2` raises the answer to 260 characters, tells the model to answer from what it was given and to say it does not know rather than guess at a result it has no live source for (FR-033b).
 - [x] T119 **Done 2026-10-11.** A question under a claim that is still open is answered instead of being told "NOT CHANGED — that doesn't read as a prediction": the amend path asks once before handing that reply back (FR-033).
 
+- [x] T120 **Done 2026-10-11** (owner report, a live thread where the model answered and we binned it). The gates that decide whether an answer may be posted were silencing good answers and saying nothing: the claim's own slug is allowed as a hashtag (constitution VI 2.4.1), a verbatim run must now be 40 characters rather than 20 before it counts as parroting, and every rejected answer logs its reason. A question whose answer cannot be posted gets the help reply and is never recorded as a failed prediction.
+- [x] T121 **Done 2026-10-11.** Context is read a page at a time: ten posts, the model says whether older ones would help (`intent.v3`), and only then are ten more read, paged by id so nothing is paid for twice. Our own replies are included for an answer and still excluded for the recorder. `mention.assessed` logs how many posts were ours, how many theirs, and which model answered.
+
 **Checkpoint**: every verdict says what happened, and no refusal is a dead end. 104 unit and 129
 integration tests pass, typecheck clean. The judge answers recorded under v3 keep their old shape; only
 pages judged from v4 on are held to the result line.

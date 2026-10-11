@@ -194,10 +194,10 @@ async function runCommand(deps: BotDeps, mention: Mention, command: Command, now
 }
 
 const THREAD_DEPTH = 3; // posts above the mention shown to the model (paid X reads, in memory only)
-// One conversation read per mention, this many posts, shared by the recorder and the answer. X bills per
-// post it returns (~$0.005 each), so this is the price of a question that needs its thread: about $0.10.
-// Ten was X's smallest page and left a question answering half a conversation (owner decision 2026-10-11).
-const CONVERSATION_POSTS = 20;
+// X bills per post it returns (~$0.005), so context is bought a page at a time: ten posts first, and ten
+// older ones only when the model says the answer is probably further up (owner decision 2026-10-11). The
+// second page is paged by id, so nothing is read — or paid for — twice.
+const CONVERSATION_POSTS = 10;
 // X counts 280; the reply is the answer alone, and the few characters of headroom cover the ones X
 // weighs double (templates.ts weightedLength).
 const ANSWER_MAX_CHARS = 260;
@@ -206,25 +206,27 @@ const ANSWER_MAX_CHARS = 260;
 // that settles a question often sits beside the one being read rather than above it, which is why the
 // recorder already reads it this way (owner decision 2026-10-07, repeated for answers 2026-10-11). One
 // conversation read, ~10 posts, charged once per mention by the cache; the ancestors are already paid for.
-async function contextAround(deps: BotDeps, mention: Mention, repliedTo: string | undefined): Promise<ThreadPost[]> {
-  const above = await threadAbove(deps, repliedTo);
+async function contextAround(deps: BotDeps, mention: Mention, repliedTo: string | undefined, before?: string): Promise<{ posts: ThreadPost[]; oldest?: string }> {
+  const above = before ? [] : await threadAbove(deps, repliedTo);
   const seen = new Set(above.map((post) => post.text));
   // Everything said in the conversation before the mention, **including our own replies**: the recorder
   // leaves those out on purpose (our refusal must never become the prediction's subject, T048), but a
   // question is very often about what we ourselves said, and dropping them threw away six posts of ten
   // on the live thread this came from (owner report 2026-10-11).
-  const wider = (await conversationPosts(deps, mention))
+  const read = await conversationPosts(deps, mention, before);
+  const wider = read
     .filter((post) => !seen.has(post.text))
     .map((post) => ({ from: post.author_id === deps.botUserId ? ('bot' as const) : ('user' as const), text: post.text }));
-  return [...above, ...wider];
+  return { posts: [...above, ...wider], oldest: read[0]?.id };
 }
 
 // The conversation before the mention, oldest first, unfiltered beyond "it came before this mention".
-async function conversationPosts(deps: BotDeps, mention: Mention): Promise<Array<{ text: string; author_id?: string }>> {
+// `before` pages further back: pass the oldest id already read and X returns the ten before it.
+async function conversationPosts(deps: BotDeps, mention: Mention, before?: string): Promise<Array<{ id: string; text: string; author_id?: string }>> {
   const isReply = mention.referenced_tweets?.some((ref) => ref.type === 'replied_to') ?? false;
   if (!mention.conversation_id || !isReply || mention.conversation_id === mention.id) return [];
   try {
-    const posts = await deps.x.getConversation(mention.conversation_id, { untilId: mention.id });
+    const posts = await deps.x.getConversation(mention.conversation_id, { untilId: before ?? mention.id });
     return posts
       .filter((post) => post.id !== mention.id && (!post.created_at || !mention.created_at || post.created_at < mention.created_at))
       .sort((a, b) => (a.created_at ?? '').localeCompare(b.created_at ?? ''));
@@ -262,14 +264,31 @@ async function assess(deps: BotDeps, mention: Mention, body: string, repliedTo: 
   // in by a stranger; applied to our own claim line it silences the best answers there are, because an
   // answer about a verdict naturally repeats the score we just handed the model (review 2026-10-11).
   const ours = opts.about ? await claimContext(deps, opts.about) : [];
-  const theirs = await contextAround(deps, mention, repliedTo);
-  const thread = [...ours, ...theirs];
+  const first = await contextAround(deps, mention, repliedTo);
+  let theirs = first.posts;
+  let thread = [...ours, ...theirs];
   let intent: Intent;
   let answer: string | null;
-  try {
+  let wantsOlder: boolean;
+  const ask = async () => {
     const assessed = await classifyIntent(deps.llm, deps.answerModel, body, thread);
-    ({ intent, answer } = assessed);
     await saveCosts(deps, assessed.costs);
+    return assessed;
+  };
+  try {
+    ({ intent, answer, wantsOlder } = await ask());
+    // One page of the conversation, then a second only if the model says the answer is probably further
+    // up — ten posts are bought before twenty are (owner decision 2026-10-11). At most one extra page,
+    // and never for a fact no earlier post could hold.
+    if (intent === 'question' && wantsOlder && first.oldest) {
+      const older = await contextAround(deps, mention, repliedTo, first.oldest);
+      if (older.posts.length > 0) {
+        theirs = [...older.posts, ...theirs];
+        thread = [...ours, ...theirs];
+        log('info', 'reading further up the conversation', { event: 'thread.second_page', tweet_id: mention.id, added: older.posts.length });
+        ({ intent, answer } = await ask());
+      }
+    }
   } catch (error) {
     if (!(error instanceof LlmSchemaError)) throw error; // an outage retries the mention
     await saveCosts(deps, error.costs);
@@ -360,6 +379,7 @@ function cachedReads(deps: BotDeps): BotDeps {
     const held = conversations.get(key);
     if (held) return held;
     const fresh = deps.x.getConversation(id, { ...(untilId ? { untilId } : {}), maxResults: CONVERSATION_POSTS });
+    // Each page is a separate read with its own cost; the key above keeps the same page from being bought twice.
     conversations.set(key, fresh);
     void fresh.then((read) => recordReads(deps, read.length, 'thread.conversation_read'), () => {});
     return fresh;

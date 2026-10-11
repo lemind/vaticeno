@@ -46,7 +46,7 @@ const llm = {
     if (instructionVersion === 'joke.v1') return { data: { joke: jokeText }, costs: [] };
     if (instructionVersion.startsWith('intent.')) {
       const { text, thread } = JSON.parse(input) as { text: string; thread: Array<{ from: string; text: string }> };
-      if (text === 'so?' && thread[0]?.from === 'bot') return { data: { intent: 'quote', answer: null }, costs: [] };
+      if (text === 'so?' && thread[0]?.from === 'bot') return { data: { intent: 'quote', answer: null, older_posts_would_help: false }, costs: [] };
       // Answers the question by quoting the claim line the bot itself supplied as context.
       if (text.endsWith('?') && thread[0]?.text.startsWith('#')) return { data: { intent: 'question', answer: `That one is ${thread[0]!.text.slice(1, 40)}` }, costs: [] };
       if (text.endsWith('?')) return { data: { intent: 'question', answer: 'I record predictions and check them at the deadline.' }, costs: [] };
@@ -722,5 +722,58 @@ describe('a refusal is not a dead end (FR-033)', () => {
     } } } as unknown as BotDeps;
     await pollMentions(watched, NOW);
     assert.ok(ours >= 1, 'our own reply is context for a question about it, not noise to be filtered out');
+  });
+
+  test('a second page is read only when the model asks for it, and only once', async () => {
+    const page1 = Array.from({ length: 10 }, (_, i) => ({ id: `p1-${i}`, text: `recent chatter ${i}`, created_at: `2026-09-30T10:${String(10 + i).padStart(2, '0')}:00Z`, author_id: '77' }));
+    const page2 = [{ id: 'p2-0', text: 'the subject is the Packers game', created_at: '2026-09-30T09:00:00Z', author_id: '77' }];
+    const reads: string[] = [];
+    const asking = mention('890', '@vaticeno which game?', {
+      conversation_id: 'f0', created_at: '2026-09-30T11:00:00Z',
+      in_reply_to_user_id: '77', referenced_tweets: [{ type: 'replied_to', id: 'p1-9' }],
+    });
+    const { deps, replies } = await bot([[asking]]);
+    const paged = { ...deps, x: { ...deps.x,
+      getConversation: async (id: string, opts?: { untilId?: string }) => {
+        reads.push(opts?.untilId ?? 'start');
+        return opts?.untilId === 'p1-0' ? page2 : page1;
+      } } } as unknown as BotDeps;
+
+    let asked = 0;
+    const spy = paged.llm as unknown as { generateJson: (a: { input: string; instructionVersion: string }) => Promise<unknown> };
+    const inner = spy.generateJson.bind(spy);
+    const watched = { ...paged, llm: { ...paged.llm, generateJson: async (a: { input: string; instructionVersion: string }) => {
+      if (!a.instructionVersion.startsWith('intent.')) return inner(a);
+      asked++;
+      // First look: not enough. Second: answers from the older post.
+      return asked === 1
+        ? { data: { intent: 'question', answer: null, older_posts_would_help: true }, costs: [] }
+        : { data: { intent: 'question', answer: 'The Packers game.', older_posts_would_help: false }, costs: [] };
+    } } } as unknown as BotDeps;
+
+    await pollMentions(watched, NOW);
+    assert.equal(asked, 2, 'asked again once the older posts were in hand');
+    assert.deepEqual(reads, ['890', 'p1-0'], 'first page, then the page before it — never the same page twice');
+    assert.equal(replies[0]!.text, 'The Packers game.');
+  });
+
+  test('no second page when the model says older posts would not help', async () => {
+    const page1 = [{ id: 'g1', text: 'chatter', created_at: '2026-09-30T10:00:00Z', author_id: '77' }];
+    const reads: string[] = [];
+    const asking = mention('895', '@vaticeno who won the game last night?', {
+      conversation_id: 'g0', created_at: '2026-09-30T11:00:00Z',
+      in_reply_to_user_id: '77', referenced_tweets: [{ type: 'replied_to', id: 'g1' }],
+    });
+    const { deps, replies } = await bot([[asking]]);
+    const paged = { ...deps, x: { ...deps.x, getConversation: async (_id: string, opts?: { untilId?: string }) => { reads.push(opts?.untilId ?? 'start'); return page1; } } } as unknown as BotDeps;
+    const spy = paged.llm as unknown as { generateJson: (a: { input: string; instructionVersion: string }) => Promise<unknown> };
+    const inner = spy.generateJson.bind(spy);
+    const watched = { ...paged, llm: { ...paged.llm, generateJson: async (a: { input: string; instructionVersion: string }) => {
+      if (!a.instructionVersion.startsWith('intent.')) return inner(a);
+      return { data: { intent: 'question', answer: 'I have no live source for last night’s result.', older_posts_would_help: false }, costs: [] };
+    } } } as unknown as BotDeps;
+    await pollMentions(watched, NOW);
+    assert.equal(reads.length, 1, 'one page: scrolling up cannot supply a fact no post contains');
+    assert.match(replies[0]!.text, /no live source/);
   });
 });
