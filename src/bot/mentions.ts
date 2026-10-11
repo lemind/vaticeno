@@ -104,7 +104,9 @@ export async function routeMention(deps: BotDeps, mention: Mention, now: Date, w
     // question, answering it beats refusing it (FR-033). The model sees the claim itself, so the answer
     // is about this prediction and not a guess.
     const answered = await assess(deps, mention, body, repliedTo, now, { onlyQuestion: true, about: claim });
-    if (answered) return answered;
+    // The slug carries the answer into the claim's thread (pollMentions → rememberThread), so the next
+    // reply under it is still read with this claim in hand instead of arriving as an unrelated mention.
+    if (answered) return { ...answered, slug: claim.slug };
     askedModel = true;
     log('info', 'closed claim: recording this reply as a new one', { event: 'claim.amend_to_new', slug: claim.slug, reason: fixed.reason });
   }
@@ -123,7 +125,7 @@ export async function routeMention(deps: BotDeps, mention: Mention, now: Date, w
 
   // A command word with more text: the model decides, seeing the thread (a prediction goes on below).
   const firstAssessed = commandWordIn(body);
-  if (firstAssessed) {
+  if (firstAssessed && !askedModel) {
     const assessed = await assess(deps, mention, body, repliedTo, now);
     if (assessed) return assessed;
   }
@@ -145,10 +147,12 @@ export async function routeMention(deps: BotDeps, mention: Mention, now: Date, w
   // turn). "Not a prediction" may answer with anything it likes; every other refusal — a deadline too
   // close or too far, an event not found, a duplicate — keeps its own text unless this was a question,
   // because the specific reason is more use to the author than a generic answer (FR-033).
-  if (result.outcome === 'rejected' && !firstAssessed && !askedModel) {
+  const refused = result.outcome === 'rejected' || result.outcome === 'duplicate';
+  if (refused && !firstAssessed && !askedModel) {
     const notPrediction = result.rejectReason === 'not_prediction';
     const assessed = await assess(deps, mention, current.text, repliedTo, now, notPrediction ? { predictionRuledOut: true } : { onlyQuestion: true });
-    if (assessed) return assessed;
+    // Same as above: the answer joins the thread of the claim it is about, when there is one.
+    if (assessed) return { ...assessed, slug: result.slug };
   }
   return { action: `record_inline_${result.outcome}`, reply: result.reply, slug: result.slug, discloses: result.outcome === 'recorded' };
 }
@@ -206,7 +210,13 @@ async function claimContext(deps: BotDeps, claim: ClaimRef): Promise<ThreadPost[
 // The model decides what an unclear mention wants, with the thread above it. null = go on with recording.
 // `onlyQuestion`: answer a question, otherwise say nothing and let the caller keep the reply it has.
 async function assess(deps: BotDeps, mention: Mention, body: string, repliedTo: string | undefined, now: Date, opts: { predictionRuledOut?: boolean; onlyQuestion?: boolean; about?: ClaimRef } = {}): Promise<Routed | null> {
-  const thread = [...(opts.about ? await claimContext(deps, opts.about) : []), ...await threadAbove(deps, repliedTo)];
+  // Two lists, deliberately: the model sees our own record first and then the posts above, but only the
+  // posts people wrote are checked for echoing. The echo rule exists to catch "reply exactly …" smuggled
+  // in by a stranger; applied to our own claim line it silences the best answers there are, because an
+  // answer about a verdict naturally repeats the score we just handed the model (review 2026-10-11).
+  const ours = opts.about ? await claimContext(deps, opts.about) : [];
+  const theirs = await threadAbove(deps, repliedTo);
+  const thread = [...ours, ...theirs];
   let intent: Intent;
   let answer: string | null;
   try {
@@ -221,7 +231,7 @@ async function assess(deps: BotDeps, mention: Mention, body: string, repliedTo: 
   log('info', 'mention assessed', { event: 'mention.assessed', tweet_id: mention.id, intent, thread_posts: thread.length });
   if (intent === 'prediction') return opts.predictionRuledOut ? { action: 'help', reply: HELP_REPLY } : null;
   if (intent === 'question') {
-    const usable = answer && answer.length <= 200 && !hasTagsOrLinks(answer) && !echoes(answer, [body, ...thread.map((p) => p.text)]);
+    const usable = answer && answer.length <= 200 && !hasTagsOrLinks(answer) && !echoes(answer, [body, ...theirs.map((p) => p.text)]);
     if (usable) return { action: 'answer', reply: answer };
     // Nothing usable came back: the refusal already in hand beats a generic help reply.
     return opts.onlyQuestion ? null : { action: 'help', reply: HELP_REPLY };

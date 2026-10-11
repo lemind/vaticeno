@@ -47,6 +47,8 @@ const llm = {
     if (instructionVersion === 'intent.v1') {
       const { text, thread } = JSON.parse(input) as { text: string; thread: Array<{ from: string; text: string }> };
       if (text === 'so?' && thread[0]?.from === 'bot') return { data: { intent: 'quote', answer: null }, costs: [] };
+      // Answers the question by quoting the claim line the bot itself supplied as context.
+      if (text.endsWith('?') && thread[0]?.text.startsWith('#')) return { data: { intent: 'question', answer: `That one is ${thread[0]!.text.slice(1, 40)}` }, costs: [] };
       if (text.endsWith('?')) return { data: { intent: 'question', answer: 'I record predictions and check them at the deadline.' }, costs: [] };
       return { data: { intent: 'other', answer: null }, costs: [] };
     }
@@ -572,5 +574,45 @@ describe('a refusal is not a dead end (FR-033)', () => {
     assert.match(next.replies[0]!.text, /^RECORDED/);
     assert.equal((await t.sql`select count(*)::int as n from claims`)[0]!.n, 2, 'a prediction under a closed claim is still a new claim');
     assert.equal(calls, 1, 'one intent call for the mention, not one per path');
+  });
+
+  test('an answer may repeat the claim handed to the model, and joins that claim’s thread', async () => {
+    const first = mention('800', '@vaticeno BTC daily close above $150,000 by 2026-12-31');
+    const source = { '800': { versionId: '800', text: 'BTC daily close above $150,000 by 2026-12-31' } };
+    const { deps, replies } = await bot([[first]], source);
+    await pollMentions(deps, NOW);
+    assert.match(replies[0]!.text, /^RECORDED/);
+    const [recorded] = await t.sql`select slug from claims`;
+    // Locked: the thread is closed, so a reply in it is no longer a fix.
+    await lockDueDrafts(deps, new Date(NOW.getTime() + 16 * 60_000));
+    assert.equal((await t.sql`select status from claims`)[0]!.status, 'locked');
+
+    const asking = mention('801', '@vaticeno what is this?', { in_reply_to_user_id: BOT, referenced_tweets: [{ type: 'replied_to', id: 'r-800' }] });
+    const second = await bot([[asking]]);
+    await pollMentions({ ...second.deps, statePath: second.deps.statePath }, NOW);
+    assert.equal(second.replies.length, 1);
+    // The answer quotes the claim line the bot supplied: our own record is not injected text, so the
+    // echo rule must not silence it (review 2026-10-11).
+    assert.match(second.replies[0]!.text, /^That one is /);
+    assert.equal((await t.sql`select count(*)::int as n from claims`)[0]!.n, 1, 'a question is not a new claim');
+    const [claim] = await t.sql`select thread_tweet_ids from claims where slug = ${recorded!.slug}`;
+    assert.ok((claim!.thread_tweet_ids as string[]).includes('r-801'), 'the answer joins the claim thread');
+  });
+
+  test('a command word under a closed claim still costs one model call', async () => {
+    const first = mention('820', '@vaticeno BTC daily close above $150,000 by 2026-12-31');
+    const { deps } = await bot([[first]], { '820': { versionId: '820', text: 'BTC daily close above $150,000 by 2026-12-31' } });
+    await pollMentions(deps, NOW);
+    await lockDueDrafts(deps, new Date(NOW.getTime() + 16 * 60_000));
+
+    let calls = 0;
+    const spy = deps.llm as unknown as { generateJson: (a: { input: string; instructionVersion: string }) => Promise<unknown> };
+    const inner = spy.generateJson.bind(spy);
+    const counted = { ...deps, llm: { ...deps.llm, generateJson: async (a: { input: string; instructionVersion: string }) => { if (a.instructionVersion === 'intent.v1') calls++; return inner(a); } } } as unknown as BotDeps;
+
+    const asking = mention('821', '@vaticeno quote me something about this', { in_reply_to_user_id: BOT, referenced_tweets: [{ type: 'replied_to', id: 'r-820' }] });
+    const next = await bot([[asking]]);
+    await pollMentions({ ...counted, x: next.deps.x, postReply: next.deps.postReply, statePath: next.deps.statePath }, NOW);
+    assert.equal(calls, 1, 'the command-word path must not ask the model a second time');
   });
 });

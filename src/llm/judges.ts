@@ -49,13 +49,17 @@ const JudgeSchema = z.object({ ...JudgeFields, quote: z.string().max(600).nullab
 // Recorded shape: no quote field at all (the replay store refuses one), only its hash and whether it was on the page.
 const JudgeRecordedSchema = z.object({ ...JudgeFields, quote_sha256: z.string().nullable(), quote_found: z.boolean() });
 
-// From judge.v4 a settled verdict must say what happened: the reply shows that line, and "MISS" with
-// nothing beside it asks the reader to take our word for it (FR-032). A page that answers without one is
-// skipped like any other unusable answer — never a verdict, and the other pages still count.
-const needsResult = (d: { says: string; basis: string; result?: string | null }) =>
-  !(['hit', 'miss'].includes(d.says) && d.basis === 'record') || (d.result ?? '').trim().length > 0;
-const RESULT_REQUIRED = { message: 'result is required for a settled hit or miss', path: ['result'] };
-const withResultRule = <T extends z.ZodTypeAny>(schema: T) => schema.refine(needsResult as never, RESULT_REQUIRED);
+// From judge.v4 the model must answer the result field rather than leave it out: the verdict reply shows
+// that line, and "MISS" with nothing beside it asks the reader to take our word for it (FR-032). Required,
+// not refined — the response schema sent to the provider is derived from this object, and a `.refine()`
+// does not survive that derivation, so a rule written that way would bind us and not the model. The value
+// may still be null (nothing settled to report, and absence-based answers have nothing to say); a null on
+// a verdict that needed one is reported by the verdict reply, never by discarding the page, because
+// evidence that settles a claim is worth more than a line of prose (review 2026-10-11).
+const V4_FIELDS = { ...JudgeFields, result: z.string().max(80).nullable() };
+const JudgeSchemaV4 = z.object({ ...V4_FIELDS, quote: z.string().max(600).nullable() });
+const JudgeRecordedSchemaV4 = z.object({ ...V4_FIELDS, quote_sha256: z.string().nullable(), quote_found: z.boolean() });
+const BEFORE_V4 = ['judge.v1', 'judge.v2', 'judge.v3'];
 
 export type Judgement = Omit<z.infer<typeof JudgeSchema>, 'quote'> & { quoteFound: boolean | null };
 
@@ -80,8 +84,8 @@ export async function judgePage(
     system: loadInstruction(version),
     input: JSON.stringify({ ...judgeInput(contract, window, version), page: { url: page.url, text: page.text } }),
     replayIdentity: { ...judgeInput(contract, window, version), url: page.url, sha256: page.sha256 },
-    schema: (version === 'judge.v2' || version === 'judge.v3' ? JudgeSchema : withResultRule(JudgeSchema)) as typeof JudgeSchema,
-    replaySchema: (version === 'judge.v2' || version === 'judge.v3' ? JudgeRecordedSchema : withResultRule(JudgeRecordedSchema)) as unknown as z.ZodType<z.infer<typeof JudgeSchema> & { quote_found?: boolean }>,
+    schema: (BEFORE_V4.includes(version) ? JudgeSchema : JudgeSchemaV4) as typeof JudgeSchema,
+    replaySchema: (BEFORE_V4.includes(version) ? JudgeRecordedSchema : JudgeRecordedSchemaV4) as unknown as z.ZodType<z.infer<typeof JudgeSchema> & { quote_found?: boolean }>,
     recordAs: (raw) => redactQuote(raw, page.text),
   });
   // Live: check the quote against the page now. Replay: use the check made when it was recorded.

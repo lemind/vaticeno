@@ -86,7 +86,7 @@ async function verdictText(deps: BotDeps, claim: Due): Promise<string> {
   }
   if (claim.decidedBy === 'human') return assertReplyFits(`${head}\nDecided on review.`);
   const [evidence] = claim.evidenceId
-    ? await deps.db.select({ source: evidences.sourceName, value: evidences.value, date: evidences.eventDate, result: evidences.resultSummary }).from(evidences).where(eq(evidences.id, claim.evidenceId)).limit(1)
+    ? await deps.db.select({ source: evidences.sourceName, value: evidences.value, date: evidences.eventDate, result: evidences.resultSummary, basis: evidences.basis }).from(evidences).where(eq(evidences.id, claim.evidenceId)).limit(1)
     : [];
   if (!evidence) return assertReplyFits(head);
   if (contract.price && evidence.value !== null) {
@@ -100,9 +100,13 @@ async function verdictText(deps: BotDeps, claim: Due): Promise<string> {
     const withResult = `${head}\n${evidence.result} · ${site}`;
     if (weightedLength(withResult) <= X_MAX_CHARS) return withResult;
   }
-  // A hit or a miss with nothing to show is a defect in the judging step, not an acceptable reply
-  // (FR-032): the verdict still goes out — it is never withheld — and we are told the line was missing.
-  alert('verdict.no_result', { slug: claim.slug, outcome: claim.outcome, source: evidence.source });
+  // A hit or a miss read off a record and still with nothing to show is a defect in the judging step, not
+  // an acceptable reply (FR-032): the verdict goes out either way — it is never withheld — and we are told.
+  // An absence-based miss is exempt: the page is the official record and the event is simply not in it,
+  // so there is no outcome to report and the judge is right to leave it empty (review 2026-10-11).
+  if (evidence.basis === 'record') {
+    alert('verdict.no_result', { slug: claim.slug, outcome: claim.outcome, source: evidence.source, had_result: Boolean(evidence.result) });
+  }
   return assertReplyFits(`${head}\nSource: ${site}${evidence.date ? ` (${evidence.date})` : ''}`);
 }
 
