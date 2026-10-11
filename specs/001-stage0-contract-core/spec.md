@@ -505,6 +505,17 @@ shown but never count as a contradiction.
   recorded responses never include fetched page text or quotes.
 - **FR-030**: All times MUST be stored and compared in UTC.
 - **FR-031**: Every model, search and data-feed call MUST be recorded with its cost, per claim.
+- **FR-032**: A verdict reply MUST show the result it was decided on, not only HIT, MISS or VOID: the
+  closing price for a price claim, and for everything else one short line of what happened in the judge's
+  own words. A verdict whose deciding evidence carries neither a number nor a result line is a defect in
+  the judging step, not an acceptable reply (owner report 2026-10-11: 3 of 5 web verdicts had nothing to
+  show, although the judge instruction already asks for one).
+- **FR-033**: A person who asks the bot something in a thread MUST get an answer where one is possible,
+  whatever happened to the claim. Today the conversational path runs only when the text carries a command
+  word or when a claim was refused for not being a prediction; every other refusal — a deadline too close,
+  too far, an event not found, a duplicate — ends the exchange, and a further reply in that thread is
+  treated as a new prediction rather than as a question (owner report 2026-10-11). The answer stays one
+  reply, short, with no links, tags or prediction of its own, and it never opts anyone out.
 
 ### Key Entities
 

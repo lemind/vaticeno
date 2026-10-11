@@ -8,7 +8,7 @@ import type { CallCost, LlmClient } from './client.js';
 import { loadInstruction } from './instructions.js';
 
 export const SEARCH_VERSION = 'search.v2';
-export const JUDGE_VERSION = 'judge.v3';
+export const JUDGE_VERSION = 'judge.v4';
 // The seeded claims were recorded with v2 (no event_start); they replay with it — no paid re-record.
 export const SEEDS_JUDGE_VERSION = 'judge.v2';
 export const ARBITRATE_VERSION = 'arbitrate.v1';
@@ -37,7 +37,7 @@ const JudgeFields = {
   basis: z.enum(['record', 'absence']),
   event_date: DATE.nullable(),
   event_start: z.string().max(40).nullable().optional(), // v3; absent in v2 answers; unparseable = no time (gates.ts)
-  result: z.string().max(80).nullable().optional(), // v3: the outcome in its own words, shown in the verdict reply
+  result: z.string().max(80).nullable().optional(), // v3; required for a settled hit/miss from v4 (FR-032)
   is_final_result: z.boolean(),
   from_contract_source: z.boolean(),
   source_trust: z.enum(['primary', 'established', 'weak']),
@@ -48,6 +48,14 @@ const JudgeFields = {
 const JudgeSchema = z.object({ ...JudgeFields, quote: z.string().max(600).nullable() });
 // Recorded shape: no quote field at all (the replay store refuses one), only its hash and whether it was on the page.
 const JudgeRecordedSchema = z.object({ ...JudgeFields, quote_sha256: z.string().nullable(), quote_found: z.boolean() });
+
+// From judge.v4 a settled verdict must say what happened: the reply shows that line, and "MISS" with
+// nothing beside it asks the reader to take our word for it (FR-032). A page that answers without one is
+// skipped like any other unusable answer — never a verdict, and the other pages still count.
+const needsResult = (d: { says: string; basis: string; result?: string | null }) =>
+  !(['hit', 'miss'].includes(d.says) && d.basis === 'record') || (d.result ?? '').trim().length > 0;
+const RESULT_REQUIRED = { message: 'result is required for a settled hit or miss', path: ['result'] };
+const withResultRule = <T extends z.ZodTypeAny>(schema: T) => schema.refine(needsResult as never, RESULT_REQUIRED);
 
 export type Judgement = Omit<z.infer<typeof JudgeSchema>, 'quote'> & { quoteFound: boolean | null };
 
@@ -72,8 +80,8 @@ export async function judgePage(
     system: loadInstruction(version),
     input: JSON.stringify({ ...judgeInput(contract, window, version), page: { url: page.url, text: page.text } }),
     replayIdentity: { ...judgeInput(contract, window, version), url: page.url, sha256: page.sha256 },
-    schema: JudgeSchema,
-    replaySchema: JudgeRecordedSchema as unknown as z.ZodType<z.infer<typeof JudgeSchema> & { quote_found?: boolean }>,
+    schema: (version === 'judge.v2' || version === 'judge.v3' ? JudgeSchema : withResultRule(JudgeSchema)) as typeof JudgeSchema,
+    replaySchema: (version === 'judge.v2' || version === 'judge.v3' ? JudgeRecordedSchema : withResultRule(JudgeRecordedSchema)) as unknown as z.ZodType<z.infer<typeof JudgeSchema> & { quote_found?: boolean }>,
     recordAs: (raw) => redactQuote(raw, page.text),
   });
   // Live: check the quote against the page now. Replay: use the check made when it was recorded.

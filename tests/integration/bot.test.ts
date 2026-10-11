@@ -71,6 +71,10 @@ const llm = {
     }
     if (text.startsWith('down')) throw new LlmUnavailable('model down');
     if (text.endsWith('?')) return { data: { is_prediction: false, x_rules_ok: true, contract: null, unclear: [], unclear_explanation: '', examples: [], self_confidence: 0.9 }, costs: [] };
+    // A deadline hours away: refused for the deadline, not for being a prediction (FR-033 path).
+    if (text.startsWith('soon')) {
+      return { data: { is_prediction: true, x_rules_ok: true, contract: { ...VALID_CONTRACT, deadline_at: '2026-10-01T06:00:00Z' } as Proposal['contract'], unclear: [], unclear_explanation: '', examples: [], self_confidence: 0.8 }, costs: [] };
+    }
     const data: Proposal = text.startsWith('vague')
       ? { is_prediction: true, x_rules_ok: true, contract: null, unclear: ['deadline'], unclear_explanation: 'No date given.', examples: [], self_confidence: 0.3 }
       : { is_prediction: true, x_rules_ok: true, contract: VALID_CONTRACT as Proposal['contract'], unclear: [], unclear_explanation: '', examples: [], self_confidence: 0.8 };
@@ -530,5 +534,43 @@ describe('failures and limits', () => {
     assert.equal(await expireWithheldDrafts(t.db, new Date(recordedAt + 23 * 3_600_000)), 0);
     assert.equal(await expireWithheldDrafts(t.db, new Date(recordedAt + 24 * 3_600_000)), 1);
     assert.equal((await t.sql`select status from claims where slug = ${recorded!.slug}`)[0]!.status, 'expired');
+  });
+});
+
+describe('a refusal is not a dead end (FR-033)', () => {
+  test('a question after a deadline refusal is answered, not refused a second time', async () => {
+    const first = mention('900', '@vaticeno soon BTC above 150k');
+    const { deps, replies } = await bot([[first]]);
+    await pollMentions(deps, NOW);
+    assert.match(replies[0]!.text, /NOT RECORDED/);
+    assert.match(replies[0]!.text, /24 hours/);
+
+    // The author asks why, under the bot's own answer: today that was recorded as a fresh prediction.
+    const asking = mention('901', '@vaticeno why?', { in_reply_to_user_id: BOT, referenced_tweets: [{ type: 'replied_to', id: 'r-900' }] });
+    const second = await bot([[asking]]);
+    second.deps.statePath = deps.statePath;
+    await pollMentions(second.deps, NOW);
+    assert.equal(second.replies.length, 1);
+    assert.match(second.replies[0]!.text, /I record predictions/);
+    assert.doesNotMatch(second.replies[0]!.text, /NOT RECORDED/);
+    assert.equal((await t.sql`select count(*)::int as n from claims`)[0]!.n, 1, 'the question is not a second claim');
+  });
+
+  test('under a refused claim a prediction is still recorded, and the model is asked once', async () => {
+    const first = mention('910', '@vaticeno soon BTC above 150k');
+    const { deps } = await bot([[first]]);
+    await pollMentions(deps, NOW);
+
+    let calls = 0;
+    const spy = deps.llm as unknown as { generateJson: (a: { input: string; instructionVersion: string }) => Promise<unknown> };
+    const inner = spy.generateJson.bind(spy);
+    const counted = { ...deps, llm: { ...deps.llm, generateJson: async (a: { input: string; instructionVersion: string }) => { if (a.instructionVersion === 'intent.v1') calls++; return inner(a); } } } as unknown as BotDeps;
+
+    const predicting = mention('911', '@vaticeno BTC daily close above $150,000 by 2026-12-31', { in_reply_to_user_id: BOT, referenced_tweets: [{ type: 'replied_to', id: 'r-910' }] });
+    const next = await bot([[predicting]]);
+    await pollMentions({ ...counted, x: next.deps.x, postReply: next.deps.postReply, statePath: next.deps.statePath }, NOW);
+    assert.match(next.replies[0]!.text, /^RECORDED/);
+    assert.equal((await t.sql`select count(*)::int as n from claims`)[0]!.n, 2, 'a prediction under a closed claim is still a new claim');
+    assert.equal(calls, 1, 'one intent call for the mention, not one per path');
   });
 });

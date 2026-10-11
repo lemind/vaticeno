@@ -230,6 +230,45 @@ element, no percentage or ranking, no content (SC-009).
 
 ---
 
+## Phase 10: The reply carries the result, and a question gets an answer (owner report 2026-10-11)
+
+**Why**: a verdict that says MISS and nothing else makes the reader take our word for it, and a refusal
+that is not "this isn't a prediction" ends the conversation — the author cannot ask why, because the next
+reply in that thread is read as a new prediction. Both were found on a live thread, and both are small.
+
+Measured on production before writing this: 3 of the 5 web verdicts ever posted had neither a number nor a
+result line to show, all three judged by the instruction version that already asks for one; the 6 price
+verdicts all had their close. The conversational path exists and is good — one short answer, no links or
+tags, an echo check against injected text — it is simply unreachable from four of the six refusal reasons.
+
+- [x] T112 **Done 2026-10-11.** `src/llm/instructions/judge.v4.md` + `src/llm/judges.ts`: `result` stops being optional for a
+      `hit` or `miss` read off a record — one line, at most 80 characters, what a reader wants to know
+      (`Oklahoma 27–24 Texas`, `Closed at 82,544.71`). `pending`, `absence` and `entity gone` keep it
+      nullable, because there is nothing to report. Bump the version rather than editing v3, so old
+      evidence still parses (FR-032).
+- [x] T113 **Done 2026-10-11.** `src/bot/verdicts.ts`: a `hit` or `miss` whose deciding evidence has neither a value nor a
+      result line is an alert, not a silent "Source: …" reply — the judge failed to say what happened and
+      we want to know. The reply still goes out (a verdict is never withheld), with the source line as
+      today (FR-032).
+- [x] T114 **Done 2026-10-11.** `src/bot/mentions.ts`: the conversational path is reachable from every refusal, not only
+      `not_prediction`. After any rejection, the model is asked once what the mention wanted; a question
+      gets its answer, anything else keeps the refusal text it has today. The existing guards all stay:
+      one model call per mention, one reply, ≤ 200 characters, no links or tags, the echo check, and STOP
+      only ever from a typed command (FR-033).
+- [x] T115 **Done 2026-10-11.** `src/bot/mentions.ts`: a reply under a closed or refused claim that reads as a question is
+      answered as one instead of being recorded as a new prediction. The "a reply under a closed claim is
+      a new claim" rule (owner decision 2026-10-05) still holds for anything that is a prediction (FR-033).
+- [x] T116 **Done 2026-10-11.** Tests in `tests/integration/bot.test.ts`: a deadline-too-close refusal followed by "why?" gets
+      an answer and not a second refusal; a question under a resolved claim is answered, a prediction under
+      it is still recorded; a verdict with a result line prints it, one without raises the alert; no path
+      adds a second model call per mention.
+
+**Checkpoint**: every verdict says what happened, and no refusal is a dead end. 104 unit and 129
+integration tests pass, typecheck clean. The judge answers recorded under v3 keep their old shape; only
+pages judged from v4 on are held to the result line.
+
+---
+
 ## Dependencies & Execution Order
 
 - **Phase 1** → **Phase 2 (DB)** → user stories.

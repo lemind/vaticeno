@@ -1,13 +1,15 @@
 // X intake (Stage 1): each new mention of the bot becomes one engine call and at most one reply, in the same
 // thread (constitution IV). Mention and post text live in memory only — logs and DB get ids and lengths.
 import { and, arrayContains, desc, eq, or, sql } from 'drizzle-orm';
-import { claims, optOuts } from '../db/schema.js';
+import { claims, evidences, optOuts, resolutions } from '../db/schema.js';
 import { readIngestState, writeIngestState, type IngestState } from '../ingest/state.js';
 import { amendClaim, type ClaimDeps, submitClaim } from '../lifecycle/claims.js';
 import type { SourceReader } from '../lifecycle/source-reader.js';
 import { log } from '../log.js';
 import { type Command, commandWordIn, resolveCommand } from './commands.js';
 import { addressesBot } from '../commands/parse.js';
+import { ContractSchema } from '../contract/schema.js';
+import { renderStatement } from '../contract/render.js';
 import { type Intent, type ThreadPost, classifyIntent } from '../llm/intent.js';
 import { type CallCost, LlmSchemaError } from '../llm/client.js';
 import { recordCosts } from '../db/costs.js';
@@ -76,6 +78,7 @@ export async function routeMention(deps: BotDeps, mention: Mention, now: Date, w
   // Tagging the bot again after STOP resumes (owner decision 2026-09-30, constitution IV).
   await deps.db.delete(optOuts).where(eq(optOuts.xUserId, mention.author_id));
   const repliedTo = mention.referenced_tweets?.find((ref) => ref.type === 'replied_to')?.id;
+  let askedModel = false; // one assessment per mention, whichever path asks for it (owner decision 2026-10-07)
 
   // A reply in a claim's thread is the author's fix (FR-010, no keyword); anyone else is ignored, and a closed
   // claim gets the refusal — no model call either way.
@@ -97,6 +100,12 @@ export async function routeMention(deps: BotDeps, mention: Mention, now: Date, w
     if (fixed.outcome !== 'refused' || fixed.reason === 'conflict') {
       return { action: `fix_${fixed.outcome}`, reply: fixed.reply, slug: claim.slug, discloses: fixed.outcome === 'amended' || fixed.outcome === 'recorded' };
     }
+    // A reply under a claim that can no longer change is usually a new prediction — but if it is a
+    // question, answering it beats refusing it (FR-033). The model sees the claim itself, so the answer
+    // is about this prediction and not a guess.
+    const answered = await assess(deps, mention, body, repliedTo, now, { onlyQuestion: true, about: claim });
+    if (answered) return answered;
+    askedModel = true;
     log('info', 'closed claim: recording this reply as a new one', { event: 'claim.amend_to_new', slug: claim.slug, reason: fixed.reason });
   }
 
@@ -132,9 +141,13 @@ export async function routeMention(deps: BotDeps, mention: Mention, now: Date, w
     text: current.text, context, authorId: mention.author_id, sourceTweetId: original, summonTweetId: mention.id, sourceVersion: current.versionId, now,
     moreContext: () => conversationBefore(deps, mention, context),
   });
-  // Not a prediction: the model reads the thread — once per mention (a command word already had its turn).
-  if (result.outcome === 'rejected' && result.rejectReason === 'not_prediction' && !firstAssessed) {
-    const assessed = await assess(deps, mention, current.text, repliedTo, now, { predictionRuledOut: true });
+  // Refused for any reason: the model reads the thread once per mention (a command word already had its
+  // turn). "Not a prediction" may answer with anything it likes; every other refusal — a deadline too
+  // close or too far, an event not found, a duplicate — keeps its own text unless this was a question,
+  // because the specific reason is more use to the author than a generic answer (FR-033).
+  if (result.outcome === 'rejected' && !firstAssessed && !askedModel) {
+    const notPrediction = result.rejectReason === 'not_prediction';
+    const assessed = await assess(deps, mention, current.text, repliedTo, now, notPrediction ? { predictionRuledOut: true } : { onlyQuestion: true });
     if (assessed) return assessed;
   }
   return { action: `record_inline_${result.outcome}`, reply: result.reply, slug: result.slug, discloses: result.outcome === 'recorded' };
@@ -170,9 +183,30 @@ async function runCommand(deps: BotDeps, mention: Mention, command: Command, now
 
 const THREAD_DEPTH = 3; // posts above the mention shown to the model (paid X reads, in memory only)
 
+type ClaimRef = { slug: string; contract: unknown; status: string; deadlineAt: Date | null };
+
+// What the bot already knows about the claim a mention is standing in, in its own words and from its own
+// rows — no post text is read or kept (INIT_SPEC §6.9). Without this the model is asked "is this a
+// question?" with no idea what the thread is about, and answers accordingly.
+async function claimContext(deps: BotDeps, claim: ClaimRef): Promise<ThreadPost[]> {
+  const parsed = ContractSchema.safeParse(claim.contract);
+  const statement = parsed.success ? renderStatement(parsed.data) : criterionOf(claim.contract)[0];
+  if (!statement) return [];
+  const [verdict] = claim.status === 'resolved' || claim.status === 'void'
+    ? await deps.db.select({ outcome: resolutions.outcome, result: evidences.resultSummary, value: evidences.value, reason: resolutions.voidReason })
+      .from(resolutions).innerJoin(claims, eq(claims.id, resolutions.claimId)).leftJoin(evidences, eq(evidences.id, resolutions.decidingEvidenceId))
+      .where(eq(claims.slug, claim.slug)).limit(1)
+    : [];
+  const state = verdict
+    ? `judged ${String(verdict.outcome).toUpperCase()}${verdict.result ? `: ${verdict.result}` : verdict.value ? `: ${verdict.value}` : verdict.reason ? ` (${verdict.reason})` : ''}`
+    : `${claim.status}${claim.deadlineAt ? `, due ${claim.deadlineAt.toISOString().slice(0, 10)}` : ''}`;
+  return [{ from: 'bot', text: `#${claim.slug} — "${statement}" — ${state}.` }];
+}
+
 // The model decides what an unclear mention wants, with the thread above it. null = go on with recording.
-async function assess(deps: BotDeps, mention: Mention, body: string, repliedTo: string | undefined, now: Date, opts: { predictionRuledOut?: boolean } = {}): Promise<Routed | null> {
-  const thread = await threadAbove(deps, repliedTo);
+// `onlyQuestion`: answer a question, otherwise say nothing and let the caller keep the reply it has.
+async function assess(deps: BotDeps, mention: Mention, body: string, repliedTo: string | undefined, now: Date, opts: { predictionRuledOut?: boolean; onlyQuestion?: boolean; about?: ClaimRef } = {}): Promise<Routed | null> {
+  const thread = [...(opts.about ? await claimContext(deps, opts.about) : []), ...await threadAbove(deps, repliedTo)];
   let intent: Intent;
   let answer: string | null;
   try {
@@ -182,14 +216,18 @@ async function assess(deps: BotDeps, mention: Mention, body: string, repliedTo: 
   } catch (error) {
     if (!(error instanceof LlmSchemaError)) throw error; // an outage retries the mention
     await saveCosts(deps, error.costs);
-    return opts.predictionRuledOut ? { action: 'help', reply: HELP_REPLY } : null;
+    return opts.predictionRuledOut && !opts.onlyQuestion ? { action: 'help', reply: HELP_REPLY } : null;
   }
   log('info', 'mention assessed', { event: 'mention.assessed', tweet_id: mention.id, intent, thread_posts: thread.length });
   if (intent === 'prediction') return opts.predictionRuledOut ? { action: 'help', reply: HELP_REPLY } : null;
   if (intent === 'question') {
     const usable = answer && answer.length <= 200 && !hasTagsOrLinks(answer) && !echoes(answer, [body, ...thread.map((p) => p.text)]);
-    return usable ? { action: 'answer', reply: answer } : { action: 'help', reply: HELP_REPLY };
+    if (usable) return { action: 'answer', reply: answer };
+    // Nothing usable came back: the refusal already in hand beats a generic help reply.
+    return opts.onlyQuestion ? null : { action: 'help', reply: HELP_REPLY };
   }
+  // Asked only about a question, and it was not one: the caller's own reply stands.
+  if (opts.onlyQuestion) return null;
   // STOP only when typed as a command (resolveCommand): a model reading must never opt someone out.
   if (intent === 'stop') return { action: 'help', reply: HELP_REPLY };
   if (intent === 'other') return { action: 'help', reply: HELP_REPLY };
@@ -315,7 +353,7 @@ function criterionOf(contract: unknown): string[] {
 
 async function claimInThread(deps: BotDeps, mention: Mention, repliedTo: string | undefined) {
   if (!repliedTo) return null;
-  const [claim] = await deps.db.select({ slug: claims.slug, sourceTweetId: claims.sourceTweetId, summonTweetId: claims.summonTweetId, contract: claims.contract }).from(claims)
+  const [claim] = await deps.db.select({ slug: claims.slug, sourceTweetId: claims.sourceTweetId, summonTweetId: claims.summonTweetId, contract: claims.contract, status: claims.status, deadlineAt: claims.deadlineAt }).from(claims)
     .where(or(eq(claims.sourceTweetId, repliedTo), eq(claims.summonTweetId, repliedTo), arrayContains(claims.threadTweetIds, [repliedTo])))
     // An open claim wins over a closed one sharing the post (a fix mistaken for a new claim before T094).
     .orderBy(sql`${claims.status} in ('needs_info', 'draft') desc`, desc(claims.createdAt)).limit(1);

@@ -100,6 +100,9 @@ async function verdictText(deps: BotDeps, claim: Due): Promise<string> {
     const withResult = `${head}\n${evidence.result} · ${site}`;
     if (weightedLength(withResult) <= X_MAX_CHARS) return withResult;
   }
+  // A hit or a miss with nothing to show is a defect in the judging step, not an acceptable reply
+  // (FR-032): the verdict still goes out — it is never withheld — and we are told the line was missing.
+  alert('verdict.no_result', { slug: claim.slug, outcome: claim.outcome, source: evidence.source });
   return assertReplyFits(`${head}\nSource: ${site}${evidence.date ? ` (${evidence.date})` : ''}`);
 }
 
