@@ -51,7 +51,7 @@ per-page gates                     trusted · quote_found · in_window · final 
   ↓  survivors only
 group                              same site · near-duplicate · same credited origin      ← was a gate
   ↓  one representative per group
-decide                             records before absences; contradiction → arbiter
+decide                             records before absences, unchanged; within-source conflict → arbiter
 ```
 
 The two moved boundaries: `independent` leaves `runGates` (it was the only gate that read other pages), and
@@ -69,7 +69,7 @@ judge.
 | `src/resolve/groups.ts` | new, pure: grouping and representative choice |
 | `src/resolve/exhaustive.ts` | new: the configured endpoints that may carry absence evidence |
 | `src/resolve/web-evidence.ts` | judge all, gate all, then group; stores identity and match |
-| `src/resolve/decide.ts` | absence contradicting a record → arbiter |
+| `src/resolve/decide.ts` | unchanged rule, one log line when an admitted absence disagrees with a record |
 | `src/db/schema.ts` + `drizzle/0016_evidence_identity.sql` | identity and match on the evidence row |
 
 ## Data model
@@ -95,8 +95,8 @@ up by one when either ships, since numbering follows deploy order (003's own rev
    unable to decide a Race 2 claim.
 2. **Grouping** — independence out of the per-page gate, groups and representatives, order-independence
    proved by test.
-3. **Absence and consistency** — the configured endpoint list, the quote waiver removed, contradiction to
-   the arbiter, facts-versus-verdict check.
+3. **Absence and consistency** — the configured endpoint list, the quote waiver removed, the records-outrank
+   rule left alone and its disagreements logged, facts-versus-verdict check.
 4. **The standing verdict** — re-judge the one claim still published wrong and correct it.
 
 Each phase is shippable on its own: phase 1 alone would have prevented the horse-racing verdict, and phase 2

@@ -103,7 +103,8 @@ unless their endpoint is on the configured list.
 2. **Given** a page labelled an absence, **When** the gates run, **Then** it is held to the same checks as
    any other page, so a label cannot waive one.
 3. **Given** an admissible absence and a passed record that contradict each other, **When** the resolution is
-   decided, **Then** it goes to the arbiter instead of one silently outranking the other.
+   decided, **Then** the record decides, as deployed, and the disagreement is logged so the first real
+   occurrence is visible.
 4. **Given** no record and one admissible absence, **When** the resolution is decided, **Then** the absence
    may decide it, as today.
 
@@ -154,13 +155,15 @@ was discarded for another reason, so it did no harm this time.
 - **FR-007**: Absence evidence is admissible only from an endpoint recorded in code as exhaustive for that
   kind of event. A model-set field MUST NOT admit a page to the absence path, and MUST NOT waive any check
   that applies to other pages.
-- **FR-008**: An admissible absence that contradicts a passed record MUST send the resolution to the arbiter.
-  This **narrows 001 FR-034**, which has an absence decide only when no record passed and is silent about the
-  two disagreeing: under that rule the record simply won and the absence was dropped unexamined. What stands
-  from FR-034: records are still preferred over absences, every passed item is still compared across trust
-  levels, and disagreement still goes to the arbiter. What changes: an absence that survives the stricter
-  admission of FR-007 is no longer discarded when a record contradicts it — one of the two is wrong, and
-  which one is not a question this code should answer silently.
+- **FR-008**: Records continue to outrank absences exactly as deployed (001 FR-034): when any record passed,
+  the verdict comes from the records and absence evidence does not enter the comparison. This feature does
+  **not** change that rule — it changes what may become absence evidence at all (FR-007). An admissible
+  absence disagreeing with passed records is therefore not escalated, only logged; the allowlist starts
+  empty, so the case cannot arise yet, and escalating a case that cannot occur is speculative machinery
+  (review 2026-10-12). If the log shows it happening, that is the moment to decide, with the case in hand.
+- **FR-008a**: Grouping MUST NOT hide a disagreement inside a source. One representative per group counts
+  toward corroboration, but where two pages of one group both match the event and disagree about the
+  outcome, the resolution goes to the arbiter rather than the inconvenient page being dropped (FR-006).
 - **FR-009**: Where a page states a structured outcome and its event identity is verified, that page's
   verdict MUST be computed in code from the outcome and the locked criterion. A judgement whose own stated
   result contradicts its HIT or MISS MUST NOT count, and MUST be reported.

@@ -53,7 +53,7 @@ race-specific page can.
 
 - [ ] T410 [US3] `src/resolve/exhaustive.ts`: the endpoints recorded as complete official records, and the only path by which absence evidence is admitted. Starts empty (FR-007)
 - [ ] T411 [US3] `src/resolve/gates.ts`: a model-set `basis` no longer waives the quote check, and absence is admitted only by T410 (FR-007)
-- [ ] T412 [US3] `src/resolve/decide.ts`: an admissible absence contradicting a passed record goes to the arbiter instead of being outranked (FR-008)
+- [ ] T412 [US3] `src/resolve/decide.ts` keeps records outranking absences; a test proves an admitted absence never overrides a passed record, and the disagreement is logged rather than escalated (FR-008)
 - [ ] T413 [US4] Where a page states a structured outcome and its identity is verified, code applies the locked criterion; a judgement contradicting its own result never counts and is reported (FR-009)
 - [ ] T414 [P] Tests: both football claims from their stored rows, the self-contradicting row escalating, and an absence still deciding when nothing contradicts it (SC-001, SC-004)
 
