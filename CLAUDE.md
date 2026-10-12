@@ -40,7 +40,9 @@ model-decided) proven on seeded claims, public pages. Where INIT_SPEC (v1.1.1) i
 
 ## Conventions
 
-**Commit messages**: one line, `feat|fix|chore|docs(001-T001): <short desc>` — task ID is spec number + task (IDs restart per spec); a commit covering several tasks names the range, `feat(001-T009-024): …`. Omit the task ref when there is no associated task. Never commit without explicit user request.
+**Commit messages**: one line, `feat|fix|chore|docs(001-T001): <short desc>` — task ID is spec number + task; a commit covering several tasks names the range, `feat(001-T009-024): …`. Omit the task ref when there is no associated task. Never commit without explicit user request.
+
+**Task IDs**: from spec 003 on, a task ID carries its spec number — 003 uses `T301`–`T399`, 004 will use `T401`–`T499`, so an ID is unique on its own. Specs 001 and 002 keep the numbers they shipped with (`T001`–`T125` and `T001`–`T056`), which repeat across the two; that is why the commit ref always names the spec. Inserted work takes a letter (`T326a`), never a renumber.
 
 **PR descriptions**: plain human language, no code identifiers, file paths, line numbers, or test/finding counts. Describe what changed for a person reading it, not what changed in the diff.
 

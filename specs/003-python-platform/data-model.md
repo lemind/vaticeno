@@ -17,7 +17,7 @@ Access, which is where the read-only role needs more than a grant.
 
 | Column | Type | Notes |
 |---|---|---|
-| job | text PK | CHECK against the eight names: mentions, lock, expire, resolve, verdicts, pool, original, reconcile |
+| job | text PK | CHECK against the nine names: mentions, lock, expire, resolve, verdicts, pool, original, reconcile, recheck |
 | last_started_at | timestamptz null | set when `runJob` enters |
 | last_finished_at | timestamptz null | set when it returns, either way |
 | last_ok_at | timestamptz null | last successful finish |
@@ -149,8 +149,8 @@ authenticated roles stay with no policy at all, so the public API still sees not
 
 | File | Adds |
 |---|---|
-| `drizzle/0014_job_state.sql` | `job_state`, RLS on, the `status_ro` SELECT policy, a down migration |
-| `drizzle/0015_status_policies.sql` | SELECT policies for `status_ro` on the existing tables the page reads |
-| `drizzle/0016_verifier.sql` | `verifier_shadow` with its append-only trigger and policy, the two `resolutions` columns |
-| `drizzle/0017_settlement.sql` | `settlement_outbox` with its unique key and policy |
-| `drizzle/0018_wallet_links.sql` | `wallet_links`, the partial unique index on an active address, its policy |
+| `drizzle/0017_job_state.sql` | `job_state`, RLS on, the `status_ro` SELECT policy, a down migration |
+| `drizzle/0018_status_policies.sql` | SELECT policies for `status_ro` on the existing tables the page reads |
+| `drizzle/0019_verifier.sql` | `verifier_shadow` with its append-only trigger and policy, the two `resolutions` columns |
+| `drizzle/0020_settlement.sql` | `settlement_outbox` with its unique key and policy |
+| `drizzle/0021_wallet_links.sql` | `wallet_links`, the partial unique index on an active address, its policy |

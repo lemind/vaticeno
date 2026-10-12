@@ -32,7 +32,7 @@ for the settlement worker. Each needs owner approval with a stated reason (const
 statements), which is the ceiling the load runs probe. Memory is the binding constraint on the verifier, and
 is measured before a model is chosen and again once it runs.
 
-**Scale/Scope**: single-owner operations page; eight scheduled jobs; the existing claim volume
+**Scale/Scope**: single-owner operations page; nine scheduled jobs; the existing claim volume
 
 ## Constitution Check
 
