@@ -4,7 +4,7 @@ import { and, desc, eq, isNotNull } from 'drizzle-orm';
 import { renderStatement } from '../contract/render.js';
 import { ContractSchema } from '../contract/schema.js';
 import type { Db } from '../db/client.js';
-import { claims, positions, resolutions } from '../db/schema.js';
+import { claims, corrections, positions, resolutions } from '../db/schema.js';
 import { REACHED_LOCK } from '../lifecycle/transitions.js';
 import { html, layout, utc } from './html.js';
 
@@ -13,10 +13,11 @@ type Result = 'right' | 'wrong' | 'void' | null;
 const MAX_CLAIMS_SHOWN = 500; // a public URL never reads without bound; counts cover what is shown
 
 export async function authorPage(db: Db, xUserId: string): Promise<string | null> {
-  const rows = await db.select({ claim: claims, position: positions, resolution: resolutions })
+  const rows = await db.select({ claim: claims, position: positions, resolution: resolutions, correction: corrections })
     .from(positions)
     .innerJoin(claims, eq(claims.id, positions.claimId))
     .leftJoin(resolutions, eq(resolutions.claimId, claims.id))
+    .leftJoin(corrections, eq(corrections.claimId, claims.id))
     .where(and(eq(positions.xUserId, xUserId), isNotNull(claims.contract))) // needs info / rejected: nothing to show
     .orderBy(desc(claims.createdAt))
     .limit(MAX_CLAIMS_SHOWN);
@@ -29,7 +30,9 @@ export async function authorPage(db: Db, xUserId: string): Promise<string | null
 
   const withResult = shown.map((row) => {
     const final = row.resolution?.reviewStatus === 'final' ? row.resolution.outcome : null;
-    return { ...row, verdict: final, result: derivedResult(final, row.position.stance) };
+    // A corrected verdict counts as what it is now, not as what was first said (001 FR-035).
+    const verdict = final === null ? null : row.correction?.toOutcome ?? final;
+    return { ...row, verdict, corrected: Boolean(row.correction), result: derivedResult(verdict, row.position.stance) };
   });
   const counts = {
     recorded: withResult.filter((r) => REACHED_LOCK.has(r.claim.status)).length,
@@ -45,12 +48,12 @@ export async function authorPage(db: Db, xUserId: string): Promise<string | null
 <p>${counts.recorded} recorded · ${counts.resolved} resolved · <span class="hit">${counts.right} right</span> · <span class="miss">${counts.wrong} wrong</span> · <span class="void">${counts.void} void</span></p>
 <div class="scroll"><table>
 <tr><th>Prediction</th><th>Side</th><th>Deadline</th><th>Status</th><th>Verdict</th><th>Result</th></tr>
-${withResult.map(({ claim, contract, position, verdict, result }) => html`<tr>
+${withResult.map(({ claim, contract, position, verdict, corrected, result }) => html`<tr>
   <td><a href="/c/${claim.slug}">${renderStatement(contract)}</a></td>
   <td>${position.stance}</td>
   <td>${utc(claim.deadlineAt)}</td>
   <td>${claim.status}</td>
-  <td>${verdict ? verdict.toUpperCase() : '—'}</td>
+  <td>${verdict ? verdict.toUpperCase() : '—'}${corrected ? html`<br><span class="muted">corrected</span>` : ''}</td>
   <td class="${result === 'right' ? 'hit' : result === 'wrong' ? 'miss' : 'void'}">${result ?? '—'}</td>
 </tr>`)}
 </table></div>`;

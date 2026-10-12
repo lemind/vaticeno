@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { after, before, beforeEach, test } from 'node:test';
 import type { BotDeps } from '../../src/bot/mentions.js';
-import { deliverVerdicts, postLockReplies } from '../../src/bot/verdicts.js';
+import { deliverVerdicts, postCorrection, postLockReplies } from '../../src/bot/verdicts.js';
 import { PostNotSent } from '../../src/x/client.js';
 import { insertClaim, insertEvidence, setupTestDb, type TestDb } from './helpers.js';
 
@@ -110,4 +110,30 @@ test('an [AMENDED] / [EXPIRED] reply from the lock job is posted once under the 
   await t.sql`insert into opt_outs ${t.sql({ x_user_id: '200' })}`;
   await postLockReplies(deps, [{ slug: 'a3', outcome: 'amended', reply: '[AMENDED] #a3 …', summonTweetId: '602', authorId: '200' }]);
   assert.equal(posts.length, 1);
+});
+
+// A correction is a post like any other (001 FR-035): marked before it is sent, so one that may have
+// landed is never sent twice, and one that never left the machine keeps its turn (§6.7).
+test('a correction is posted once in the claim thread, and a post that never left keeps its turn', async () => {
+  const claim = await resolvedClaim('miss');
+  await t.sql`insert into corrections ${t.sql({ claim_id: claim.id, from_outcome: 'miss', to_outcome: 'hit', reason: 'an absence outranked three reports', decided_by: 'evidence' })}`;
+  let attempts = 0;
+  const posts: string[] = [];
+  const deps = bot(async (_to, text) => {
+    attempts++;
+    if (attempts === 1) throw new PostNotSent(new Error('EACCES .state/x-oauth.json'));
+    posts.push(text);
+    return { id: 'c1' };
+  });
+
+  assert.deepEqual(await postCorrection(deps, claim.slug, NOW), { posted: null });
+  assert.equal((await t.sql`select posted_at from corrections where claim_id = ${claim.id}`)[0]!.posted_at, null, 'nothing reached X: the mark comes off');
+
+  assert.deepEqual(await postCorrection(deps, claim.slug, NOW), { posted: 'c1' });
+  assert.deepEqual(await postCorrection(deps, claim.slug, NOW), { posted: null }, 'never posted twice');
+  assert.equal(posts.length, 1);
+  assert.match(posts[0]!, new RegExp(`^CORRECTED · #${claim.slug}[\\s\\S]*Was MISS, is HIT: an absence outranked three reports`));
+  const [row] = await t.sql`select posted_tweet_id from corrections where claim_id = ${claim.id}`;
+  assert.equal(row!.posted_tweet_id, 'c1');
+  assert.ok((await t.sql`select thread_tweet_ids from claims where id = ${claim.id}`)[0]!.thread_tweet_ids.includes('c1'));
 });

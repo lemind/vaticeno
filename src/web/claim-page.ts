@@ -3,7 +3,7 @@ import { asc, desc, eq } from 'drizzle-orm';
 import { renderStatement } from '../contract/render.js';
 import { ContractSchema } from '../contract/schema.js';
 import type { Db } from '../db/client.js';
-import { claims, evidences, positions, resolutions } from '../db/schema.js';
+import { claims, corrections, evidences, positions, resolutions } from '../db/schema.js';
 import { html, layout, safeHref, utc } from './html.js';
 
 const DAY_MS = 86_400_000;
@@ -23,8 +23,9 @@ export async function claimPage(db: Db, slug: string, now: Date): Promise<string
   if (!claim?.contract) return null; // needs info / rejected: no contract to show
   const contract = ContractSchema.parse(claim.contract);
   // Bounded: a public URL never reads without limit (the resolver's backoff keeps evidence small anyway).
-  const [[resolution], items, people] = await Promise.all([
+  const [[resolution], [correction], items, people] = await Promise.all([
     db.select().from(resolutions).where(eq(resolutions.claimId, claim.id)).limit(1),
+    db.select().from(corrections).where(eq(corrections.claimId, claim.id)).limit(1),
     db.select().from(evidences).where(eq(evidences.claimId, claim.id)).orderBy(desc(evidences.runAt), asc(evidences.createdAt)).limit(MAX_ROWS),
     db.select().from(positions).where(eq(positions.claimId, claim.id)).orderBy(asc(positions.joinedAt)).limit(MAX_ROWS),
   ]);
@@ -32,13 +33,16 @@ export async function claimPage(db: Db, slug: string, now: Date): Promise<string
   const statement = renderStatement(contract);
   const deadline = new Date(contract.deadline_at);
   const final = resolution?.reviewStatus === 'final' ? resolution : null;
+  // A corrected verdict shows the outcome it has now, and says what it was: the frozen resolution is
+  // never edited, so the page is where both live (001 FR-035).
+  const outcome = correction?.toOutcome ?? final?.outcome ?? null;
   const source = contract.source;
 
   const body = html`
 <p class="muted">#${claim.slug}</p>
 <h1>${statement}</h1>
 <p><span class="status">${STATUS_WORDS[claim.status] ?? claim.status}</span>
-${final ? html` <strong class="${final.outcome ?? ''}">${(final.outcome ?? '').toUpperCase()}</strong>` : ''}
+${final ? html` <strong class="${outcome ?? ''}">${(outcome ?? '').toUpperCase()}</strong>` : ''}${correction ? html` <span class="muted">corrected</span>` : ''}
 ${resolution && !final ? html` <span class="muted">waiting for a human decision</span>` : ''}</p>
 
 <h2>Contract</h2>
@@ -61,7 +65,8 @@ ${resolution && !final ? html` <span class="muted">waiting for a human decision<
 ${resolution ? html`
 <h2>Verdict</h2>
 <dl>
-  <dt>Outcome</dt><dd>${final ? (final.outcome ?? '').toUpperCase() : 'not decided yet — flagged for a human'}${final?.voidReason ? html` <span class="muted">(${final.voidReason.replaceAll('_', ' ')})</span>` : ''}</dd>
+  <dt>Outcome</dt><dd>${final ? (outcome ?? '').toUpperCase() : 'not decided yet — flagged for a human'}${final?.voidReason ? html` <span class="muted">(${final.voidReason.replaceAll('_', ' ')})</span>` : ''}</dd>
+  ${correction ? html`<dt>Corrected</dt><dd>${utc(correction.createdAt)} — was ${correction.fromOutcome.toUpperCase()}: ${correction.reason}</dd>` : ''}
   <dt>Decided by</dt><dd>${final ? DECIDED_WORDS[final.decidedBy ?? ''] ?? final.decidedBy : '—'}</dd>
   ${resolution.decidingEvidenceId ? html`<dt>Deciding answer</dt><dd><a href="#e-${resolution.decidingEvidenceId}">see below</a></dd>` : ''}
   ${resolution.arbiterNotes ? html`<dt>Arbiter's reason</dt><dd>${resolution.arbiterNotes}</dd>` : ''}

@@ -145,13 +145,13 @@ export async function postLockReplies(deps: BotDeps, results: LockResult[]): Pro
 
 // A correction is told where the verdict was told: once, in the claim's thread, naming what it was and
 // what it is (001 FR-035). Never retried — a correction that may have landed is not sent twice (§6.7).
-export async function postCorrection(deps: BotDeps, slug: string): Promise<{ posted: string | null }> {
+export async function postCorrection(deps: BotDeps, slug: string, now = new Date()): Promise<{ posted: string | null }> {
   const [row] = await deps.db
     .select({ claimId: claims.id, summon: claims.summonTweetId, authorId: claims.authorXUserId, contract: claims.contract,
-      from: corrections.fromOutcome, to: corrections.toOutcome, reason: corrections.reason, posted: corrections.postedTweetId, evidenceId: corrections.decidingEvidenceId })
+      from: corrections.fromOutcome, to: corrections.toOutcome, reason: corrections.reason, sent: corrections.postedAt, evidenceId: corrections.decidingEvidenceId })
     .from(corrections).innerJoin(claims, eq(claims.id, corrections.claimId))
     .where(eq(claims.slug, slug)).limit(1);
-  if (!row || row.posted) return { posted: null };
+  if (!row || row.sent) return { posted: null };
   const stopped = await deps.db.select({ id: optOuts.xUserId }).from(optOuts).where(eq(optOuts.xUserId, row.authorId)).limit(1);
   if (stopped.length > 0 || !deps.allowAuthor(row.authorId)) return { posted: null };
 
@@ -161,8 +161,25 @@ export async function postCorrection(deps: BotDeps, slug: string): Promise<{ pos
     : [];
   const shown = evidence?.result && !hasTagsOrLinks(evidence.result) ? `\n${evidence.result}` : evidence?.value ? `\n${evidence.value}` : '';
   const text = assertReplyFits(`CORRECTED · #${slug}\n"${renderStatement(contract)}"\nWas ${row.from.toUpperCase()}, is ${row.to.toUpperCase()}: ${row.reason}${shown}`);
-  const reply = await deps.postReply(row.summon, text);
-  await deps.db.update(corrections).set({ postedTweetId: reply.id }).where(eq(corrections.claimId, row.claimId));
-  log('info', 'correction posted', { event: 'verdict.corrected_posted', slug, from: row.from, to: row.to, reply_tweet_id: reply.id });
-  return { posted: reply.id };
+
+  // Marked before posting, guarded on "not yet": the same rule a verdict reply follows (deliverVerdicts).
+  const marked = await deps.db.update(corrections).set({ postedAt: now })
+    .where(and(eq(corrections.claimId, row.claimId), isNull(corrections.postedAt))).returning({ id: corrections.id });
+  if (marked.length === 0) return { posted: null };
+  try {
+    const reply = await deps.postReply(row.summon, text);
+    await deps.db.update(corrections).set({ postedTweetId: reply.id }).where(eq(corrections.claimId, row.claimId));
+    // The correction joins the claim's thread, so a reply under it arrives with the claim in hand.
+    await deps.db.update(claims).set({ threadTweetIds: sql`array_append(${claims.threadTweetIds}, ${reply.id}::text)` }).where(eq(claims.id, row.claimId));
+    log('info', 'correction posted', { event: 'verdict.corrected_posted', slug, from: row.from, to: row.to, reply_tweet_id: reply.id });
+    return { posted: reply.id };
+  } catch (error) {
+    // Nothing reached X: the mark comes off and the command can be run again. Any other failure may have
+    // landed, so the mark stays and it is never retried (§6.7).
+    if (error instanceof PostNotSent) {
+      await deps.db.update(corrections).set({ postedAt: null }).where(and(eq(corrections.claimId, row.claimId), isNull(corrections.postedTweetId)));
+    }
+    captureError(error, { event: 'verdict.correction_failed', slug });
+    return { posted: null };
+  }
 }

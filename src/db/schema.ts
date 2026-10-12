@@ -183,6 +183,8 @@ export const corrections = pgTable(
     reason: text('reason').notNull(),
     decidingEvidenceId: uuid('deciding_evidence_id').references(() => evidences.id),
     decidedBy: text('decided_by', { enum: DECIDED_BY }).notNull(),
+    // Set before the reply is sent, the id after it: a correction that may have landed is never resent (§6.7).
+    postedAt: utc('posted_at'),
     postedTweetId: text('posted_tweet_id'),
     createdAt: utc('created_at').notNull().defaultNow(),
   },

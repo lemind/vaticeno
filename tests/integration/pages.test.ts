@@ -77,6 +77,21 @@ describe('author page', () => {
     assert.ok(!visible(res.body).includes('%'), 'no percentages');
   });
 
+  // Both pages read the correction, not only the frozen resolution: a verdict corrected on X and still
+  // wrong on the site would be worse than not correcting it (001 FR-035).
+  test('a corrected verdict shows what it is now, says what it was, and counts as the new outcome', async () => {
+    const claim = await insertClaim(t.sql, 'resolved');
+    await insertPosition(t.sql, claim.id);
+    const evidence = await insertEvidence(t.sql, claim.id, { says: 'hit' });
+    await t.sql`insert into resolutions ${t.sql({ claim_id: claim.id, outcome: 'miss', decided_by: 'evidence', review_status: 'final', decided_at: NOW.toISOString(), deciding_evidence_id: evidence.id })}`;
+    await t.sql`insert into corrections ${t.sql({ claim_id: claim.id, from_outcome: 'miss', to_outcome: 'hit', reason: 'an absence outranked three reports', decided_by: 'evidence' })}`;
+
+    const page = (await app().inject(`/c/${claim.slug}`)).body;
+    assert.match(page, /<dt>Outcome<\/dt><dd>HIT/);
+    assert.match(page, /<dt>Corrected<\/dt><dd>[^<]*was MISS: an absence outranked three reports/);
+    assert.match((await app().inject('/u/200')).body, /<span class="hit">1 right<\/span> · <span class="miss">0 wrong<\/span>/);
+  });
+
   test('unknown or malformed user → 404', async () => {
     assert.equal((await app().inject('/u/999')).statusCode, 404);
     assert.equal((await app().inject('/u/not-a-number')).statusCode, 404);
