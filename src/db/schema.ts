@@ -172,6 +172,28 @@ export const resolutions = pgTable(
   ],
 );
 
+// A verdict that was wrong is corrected by a new row, never by editing the frozen one (001 FR-035).
+export const corrections = pgTable(
+  'corrections',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    claimId: uuid('claim_id').notNull().unique().references(() => claims.id),
+    fromOutcome: text('from_outcome', { enum: OUTCOMES }).notNull(),
+    toOutcome: text('to_outcome', { enum: OUTCOMES }).notNull(),
+    reason: text('reason').notNull(),
+    decidingEvidenceId: uuid('deciding_evidence_id').references(() => evidences.id),
+    decidedBy: text('decided_by', { enum: DECIDED_BY }).notNull(),
+    postedTweetId: text('posted_tweet_id'),
+    createdAt: utc('created_at').notNull().defaultNow(),
+  },
+  (t) => [
+    check('corrections_from_check', oneOf(t.fromOutcome, OUTCOMES)),
+    check('corrections_to_check', oneOf(t.toOutcome, OUTCOMES)),
+    check('corrections_changes_check', sql`${t.fromOutcome} <> ${t.toOutcome}`),
+    check('corrections_decided_by_check', oneOf(t.decidedBy, DECIDED_BY)),
+  ],
+);
+
 export const costEvents = pgTable(
   'cost_events',
   {

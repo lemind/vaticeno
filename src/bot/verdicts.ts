@@ -3,7 +3,7 @@
 import { and, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import { ContractSchema } from '../contract/schema.js';
 import { renderStatement } from '../contract/render.js';
-import { claims, evidences, optOuts, resolutions } from '../db/schema.js';
+import { claims, corrections, evidences, optOuts, resolutions } from '../db/schema.js';
 import { log } from '../log.js';
 import { alert, captureError } from '../observe.js';
 import { assertReplyFits, hasTagsOrLinks, weightedLength, X_MAX_CHARS } from '../replies/templates.js';
@@ -141,4 +141,28 @@ export async function postLockReplies(deps: BotDeps, results: LockResult[]): Pro
       captureError(error, { event: 'lock.reply_failed', slug: result.slug });
     }
   }
+}
+
+// A correction is told where the verdict was told: once, in the claim's thread, naming what it was and
+// what it is (001 FR-035). Never retried — a correction that may have landed is not sent twice (§6.7).
+export async function postCorrection(deps: BotDeps, slug: string): Promise<{ posted: string | null }> {
+  const [row] = await deps.db
+    .select({ claimId: claims.id, summon: claims.summonTweetId, authorId: claims.authorXUserId, contract: claims.contract,
+      from: corrections.fromOutcome, to: corrections.toOutcome, reason: corrections.reason, posted: corrections.postedTweetId, evidenceId: corrections.decidingEvidenceId })
+    .from(corrections).innerJoin(claims, eq(claims.id, corrections.claimId))
+    .where(eq(claims.slug, slug)).limit(1);
+  if (!row || row.posted) return { posted: null };
+  const stopped = await deps.db.select({ id: optOuts.xUserId }).from(optOuts).where(eq(optOuts.xUserId, row.authorId)).limit(1);
+  if (stopped.length > 0 || !deps.allowAuthor(row.authorId)) return { posted: null };
+
+  const contract = ContractSchema.parse(row.contract);
+  const [evidence] = row.evidenceId
+    ? await deps.db.select({ source: evidences.sourceName, value: evidences.value, result: evidences.resultSummary }).from(evidences).where(eq(evidences.id, row.evidenceId)).limit(1)
+    : [];
+  const shown = evidence?.result && !hasTagsOrLinks(evidence.result) ? `\n${evidence.result}` : evidence?.value ? `\n${evidence.value}` : '';
+  const text = assertReplyFits(`CORRECTED · #${slug}\n"${renderStatement(contract)}"\nWas ${row.from.toUpperCase()}, is ${row.to.toUpperCase()}: ${row.reason}${shown}`);
+  const reply = await deps.postReply(row.summon, text);
+  await deps.db.update(corrections).set({ postedTweetId: reply.id }).where(eq(corrections.claimId, row.claimId));
+  log('info', 'correction posted', { event: 'verdict.corrected_posted', slug, from: row.from, to: row.to, reply_tweet_id: reply.id });
+  return { posted: reply.id };
 }

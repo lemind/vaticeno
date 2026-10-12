@@ -4,6 +4,7 @@ import cron from 'node-cron';
 import type { Sql } from 'postgres';
 import { expireNeedsInfo, expireWithheldDrafts } from '../lifecycle/expire.js';
 import { auditOwedWork } from '../lifecycle/reconcile.js';
+import { recheckRecent } from '../resolve/recheck.js';
 import { lockDueDrafts } from '../lifecycle/lock.js';
 import type { SourceReader } from '../lifecycle/source-reader.js';
 import { log } from '../log.js';
@@ -19,7 +20,7 @@ import { deliverVerdicts, postLockReplies } from '../bot/verdicts.js';
 export type SchedulerDeps = ClaimDeps & ResolverDeps & { reader: SourceReader; sql: Sql; bot: BotDeps | null; content: OriginalDeps | null };
 
 // The pool run twice a day at an off-the-hour minute, so the feed never looks like a clock (spec 002).
-const SCHEDULES = { mentions: '* * * * *', lock: '* * * * *', expire: '*/10 * * * *', resolve: '0 * * * *', verdicts: '*/5 * * * *', pool: '23 9,18 * * *', original: '41 13 * * *', reconcile: '17 1-23/2 * * *' } as const;
+const SCHEDULES = { mentions: '* * * * *', lock: '* * * * *', expire: '*/10 * * * *', resolve: '0 * * * *', verdicts: '*/5 * * * *', pool: '23 9,18 * * *', original: '41 13 * * *', reconcile: '17 1-23/2 * * *', recheck: '31 4 * * 1' } as const;
 
 export function startScheduler(deps: SchedulerDeps): { stop: () => Promise<void> } {
   const now = () => new Date();
@@ -44,6 +45,9 @@ export function startScheduler(deps: SchedulerDeps): { stop: () => Promise<void>
     original: async () => (deps.content ? runOriginalPost(deps.content, now()) : null),
     // Every two hours: name the work that was owed and never done (src/lifecycle/reconcile.ts).
     reconcile: () => auditOwedWork(deps.db, now()),
+    // Mondays: today's rules over last week's verdicts, from stored evidence — free, and it only
+    // reports. Correcting one is a deliberate command (001 FR-035).
+    recheck: () => recheckRecent(deps.db, now()),
   };
 
   const tasks = (Object.keys(jobs) as Array<keyof typeof SCHEDULES>).map((name) =>

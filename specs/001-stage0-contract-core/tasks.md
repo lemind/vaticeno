@@ -272,6 +272,8 @@ tags, an echo check against injected text — it is simply unreachable from four
 
 - [x] T123 **Done 2026-10-12** (owner report, two wrong verdicts on X). `src/resolve/decide.ts` compared only the highest trust level present and discarded the rest unseen, so one primary page that had not listed a match beat three outlets reporting the score and a 3-0 win was published as a MISS. Now every passed item is compared whatever its tier, an absence decides only when no record passed, disagreement goes to the arbiter, and weak sources are excluded outright. Four unit tests and one integration test, each named after the defect (FR-034).
 
+- [x] T124 **Done 2026-10-12** (owner decision, after T123). `npm run verdict:recheck` re-decides verdicts with today's rules over the evidence already stored — free, no model, no searches — and a weekly job (Mondays 04:31 UTC) does the same over the last seven days and reports. `--correct "<reason>"` writes a correction in the new `corrections` table beside the frozen resolution, `--post` tells the claim's thread once. Migration `drizzle/0014_corrections.sql`. Run against production on the day it shipped: of 12 verdicts it found the two T123 got wrong (`s3wt9`, `7xtc9`, both MISS → HIT) and one no longer settled (`3pssn`, now the arbiter's). Three integration tests rebuild the real defect (FR-035).
+
 **Checkpoint**: every verdict says what happened, and no refusal is a dead end. 104 unit and 129
 integration tests pass, typecheck clean. The judge answers recorded under v3 keep their old shape; only
 pages judged from v4 on are held to the result line.
