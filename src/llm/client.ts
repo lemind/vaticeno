@@ -142,7 +142,36 @@ export function createLlmClient(options: { mode: LlmMode; apiKey?: string; store
     return { ...result, costs };
   }
 
-  return { mode, generateJson, groundedSearch };
+  // A grounded answer: the same search tool, but we want the model's words, not its links (001 FR-033b).
+  async function groundedAnswer(call: { model: string; instructionVersion: string; system: string; input: string }): Promise<{ text: string; urls: string[]; costs: CallCost[] }> {
+    const identity = { model: call.model, instruction: call.instructionVersion, input: call.input };
+    if (mode === 'replay') {
+      const entry = await store.get('search', identity);
+      if (entry.kind !== 'search') throw new LlmSchemaError('replay entry is not a search result');
+      return { text: '', urls: entry.urls, costs: [] };
+    }
+    let text: string;
+    let urls: string[];
+    let usage: Usage;
+    try {
+      const response = await live().models.generateContent({
+        model: call.model,
+        contents: call.input,
+        config: { systemInstruction: call.system, tools: [{ googleSearch: {} }] },
+      });
+      const grounding = response.candidates?.[0]?.groundingMetadata;
+      text = (response.text ?? '').trim();
+      urls = [...new Set((grounding?.groundingChunks ?? []).map((chunk) => chunk.web?.uri).filter((uri): uri is string => !!uri))];
+      usage = usageOf(response.usageMetadata);
+    } catch (error) {
+      throw new LlmUnavailable(`grounded answer failed: ${String(error)}`, { cause: error });
+    }
+    const costs: CallCost[] = [modelCost(call.model, 'search', usage)];
+    costs.push({ provider: 'google_search', operation: 'search', units: 1, usdCost: SEARCH_QUERY_USD });
+    return { text, urls, costs };
+  }
+
+  return { mode, generateJson, groundedSearch, groundedAnswer };
 }
 
 export type LlmClient = ReturnType<typeof createLlmClient>;

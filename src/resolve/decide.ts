@@ -7,6 +7,7 @@ export type EvidenceRow = {
   runAt: Date;
   trustLevel: TrustLevel;
   says: 'hit' | 'miss' | 'pending' | 'irrelevant' | 'entity_gone';
+  basis: 'record' | 'absence';
   passed: boolean;
   quoteFound: boolean | null; // the quote gate; null = not applicable (price feed)
 };
@@ -41,15 +42,16 @@ export function decideResolution(evidences: readonly EvidenceRow[], now: Date, d
     return { kind: 'wait', reason: 'pending' };
   }
 
-  const counted = latest.filter((e) => e.passed && (e.says === 'hit' || e.says === 'miss'));
+  // Weak sources never decide anything; in production the trust gate already fails them.
+  const counted = latest.filter((e) => e.passed && e.trustLevel !== 'weak' && (e.says === 'hit' || e.says === 'miss'));
 
-  // Only the highest trust level present decides; disagreement within it goes to the arbiter.
-  const primary = counted.filter((e) => e.trustLevel === 'primary');
-  if (primary.length > 0) return agreeOrArbiter(primary);
-
-  const established = counted.filter((e) => e.trustLevel === 'established');
-  if (established.length >= 2) return agreeOrArbiter(established);
-  if (established.length === 1) return { kind: 'needs_human', reason: 'lone_established' };
+  // A page that did not list the event cannot outrank pages reporting it, however trusted that page is:
+  // a wrong MISS went out because one primary fixtures list beat three reports of the score
+  // (owner decision 2026-10-12, 001 FR-034). Records decide; an absence only when none passed.
+  const records = counted.filter((e) => e.basis === 'record');
+  if (records.length > 0) return weighEvidence(records);
+  const absences = counted.filter((e) => e.basis === 'absence');
+  if (absences.length > 0) return weighEvidence(absences);
 
   // Nothing counts. VOID needs a second such run at least 24 h earlier (results may be reported late).
   const earlierEmpty = runs.slice(0, -1).some((run) => latestRun - run >= DAY_MS && runIsEmpty(evidences, run));
@@ -57,12 +59,17 @@ export function decideResolution(evidences: readonly EvidenceRow[], now: Date, d
   return { kind: 'wait', reason: 'insufficient_once' };
 }
 
-function agreeOrArbiter(items: readonly EvidenceRow[]): Decision {
+// Every passed item is compared, whatever its tier; they must agree. Disagreement is for the arbiter,
+// which sees them all, rather than for whichever tier happens to be highest (001 FR-034).
+function weighEvidence(items: readonly EvidenceRow[]): Decision {
+  const primary = items.filter((e) => e.trustLevel === 'primary');
+  const established = items.filter((e) => e.trustLevel === 'established');
+  if (primary.length === 0 && established.length === 1) return { kind: 'needs_human', reason: 'lone_established' };
   const first = items[0]!;
-  if (items.every((e) => e.says === first.says)) {
-    return { kind: 'final', outcome: first.says as 'hit' | 'miss', decidingEvidenceId: first.id };
-  }
-  return { kind: 'needs_arbiter', candidateIds: items.map((e) => e.id) };
+  if (!items.every((e) => e.says === first.says)) return { kind: 'needs_arbiter', candidateIds: items.map((e) => e.id) };
+  // The most trusted of the agreeing items is the one the reply cites.
+  const deciding = primary[0] ?? established[0] ?? first;
+  return { kind: 'final', outcome: first.says as 'hit' | 'miss', decidingEvidenceId: deciding.id };
 }
 
 function distinctRuns(evidences: readonly EvidenceRow[]): number[] {

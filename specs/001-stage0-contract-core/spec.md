@@ -505,6 +505,40 @@ shown but never count as a contradiction.
   recorded responses never include fetched page text or quotes.
 - **FR-030**: All times MUST be stored and compared in UTC.
 - **FR-031**: Every model, search and data-feed call MUST be recorded with its cost, per claim.
+- **FR-032**: A verdict reply MUST show the result it was decided on, not only HIT, MISS or VOID: the
+  closing price for a price claim, and for everything else one short line of what happened in the judge's
+  own words. A verdict whose deciding evidence carries neither a number nor a result line is a defect in
+  the judging step, not an acceptable reply (owner report 2026-10-11: 3 of 5 web verdicts had nothing to
+  show, although the judge instruction already asks for one).
+- **FR-033**: A person who asks the bot something in a thread MUST get an answer where one is possible,
+  whatever happened to the claim. Today the conversational path runs only when the text carries a command
+  word or when a claim was refused for not being a prediction; every other refusal — a deadline too close,
+  too far, an event not found, a duplicate — ends the exchange, and a further reply in that thread is
+  treated as a new prediction rather than as a question (owner report 2026-10-11). The answer stays one
+  reply, short, with no links, tags or prediction of its own, and it never opts anyone out.
+- **FR-033a**: A question is answered from the conversation before it, not from the three posts directly
+  above — on X the post that settles a question often sits beside the one being read rather than above it,
+  which is why recording already reads it that way. Our own replies are part of that context, because a
+  question is usually about what we said. Context is bought a page at a time: ten posts first, and ten
+  older ones only when the model says the answer is probably further up and could be in an earlier post.
+  A fact no earlier post could hold — a result with no live source — never buys a second page. At most
+  two pages and two model calls for one mention, and no page is ever read twice.
+- **FR-034**: Evidence that passed the gates is compared across trust levels, not tier by tier. A page
+  that is the official record and does not list the event (an absence) never outranks pages reporting it;
+  it decides only when no record passed. Items that disagree go to the arbiter whatever their tiers, and
+  the reply cites the most trusted of the agreeing items. Weak sources never decide. (Owner decision
+  2026-10-12, after a 3-0 win was published as a MISS because one fixtures page that had not listed the
+  match outranked three outlets reporting the score.)
+- **FR-035**: A verdict that was wrong is corrected by a new record beside the frozen one, never by an
+  edit: the claim shows what was said and what it is now. Finding one and correcting it are separate
+  steps — a scheduled sweep only reports. Once a week the last week's verdicts are re-decided from the
+  evidence already stored, which costs nothing and catches a rule that was wrong when the verdict was
+  given; a fresh re-judge of one claim, with new searches, is a command run by hand (~$0.04). A
+  correction is told once, in the claim's own thread, and never retried (owner decision 2026-10-12).
+- **FR-033b**: Replies written to people run on a fuller model than the one that parses predictions, and
+  may be as long as the platform allows. The model is configuration, not code. It answers from what it was
+  given — the conversation, and Vaticeno's own line about the prediction — and says it does not know
+  rather than guessing at a recent result it has no live source for.
 
 ### Key Entities
 

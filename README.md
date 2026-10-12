@@ -12,9 +12,12 @@ An X bot that puts predictions **on the record** and checks them automatically o
 
 **Live on X (testing):** tag the bot under your prediction (or put it in the mention): it records it and
 answers once in the thread; reply under its answer to fix it within 15 min. After the deadline the verdict
-(HIT / MISS / VOID) is posted as a reply in the same thread. Spec and tasks: [spec](specs/001-stage0-contract-core/spec.md),
-[tasks](specs/001-stage0-contract-core/tasks.md). How it runs: one service with five timed jobs
-(mentions and lock every minute, expire every 10 min, resolve hourly, verdicts every 5 min).
+(HIT / MISS / VOID) is posted as a reply in the same thread, with the result it was decided on — the
+closing price, or the score in one line. Ask it something in that thread and it answers.
+Spec and tasks: [spec](specs/001-stage0-contract-core/spec.md),
+[tasks](specs/001-stage0-contract-core/tasks.md). How it runs: one service with eight timed jobs (mentions
+and lock every minute, expire every 10 min, resolve hourly, verdicts every 5 min, reconcile every other
+hour, and the two feed jobs at fixed times).
 
 **Own feed (spec 002):** [spec](specs/002-content-feed/spec.md), [tasks](specs/002-content-feed/tasks.md).
 Built, and off until `ENABLE_FEED=true`: twice a day the bot picks one account from a fixed pool by weight
@@ -24,7 +27,7 @@ the picks and posts nothing.
 
 | Done | Next |
 |---|---|
-| X: mentions → one reply each; fixes by replying under the bot's answer; STOP; help; verdict replies | Per-claim AI budget in the live resolver |
+| X: mentions → one reply each; fixes by replying under the bot's answer; STOP; help; verdict replies carrying the result; questions answered from the conversation, or from the web when nothing in the thread can settle them | Per-claim AI budget in the live resolver |
 | Predictions → contracts by AI, checked in code; price + date = daily close; unclear ones get a checked example | |
 | Sports: the event and its competitor must exist (web search), competition filled in, recordable until the start | Public pages on a domain (HTTPS config is ready in `deploy/`) |
 | Database: lock and verdict rules enforced by Postgres, locally and on Supabase | Nightly backups (scripts in `deploy/`, not installed) |
@@ -40,14 +43,23 @@ the picks and posts nothing.
 | `@vaticeno <prediction with a date>` | RECORDED · #slug, or NOT RECORDED with what's missing and an example |
 | `@vaticeno` as a reply to your own post | records that post |
 | a reply under the bot's answer | a fix (within 15 min of RECORDED; anytime within 24 h of NOT RECORDED) |
-| `@vaticeno help` (or anything that isn't a prediction) | the list of actions |
+| `@vaticeno help` | the list of actions |
+| a question, anywhere it is tagged | an answer — see below |
 | `@vaticeno quote` | a sourced quote from Wikiquote about bets, luck, risk, sport, bitcoin |
 | `@vaticeno selfpromo` (or promote, show off, flex, brag, who are you…) | a motto + a joke |
 | `@vaticeno STOP` | stops replying to you until you tag it again |
 | `@vaticeno ping` | `pong` |
 
-Bare commands and typos (`quote`, `qoute 2`) are matched instantly; anything else unclear ("quote me something
-nice", "so?" under a quote, a question) is read by the AI together with the thread above it.
+Bare commands and typos (`quote`, `qoute 2`) are matched instantly, with no AI call. Anything else unclear
+("quote me something nice", "so?" under a quote, a question) is read by the AI.
+
+**Questions get answered.** If what you wrote is not a prediction — or it is one the bot could not record,
+or a reply under one it has already judged — it works out what you wanted and answers in the thread. It
+reads the conversation around your post first (ten posts, its own replies included, and the prediction's
+own statement and verdict when there is one); it reads ten older posts if the answer looks further up; and
+if the answer is a fact no post could contain — who won, what something closed at — it looks it up on the
+web and answers from that. One reply, no links, and it says it could not confirm something rather than
+inventing it.
 
 **It answers only where it was addressed.** X puts the handles of everyone in a thread at the front of every
 reply there, so once the bot has answered once, later replies arrive looking tagged even when two other people
@@ -71,7 +83,8 @@ npm test && npm run test:integration
 The bot itself: `npm run poc:whoami` (prints the bot's user ID for `.env`), then run the server with `ENABLE_JOBS=true ENABLE_X=true`.
 Only one copy may run at a time — two would double-reply and break each other's login token.
 Reply caps (`.env`): per author per hour (default 3; the live bot runs with 10) and 300 per day. Logs never
-contain post text.
+contain post text. `ANSWER_MODEL` (`.env`) is the model that writes replies to people — a fuller one than
+the lite model that parses predictions; everything else stays on the lite model.
 
 ## Scripts
 

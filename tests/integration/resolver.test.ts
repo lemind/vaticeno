@@ -5,6 +5,7 @@ import { type LlmClient, LlmSchemaError } from '../../src/llm/client.js';
 import { SourceUnavailable } from '../../src/resolve/fetch.js';
 import { decideByHuman, listNeedsHuman } from '../../src/resolve/manual.js';
 import { type ResolverDeps, resolveDueClaims } from '../../src/resolve/resolver.js';
+import { recheckClaim, recheckRecent, writeCorrection } from '../../src/resolve/recheck.js';
 import { insertClaim, setupTestDb, type TestDb, VALID_CONTRACT } from './helpers.js';
 
 let t: TestDb;
@@ -172,7 +173,9 @@ describe('web claims', () => {
     const pages = {
       [fda]: { says: 'hit', quote, event_date: '2026-10-03', text: `Today the ${quote} in adults.` },
       [reuters]: { says: 'hit', quote, event_date: '2026-10-03', text: `Reuters: ${quote} on Saturday.`, trust: 'established' as const },
-      [wire]: { says: 'miss', quote: 'rejected drug X', event_date: '2026-10-03', text: 'AP: FDA rejected drug X today.', trust: 'established' as const },
+      // Off-topic, not contradicting: a passed item that disagrees is a contradiction now and goes to the
+      // arbiter, which is its own test below (001 FR-034).
+      [wire]: { says: 'irrelevant', quote: 'another drug entirely', event_date: '2026-10-03', text: 'AP: a different drug today.', trust: 'established' as const },
     };
     const d = deps({ search: [reuters, wire], pages }).deps;
     await lockedClaim(WEB_CONTRACT);
@@ -181,6 +184,20 @@ describe('web claims', () => {
     await resolveDueClaims(d, new Date('2026-10-20T00:00:00Z'));
     const rows = await t.sql`select domain, agreed_count from sources order by domain`;
     assert.deepEqual(rows.map((r) => [r.domain, r.agreed_count]), [['fda.gov', 2], ['reuters.com', 2]]);
+  });
+
+  test('a trusted page that contradicts the others no longer loses to the top tier (001 FR-034)', async () => {
+    // The live defect of 2026-10-11: a primary page that did not list the match beat three outlets
+    // reporting the score, and a 3-0 win went out as a MISS.
+    const pages = {
+      [fda]: { says: 'miss', quote, event_date: '2026-10-03', text: `Today the ${quote} in adults.` },
+      [reuters]: { says: 'hit', quote, event_date: '2026-10-03', text: `Reuters: ${quote} on Saturday.`, trust: 'established' as const },
+    };
+    const claim = await lockedClaim(WEB_CONTRACT);
+    const d = deps({ search: [reuters], pages }).deps;
+    await resolveDueClaims(d, AFTER);
+    const row = await resolutionRow(claim.id);
+    assert.notEqual(row?.review_status, 'final', 'a contradiction is never settled by whichever tier is highest');
   });
 
   test('a page that times out while nothing else settles it is an outage, never a step toward VOID', async () => {
@@ -241,5 +258,58 @@ describe('web claims', () => {
     const resolution = await resolutionRow(claim.id);
     assert.deepEqual([resolution!.outcome, resolution!.void_reason], ['void', 'insufficient_evidence']);
     assert.equal((await claimRow(claim.id)).status, 'void');
+  });
+});
+
+describe('rechecking a verdict already given (001 FR-035)', () => {
+  // The live defect of 2026-10-11: a primary page that had not listed the match beat three reports of
+  // the score, and a 3-0 win went out as a MISS. The evidence was right; only the rule was wrong, so
+  // re-deciding from what is already stored catches it and costs nothing.
+  async function wrongMiss() {
+    const claim = await lockedClaim(WEB_CONTRACT);
+    const run = '2026-10-06T00:00:00Z';
+    const base = { claim_id: claim.id, run_at: run, source_kind: 'web', trust_level: 'established', says: 'hit', basis: 'record',
+      passed: true, gates: JSON.stringify({ final: true, trusted: true, in_window: true, independent: true, quote_found: true }), retrieved_at: run };
+    const [guardian] = await t.sql`insert into evidences ${t.sql({ ...base, source_name: 'theguardian.com', url: 'https://g/1', result_summary: 'City beat Liverpool 3-0' })} returning id`;
+    await t.sql`insert into evidences ${t.sql({ ...base, source_name: 'independent.co.uk', url: 'https://i/1', result_summary: 'City 3-0 Liverpool' })}`;
+    const [absent] = await t.sql`insert into evidences ${t.sql({ ...base, source_name: 'premierleague.com', url: 'https://p/1', trust_level: 'primary', says: 'miss', basis: 'absence',
+      gates: JSON.stringify({ final: true, trusted: true, in_window: true, independent: true, quote_found: null }) })} returning id`;
+    await t.sql`insert into resolutions ${t.sql({ claim_id: claim.id, outcome: 'miss', decided_by: 'evidence', review_status: 'final', deciding_evidence_id: absent!.id, decided_at: run })}`;
+    return { claim, guardian: guardian!.id as string };
+  }
+
+  test('a verdict the old rules got wrong is found, and correcting it is a separate step', async () => {
+    const { claim, guardian } = await wrongMiss();
+    const check = (await recheckClaim(t.db, claim.slug, AFTER))!;
+    assert.equal(check.was, 'miss');
+    assert.deepEqual(check.now, { kind: 'final', outcome: 'hit', decidingEvidenceId: guardian });
+    assert.equal(check.differs, true);
+    // Finding it changes nothing on its own: the published verdict stands until someone says so.
+    assert.equal((await resolutionRow(claim.id))!.outcome, 'miss');
+    assert.equal((await t.sql`select count(*)::int as n from corrections`)[0]!.n, 0);
+
+    assert.equal(await writeCorrection(t.db, claim.slug, check, 'an absence outranked three reports'), true);
+    const [correction] = await t.sql`select from_outcome, to_outcome, posted_tweet_id from corrections where claim_id = ${claim.id}`;
+    assert.deepEqual([correction!.from_outcome, correction!.to_outcome, correction!.posted_tweet_id], ['miss', 'hit', null]);
+    // The original verdict is frozen and stays: the record shows both (001 FR-035).
+    assert.equal((await resolutionRow(claim.id))!.outcome, 'miss');
+  });
+
+  test('the weekly sweep reports and never writes, and skips what it already corrected', async () => {
+    const { claim } = await wrongMiss();
+    const found = await recheckRecent(t.db, AFTER, 7);
+    assert.deepEqual(found.filter((r) => r.differs).map((r) => r.slug), [claim.slug]);
+    assert.equal((await t.sql`select count(*)::int as n from corrections`)[0]!.n, 0, 'a sweep never corrects on its own');
+
+    await writeCorrection(t.db, claim.slug, found[0]!, 'tested');
+    assert.deepEqual((await recheckRecent(t.db, AFTER, 7)).map((r) => r.slug), [], 'a corrected claim is not raised again');
+  });
+
+  test('a correction cannot be written twice, and a verdict that still stands cannot be corrected', async () => {
+    const { claim } = await wrongMiss();
+    const check = (await recheckClaim(t.db, claim.slug, AFTER))!;
+    assert.equal(await writeCorrection(t.db, claim.slug, check, 'first'), true);
+    assert.equal(await writeCorrection(t.db, claim.slug, check, 'second'), false);
+    assert.equal(await writeCorrection(t.db, claim.slug, { ...check, differs: false }, 'no'), false);
   });
 });

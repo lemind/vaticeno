@@ -31,7 +31,7 @@ function stubDeps(proposal: Partial<Proposal>, productStatus = 'online') {
     groundedSearch: async () => { throw new Error('not used'); },
   } as unknown as LlmClient;
   const coinbase = { productStatus: async () => productStatus } as unknown as Coinbase;
-  const deps: ClaimDeps = { db: t.db, llm, coinbase, normalizerModel: 'test-model' };
+  const deps: ClaimDeps = { db: t.db, llm, coinbase, normalizerModel: 'test-model', answerModel: 'test-model' };
   return { deps, calls: () => modelCalls };
 }
 

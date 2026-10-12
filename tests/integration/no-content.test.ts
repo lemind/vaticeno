@@ -54,7 +54,7 @@ test('no post text, quote or page text in any column or log line', async () => {
     return (write as (...args: unknown[]) => boolean)(chunk, ...rest);
   }) as typeof process.stdout.write;
   try {
-    const deps: ClaimDeps = { db: t.db, llm, coinbase: { productStatus: async () => 'online' } as unknown as Coinbase, normalizerModel: 'm' };
+    const deps: ClaimDeps = { db: t.db, llm, coinbase: { productStatus: async () => 'online' } as unknown as Coinbase, normalizerModel: 'm', answerModel: 'm' };
     const reader = createMemorySourceReader({ '42': { versionId: 'v1', text: POST } });
     const at = (iso: string) => new Date(iso);
 

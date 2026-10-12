@@ -1,18 +1,21 @@
 // X intake (Stage 1): each new mention of the bot becomes one engine call and at most one reply, in the same
 // thread (constitution IV). Mention and post text live in memory only — logs and DB get ids and lengths.
 import { and, arrayContains, desc, eq, or, sql } from 'drizzle-orm';
-import { claims, optOuts } from '../db/schema.js';
+import { claims, evidences, optOuts, resolutions } from '../db/schema.js';
 import { readIngestState, writeIngestState, type IngestState } from '../ingest/state.js';
 import { amendClaim, type ClaimDeps, submitClaim } from '../lifecycle/claims.js';
 import type { SourceReader } from '../lifecycle/source-reader.js';
 import { log } from '../log.js';
 import { type Command, commandWordIn, resolveCommand } from './commands.js';
-import { addressesBot } from '../commands/parse.js';
+import { addressesBot, escapeRegExp } from '../commands/parse.js';
+import { ContractSchema } from '../contract/schema.js';
+import { renderStatement } from '../contract/render.js';
 import { type Intent, type ThreadPost, classifyIntent } from '../llm/intent.js';
 import { type CallCost, LlmSchemaError } from '../llm/client.js';
 import { recordCosts } from '../db/costs.js';
 import { type ExtrasDeps, quoteReply, selfpromoReply } from './extras.js';
 import { logTopic, resolveQuoteTopic } from './quote-topic.js';
+import { loadInstruction } from '../llm/instructions.js';
 import { alert, captureError } from '../observe.js';
 import { HELP_REPLY, hasTagsOrLinks, STOPPED_REPLY, THIRD_PARTY_REPLY, weightedLength, X_MAX_CHARS } from '../replies/templates.js';
 import { type Mention, PostNotSent, XApiError, type XClient } from '../x/client.js';
@@ -76,6 +79,7 @@ export async function routeMention(deps: BotDeps, mention: Mention, now: Date, w
   // Tagging the bot again after STOP resumes (owner decision 2026-09-30, constitution IV).
   await deps.db.delete(optOuts).where(eq(optOuts.xUserId, mention.author_id));
   const repliedTo = mention.referenced_tweets?.find((ref) => ref.type === 'replied_to')?.id;
+  let askedModel = false; // one assessment per mention, whichever path asks for it (owner decision 2026-10-07)
 
   // A reply in a claim's thread is the author's fix (FR-010, no keyword); anyone else is ignored, and a closed
   // claim gets the refusal — no model call either way.
@@ -94,9 +98,20 @@ export async function routeMention(deps: BotDeps, mention: Mention, now: Date, w
     // A claim that can no longer change (locked, closed, expired, out of fixes) does not end the
     // conversation: the author is predicting again, so the reply is recorded as a NEW claim further
     // down (owner decision 2026-10-05). Only a mid-flight conflict still gets the refusal.
+    // A question under an open claim must not get "NOT CHANGED": asked before that reply goes back (FR-033).
+    if (fixed.outcome === 'not_changed') {
+      const answered = await assess(deps, mention, body, repliedTo, now, { onlyQuestion: true, about: claim });
+      askedModel = true;
+      if (answered) return { ...answered, slug: claim.slug };
+    }
     if (fixed.outcome !== 'refused' || fixed.reason === 'conflict') {
       return { action: `fix_${fixed.outcome}`, reply: fixed.reply, slug: claim.slug, discloses: fixed.outcome === 'amended' || fixed.outcome === 'recorded' };
     }
+    // Under a closed claim a question is answered before the reply is taken for a new prediction (FR-033).
+    const answered = await assess(deps, mention, body, repliedTo, now, { onlyQuestion: true, about: claim });
+    // The slug puts the answer in the claim's thread, so the next reply still arrives with it (FR-033).
+    if (answered) return { ...answered, slug: claim.slug };
+    askedModel = true;
     log('info', 'closed claim: recording this reply as a new one', { event: 'claim.amend_to_new', slug: claim.slug, reason: fixed.reason });
   }
 
@@ -114,7 +129,7 @@ export async function routeMention(deps: BotDeps, mention: Mention, now: Date, w
 
   // A command word with more text: the model decides, seeing the thread (a prediction goes on below).
   const firstAssessed = commandWordIn(body);
-  if (firstAssessed) {
+  if (firstAssessed && !askedModel) {
     const assessed = await assess(deps, mention, body, repliedTo, now);
     if (assessed) return assessed;
   }
@@ -132,10 +147,14 @@ export async function routeMention(deps: BotDeps, mention: Mention, now: Date, w
     text: current.text, context, authorId: mention.author_id, sourceTweetId: original, summonTweetId: mention.id, sourceVersion: current.versionId, now,
     moreContext: () => conversationBefore(deps, mention, context),
   });
-  // Not a prediction: the model reads the thread — once per mention (a command word already had its turn).
-  if (result.outcome === 'rejected' && result.rejectReason === 'not_prediction' && !firstAssessed) {
-    const assessed = await assess(deps, mention, current.text, repliedTo, now, { predictionRuledOut: true });
-    if (assessed) return assessed;
+  // Any refusal can be followed by a question; what is not one keeps its own reason, which is more use
+  // than a generic answer (FR-033). One assessment per mention.
+  const refused = result.outcome === 'rejected' || result.outcome === 'duplicate';
+  if (refused && !firstAssessed && !askedModel) {
+    const notPrediction = result.rejectReason === 'not_prediction';
+    const assessed = await assess(deps, mention, current.text, repliedTo, now, notPrediction ? { predictionRuledOut: true } : { onlyQuestion: true });
+    // The answer joins the thread of the claim it is about, when there is one.
+    if (assessed) return { ...assessed, slug: result.slug };
   }
   return { action: `record_inline_${result.outcome}`, reply: result.reply, slug: result.slug, discloses: result.outcome === 'recorded' };
 }
@@ -169,27 +188,144 @@ async function runCommand(deps: BotDeps, mention: Mention, command: Command, now
 }
 
 const THREAD_DEPTH = 3; // posts above the mention shown to the model (paid X reads, in memory only)
+// X bills per post (~$0.005), so context is bought a page at a time, the second only on request (FR-033a).
+const CONVERSATION_POSTS = 10;
 
-// The model decides what an unclear mention wants, with the thread above it. null = go on with recording.
-async function assess(deps: BotDeps, mention: Mention, body: string, repliedTo: string | undefined, now: Date, opts: { predictionRuledOut?: boolean } = {}): Promise<Routed | null> {
-  const thread = await threadAbove(deps, repliedTo);
+// A question's context is the conversation, not three ancestors: the post that settles it often sits
+// beside the one being read rather than above it (FR-033a).
+async function contextAround(deps: BotDeps, mention: Mention, repliedTo: string | undefined, before?: string): Promise<{ posts: ThreadPost[]; conversation: ThreadPost[]; oldest?: string }> {
+  const above = before ? [] : await threadAbove(deps, repliedTo);
+  const seen = new Set(above.map((post) => post.text));
+  // Our own replies are context for a question, and still not for the recorder (FR-033a, T048).
+  const read = await conversationPosts(deps, mention, before);
+  const wider = read
+    .filter((post) => !seen.has(post.text))
+    .map((post) => ({ from: post.author_id === deps.botUserId ? ('bot' as const) : ('user' as const), text: post.text }));
+  // Paged by lowest id, not by position: created_at ties would re-buy a post (review 2026-10-11).
+  const oldest = read.map((post) => post.id).sort((a, b) => (a.length === b.length ? a.localeCompare(b) : a.length - b.length))[0];
+  return { posts: [...above, ...wider], conversation: wider, oldest };
+}
+
+// One web lookup for a question no post in the thread can settle. The links it finds stay out of the
+// reply (constitution VI); any failure answers nothing (FR-033b).
+async function liveAnswer(deps: BotDeps, mention: Mention, body: string, thread: readonly ThreadPost[]): Promise<string | null> {
+  try {
+    const result = await deps.llm.groundedAnswer({
+      model: deps.answerModel,
+      instructionVersion: 'answer-live.v1',
+      system: loadInstruction('answer-live.v1'),
+      input: JSON.stringify({ question: body, conversation: thread.map((post) => `${post.from}: ${post.text}`) }),
+    });
+    await saveCosts(deps, result.costs);
+    log('info', 'answered from a live lookup', { event: 'mention.answer_live', tweet_id: mention.id, sources: result.urls.length, chars: result.text.length });
+    return result.text.length > 0 ? result.text : null;
+  } catch (error) {
+    captureError(error, { event: 'mention.answer_live_failed', tweet_id: mention.id });
+    return null;
+  }
+}
+
+// The conversation before the mention, oldest first, unfiltered beyond "it came before this mention".
+// `before` pages further back: pass the oldest id already read and X returns the ten before it.
+async function conversationPosts(deps: BotDeps, mention: Mention, before?: string): Promise<Array<{ id: string; text: string; author_id?: string }>> {
+  const isReply = mention.referenced_tweets?.some((ref) => ref.type === 'replied_to') ?? false;
+  if (!mention.conversation_id || !isReply || mention.conversation_id === mention.id) return [];
+  try {
+    const posts = await deps.x.getConversation(mention.conversation_id, { untilId: before ?? mention.id });
+    return posts
+      .filter((post) => post.id !== mention.id && (!post.created_at || !mention.created_at || post.created_at < mention.created_at))
+      .sort((a, b) => (a.created_at ?? '').localeCompare(b.created_at ?? ''));
+  } catch (error) {
+    captureError(error, { event: 'thread.conversation_failed', tweet_id: mention.id });
+    return [];
+  }
+}
+
+type ClaimRef = { slug: string; contract: unknown; status: string; deadlineAt: Date | null };
+
+// What we already know about the claim the mention stands in, from our own rows — no post text (§6.9).
+async function claimContext(deps: BotDeps, claim: ClaimRef): Promise<ThreadPost[]> {
+  const parsed = ContractSchema.safeParse(claim.contract);
+  const statement = parsed.success ? renderStatement(parsed.data) : criterionOf(claim.contract)[0];
+  if (!statement) return [];
+  const [verdict] = claim.status === 'resolved' || claim.status === 'void'
+    ? await deps.db.select({ outcome: resolutions.outcome, result: evidences.resultSummary, value: evidences.value, reason: resolutions.voidReason })
+      .from(resolutions).innerJoin(claims, eq(claims.id, resolutions.claimId)).leftJoin(evidences, eq(evidences.id, resolutions.decidingEvidenceId))
+      .where(eq(claims.slug, claim.slug)).limit(1)
+    : [];
+  const state = verdict
+    ? `judged ${String(verdict.outcome).toUpperCase()}${verdict.result ? `: ${verdict.result}` : verdict.value ? `: ${verdict.value}` : verdict.reason ? ` (${verdict.reason})` : ''}`
+    : `${claim.status}${claim.deadlineAt ? `, due ${claim.deadlineAt.toISOString().slice(0, 10)}` : ''}`;
+  return [{ from: 'bot', text: `#${claim.slug} — "${statement}" — ${state}.` }];
+}
+
+// What an unclear mention wants. null = go on with recording.
+// `onlyQuestion`: answer a question, else say nothing and let the caller keep its reply.
+async function assess(deps: BotDeps, mention: Mention, body: string, repliedTo: string | undefined, now: Date, opts: { predictionRuledOut?: boolean; onlyQuestion?: boolean; about?: ClaimRef } = {}): Promise<Routed | null> {
+  // The model sees our own record first, then the posts above; only what people wrote is echo-checked
+  // (FR-033a).
+  const ours = opts.about ? await claimContext(deps, opts.about) : [];
+  const first = await contextAround(deps, mention, repliedTo);
+  // Nearest first, then the conversation oldest to newest, which is the order intent.v4 is told to expect.
+  const above = first.posts.filter((post) => !first.conversation.includes(post));
+  let pages = first.conversation;
+  let thread = [...ours, ...above, ...pages];
   let intent: Intent;
   let answer: string | null;
-  try {
-    const assessed = await classifyIntent(deps.llm, deps.normalizerModel, body, thread);
-    ({ intent, answer } = assessed);
+  let wantsOlder: boolean;
+  let needsLive: boolean;
+  const ask = async () => {
+    const assessed = await classifyIntent(deps.llm, deps.answerModel, body, thread);
     await saveCosts(deps, assessed.costs);
+    return assessed;
+  };
+  try {
+    ({ intent, answer, wantsOlder, needsLive } = await ask());
+    // A second page only when the model says the answer is further up. At most one (FR-033a).
+    if (intent === 'question' && wantsOlder && first.oldest) {
+      const older = await contextAround(deps, mention, repliedTo, first.oldest);
+      if (older.conversation.length > 0) {
+        pages = [...older.conversation, ...pages];
+        thread = [...ours, ...above, ...pages];
+        log('info', 'reading further up the conversation', { event: 'thread.second_page', tweet_id: mention.id, added: older.conversation.length });
+        const again = await ask();
+        // A worse second answer never costs us the first: the page was bought to improve the answer.
+        ({ intent, needsLive } = again);
+        answer = again.answer ?? answer;
+      }
+    }
   } catch (error) {
     if (!(error instanceof LlmSchemaError)) throw error; // an outage retries the mention
     await saveCosts(deps, error.costs);
-    return opts.predictionRuledOut ? { action: 'help', reply: HELP_REPLY } : null;
+    return opts.predictionRuledOut && !opts.onlyQuestion ? { action: 'help', reply: HELP_REPLY } : null;
   }
-  log('info', 'mention assessed', { event: 'mention.assessed', tweet_id: mention.id, intent, thread_posts: thread.length });
+  log('info', 'mention assessed', {
+    event: 'mention.assessed', tweet_id: mention.id, intent, thread_posts: thread.length,
+    ours: thread.filter((post) => post.from === 'bot').length, theirs: thread.filter((post) => post.from === 'user').length,
+    model: deps.answerModel,
+  });
   if (intent === 'prediction') return opts.predictionRuledOut ? { action: 'help', reply: HELP_REPLY } : null;
   if (intent === 'question') {
-    const usable = answer && answer.length <= 200 && !hasTagsOrLinks(answer) && !echoes(answer, [body, ...thread.map((p) => p.text)]);
-    return usable ? { action: 'answer', reply: answer } : { action: 'help', reply: HELP_REPLY };
+    // Our own posts are context, not injection: quoting the prediction we stated is the answer (FR-033a).
+    const written = [...above, ...pages].filter((post) => post.from === 'user');
+    // A question about the world that nothing in the thread can settle: look it up once, then answer.
+    if (needsLive && !answerProblem(answer, body, written, opts.about?.slug)) {
+      // The model could answer anyway — take that, and keep the money.
+    } else if (needsLive) {
+      const live = await liveAnswer(deps, mention, body, thread);
+      if (live && !answerProblem(live, body, written, opts.about?.slug)) return { action: 'answer_live', reply: live };
+    }
+    const problem = answerProblem(answer, body, written, opts.about?.slug);
+    if (!problem) return { action: 'answer', reply: answer as string };
+    // Why an answer was thrown away used to be invisible, so a bad reply could not be told from a bad
+    // gate (owner report 2026-10-11). It is one line and it costs nothing.
+    log('info', 'answer rejected', { event: 'mention.answer_rejected', tweet_id: mention.id, reason: problem, chars: answer?.length ?? 0 });
+    // The model says this is a question. Recording it as a prediction and refusing it is the worst of
+    // the three answers available, so the help reply stands even where the caller had a refusal ready.
+    return { action: 'help', reply: HELP_REPLY };
   }
+  // Asked only about a question, and it was not one: the caller's own reply stands.
+  if (opts.onlyQuestion) return null;
   // STOP only when typed as a command (resolveCommand): a model reading must never opt someone out.
   if (intent === 'stop') return { action: 'help', reply: HELP_REPLY };
   if (intent === 'other') return { action: 'help', reply: HELP_REPLY };
@@ -204,13 +340,27 @@ async function saveCosts(deps: BotDeps, costs: CallCost[]) {
   }
 }
 
-// An answer that repeats 20+ characters of what users wrote is likely an injected "reply exactly …".
+// Why an answer cannot be posted, or null when it can: platform policy, constitution VI, and the "reply
+// exactly …" trick. A gate that silences a good answer is worse than no gate (FR-033).
+function answerProblem(answer: string | null, body: string, context: readonly ThreadPost[], slug?: string): string | null {
+  if (!answer) return 'empty';
+  // X's count, not the string's: emoji and CJK weigh double, and an over-long reply is refused by X.
+  if (weightedLength(answer) > X_MAX_CHARS) return 'too_long';
+  // The claim's own slug is an id, not a topic, and is the one hashtag an answer may carry (VI 2.4.1).
+  const withoutSlug = slug ? answer.replace(new RegExp(`#${escapeRegExp(slug)}\\b`, 'gi'), '') : answer;
+  if (hasTagsOrLinks(withoutSlug)) return 'tags_or_links';
+  if (echoes(answer, [body, ...context.map((post) => post.text)])) return 'echo';
+  return null;
+}
+
+// A run this long is someone else's sentence, not an answer using the facts it was given (FR-033a).
+const ECHO_RUN = 40;
 function echoes(answer: string, texts: string[]): boolean {
   const norm = (t: string) => t.toLowerCase().replace(/\s+/g, ' ');
   const a = norm(answer);
   return texts.some((text) => {
     const t = norm(text);
-    for (let i = 0; i + 20 <= t.length; i += 5) if (a.includes(t.slice(i, i + 20))) return true;
+    for (let i = 0; i + ECHO_RUN <= t.length; i += 10) if (a.includes(t.slice(i, i + ECHO_RUN))) return true;
     return false;
   });
 }
@@ -232,9 +382,25 @@ function cachedReads(deps: BotDeps): BotDeps {
     void fresh.then(() => recordReads(deps, 1, 'thread.post_read'), () => {});
     return fresh;
   };
+  // One conversation read per mention, charged once, shared by the recorder and the answer (FR-033a).
+  const conversations = new Map<string, Promise<Awaited<ReturnType<XClient['getConversation']>>>>();
+  const conversationOnce = (id: string, untilId: string | undefined) => {
+    const key = `${id}|${untilId ?? ''}`;
+    const held = conversations.get(key);
+    if (held) return held;
+    const fresh = deps.x.getConversation(id, { ...(untilId ? { untilId } : {}), maxResults: CONVERSATION_POSTS });
+    // The key keeps a page from being bought twice; each page is its own read and its own cost.
+    conversations.set(key, fresh);
+    void fresh.then((read) => recordReads(deps, read.length, 'thread.conversation_read'), () => {});
+    return fresh;
+  };
   return {
     ...deps,
-    x: { ...deps.x, getTweet: (id: string) => once(posts, id, () => deps.x.getTweet(id)) },
+    x: {
+      ...deps.x,
+      getTweet: (id: string) => once(posts, id, () => deps.x.getTweet(id)),
+      getConversation: (id: string, opts?: { untilId?: string }) => conversationOnce(id, opts?.untilId),
+    },
     reader: { ...deps.reader, readVersion: (id: string) => once(versions, id, () => deps.reader.readVersion(id)) },
   };
 }
@@ -251,7 +417,6 @@ async function conversationBefore(deps: BotDeps, mention: Mention, already: read
   if (!mention.conversation_id || !isReply || mention.conversation_id === mention.id) return already;
   try {
     const posts = await deps.x.getConversation(mention.conversation_id, { untilId: mention.id });
-    await recordReads(deps, posts.length, 'thread.conversation_read');
     // Every post of the conversation that came before, oldest first. Not a window of the last few: the
     // post that names the subject is often older than the chatter around it (the answer naming a fight
     // sat four posts back, behind our own refusal and an argument between strangers). They are all paid
@@ -315,7 +480,7 @@ function criterionOf(contract: unknown): string[] {
 
 async function claimInThread(deps: BotDeps, mention: Mention, repliedTo: string | undefined) {
   if (!repliedTo) return null;
-  const [claim] = await deps.db.select({ slug: claims.slug, sourceTweetId: claims.sourceTweetId, summonTweetId: claims.summonTweetId, contract: claims.contract }).from(claims)
+  const [claim] = await deps.db.select({ slug: claims.slug, sourceTweetId: claims.sourceTweetId, summonTweetId: claims.summonTweetId, contract: claims.contract, status: claims.status, deadlineAt: claims.deadlineAt }).from(claims)
     .where(or(eq(claims.sourceTweetId, repliedTo), eq(claims.summonTweetId, repliedTo), arrayContains(claims.threadTweetIds, [repliedTo])))
     // An open claim wins over a closed one sharing the post (a fix mistaken for a new claim before T094).
     .orderBy(sql`${claims.status} in ('needs_info', 'draft') desc`, desc(claims.createdAt)).limit(1);

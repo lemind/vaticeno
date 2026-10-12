@@ -230,6 +230,56 @@ element, no percentage or ranking, no content (SC-009).
 
 ---
 
+## Phase 10: The reply carries the result, and a question gets an answer (owner report 2026-10-11)
+
+**Why**: a verdict that says MISS and nothing else makes the reader take our word for it, and a refusal
+that is not "this isn't a prediction" ends the conversation — the author cannot ask why, because the next
+reply in that thread is read as a new prediction. Both were found on a live thread, and both are small.
+
+Measured on production before writing this: 3 of the 5 web verdicts ever posted had neither a number nor a
+result line to show, all three judged by the instruction version that already asks for one; the 6 price
+verdicts all had their close. The conversational path exists and is good — one short answer, no links or
+tags, an echo check against injected text — it is simply unreachable from four of the six refusal reasons.
+
+- [x] T112 **Done 2026-10-11.** `src/llm/instructions/judge.v4.md` + `src/llm/judges.ts`: `result` stops being optional for a
+      `hit` or `miss` read off a record — one line, at most 80 characters, what a reader wants to know
+      (`Oklahoma 27–24 Texas`, `Closed at 82,544.71`). `pending`, `absence` and `entity gone` keep it
+      nullable, because there is nothing to report. Bump the version rather than editing v3, so old
+      evidence still parses (FR-032).
+- [x] T113 **Done 2026-10-11.** `src/bot/verdicts.ts`: a `hit` or `miss` whose deciding evidence has neither a value nor a
+      result line is an alert, not a silent "Source: …" reply — the judge failed to say what happened and
+      we want to know. The reply still goes out (a verdict is never withheld), with the source line as
+      today (FR-032).
+- [x] T114 **Done 2026-10-11.** `src/bot/mentions.ts`: the conversational path is reachable from every refusal, not only
+      `not_prediction`. After any rejection, the model is asked once what the mention wanted; a question
+      gets its answer, anything else keeps the refusal text it has today. The existing guards all stay:
+      one model call per mention, one reply, ≤ 200 characters, no links or tags, the echo check, and STOP
+      only ever from a typed command (FR-033).
+- [x] T115 **Done 2026-10-11.** `src/bot/mentions.ts`: a reply under a closed or refused claim that reads as a question is
+      answered as one instead of being recorded as a new prediction. The "a reply under a closed claim is
+      a new claim" rule (owner decision 2026-10-05) still holds for anything that is a prediction (FR-033).
+- [x] T116 **Done 2026-10-11.** Tests in `tests/integration/bot.test.ts`: a deadline-too-close refusal followed by "why?" gets
+      an answer and not a second refusal; a question under a resolved claim is answered, a prediction under
+      it is still recorded; a verdict with a result line prints it, one without raises the alert; no path
+      adds a second model call per mention.
+
+- [x] T117 **Done 2026-10-11** (owner report, a live thread). A question is answered from the whole conversation before the mention, siblings included, not the three ancestors: `contextAround` in `src/bot/mentions.ts` adds the conversation read the recorder already uses, and the read is memoised and charged once per mention in `cachedReads` however many paths want it (FR-033a).
+- [x] T118 **Done 2026-10-11.** `ANSWER_MODEL` in `src/config.ts` and `.env.example` (default `gemini-3.8-flash`): only replies written to people use it, every other call stays on the lite model. `intent.v2` raises the answer to 260 characters, tells the model to answer from what it was given and to say it does not know rather than guess at a result it has no live source for (FR-033b).
+- [x] T119 **Done 2026-10-11.** A question under a claim that is still open is answered instead of being told "NOT CHANGED — that doesn't read as a prediction": the amend path asks once before handing that reply back (FR-033).
+
+- [x] T120 **Done 2026-10-11** (owner report, a live thread where the model answered and we binned it). The gates that decide whether an answer may be posted were silencing good answers and saying nothing: the claim's own slug is allowed as a hashtag (constitution VI 2.4.1), a verbatim run must now be 40 characters rather than 20 before it counts as parroting, and every rejected answer logs its reason. A question whose answer cannot be posted gets the help reply and is never recorded as a failed prediction.
+- [x] T121 **Done 2026-10-11.** Context is read a page at a time: ten posts, the model says whether older ones would help (`intent.v3`), and only then are ten more read, paged by id so nothing is paid for twice. Our own replies are included for an answer and still excluded for the recorder. `mention.assessed` logs how many posts were ours, how many theirs, and which model answered.
+
+- [x] T123 **Done 2026-10-12** (owner report, two wrong verdicts on X). `src/resolve/decide.ts` compared only the highest trust level present and discarded the rest unseen, so one primary page that had not listed a match beat three outlets reporting the score and a 3-0 win was published as a MISS. Now every passed item is compared whatever its tier, an absence decides only when no record passed, disagreement goes to the arbiter, and weak sources are excluded outright. Four unit tests and one integration test, each named after the defect (FR-034).
+
+- [x] T124 **Done 2026-10-12** (owner decision, after T123). `npm run verdict:recheck` re-decides verdicts with today's rules over the evidence already stored — free, no model, no searches — and a weekly job (Mondays 04:31 UTC) does the same over the last seven days and reports. `--correct "<reason>"` writes a correction in the new `corrections` table beside the frozen resolution, `--post` tells the claim's thread once. Migration `drizzle/0014_corrections.sql`. Run against production on the day it shipped: of 12 verdicts it found the two T123 got wrong (`s3wt9`, `7xtc9`, both MISS → HIT) and one no longer settled (`3pssn`, now the arbiter's). Three integration tests rebuild the real defect (FR-035).
+
+**Checkpoint**: every verdict says what happened, and no refusal is a dead end. 104 unit and 129
+integration tests pass, typecheck clean. The judge answers recorded under v3 keep their old shape; only
+pages judged from v4 on are held to the result line.
+
+---
+
 ## Dependencies & Execution Order
 
 - **Phase 1** → **Phase 2 (DB)** → user stories.

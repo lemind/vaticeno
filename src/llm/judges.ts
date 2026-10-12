@@ -8,7 +8,7 @@ import type { CallCost, LlmClient } from './client.js';
 import { loadInstruction } from './instructions.js';
 
 export const SEARCH_VERSION = 'search.v2';
-export const JUDGE_VERSION = 'judge.v3';
+export const JUDGE_VERSION = 'judge.v4';
 // The seeded claims were recorded with v2 (no event_start); they replay with it — no paid re-record.
 export const SEEDS_JUDGE_VERSION = 'judge.v2';
 export const ARBITRATE_VERSION = 'arbitrate.v1';
@@ -37,7 +37,7 @@ const JudgeFields = {
   basis: z.enum(['record', 'absence']),
   event_date: DATE.nullable(),
   event_start: z.string().max(40).nullable().optional(), // v3; absent in v2 answers; unparseable = no time (gates.ts)
-  result: z.string().max(80).nullable().optional(), // v3: the outcome in its own words, shown in the verdict reply
+  result: z.string().max(80).nullable().optional(), // v3; required for a settled hit/miss from v4 (FR-032)
   is_final_result: z.boolean(),
   from_contract_source: z.boolean(),
   source_trust: z.enum(['primary', 'established', 'weak']),
@@ -48,6 +48,13 @@ const JudgeFields = {
 const JudgeSchema = z.object({ ...JudgeFields, quote: z.string().max(600).nullable() });
 // Recorded shape: no quote field at all (the replay store refuses one), only its hash and whether it was on the page.
 const JudgeRecordedSchema = z.object({ ...JudgeFields, quote_sha256: z.string().nullable(), quote_found: z.boolean() });
+
+// judge.v4 requires this field in the schema itself: a `.refine()` never reaches the provider, and
+// discarding a page over a missing line would cost a verdict (001 FR-032).
+const V4_FIELDS = { ...JudgeFields, result: z.string().max(80).nullable() };
+const JudgeSchemaV4 = z.object({ ...V4_FIELDS, quote: z.string().max(600).nullable() });
+const JudgeRecordedSchemaV4 = z.object({ ...V4_FIELDS, quote_sha256: z.string().nullable(), quote_found: z.boolean() });
+const BEFORE_V4 = ['judge.v1', 'judge.v2', 'judge.v3'];
 
 export type Judgement = Omit<z.infer<typeof JudgeSchema>, 'quote'> & { quoteFound: boolean | null };
 
@@ -72,8 +79,8 @@ export async function judgePage(
     system: loadInstruction(version),
     input: JSON.stringify({ ...judgeInput(contract, window, version), page: { url: page.url, text: page.text } }),
     replayIdentity: { ...judgeInput(contract, window, version), url: page.url, sha256: page.sha256 },
-    schema: JudgeSchema,
-    replaySchema: JudgeRecordedSchema as unknown as z.ZodType<z.infer<typeof JudgeSchema> & { quote_found?: boolean }>,
+    schema: (BEFORE_V4.includes(version) ? JudgeSchema : JudgeSchemaV4) as typeof JudgeSchema,
+    replaySchema: (BEFORE_V4.includes(version) ? JudgeRecordedSchema : JudgeRecordedSchemaV4) as unknown as z.ZodType<z.infer<typeof JudgeSchema> & { quote_found?: boolean }>,
     recordAs: (raw) => redactQuote(raw, page.text),
   });
   // Live: check the quote against the page now. Replay: use the check made when it was recorded.

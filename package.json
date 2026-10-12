@@ -27,7 +27,8 @@
     "poc:whoami": "tsx --env-file=.env src/poc/whoami.ts",
     "poc:poll": "tsx --env-file=.env src/poc/poll.ts",
     "poc:parse": "tsx src/poc/parse-cli.ts",
-    "poc:auth": "tsx --env-file=.env src/poc/auth.ts"
+    "poc:auth": "tsx --env-file=.env src/poc/auth.ts",
+    "verdict:recheck": "tsx --env-file-if-exists=.env src/cli/verdict-recheck.ts"
   },
   "repository": {
     "type": "git",

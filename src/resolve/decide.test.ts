@@ -8,8 +8,11 @@ const RUN2 = new Date('2027-06-02T01:00:00Z'); // 24 h after RUN1
 const RUN3 = new Date('2027-06-04T01:00:00Z');
 
 let n = 0;
-const row = (trustLevel: EvidenceRow['trustLevel'], says: EvidenceRow['says'], runAt = RUN1, passed = true, quoteFound: boolean | null = true): EvidenceRow =>
-  ({ id: `e${++n}`, runAt, trustLevel, says, passed, quoteFound });
+const row = (trustLevel: EvidenceRow['trustLevel'], says: EvidenceRow['says'], runAt = RUN1, passed = true, quoteFound: boolean | null = true, basis: EvidenceRow['basis'] = 'record'): EvidenceRow =>
+  ({ id: `e${++n}`, runAt, trustLevel, says, basis, passed, quoteFound });
+// A page that is the official record and does not list the event (001 FR-034).
+const absence = (trustLevel: EvidenceRow['trustLevel'], says: EvidenceRow['says'], runAt = RUN1): EvidenceRow =>
+  row(trustLevel, says, runAt, true, null, 'absence');
 
 const decide = (rows: EvidenceRow[], now = RUN1) => decideResolution(rows, now, DEADLINE);
 
@@ -22,15 +25,18 @@ test('one primary, nothing contradicting → final, decided by that item', () =>
   assert.deepEqual(decide([primary, row('weak', 'miss')]), { kind: 'final', outcome: 'hit', decidingEvidenceId: primary.id });
 });
 
-test('primary outranks established: primary HIT + established MISS → final HIT', () => {
+test('a primary disagreeing with established ones goes to the arbiter (001 FR-034)', () => {
+  // Until 2026-10-12 the top tier decided alone and the rest were discarded unseen.
   const primary = row('primary', 'hit');
-  assert.deepEqual(decide([row('established', 'miss'), primary, row('established', 'miss')]), { kind: 'final', outcome: 'hit', decidingEvidenceId: primary.id });
+  const [m1, m2] = [row('established', 'miss'), row('established', 'miss')];
+  assert.deepEqual(decide([m1, primary, m2]), { kind: 'needs_arbiter', candidateIds: [m1.id, primary.id, m2.id] });
 });
 
-test('primary items disagreeing → arbiter', () => {
+test('items disagreeing → arbiter, with every passed item as a candidate', () => {
   const a = row('primary', 'hit');
   const b = row('primary', 'miss');
-  assert.deepEqual(decide([a, b, row('established', 'hit')]), { kind: 'needs_arbiter', candidateIds: [a.id, b.id] });
+  const c = row('established', 'hit');
+  assert.deepEqual(decide([a, b, c]), { kind: 'needs_arbiter', candidateIds: [a.id, b.id, c.id] });
 });
 
 test('no primary: 2+ established agreeing → final; disagreeing → arbiter; one → human', () => {
@@ -92,4 +98,30 @@ test('primary pending: wait; more than 30 days after the deadline → human', ()
   const day30 = new Date(DEADLINE.getTime() + 30 * 86400e3);
   assert.deepEqual(decide([pending], day30), { kind: 'wait', reason: 'pending' });
   assert.deepEqual(decide([pending], new Date(day30.getTime() + 1000)), { kind: 'needs_human', reason: 'pending_too_long' });
+});
+
+test('an absence never outranks reports of the event (001 FR-034)', () => {
+  // The live defect of 2026-10-11: one primary fixtures page that did not list the match beat three
+  // outlets reporting the score, and a 3-0 win was published as a MISS.
+  const guardian = row('established', 'hit');
+  const independent = row('established', 'hit');
+  const notListed = absence('primary', 'miss');
+  assert.deepEqual(decide([notListed, guardian, independent]), { kind: 'final', outcome: 'hit', decidingEvidenceId: guardian.id });
+});
+
+test('an absence still decides when nothing else passed', () => {
+  const notListed = absence('primary', 'miss');
+  assert.deepEqual(decide([notListed]), { kind: 'final', outcome: 'miss', decidingEvidenceId: notListed.id });
+});
+
+test('a primary record disagreeing with an established one goes to the arbiter, not to the top tier', () => {
+  const hkjc = row('primary', 'miss');
+  const sportinglife = row('established', 'hit');
+  assert.deepEqual(decide([hkjc, sportinglife]), { kind: 'needs_arbiter', candidateIds: [hkjc.id, sportinglife.id] });
+});
+
+test('agreeing records across tiers are final, cited to the most trusted of them', () => {
+  const paper = row('established', 'hit');
+  const league = row('primary', 'hit');
+  assert.deepEqual(decide([paper, league]), { kind: 'final', outcome: 'hit', decidingEvidenceId: league.id });
 });
