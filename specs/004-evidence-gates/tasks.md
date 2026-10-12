@@ -32,7 +32,7 @@ race-specific page can.
 - [ ] T402 [P] [US1] `src/resolve/relevance.ts` — pure: the contract's event key from `source.entity_id` and the criterion, and the match (yes / no / unknown) against what a page reported (FR-002, FR-012)
 - [ ] T403 [US1] `relevant` gate in `src/resolve/gates.ts`: no match or unknown forces `irrelevant`, so such a page can never produce HIT or MISS (FR-003, FR-004)
 - [ ] T404 [P] [US1] Migration `drizzle/0016_evidence_identity.sql` + `src/db/schema.ts` per plan.md → Data model: `event_identity` and `event_match` on the evidence row (FR-011)
-- [ ] T405 [US1] Tests `src/resolve/relevance.test.ts` and the racing fixture: both real pages of the meeting, the title-only page as unknown, and an open-topic claim falling back to the judge's own answer (SC-001, SC-003)
+- [ ] T405 [US1] Tests `src/resolve/relevance.test.ts` and the racing fixture: both real pages of the meeting, the title-only page as unknown, an open-topic claim falling back to the judge's own answer, the 60 price seeds untouched, and every new row carrying its identity and match (FR-014, SC-001, SC-003, SC-006)
 
 **Checkpoint**: a page about another event cannot decide a claim.
 
@@ -42,7 +42,7 @@ race-specific page can.
 
 - [ ] T406 [US2] `src/resolve/groups.ts` — pure: group by site, near-duplicate text and credited origin; representative by event match, then completeness, then finality, then trust, never by what the page says (FR-005, FR-006)
 - [ ] T407 [US2] `src/resolve/gates.ts` and `src/resolve/web-evidence.ts`: `independent` and `sameStory` leave the per-page gate; judge all, gate all, then group (FR-005)
-- [ ] T408 [US2] Two pages of one site that both match the event and disagree send the resolution to the arbiter (FR-006)
+- [ ] T408 [US2] Two pages of one site that both match the event and disagree send the resolution to the arbiter: a conflict inside a group is never hidden by picking a representative (FR-006, FR-008a)
 - [ ] T409 [US2] Tests: the reversed-order run, the racing group choosing the race-specific page, a wire story still counting once (SC-002)
 
 **Checkpoint**: no verdict depends on judging order.
@@ -62,7 +62,7 @@ race-specific page can.
 ## Phase 4: the verdict still standing
 
 - [ ] T415 Re-judge the horse-racing claim with fresh pages (paid, ~$0.04) and correct it to HIT with `verdict:recheck --correct --post` (001 FR-035)
-- [ ] T416 [P] Measure cost per resolved claim against the baseline and record it (SC-005)
+- [ ] T416 [P] Measure cost per resolved claim against the baseline and record it; one judging call per page and no second pass (FR-013, SC-005)
 - [ ] T417 Mark tasks `[x]` with a one-line result; run the whole suite — unit, integration, typecheck
 
 **Checkpoint**: nothing published is known to be wrong.
