@@ -523,6 +523,12 @@ shown but never count as a contradiction.
   older ones only when the model says the answer is probably further up and could be in an earlier post.
   A fact no earlier post could hold — a result with no live source — never buys a second page. At most
   two pages and two model calls for one mention, and no page is ever read twice.
+- **FR-034**: Evidence that passed the gates is compared across trust levels, not tier by tier. A page
+  that is the official record and does not list the event (an absence) never outranks pages reporting it;
+  it decides only when no record passed. Items that disagree go to the arbiter whatever their tiers, and
+  the reply cites the most trusted of the agreeing items. Weak sources never decide. (Owner decision
+  2026-10-12, after a 3-0 win was published as a MISS because one fixtures page that had not listed the
+  match outranked three outlets reporting the score.)
 - **FR-033b**: Replies written to people run on a fuller model than the one that parses predictions, and
   may be as long as the platform allows. The model is configuration, not code. It answers from what it was
   given — the conversation, and Vaticeno's own line about the prediction — and says it does not know

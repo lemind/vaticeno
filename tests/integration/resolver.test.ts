@@ -172,7 +172,9 @@ describe('web claims', () => {
     const pages = {
       [fda]: { says: 'hit', quote, event_date: '2026-10-03', text: `Today the ${quote} in adults.` },
       [reuters]: { says: 'hit', quote, event_date: '2026-10-03', text: `Reuters: ${quote} on Saturday.`, trust: 'established' as const },
-      [wire]: { says: 'miss', quote: 'rejected drug X', event_date: '2026-10-03', text: 'AP: FDA rejected drug X today.', trust: 'established' as const },
+      // Off-topic, not contradicting: a passed item that disagrees is a contradiction now and goes to the
+      // arbiter, which is its own test below (001 FR-034).
+      [wire]: { says: 'irrelevant', quote: 'another drug entirely', event_date: '2026-10-03', text: 'AP: a different drug today.', trust: 'established' as const },
     };
     const d = deps({ search: [reuters, wire], pages }).deps;
     await lockedClaim(WEB_CONTRACT);
@@ -181,6 +183,20 @@ describe('web claims', () => {
     await resolveDueClaims(d, new Date('2026-10-20T00:00:00Z'));
     const rows = await t.sql`select domain, agreed_count from sources order by domain`;
     assert.deepEqual(rows.map((r) => [r.domain, r.agreed_count]), [['fda.gov', 2], ['reuters.com', 2]]);
+  });
+
+  test('a trusted page that contradicts the others no longer loses to the top tier (001 FR-034)', async () => {
+    // The live defect of 2026-10-11: a primary page that did not list the match beat three outlets
+    // reporting the score, and a 3-0 win went out as a MISS.
+    const pages = {
+      [fda]: { says: 'miss', quote, event_date: '2026-10-03', text: `Today the ${quote} in adults.` },
+      [reuters]: { says: 'hit', quote, event_date: '2026-10-03', text: `Reuters: ${quote} on Saturday.`, trust: 'established' as const },
+    };
+    const claim = await lockedClaim(WEB_CONTRACT);
+    const d = deps({ search: [reuters], pages }).deps;
+    await resolveDueClaims(d, AFTER);
+    const row = await resolutionRow(claim.id);
+    assert.notEqual(row?.review_status, 'final', 'a contradiction is never settled by whichever tier is highest');
   });
 
   test('a page that times out while nothing else settles it is an outage, never a step toward VOID', async () => {

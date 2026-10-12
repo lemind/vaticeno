@@ -140,7 +140,7 @@ export async function resolveClaim(deps: ResolverDeps, claim: ClaimRow, now: Dat
   });
   const byId = new Map(inserted.map((row, i) => [row.id, items[i]!]));
 
-  const history = await db.select({ id: evidences.id, runAt: evidences.runAt, trustLevel: evidences.trustLevel, says: evidences.says, passed: evidences.passed, gates: evidences.gates })
+  const history = await db.select({ id: evidences.id, runAt: evidences.runAt, trustLevel: evidences.trustLevel, says: evidences.says, basis: evidences.basis, passed: evidences.passed, gates: evidences.gates })
     .from(evidences).where(eq(evidences.claimId, claim.id));
   const rows = history.map(({ gates, ...row }) => ({ ...row, quoteFound: gates.quote_found ?? null }));
   const decision = decideResolution(rows, now, claim.deadlineAt);
