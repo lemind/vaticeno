@@ -1,10 +1,10 @@
 # Tasks: Visibility, settlement and cost
 
-**Input**: [spec.md](spec.md), [plan.md](plan.md), [data-model.md](data-model.md)
+**Input**: [spec.md](spec.md), [plan.md](plan.md), [data-model.md](data-model.md) — the detail lives there; a
+task says what to build and where, and names the requirement that defines it.
 
-**Tests**: exhaustive on the fast-path gate (it can finalise a verdict) and on every branch of the contract's
-settle and refund (it moves funds). Three tests for the status page — healthy, dead job, no database. Nothing
-else. ~55% coverage is a cap, not a floor.
+**Tests**: exhaustive on the fast-path gate and on the contract's settle and refund branches. Three for the
+status page — healthy, dead job, no database. Nothing else; ~55% coverage is a cap.
 
 **Commits**: `feat(003-T3NN): …`, one line.
 
@@ -13,11 +13,10 @@ else. ~55% coverage is a cap, not a floor.
 | | |
 |---|---|
 | Stage 1 | not started; unblocked — T301 done 2026-10-09 |
-| Stage 2 | not started; testnet only, no real value, no fee. Price-feed claims only; real value is a separate decision (FR-031h) |
-| Escrow v1 | T326a must answer FR-031f before anything is deployed — a live contract gains nothing later |
+| Stage 2 | not started; testnet only, no real value, no fee, price-feed claims only (FR-031h) |
+| Escrow v1 | T326a answers FR-031f before anything is deployed |
 | Stage 3 | not started; may end at T344 |
 | `docs/decisions/` | 001 second runtime (done); 002 escrow v1 is T326a |
-| `verifier` dependency group | added by T342, once the runtime is chosen |
 
 ## Format: `[ID] [P?] [Story] Description`
 
@@ -29,19 +28,19 @@ else. ~55% coverage is a cap, not a floor.
 
 ## Phase 1: Setup
 
-- [x] T301 Constitution VII amended 2.6.0 → 2.7.0 (owner decision 2026-10-09): a second runtime is allowed for read-only operational services, advisory components the pipeline runs without, and a settlement worker holding a signing key and nothing else; the claim pipeline, the X client and anything that posts stay in one TypeScript process; the runtimes share a database and nothing else, and a Python failure never changes what Node does. Reason, boundary, cost and what would reverse it in `docs/decisions/001-second-runtime.md`; `CLAUDE.md` version line updated. **Stage 1 is unblocked.**
+- [x] T301 Constitution VII amended 2.6.0 → 2.7.0 (owner decision 2026-10-09), with the boundary and the undo condition in `docs/decisions/001-second-runtime.md`. **Stage 1 is unblocked.**
 - [ ] T302 [P] Get owner approval for the new dependencies in plan.md → Technical Context
-- [ ] T303 [P] Root `pyproject.toml` (3.12, ruff, pytest) with `status` and `load` groups. `.gitignore`: `__pycache__/`, `.venv/`, `*.pyc`, `load/results/`, `verifier/model/`, `verifier/eval/data/`, `.build-info.json`
+- [ ] T303 [P] Root `pyproject.toml` (3.12, ruff, pytest) with `status` and `load` groups, plus the new `.gitignore` entries
 - [ ] T304 [P] Python job in `.github/workflows/test.yml`: `ruff check .`, `pytest status load` (FR-021)
 
 ## Phase 2: Foundational
 
-- [ ] T305 Migration `drizzle/0017_job_state.sql` + `src/db/schema.ts` per data-model.md, including the `status_ro` SELECT policy; apply locally, then Supabase
+- [ ] T305 Migration `drizzle/0017_job_state.sql` + `src/db/schema.ts` per data-model.md; apply locally, then Supabase
 - [ ] T306 `runJob` in `src/jobs/scheduler.ts` writes `job_state`; a lock skip writes `last_locked_at` only (FR-001, FR-020)
-- [ ] T307 `stale_after_seconds` per job beside `SCHEDULES`, overwritten on startup; seed one row per job — `SCHEDULES` in `src/jobs/scheduler.ts` is the only list, nine jobs as of 2026-10-12 (FR-001, SC-002)
-- [ ] T308 `deploy/deploy.sh` writes `.build-info.json` on the server after the rsync — commit SHA, deploy time, `node --version`. Build info only; the units install with the tasks that create them (FR-002)
-- [ ] T309 `deploy/status-role.md` (`CREATE ROLE` + `GRANT SELECT`, run once by hand) and migration `drizzle/0018_status_policies.sql` — RLS is on with no policies, so a grant alone returns zero rows. `DATABASE_URL_RO` empty in `.env.example` (FR-003)
-- [ ] T310 [P] Test `tests/integration/job-state.test.ts`: success, failure with its tag, lock skip leaves the outcome untouched, never-run
+- [ ] T307 `stale_after_seconds` beside `SCHEDULES`, overwritten on startup, one row seeded per job. `SCHEDULES` is the only job list (FR-001, SC-002)
+- [ ] T308 `deploy/deploy.sh` writes `.build-info.json` on the server: commit, deploy time, node version (FR-002)
+- [ ] T309 `deploy/status-role.md` for the `status_ro` role, migration `drizzle/0018_status_policies.sql`, `DATABASE_URL_RO` in `.env.example` (FR-003)
+- [ ] T310 [P] Test `tests/integration/job-state.test.ts`: success, failure, lock skip, never-run
 
 **Checkpoint**: every job in `SCHEDULES` reports state; the deploy records what it deployed.
 
@@ -49,13 +48,13 @@ else. ~55% coverage is a cap, not a floor.
 
 **Independent test**: stop one job, or kill the database, and the page names what is broken.
 
-- [ ] T311 [US1] `status/queries.py`: one function per block — job staleness, claims, verdicts with the review backlog, feed today, spend against the per-claim ceiling
-- [ ] T312 [US1] `status/build_info.py`, `status/progress.py`: read `.build-info.json` and `docs/progress.md`, tolerate both missing, return the progress file's mtime (FR-002, FR-007)
-- [ ] T313 [US1] `status/app.py`: FastAPI, two routes `/` and `/status.json`, bound to `127.0.0.1`, renders when the database is down (FR-005, FR-006)
-- [ ] T314 [US1] `status/templates/`: one screen at 1280px, no scrolling, overall state first, progress block last (SC-001)
+- [ ] T311 [US1] `status/queries.py`: one function per block the page shows (FR-001)
+- [ ] T312 [US1] `status/build_info.py`, `status/progress.py`: read the build and progress files, tolerate both missing (FR-002, FR-007)
+- [ ] T313 [US1] `status/app.py`: FastAPI on `127.0.0.1`, routes `/` and `/status.json`, renders with the database down (FR-005, FR-006)
+- [ ] T314 [US1] `status/templates/`: one screen at 1280px, overall state first, progress last (SC-001)
 - [ ] T315 [US1] `docs/progress.md`: stage / done / now / next, seeded with where the project stands
-- [ ] T316 [P] [US1] `deploy/vaticeno-status.service` + its install line in `deploy/deploy.sh`; never in `deploy/Caddyfile` (FR-004)
-- [ ] T317 [US1] `status/tests/test_status.py`: healthy, stale job, database down. Fixtures are rows, not a running service
+- [ ] T316 [P] [US1] `deploy/vaticeno-status.service` + its install line; never in `deploy/Caddyfile` (FR-004)
+- [ ] T317 [US1] `status/tests/test_status.py`: healthy, stale job, database down. Fixtures are rows
 - [ ] T318 [P] [US1] `README.md`: the status page and its tunnel command
 
 **Checkpoint**: Stage 1's page ships. Use it for a week before Phase 4.
@@ -64,11 +63,11 @@ else. ~55% coverage is a cap, not a floor.
 
 **Independent test**: a load run produces a table that can be re-run after a change.
 
-- [ ] T319 [US2] `load/guard.py`: refuse a non-local target or any real credential in the environment (FR-008)
-- [ ] T320 [US2] `load/locustfile.py`: claim and author pages plus `/healthz`, ramped until p95 degrades (FR-009)
-- [ ] T321 [US2] `load/burst.py`: stubbed X reader and a temp `statePath`, ten times the live mention rate, one reply each; record `replied_tweet_ids` growth (FR-010, SC-004)
-- [ ] T322 [US2] Measure the connection ceiling: raise concurrency past the pool and record whether it queues, refuses cleanly or wedges, and how long recovery takes
-- [ ] T323 [US2] Measure peak RSS per process under load — Node with its jobs, the status service — against the box's memory, and state the headroom (SC-008)
+- [ ] T319 [US2] `load/guard.py`: refuse a non-local target or any real credential (FR-008)
+- [ ] T320 [US2] `load/locustfile.py`: the public pages and `/healthz`, ramped until p95 degrades (FR-009)
+- [ ] T321 [US2] `load/burst.py`: stubbed X reader, ten times the live mention rate, one reply each (FR-010, SC-004)
+- [ ] T322 [US2] Measure the connection ceiling past the pool: queue, clean refusal or wedge, and recovery time
+- [ ] T323 [US2] Measure peak RSS per process under load against the box's memory, and state the headroom (SC-008)
 - [ ] T324 [US2] `capacity.md`: every row with its number, hardware and date; laptop and droplet separately (SC-003)
 - [ ] T325 [US2] Replace the UNRECONCILED labels these runs answer, with the date (FR-011)
 - [ ] T326 [P] [US2] `README.md`: how to run a load run locally
@@ -83,50 +82,46 @@ else. ~55% coverage is a cap, not a floor.
 
 ## Phase 5: US4 — settlement on a testnet (P3)
 
-**Independent test**: two addresses stake equally on a recorded claim; after the deadline the verdict pays the
-winner with nobody touching a wallet. Then the same with VOID, and the same with the worker switched off for
-the timeout window.
+**Independent test**: two addresses stake equally; the verdict pays the winner with nobody touching a wallet.
+Then VOID, then the timeout refund with the worker switched off.
 
 ### Before a line of Solidity
 
-- [ ] T326a [US4] `docs/decisions/002-escrow-v1.md` — answer every item of FR-031f in writing, because a deployed contract cannot gain any of them: terminal states and no double settlement, permissionless payout after the window, the void path, the timeout refund, expiry of an unmatched stake, the maximum stake, the fee ceiling and recipient, what happens when the oracle key is lost or compromised, whether new stakes can be stopped without blocking refunds owed, and which events carry the verdict and reason references. The same document records what must be true before any real value is involved — a legal opinion for the operator's own country, an independent reading of the contract, and a written incident policy — so that decision is never taken by momentum (FR-031f, FR-031h, SC-019)
-- [ ] T326b [US4] The settlement window and the void policy, written down and published: how many hours the contract holds a verdict before payout, the grounds a void needs, the reason codes, and the sentence that says a complaint alone pauses nothing (FR-031b, FR-031c, FR-031e)
-- [ ] T326c [US4] Say what the thing is, everywhere it is described: an escrow with a named referee and a published settlement policy, never trustless or impartially arbitrated — README, the spec, and the explainer page (FR-031g)
+- [ ] T326a [US4] `docs/decisions/002-escrow-v1.md`: answer every item of FR-031f and FR-031h in writing first — a deployed contract gains none of it later (SC-019)
+- [ ] T326b [US4] Publish the settlement window and the void policy: the hours, the grounds, the reason codes, and that a complaint alone pauses nothing (FR-031b, FR-031c, FR-031e)
+- [ ] T326c [US4] Call it an escrow with a named referee wherever it is described — never trustless (FR-031g)
 
 ### The contract
 
-- [ ] T327 [US4] Contract toolchain and `contracts/` skeleton; **one network and one stake token**, its testnet RPC and chain id in `.env.example`, no key in git (FR-022, FR-036)
-- [ ] T328 [US4] `contracts/src/Escrow.sol`: `open`, `accept`, `settle`, `payout`, `void`, `refund`, `expire`. `settle` records the verdict and starts the hold and pays nobody; `payout` is the separate, permissionless transition after the hold, or the hold means nothing. One open wager per claim hash, which is what the outbox's unique key assumes. Equal stakes, per-stake cap, a fee ceiling and a fixed recipient — **set to zero in the testnet deployment and fixed at deployment**, so turning fees on is a new deployment and a new decision, never a setting. A timeout refund anyone can trigger, and **no withdrawal path** (FR-023, FR-024, FR-026, FR-030, FR-031b, FR-031f)
-- [ ] T328a [US4] Three paths refund and none of them charges a fee or can pay twice: a verdict of VOID, which settles to refunds like any other verdict; the operator's `void` lever, callable by the oracle address only and only while the hold is open; and the timeout refund when nobody settles at all. The lever has no branch that pays either party, the operator or a fee, and all three are separate transitions from `payout` (FR-031c, FR-031d)
-- [ ] T329 [US4] Contract tests on a local EVM with time advanced, so nothing waits days: every branch of settle, payout, void, refund and expire; a second settle and a second payout rejected; payout refused before the hold and accepted from an unrelated address after it; a VOID verdict, the operator's lever inside the hold and the timeout refund each returning both stakes with no fee taken; the lever after the hold refused; an unmatched stake recovered by its maker; `open` without a valid authorization refused; and a test that tries and fails to move staked funds (SC-013, SC-014, SC-018)
+- [ ] T327 [US4] Contract toolchain and `contracts/` skeleton; one network and one stake token, its testnet RPC and chain id in `.env.example` (FR-022, FR-036)
+- [ ] T328 [US4] `contracts/src/Escrow.sol`: the seven transitions FR-031f names. `settle` starts the hold and pays nobody; the fee is fixed at deployment and zero on the testnet (FR-023, FR-024, FR-026, FR-030, FR-031b)
+- [ ] T328a [US4] Three refund paths — a VOID verdict, the oracle's lever inside the hold, the timeout — each return both stakes, take no fee, and are separate from `payout` (FR-031c, FR-031d)
+- [ ] T329 [US4] Contract tests on a local EVM with time advanced: every branch, a second settle or payout refused, `open` without authorization refused (SC-013, SC-014, SC-018)
 - [ ] T330 [US4] Deploy to the testnet with the source verified publicly; record the address in `.env.example` and on the status page (FR-029)
 
 ### The settlement path
 
-- [ ] T331 [US4] Migration `drizzle/0019_settlement.sql` + `src/db/schema.ts` per data-model.md: `settlement_outbox`, its `status_ro` SELECT policy, and the `settle_rw` policies — SELECT and UPDATE only, no INSERT, so the worker cannot invent a payout; the role itself is created by hand like `status_ro` (`deploy/status-role.md`)
+- [ ] T331 [US4] Migration `drizzle/0019_settlement.sql` + `src/db/schema.ts` per data-model.md, including the `settle_rw` policies; the role is created by hand like `status_ro`
 - [ ] T332 [US4] `src/resolve/resolver.ts` writes an outbox row when a verdict is final and a stake exists; no chain call from Node (FR-027)
-- [ ] T333 [US4] `settle/worker.py`: poll the outbox, read on-chain state first, sign, send, record the transaction; its own systemd unit, the key readable by its own system user alone and nothing else in the process. It builds the transaction from the claim and verdict rather than signing a payload from the table, and checks state, destination, amount, chain id, contract address and prior settlement before signing (FR-025, FR-028, FR-028a)
-- [ ] T334 [US4] Test `tests/integration/settlement-outbox.test.ts`: a final verdict with no stake writes nothing; a replayed row sends nothing twice (FR-026)
-- [ ] T335 [US4] Status page: outbox pending / sent / failed, the contract address, the chain (FR-029)
-- [ ] T336 [US4] The fast path never settles: a verdict decided by the local verifier alone does not produce an outbox row (FR-031)
-- [ ] T336a [US4] Only price-feed claims can be staked, enforced where each layer can actually see it: the page never offers one and the outbox refuses to write one, both of which read the locked contract's resolution method. A `claimHash` tells the contract nothing about the claim, so `open` takes an authorization signed by the oracle naming that hash — eligibility is decided off-chain and proved on-chain, rather than claimed of a contract that cannot inspect it. Tested by trying on a model-judged claim, and by calling `open` with no authorization (FR-031a, SC-017)
-- [ ] T337 [US4] End to end on the testnet — open, accept, deadline, verdict, payout — then VOID, then the timeout refund with the worker stopped (SC-010, SC-011, SC-012)
+- [ ] T333 [US4] `settle/worker.py`: poll, read on-chain state, build the transaction from the claim and verdict, sign, record. Own systemd unit, key readable by its own user alone (FR-025, FR-028, FR-028a)
+- [ ] T334 [US4] Test `tests/integration/settlement-outbox.test.ts`: no stake writes nothing; a replayed row sends nothing twice (FR-026)
+- [ ] T335 [US4] Status page: outbox pending / sent / failed, the contract address, the chain, the worker's heartbeat (FR-029, FR-020a)
+- [ ] T336 [US4] The fast path never settles: a verdict the local verifier decided alone writes no outbox row (FR-031)
+- [ ] T336a [US4] Only price-feed claims can be staked — refused by the page, by the outbox, and by the contract's oracle authorization. Tested by trying both ways (FR-031a, SC-017)
+- [ ] T337 [US4] End to end on the testnet: open, accept, deadline, verdict, payout; then VOID; then the timeout refund with the worker stopped (SC-010, SC-011, SC-012)
 
 ### Linking a wallet, optional
 
-- [ ] T338 [US4] Migration `drizzle/0020_wallet_links.sql` + `src/db/schema.ts` per data-model.md: `wallet_links` and `wallet_link_challenges`; the partial unique index on an active address built on its lower-case form; no `status_ro` policy on either, since the page never shows an account tied to an address (FR-032)
-- [ ] T339 [US4] The link flow, with the code's state in `wallet_link_challenges` and never in memory: the page issues a single-use code (hash, browser binding and expiry stored), the bot verifies the code's reply through the API and binds the numeric author id, the page **shows that account and requires a confirm**, then takes the signature privately and marks the code consumed. A code returned by any other account is discarded; an expired or consumed code is refused, never refreshed; a restart loses nothing (FR-033, FR-034, FR-035)
-- [ ] T340 [US4] Test: a link is written only when both halves check out; a code returned by a different account writes nothing; revoking leaves the row and its period intact; a stake opens and settles with no link at all (SC-015, SC-016)
+- [ ] T338 [US4] Migration `drizzle/0020_wallet_links.sql` + `src/db/schema.ts` per data-model.md: both wallet tables, no read policy on either (FR-032)
+- [ ] T339 [US4] The link flow, its code state in `wallet_link_challenges`: a code, the reply checked through the API, the account confirmed, then the signature taken privately (FR-033, FR-034, FR-035)
+- [ ] T340 [US4] Test: a link needs both halves; a code returned by another account writes nothing; revoking keeps the row and its period; a stake works with no link (SC-015, SC-016)
 
-**Checkpoint**: a verdict settles a contract on a testnet, and money cannot be stuck: the timeout refund works with nothing of ours running.
+**Checkpoint**: a verdict settles a contract on a testnet, and the timeout refund works with nothing of ours running.
 
 **🚀 Stage 2 deploys here** — testnet only, no real value, no fee.
 
-**Real value is not in this feature.** It needs a legal opinion for the country the operator lives in
-(the betting-intermediary role and the event types offered), an independent reading of the contract, and
-a written policy for oracle compromise, source corrections, voids and refunds. ESMA's statement of
-3 July 2026 puts event contracts that are financial instruments under the permanent national
-binary-options bans, and says a new name does not avoid them (FR-031h).
+**Real value is not in this feature** (FR-031h): it needs a legal opinion for the operator's own country, an
+independent reading of the contract, and a written incident policy.
 
 ---
 
@@ -138,20 +133,20 @@ binary-options bans, and says a new name does not avoid them (FR-031h).
 
 ### Offline
 
-- [ ] T341 [US3] `verifier/eval/dataset.py`: held-out set from seeded claims and real verdicts, written to gitignored `verifier/eval/data/`; report its size
-- [ ] T342 [US3] `verifier/eval/baseline.py`: stock model, thresholded by one rule — the highest fast-path coverage at zero wrong auto-finalisations. Report model level (entailment, latency, memory) and **fast-path level** (coverage, wrong auto-finalisations, calls avoided). Add the `verifier` group and its pytest path
-- [ ] T343 [US3] `verifier/train/finetune.py` + `config.toml` + `train/report.md`: fixed seed, named dataset, the exact command, weights fetched by checksum and never committed (FR-019)
-- [ ] T344 [US3] `verifier/eval/compare.py` → `eval/report.md`: both candidates, both levels, winner chosen on the fast-path numbers (FR-019, SC-005, SC-006)
+- [ ] T341 [US3] `verifier/eval/dataset.py`: held-out set from seeded claims and real verdicts, written to gitignored `verifier/eval/data/`
+- [ ] T342 [US3] `verifier/eval/baseline.py`: stock model under one threshold rule, reporting both the model level and the fast-path level. Adds the `verifier` dependency group
+- [ ] T343 [US3] `verifier/train/finetune.py` + `config.toml` + `train/report.md`: fixed seed, named dataset, weights fetched by checksum and never committed (FR-019)
+- [ ] T344 [US3] `verifier/eval/compare.py` → `eval/report.md`: both candidates, winner chosen on the fast-path numbers (FR-019, SC-005, SC-006)
 
 **Checkpoint**: one report, one decision, nothing in production. The feature may stop here.
 
 ### Shadow
 
-- [ ] T345 [US3] Migration `drizzle/0021_verifier.sql` + `src/db/schema.ts` per data-model.md: `verifier_shadow` with its append-only trigger and its `status_ro` policy, the two `resolutions` columns (FR-015, FR-016)
+- [ ] T345 [US3] Migration `drizzle/0021_verifier.sql` + `src/db/schema.ts` per data-model.md (FR-015, FR-016)
 - [ ] T346 [US3] `verifier/serve/app.py`: one endpoint, no database, `127.0.0.1:3002`; `deploy/vaticeno-verifier.service` + its install line (FR-020)
-- [ ] T347 [US3] `src/resolve/verifier.ts`: one localhost call with a hard timeout, Zod-parsed, "no opinion" on any failure — timeout, refusal, malformed answer or nothing listening all take the paid path (FR-012, FR-012a)
-- [ ] T348 [US3] Shadow mode in `src/resolve/resolver.ts`: ask, **ignore**, record one row per attempt — what the gate would have concluded, beside what the paid model did; `VERIFIER_URL` and `VERIFIER_MODE` (`off|shadow|live`, default `off`) in `src/config.ts`
-- [ ] T349 [US3] Test `tests/integration/verifier-shadow.test.ts`: a shadow run leaves the resolution row byte-identical, writes exactly one shadow row, and UPDATE or DELETE on that row is rejected
+- [ ] T347 [US3] `src/resolve/verifier.ts`: one localhost call, hard timeout, Zod-parsed; any failure means no opinion and the paid path (FR-012, FR-012a)
+- [ ] T348 [US3] Shadow mode in `src/resolve/resolver.ts`: ask, **ignore**, record one row per attempt, failures included. `VERIFIER_URL` and `VERIFIER_MODE` in `src/config.ts` (FR-020a)
+- [ ] T349 [US3] Test `tests/integration/verifier-shadow.test.ts`: the resolution row is byte-identical, exactly one shadow row, UPDATE and DELETE rejected
 
 **Checkpoint**: shadow rows accumulate; no verdict has changed.
 
@@ -159,11 +154,11 @@ binary-options bans, and says a new name does not avoid them (FR-031h).
 
 ### Live
 
-- [ ] T350 [US3] `src/resolve/fast-path.ts`: the gate — threshold, two items 001's independence gate calls independent, every deterministic check, no numeric/date/entity conflict; else escalate; absence stays VOID (FR-013, FR-014)
-- [ ] T351 [US3] Test `src/resolve/fast-path.test.ts`: **exhaustive** — entail+entail eligible, entail+neutral and entail+contradiction escalate, contradiction+contradiction only when the other gates permit; each condition failing alone escalates; one page is one item; verifier error escalates; the gate and T342's harness agree on the same fixtures
-- [ ] T352 [US3] `VERIFIER_MODE=live`: the fast path finalises and records who decided; off returns to today with no migration (FR-017, SC-009)
-- [ ] T353 [US3] A fast-path verdict can be marked contradicted in the existing review (`src/cli/review-list.ts`, `src/cli/resolve-manual.ts`) (FR-018)
-- [ ] T354 [US3] Verifier block on the status page: fast-path count, escalations, shadow agreement, contradictions as incidents (FR-018)
+- [ ] T350 [US3] `src/resolve/fast-path.ts`: the gate as FR-013 and FR-014 define it; anything else escalates, absence stays VOID
+- [ ] T351 [US3] Test `src/resolve/fast-path.test.ts`: **exhaustive** on every gate condition, and the gate must agree with T342's harness on the same fixtures
+- [ ] T352 [US3] `VERIFIER_MODE=live`: the fast path finalises and records who decided; `off` returns to today with no migration (FR-017, SC-009)
+- [ ] T353 [US3] A fast-path verdict can be marked contradicted in the existing review commands (FR-018)
+- [ ] T354 [US3] Verifier block on the status page: fast-path count, escalations, agreement, contradictions as incidents (FR-018)
 - [ ] T355 [US3] Record the avoided-call share and per-claim spend against the baseline in `eval/report.md` (SC-006, SC-007)
 - [ ] T356 [US3] Re-measure memory with all three processes live and update `capacity.md` (SC-008)
 
@@ -176,7 +171,7 @@ binary-options bans, and says a new name does not avoid them (FR-031h).
 ## Phase 7: Polish
 
 - [ ] T357 [P] `README.md`: the new services, and the Done/Next table for what shipped
-- [ ] T358 [P] Mark tasks `[x]` with a one-line result; sync plan.md and data-model.md where implementation diverged
+- [ ] T358 [P] Mark tasks `[x]` with a one-line result; sync plan.md and data-model.md where the build diverged
 - [ ] T359 Run the whole suite — node tests, integration, typecheck, ruff, pytest
 
 ---
