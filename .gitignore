@@ -6,3 +6,5 @@ supabase/.temp/
 .state/
 # Recorded model/search/fetch answers: local only, regenerate with LLM_MODE=record (research R5)
 fixtures/replay/
+# Private notes (not public, not committed)
+docs/private/

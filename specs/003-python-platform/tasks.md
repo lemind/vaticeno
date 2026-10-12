@@ -1,0 +1,200 @@
+# Tasks: Visibility, settlement and cost
+
+**Input**: [spec.md](spec.md), [plan.md](plan.md), [data-model.md](data-model.md) — the detail lives there; a
+task says what to build and where, and names the requirement that defines it.
+
+**Tests**: exhaustive on the fast-path gate and on the contract's settle and refund branches. Three for the
+status page — healthy, dead job, no database. Nothing else; ~55% coverage is a cap.
+
+**Commits**: `feat(003-T3NN): …`, one line.
+
+## Status
+
+| | |
+|---|---|
+| Stage 1 | not started; unblocked — T301 done 2026-10-09 |
+| Stage 2 | not started; testnet only, no real value, no fee, price-feed claims only (FR-031h) |
+| Escrow v1 | T326a answers FR-031f before anything is deployed |
+| Stage 3 | not started; may end at T344 |
+| `docs/decisions/` | 001 second runtime (done); 002 escrow v1 is T326a |
+
+## Format: `[ID] [P?] [Story] Description`
+
+[P] parallelisable · US1 status page · US2 capacity · US4 settlement and wallet links · US3 verifier
+
+---
+
+# Stage 1
+
+## Phase 1: Setup
+
+- [x] T301 Constitution VII amended 2.6.0 → 2.7.0 (owner decision 2026-10-09), with the boundary and the undo condition in `docs/decisions/001-second-runtime.md`. **Stage 1 is unblocked.**
+- [ ] T302 [P] Get owner approval for the new dependencies in plan.md → Technical Context
+- [ ] T303 [P] Root `pyproject.toml` (3.12, ruff, pytest) with `status` and `load` groups, plus the new `.gitignore` entries
+- [ ] T304 [P] Python job in `.github/workflows/test.yml`: `ruff check .`, `pytest status load` (FR-021)
+
+## Phase 2: Foundational
+
+- [ ] T305 Migration `drizzle/0017_job_state.sql` + `src/db/schema.ts` per data-model.md; apply locally, then Supabase
+- [ ] T306 `runJob` in `src/jobs/scheduler.ts` writes `job_state`; a lock skip writes `last_locked_at` only (FR-001, FR-020)
+- [ ] T307 `stale_after_seconds` beside `SCHEDULES`, overwritten on startup, one row seeded per job. `SCHEDULES` is the only job list (FR-001, SC-002)
+- [ ] T308 `deploy/deploy.sh` writes `.build-info.json` on the server: commit, deploy time, node version (FR-002)
+- [ ] T309 `deploy/status-role.md` for the `status_ro` role, migration `drizzle/0018_status_policies.sql`, `DATABASE_URL_RO` in `.env.example` (FR-003)
+- [ ] T310 [P] Test `tests/integration/job-state.test.ts`: success, failure, lock skip, never-run
+
+**Checkpoint**: every job in `SCHEDULES` reports state; the deploy records what it deployed.
+
+## Phase 3: US1 — the status page (P1) 🎯 MVP
+
+**Independent test**: stop one job, or kill the database, and the page names what is broken.
+
+- [ ] T311 [US1] `status/queries.py`: one function per block the page shows (FR-001)
+- [ ] T312 [US1] `status/build_info.py`, `status/progress.py`: read the build and progress files, tolerate both missing (FR-002, FR-007)
+- [ ] T313 [US1] `status/app.py`: FastAPI on `127.0.0.1`, routes `/` and `/status.json`, renders with the database down (FR-005, FR-006)
+- [ ] T314 [US1] `status/templates/`: one screen at 1280px, overall state first, progress last (SC-001)
+- [ ] T315 [US1] `docs/progress.md`: stage / done / now / next, seeded with where the project stands
+- [ ] T316 [P] [US1] `deploy/vaticeno-status.service` + its install line; never in `deploy/Caddyfile` (FR-004)
+- [ ] T317 [US1] `status/tests/test_status.py`: healthy, stale job, database down. Fixtures are rows
+- [ ] T318 [P] [US1] `README.md`: the status page and its tunnel command
+
+**Checkpoint**: Stage 1's page ships. Use it for a week before Phase 4.
+
+## Phase 4: US2 — the capacity baseline (P1)
+
+**Independent test**: a load run produces a table that can be re-run after a change.
+
+- [ ] T319 [US2] `load/guard.py`: refuse a non-local target or any real credential (FR-008)
+- [ ] T320 [US2] `load/locustfile.py`: the public pages and `/healthz`, ramped until p95 degrades (FR-009)
+- [ ] T321 [US2] `load/burst.py`: stubbed X reader, ten times the live mention rate, one reply each (FR-010, SC-004)
+- [ ] T322 [US2] Measure the connection ceiling past the pool: queue, clean refusal or wedge, and recovery time
+- [ ] T323 [US2] Measure peak RSS per process under load against the box's memory, and state the headroom (SC-008)
+- [ ] T324 [US2] `capacity.md`: every row with its number, hardware and date; laptop and droplet separately (SC-003)
+- [ ] T325 [US2] Replace the UNRECONCILED labels these runs answer, with the date (FR-011)
+- [ ] T326 [P] [US2] `README.md`: how to run a load run locally
+
+**Checkpoint**: the numbers exist and the droplet's headroom is known.
+
+**🚀 Stage 1 deploys here.**
+
+---
+
+# Stage 2
+
+## Phase 5: US4 — settlement on a testnet (P3)
+
+**Independent test**: two addresses stake equally; the verdict pays the winner with nobody touching a wallet.
+Then VOID, then the timeout refund with the worker switched off.
+
+### Before a line of Solidity
+
+- [ ] T326a [US4] `docs/decisions/002-escrow-v1.md`: answer every item of FR-031f and FR-031h in writing first — a deployed contract gains none of it later (SC-019)
+- [ ] T326b [US4] Publish the settlement window and the void policy: the hours, the grounds, the reason codes, and that a complaint alone pauses nothing (FR-031b, FR-031c, FR-031e)
+- [ ] T326c [US4] Call it an escrow with a named referee wherever it is described — never trustless (FR-031g)
+
+### The contract
+
+- [ ] T327 [US4] Contract toolchain and `contracts/` skeleton; one network and one stake token, its testnet RPC and chain id in `.env.example` (FR-022, FR-036)
+- [ ] T328 [US4] `contracts/src/Escrow.sol`: the seven transitions FR-031f names. `settle` starts the hold and pays nobody; the fee is fixed at deployment and zero on the testnet (FR-023, FR-024, FR-026, FR-030, FR-031b)
+- [ ] T328a [US4] Three refund paths — a VOID verdict, the oracle's lever inside the hold, the timeout — each return both stakes, take no fee, and are separate from `payout` (FR-031c, FR-031d)
+- [ ] T329 [US4] Contract tests on a local EVM with time advanced: every branch, a second settle or payout refused, `open` without authorization refused (SC-013, SC-014, SC-018)
+- [ ] T330 [US4] Deploy to the testnet with the source verified publicly; record the address in `.env.example` and on the status page (FR-029)
+
+### The settlement path
+
+- [ ] T331 [US4] Migration `drizzle/0019_settlement.sql` + `src/db/schema.ts` per data-model.md, including the `settle_rw` policies; the role is created by hand like `status_ro`
+- [ ] T332 [US4] `src/resolve/resolver.ts` writes an outbox row when a verdict is final and a stake exists; no chain call from Node (FR-027)
+- [ ] T333 [US4] `settle/worker.py`: poll, read on-chain state, build the transaction from the claim and verdict, sign, record. Own systemd unit, key readable by its own user alone (FR-025, FR-028, FR-028a)
+- [ ] T334 [US4] Test `tests/integration/settlement-outbox.test.ts`: no stake writes nothing; a replayed row sends nothing twice (FR-026)
+- [ ] T335 [US4] Status page: outbox pending / sent / failed, the contract address, the chain, the worker's heartbeat (FR-029, FR-020a)
+- [ ] T336 [US4] The fast path never settles: a verdict the local verifier decided alone writes no outbox row (FR-031)
+- [ ] T336a [US4] Only price-feed claims can be staked — refused by the page, by the outbox, and by the contract's oracle authorization. Tested by trying both ways (FR-031a, SC-017)
+- [ ] T337 [US4] End to end on the testnet: open, accept, deadline, verdict, payout; then VOID; then the timeout refund with the worker stopped (SC-010, SC-011, SC-012)
+
+### Linking a wallet, optional
+
+- [ ] T338 [US4] Migration `drizzle/0020_wallet_links.sql` + `src/db/schema.ts` per data-model.md: both wallet tables, no read policy on either (FR-032)
+- [ ] T339 [US4] The link flow, its code state in `wallet_link_challenges`: a code, the reply checked through the API, the account confirmed, then the signature taken privately (FR-033, FR-034, FR-035)
+- [ ] T340 [US4] Test: a link needs both halves; a code returned by another account writes nothing; revoking keeps the row and its period; a stake works with no link (SC-015, SC-016)
+
+**Checkpoint**: a verdict settles a contract on a testnet, and the timeout refund works with nothing of ours running.
+
+**🚀 Stage 2 deploys here** — testnet only, no real value, no fee.
+
+**Real value is not in this feature** (FR-031h): it needs a legal opinion for the operator's own country, an
+independent reading of the contract, and a written incident policy.
+
+---
+
+# Stage 3
+
+## Phase 6: US3 — the local verifier (P2)
+
+**Independent test**: zero wrongly auto-finalised claims on the held-out set, with the avoided-call share reported.
+
+### Offline
+
+- [ ] T341 [US3] `verifier/eval/dataset.py`: held-out set from seeded claims and real verdicts, written to gitignored `verifier/eval/data/`
+- [ ] T342 [US3] `verifier/eval/baseline.py`: stock model under one threshold rule, reporting both the model level and the fast-path level. Adds the `verifier` dependency group
+- [ ] T343 [US3] `verifier/train/finetune.py` + `config.toml` + `train/report.md`: fixed seed, named dataset, weights fetched by checksum and never committed (FR-019)
+- [ ] T344 [US3] `verifier/eval/compare.py` → `eval/report.md`: both candidates, winner chosen on the fast-path numbers (FR-019, SC-005, SC-006)
+
+**Checkpoint**: one report, one decision, nothing in production. The feature may stop here.
+
+### Shadow
+
+- [ ] T345 [US3] Migration `drizzle/0021_verifier.sql` + `src/db/schema.ts` per data-model.md (FR-015, FR-016)
+- [ ] T346 [US3] `verifier/serve/app.py`: one endpoint, no database, `127.0.0.1:3002`; `deploy/vaticeno-verifier.service` + its install line (FR-020)
+- [ ] T347 [US3] `src/resolve/verifier.ts`: one localhost call, hard timeout, Zod-parsed; any failure means no opinion and the paid path (FR-012, FR-012a)
+- [ ] T348 [US3] Shadow mode in `src/resolve/resolver.ts`: ask, **ignore**, record one row per attempt, failures included. `VERIFIER_URL` and `VERIFIER_MODE` in `src/config.ts` (FR-020a)
+- [ ] T349 [US3] Test `tests/integration/verifier-shadow.test.ts`: the resolution row is byte-identical, exactly one shadow row, UPDATE and DELETE rejected
+
+**Checkpoint**: shadow rows accumulate; no verdict has changed.
+
+**🚀 Stage 3 deploys here, first of two — shadow, deciding nothing.**
+
+### Live
+
+- [ ] T350 [US3] `src/resolve/fast-path.ts`: the gate as FR-013 and FR-014 define it; anything else escalates, absence stays VOID
+- [ ] T351 [US3] Test `src/resolve/fast-path.test.ts`: **exhaustive** on every gate condition, and the gate must agree with T342's harness on the same fixtures
+- [ ] T352 [US3] `VERIFIER_MODE=live`: the fast path finalises and records who decided; `off` returns to today with no migration (FR-017, SC-009)
+- [ ] T353 [US3] A fast-path verdict can be marked contradicted in the existing review commands (FR-018)
+- [ ] T354 [US3] Verifier block on the status page: fast-path count, escalations, agreement, contradictions as incidents (FR-018)
+- [ ] T355 [US3] Record the avoided-call share and per-claim spend against the baseline in `eval/report.md` (SC-006, SC-007)
+- [ ] T356 [US3] Re-measure memory with all three processes live and update `capacity.md` (SC-008)
+
+**Checkpoint**: switched on, off, and on again, with SC-005 holding.
+
+**🚀 Stage 3 deploys here, second of two — the switch on.**
+
+---
+
+## Phase 7: Polish
+
+- [ ] T357 [P] `README.md`: the new services, and the Done/Next table for what shipped
+- [ ] T358 [P] Mark tasks `[x]` with a one-line result; sync plan.md and data-model.md where the build diverged
+- [ ] T359 Run the whole suite — node tests, integration, typecheck, ruff, pytest
+
+---
+
+## Dependencies
+
+```
+T301 ─ blocks all Python work
+  └─ Phase 2 (T305–T310) → US1 (T311–T318) → 🚀 Stage 1
+                              US2 (T319–T326) ┘
+US4 contract (T327–T330) → settlement path (T331–T337) → links, optional (T338–T340) 🚀 Stage 2
+US3 offline (T341–T344) → shadow (T345–T349) 🚀 → live (T350–T356) 🚀
+```
+
+US1 and US2 are both P1 and independently shippable; US2 needs only Phase 2. **US3's offline evaluation runs
+on a laptop** — T323's VPS measurement gates *deploying* the verifier, not evaluating it.
+
+## Parallel opportunities
+
+T302–T304 · T310 beside T308 and T309 · T316 and T318 once T313 exists · T326 beside the measuring tasks ·
+T343 while T342's numbers are read · T357 beside T356.
+
+## Implementation strategy
+
+MVP is US1 alone: useful the day it ships, and what makes everything after it measurable. US2 turns estimates
+into numbers. US3 may not ship at all, which is why its first checkpoint comes after four tasks.

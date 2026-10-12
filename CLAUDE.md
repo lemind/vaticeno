@@ -1,13 +1,17 @@
 @AGENTS.md
 
 <!-- SPECKIT START -->
-**Constitution**: `.specify/memory/constitution.md` (v2.5.0) — principles every plan must pass.
+**Constitution**: `.specify/memory/constitution.md` (v2.7.0) — principles every plan must pass.
 
-**Active plan**: `specs/002-content-feed/plan.md` (001's plan, research, data-model and contracts/ stay the reference for the claim pipeline).
+**Active plan**: `specs/003-python-platform/plan.md` (001's plan, research, data-model and contracts/ stay the reference for the claim pipeline).
 
-**Active feature**: `specs/002-content-feed/spec.md` — the account's own feed: weighted pool reposts, the
+**Active feature**: `specs/003-python-platform/spec.md` — operations, capacity and cost, in three deploy
+stages: a private status page over job state and build info; a measured capacity baseline replacing the
+UNRECONCILED numbers; a local entailment verifier in front of the paid model, shadow first and behind a
+switch. The service layer is Python, allowed by constitution VII since 2026-10-09 (`docs/decisions/001-second-runtime.md`).
+Shipped before it: `specs/002-content-feed/spec.md` — the account's own feed: weighted pool reposts, the
 owner's queue of own posts; caps and "never twice" in the database, behind
-`ENABLE_FEED`/`FEED_DRY_RUN`. Shipped before it: `specs/001-stage0-contract-core/spec.md` — Stage 0, offline: contracts for any
+`ENABLE_FEED`/`FEED_DRY_RUN`. And `specs/001-stage0-contract-core/spec.md` — Stage 0, offline: contracts for any
 topic, checks CLI over fixtures, NEEDS INFO case A, resolver (crypto deterministic, everything else
 model-decided) proven on seeded claims, public pages. Where INIT_SPEC (v1.1.1) is narrower
 (deterministic-only, crypto + one league), the constitution and this spec win.
@@ -36,7 +40,9 @@ model-decided) proven on seeded claims, public pages. Where INIT_SPEC (v1.1.1) i
 
 ## Conventions
 
-**Commit messages**: one line, `feat|fix|chore|docs(001-T001): <short desc>` — task ID is spec number + task (IDs restart per spec); a commit covering several tasks names the range, `feat(001-T009-024): …`. Omit the task ref when there is no associated task. Never commit without explicit user request.
+**Commit messages**: one line, `feat|fix|chore|docs(001-T001): <short desc>` — task ID is spec number + task; a commit covering several tasks names the range, `feat(001-T009-024): …`. Omit the task ref when there is no associated task. Never commit without explicit user request.
+
+**Task IDs**: from spec 003 on, a task ID carries its spec number — 003 uses `T301`–`T399`, 004 will use `T401`–`T499`, so an ID is unique on its own. Specs 001 and 002 keep the numbers they shipped with (`T001`–`T125` and `T001`–`T056`), which repeat across the two; that is why the commit ref always names the spec. Inserted work takes a letter (`T326a`), never a renumber.
 
 **PR descriptions**: plain human language, no code identifiers, file paths, line numbers, or test/finding counts. Describe what changed for a person reading it, not what changed in the diff.
 
