@@ -70,7 +70,24 @@ judge.
 | `src/resolve/exhaustive.ts` | new: the configured endpoints that may carry absence evidence |
 | `src/resolve/web-evidence.ts` | judge all, gate all, then group; stores identity and match |
 | `src/resolve/decide.ts` | absence contradicting a record → arbiter |
-| `src/db/schema.ts` + `drizzle/0022_evidence_identity.sql` | identity and match on the evidence row |
+| `src/db/schema.ts` + `drizzle/0016_evidence_identity.sql` | identity and match on the evidence row |
+
+## Data model
+
+Two nullable columns on `evidences`, the table 001's data model defines. Nullable because rows judged under
+`judge.v4` and earlier carry neither, and nothing rewrites them.
+
+| Column | Type | Notes |
+|---|---|---|
+| `event_identity` | jsonb null | what the page said about which event it describes: date, and whatever of competition, round or race number, venue and participants it stated. The page's words as fields, never a conclusion |
+| `event_match` | text null | CHECK `yes \| no \| unknown` — what code concluded comparing that identity with the contract's event key. `no` and `unknown` both fail the `relevant` gate |
+
+The gate result itself goes in the existing `gates` jsonb as `relevant`, like the other five, so the claim
+page shows it with no schema change (001 FR-027).
+
+Migration `drizzle/0016_evidence_identity.sql` — the next number free on disk, which is what this feature
+deploys. 002's Phase 8 and 003 reserved 0016–0021 on paper while this did not exist; those reservations move
+up by one when either ships, since numbering follows deploy order (003's own review, 2026-10-12).
 
 ## Phases
 

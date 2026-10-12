@@ -155,7 +155,12 @@ was discarded for another reason, so it did no harm this time.
   kind of event. A model-set field MUST NOT admit a page to the absence path, and MUST NOT waive any check
   that applies to other pages.
 - **FR-008**: An admissible absence that contradicts a passed record MUST send the resolution to the arbiter.
-  Records outrank absences only where nothing contradicts them (001 FR-034).
+  This **narrows 001 FR-034**, which has an absence decide only when no record passed and is silent about the
+  two disagreeing: under that rule the record simply won and the absence was dropped unexamined. What stands
+  from FR-034: records are still preferred over absences, every passed item is still compared across trust
+  levels, and disagreement still goes to the arbiter. What changes: an absence that survives the stricter
+  admission of FR-007 is no longer discarded when a record contradicts it — one of the two is wrong, and
+  which one is not a question this code should answer silently.
 - **FR-009**: Where a page states a structured outcome and its event identity is verified, that page's
   verdict MUST be computed in code from the outcome and the locked criterion. A judgement whose own stated
   result contradicts its HIT or MISS MUST NOT count, and MUST be reported.
@@ -169,6 +174,9 @@ was discarded for another reason, so it did no harm this time.
   carry no new field. The event key is derived from the contract's existing source entity and criterion.
 - **FR-013**: Nothing in this feature may add a model call per page or a second judging pass. The cost per
   claim MUST NOT rise.
+- **FR-014**: Price-feed evidence is out of scope. It is not a judged page: the feed is the contract's own
+  named source, read for one asset and one day, so there is no event identity to report and the `relevant`
+  gate does not apply to it — as `quote_found` and independence already do not (001 FR-019, FR-020).
 
 ### Key Entities
 
@@ -186,7 +194,8 @@ was discarded for another reason, so it did no harm this time.
   the horse-racing claim HIT, and both football claims HIT rather than MISS.
 - **SC-002**: The same candidate set judged in any order produces the same verdict, proved by a test that
   reverses the order.
-- **SC-003**: No page failing the event match produces HIT or MISS, across the seeded corpus.
+- **SC-003**: No page failing the event match produces HIT or MISS, across the open-topic seeded set. The 60
+  price-feed seeds are unaffected and MUST still resolve 100% correctly (001 SC-002, and FR-014 here).
 - **SC-004**: No verdict in the seeded corpus rests on absence evidence from an endpoint not on the
   configured list.
 - **SC-005**: The measured cost per resolved claim does not rise against the current baseline.
