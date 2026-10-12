@@ -86,6 +86,39 @@ export async function resolveDueClaims(deps: ResolverDeps, now: Date): Promise<R
 }
 
 
+// One run's evidence, written once and never updated (data-model evidences). Shared with the re-judge of a
+// claim already settled, which writes a new run and no resolution (004 T415a).
+export async function storeEvidence(db: Db, claimId: string, items: readonly GatheredItem[], costs: CallCost[], now: Date) {
+  return db.transaction(async (tx) => {
+    const rows = await tx.insert(evidences).values(items.map((item) => ({
+      claimId,
+      runAt: now,
+      sourceKind: item.draft.sourceKind,
+      basis: item.draft.basis,
+      sourceName: item.sourceName,
+      trustLevel: item.draft.trustLevel,
+      trustReason: item.trustReason,
+      resultSummary: item.resultSummary ?? null,
+      says: item.draft.says,
+      eventDate: item.draft.eventDate,
+      eventStart: item.draft.eventStart && !Number.isNaN(Date.parse(item.draft.eventStart)) ? new Date(item.draft.eventStart) : null,
+      eventIdentity: item.eventIdentity ?? null,
+      eventMatch: item.draft.eventMatch,
+      value: item.value?.toString() ?? null,
+      url: item.draft.url,
+      contentSha256: item.contentSha256,
+      searchQuery: item.searchQuery,
+      retrievedAt: item.draft.retrievedAt,
+      modelId: item.modelId,
+      instructionVersion: item.instructionVersion,
+      gates: item.gates,
+      passed: item.passed,
+    }))).returning({ id: evidences.id });
+    await recordCosts(tx, withClaim(costs, claimId));
+    return rows;
+  });
+}
+
 export async function resolveClaim(deps: ResolverDeps, claim: ClaimRow, now: Date): Promise<ClaimRunOutcome> {
   const { db } = deps;
   if (!claim.lockAt || !claim.deadlineAt || now.getTime() <= claim.deadlineAt.getTime()) return 'waiting';
@@ -112,34 +145,7 @@ export async function resolveClaim(deps: ResolverDeps, claim: ClaimRow, now: Dat
   }
 
   // Write this run's evidence (insert-only), then decide over all runs.
-  const inserted = await db.transaction(async (tx) => {
-    const rows = await tx.insert(evidences).values(items.map((item) => ({
-      claimId: claim.id,
-      runAt: now,
-      sourceKind: item.draft.sourceKind,
-      basis: item.draft.basis,
-      sourceName: item.sourceName,
-      trustLevel: item.draft.trustLevel,
-      trustReason: item.trustReason,
-      resultSummary: item.resultSummary ?? null,
-      says: item.draft.says,
-      eventDate: item.draft.eventDate,
-      eventStart: item.draft.eventStart && !Number.isNaN(Date.parse(item.draft.eventStart)) ? new Date(item.draft.eventStart) : null,
-      eventIdentity: item.eventIdentity ?? null,
-      eventMatch: item.draft.eventMatch,
-      value: item.value?.toString() ?? null,
-      url: item.draft.url,
-      contentSha256: item.contentSha256,
-      searchQuery: item.searchQuery,
-      retrievedAt: item.draft.retrievedAt,
-      modelId: item.modelId,
-      instructionVersion: item.instructionVersion,
-      gates: item.gates,
-      passed: item.passed,
-    }))).returning({ id: evidences.id });
-    await recordCosts(tx, withClaim(costs, claim.id));
-    return rows;
-  });
+  const inserted = await storeEvidence(db, claim.id, items, costs, now);
   const byId = new Map(inserted.map((row, i) => [row.id, items[i]!]));
 
   const history = await db.select({ id: evidences.id, runAt: evidences.runAt, trustLevel: evidences.trustLevel, says: evidences.says, basis: evidences.basis, passed: evidences.passed, gates: evidences.gates })

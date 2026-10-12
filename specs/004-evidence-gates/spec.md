@@ -214,7 +214,9 @@ was discarded for another reason, so it did no harm this time.
 ## Assumptions
 
 - The twelve verdicts already published carry no identity on their evidence rows, so relevance cannot be
-  re-examined over them for free; re-examining one costs a fresh judging run (~$0.04).
+  re-examined over them for free; re-examining one costs a fresh judging run. Measured on the ten resolved
+  web claims on 2026-10-12: mean $0.0662, worst $0.0843, against a $0.30 per-claim ceiling — so the earlier
+  ~$0.04 estimate was low.
 - The arbiter model and the human-review flag already exist (001 FR-025, FR-026); this feature sends more
   cases to them rather than inventing a new escalation.
 - Grouping is pure code over judged pages: nothing is fetched twice and no page text is stored

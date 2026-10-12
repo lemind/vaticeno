@@ -70,6 +70,9 @@ judge.
 | `src/resolve/exhaustive.ts` | new: the configured endpoints that may carry absence evidence |
 | `src/resolve/web-evidence.ts` | judge all, gate all, then group; stores identity and match |
 | `src/resolve/decide.ts` | unchanged rule, one log line when an admitted absence disagrees with a record |
+| `src/resolve/consistency.ts` | new, pure: the criterion applied to a page's own stated outcome |
+| `src/resolve/exhaustive.ts` | new: the endpoints that may carry absence evidence, empty today |
+| `src/resolve/recheck.ts` + `src/cli/verdict-recheck.ts` | `--rejudge`: fetch and judge again, for a judging error a free recheck cannot see |
 | `src/db/schema.ts` + `drizzle/0016_evidence_identity.sql` | identity and match on the evidence row |
 
 ## Data model

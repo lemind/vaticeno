@@ -5,7 +5,7 @@ import { type LlmClient, LlmSchemaError } from '../../src/llm/client.js';
 import { SourceUnavailable } from '../../src/resolve/fetch.js';
 import { decideByHuman, listNeedsHuman } from '../../src/resolve/manual.js';
 import { type ResolverDeps, resolveDueClaims } from '../../src/resolve/resolver.js';
-import { recheckClaim, recheckRecent, writeCorrection } from '../../src/resolve/recheck.js';
+import { recheckClaim, recheckRecent, rejudgeClaim, writeCorrection } from '../../src/resolve/recheck.js';
 import type { EventIdentity } from '../../src/resolve/relevance.js';
 import { insertClaim, setupTestDb, type TestDb, VALID_CONTRACT } from './helpers.js';
 
@@ -307,6 +307,30 @@ describe('rechecking a verdict already given (001 FR-035)', () => {
     assert.deepEqual((await recheckRecent(t.db, AFTER, 7)).map((r) => r.slug), [], 'a corrected claim is not raised again');
   });
 
+  // 004 T415a. A free recheck re-reads stored answers, so it can only catch a rule that was wrong. The
+  // racing verdict was wrong because the page was judged against another race — only fetching and judging
+  // again can find that, and it costs money, so nothing schedules it.
+  test('a re-judge fetches and judges again, and leaves the published verdict frozen', async () => {
+    const claim = await lockedClaim(WEB_CONTRACT);
+    const stale = '2026-10-06T00:00:00Z';
+    const [old] = await t.sql`insert into evidences ${t.sql({ claim_id: claim.id, run_at: stale, source_kind: 'web', source_name: 'old.example', trust_level: 'primary', says: 'miss', basis: 'record', passed: true, gates: JSON.stringify({ final: true, trusted: true, in_window: true, independent: true, quote_found: true }), retrieved_at: stale, event_date: '2026-10-03' })} returning id`;
+    await t.sql`insert into resolutions ${t.sql({ claim_id: claim.id, outcome: 'miss', decided_by: 'evidence', review_status: 'final', deciding_evidence_id: old!.id, decided_at: stale })}`;
+
+    const url = 'https://www.fda.gov/approvals/x';
+    const { deps: d } = deps({ search: [url], pages: { [url]: { says: 'hit', quote: 'approved drug X', event_date: '2026-10-03', text: 'The FDA approved drug X.' } } });
+    const check = (await rejudgeClaim(d, claim.slug, new Date('2026-10-07T01:00:00Z')))!;
+
+    assert.equal(check.was, 'miss');
+    assert.equal(check.now.kind, 'final');
+    assert.equal(check.differs, true, 'fresh pages reach a different answer');
+    assert.equal((await resolutionRow(claim.id))!.outcome, 'miss', 'the published verdict is untouched');
+    assert.equal(await evidenceCount(claim.id), 2, 'the new run is written beside the old one, never over it');
+    const [spend] = await t.sql`select count(*)::int as n from cost_events where claim_id = ${claim.id}`;
+    assert.ok(spend!.n > 0, 'and what it cost is recorded against the claim');
+
+    assert.equal(await writeCorrection(t.db, claim.slug, check, 'judged against the wrong race'), true);
+  });
+
   test('a correction cannot be written twice, and a verdict that still stands cannot be corrected', async () => {
     const { claim } = await wrongMiss();
     const check = (await recheckClaim(t.db, claim.slug, AFTER))!;
@@ -425,6 +449,20 @@ describe('a page must be about the contract\'s own event (004 FR-002, FR-003)', 
     const [row] = await t.sql`select passed, gates from evidences where claim_id = ${claim.id}`;
     assert.equal(row!.gates.consistent, false);
     assert.equal(row!.passed, false);
+  });
+
+  // 004 FR-013. Measured in production on 2026-10-12: 47 judge calls over 47 judged pages, mean $0.0662 a
+  // claim, worst $0.0843. The new fields ride on the call that was already paid for; nothing judges twice.
+  test('each page is judged exactly once, whatever the new fields ask for (FR-013)', async () => {
+    await lockedClaim(RACE_CONTRACT);
+    let judged = 0;
+    const { deps: d } = deps({ search: [LANDING, EXACT, OUTLET], pages });
+    const counted = { ...d, llm: { ...d.llm, generateJson: async (args: { operation: string; input: string }) => {
+      if (args.operation === 'judge') judged++;
+      return d.llm.generateJson(args as never);
+    } } } as typeof d;
+    await resolveDueClaims(counted, AFTER);
+    assert.equal(judged, 3, 'three pages, three readings — no second pass');
   });
 
   test('a claim whose contract names no round or day is judged as before', async () => {

@@ -1,10 +1,15 @@
 // Re-run today's rules over a verdict already given (001 FR-035). The stored resolution is frozen and
 // stays; a different answer is written as a correction beside it.
 import { and, desc, eq, gt, isNull } from 'drizzle-orm';
+import { ContractSchema } from '../contract/schema.js';
 import type { Db } from '../db/client.js';
 import { claims, corrections, evidences, resolutions } from '../db/schema.js';
+import type { CallCost } from '../llm/client.js';
 import { log } from '../log.js';
 import { decideResolution, type Decision } from './decide.js';
+import { type ResolverDeps, storeEvidence } from './resolver.js';
+import { knownSources } from './sources.js';
+import { gatherWebEvidence } from './web-evidence.js';
 
 export type Recheck = {
   slug: string;
@@ -31,6 +36,27 @@ export async function recheckClaim(db: Db, slug: string, at: Date): Promise<Rech
   const decision = decideResolution(history.map(({ gates, ...e }) => ({ ...e, quoteFound: gates.quote_found ?? null })), at, row.deadlineAt);
   const differs = decision.kind === 'final' && decision.outcome !== row.outcome;
   return { slug, was: row.outcome, now: decision, differs, unsettled: decision.kind !== 'final', corrected: false };
+}
+
+// A verdict re-examined with pages fetched and judged again (004 T415a): the only way to catch a judging
+// error, because a free recheck re-reads the same stored answers. Paid, so it is never run by a schedule.
+// Writes a new evidence run and no resolution — the published one is frozen (001 FR-035).
+export async function rejudgeClaim(deps: ResolverDeps, slug: string, at: Date): Promise<Recheck | null> {
+  const [row] = await deps.db
+    .select({ id: claims.id, contract: claims.contract, lockAt: claims.lockAt, deadlineAt: claims.deadlineAt, outcome: resolutions.outcome })
+    .from(claims).innerJoin(resolutions, eq(resolutions.claimId, claims.id))
+    .where(and(eq(claims.slug, slug), eq(resolutions.reviewStatus, 'final')))
+    .limit(1);
+  if (!row?.outcome || !row.deadlineAt || !row.lockAt || !row.contract) return null;
+
+  const contract = ContractSchema.parse(row.contract);
+  const window = { lockAt: row.lockAt, deadlineAt: row.deadlineAt };
+  const costs: CallCost[] = [];
+  const items = await gatherWebEvidence(deps, contract, window, at, await knownSources(deps.db), costs);
+  await storeEvidence(deps.db, row.id, items, costs, at);
+  const spent = costs.reduce((total, cost) => total + cost.usdCost, 0);
+  log('info', 'verdict re-judged', { event: 'recheck.rejudged', slug, pages: items.length, usd_cost: spent });
+  return recheckClaim(deps.db, slug, at);
 }
 
 // Every final verdict of the last `days`, re-decided. Reports; it never writes (001 FR-035).

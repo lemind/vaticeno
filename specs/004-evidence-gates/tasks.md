@@ -15,7 +15,7 @@ failures are fixtures. Nothing else.
 | Cause 1 — an absence outranked records | fixed before this spec (001 T123, deployed 2026-10-12) |
 | Cause 2 — same domain meant same story | this spec, Phase 2 |
 | Cause 3 — no gate asked about the event | this spec, Phase 1 |
-| Standing wrong verdict | one claim, corrected in Phase 4 |
+| Standing wrong verdict | one claim; the re-judge path is built (T415a), the paid run is T415 |
 
 ## Format: `[ID] [P?] [Story] Description`
 
@@ -61,11 +61,12 @@ race-specific page can.
 
 ## Phase 4: the verdict still standing
 
-- [ ] T415 Re-judge the horse-racing claim with fresh pages (paid, ~$0.04) and correct it to HIT with `verdict:recheck --correct --post` (001 FR-035)
-- [ ] T416 [P] Measure cost per resolved claim against the baseline and record it; one judging call per page and no second pass (FR-013, SC-005)
-- [ ] T417 Mark tasks `[x]` with a one-line result; run the whole suite — unit, integration, typecheck
+- [x] T415a **Done 2026-10-12.** `rejudgeClaim` + `verdict:recheck -- --slug X --rejudge`: fetches and judges the pages again, writes a new evidence run beside the frozen resolution, records what it spent, and never runs on a schedule. A free recheck only re-reads stored answers, so it can catch a wrong rule and never a wrong reading (004 T415a)
+- [ ] T415 Run it on the horse-racing claim (paid, ~$0.07) and correct it to HIT with `--correct --post`. **Owner's call**: it spends money and posts once in a stranger's thread (001 FR-035)
+- [x] T416 **Done 2026-10-12.** [P] Measure cost per resolved claim against the baseline and record it; one judging call per page and no second pass (FR-013, SC-005) Measured in production over the ten resolved web claims: **1.00 judge call per judged page** (47 over 47), mean **$0.0662** a claim, worst **$0.0843**, ceiling $0.30. The v5 fields ride on the call already paid for. An integration test holds the one-call rule.
+- [x] T417 **Done 2026-10-12.** Tasks marked with their results; 134 unit and 155 integration tests pass, typecheck clean. One task is left open on purpose: T415 spends money and posts publicly
 
-**Checkpoint**: nothing published is known to be wrong.
+**Checkpoint**: nothing published is known to be wrong — pending T415, the one correction still owed, which is the owner's to run.
 
 ---
 
