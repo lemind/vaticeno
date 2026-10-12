@@ -49,13 +49,8 @@ const JudgeSchema = z.object({ ...JudgeFields, quote: z.string().max(600).nullab
 // Recorded shape: no quote field at all (the replay store refuses one), only its hash and whether it was on the page.
 const JudgeRecordedSchema = z.object({ ...JudgeFields, quote_sha256: z.string().nullable(), quote_found: z.boolean() });
 
-// From judge.v4 the model must answer the result field rather than leave it out: the verdict reply shows
-// that line, and "MISS" with nothing beside it asks the reader to take our word for it (FR-032). Required,
-// not refined — the response schema sent to the provider is derived from this object, and a `.refine()`
-// does not survive that derivation, so a rule written that way would bind us and not the model. The value
-// may still be null (nothing settled to report, and absence-based answers have nothing to say); a null on
-// a verdict that needed one is reported by the verdict reply, never by discarding the page, because
-// evidence that settles a claim is worth more than a line of prose (review 2026-10-11).
+// judge.v4 requires this field in the schema itself: a `.refine()` never reaches the provider, and
+// discarding a page over a missing line would cost a verdict (001 FR-032).
 const V4_FIELDS = { ...JudgeFields, result: z.string().max(80).nullable() };
 const JudgeSchemaV4 = z.object({ ...V4_FIELDS, quote: z.string().max(600).nullable() });
 const JudgeRecordedSchemaV4 = z.object({ ...V4_FIELDS, quote_sha256: z.string().nullable(), quote_found: z.boolean() });

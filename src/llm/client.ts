@@ -142,9 +142,7 @@ export function createLlmClient(options: { mode: LlmMode; apiKey?: string; store
     return { ...result, costs };
   }
 
-  // A grounded answer: the same search tool, but the model's words are what we want, not the links it
-  // found. Used to answer a question whose answer is a fact about the world, which no post in a thread
-  // and no training cut-off can supply (owner decision 2026-10-11).
+  // A grounded answer: the same search tool, but we want the model's words, not its links (001 FR-033b).
   async function groundedAnswer(call: { model: string; instructionVersion: string; system: string; input: string }): Promise<{ text: string; urls: string[]; costs: CallCost[] }> {
     const identity = { model: call.model, instruction: call.instructionVersion, input: call.input };
     if (mode === 'replay') {

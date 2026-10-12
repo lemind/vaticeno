@@ -32,9 +32,7 @@ export function loadConfig(): Config {
 // Stage 0 core (DB, models, observability). Separate from the POC config so neither breaks the other.
 const optionalText = z.string().trim().transform((v) => v || undefined).optional();
 const DEFAULT_MODEL = 'gemini-3.1-flash-lite';
-// Answers to people are the one place the cheap model shows: parsing a prediction is a narrow job, holding
-// a short conversation is not (owner decision 2026-10-11). Overridable, so the model can change without a
-// code change; every other call stays on the lite model.
+// Replies to people run on a fuller model than the parser; every other call stays lite (001 FR-033b).
 const DEFAULT_ANSWER_MODEL = 'gemini-3.8-flash';
 // An empty `KEY=` line in .env means "use the default" — never 0, and never a validation error.
 const blankIsUnset = (v: unknown) => (typeof v === 'string' && v.trim() === '' ? undefined : v);

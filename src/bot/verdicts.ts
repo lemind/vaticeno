@@ -100,10 +100,8 @@ async function verdictText(deps: BotDeps, claim: Due): Promise<string> {
     const withResult = `${head}\n${evidence.result} · ${site}`;
     if (weightedLength(withResult) <= X_MAX_CHARS) return withResult;
   }
-  // A hit or a miss read off a record and still with nothing to show is a defect in the judging step, not
-  // an acceptable reply (FR-032): the verdict goes out either way — it is never withheld — and we are told.
-  // An absence-based miss is exempt: the page is the official record and the event is simply not in it,
-  // so there is no outcome to report and the judge is right to leave it empty (review 2026-10-11).
+  // A record-based hit or miss with nothing to show is a judging defect, not a reply: the verdict still
+  // goes out and we are told (FR-032). An absence-based miss has no outcome to report, so it is exempt.
   if (evidence.basis === 'record') {
     alert('verdict.no_result', { slug: claim.slug, outcome: claim.outcome, source: evidence.source, had_result: Boolean(evidence.result) });
   }

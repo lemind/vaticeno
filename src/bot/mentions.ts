@@ -98,9 +98,7 @@ export async function routeMention(deps: BotDeps, mention: Mention, now: Date, w
     // A claim that can no longer change (locked, closed, expired, out of fixes) does not end the
     // conversation: the author is predicting again, so the reply is recorded as a NEW claim further
     // down (owner decision 2026-10-05). Only a mid-flight conflict still gets the refusal.
-    // "NOT CHANGED — that doesn't read as a prediction" is the right answer to a bad fix and the wrong one
-    // to a question: the claim is open, so the question never reached the path that answers it
-    // (owner report 2026-10-11). Asked here, before that reply is handed back.
+    // A question under an open claim must not get "NOT CHANGED": asked before that reply goes back (FR-033).
     if (fixed.outcome === 'not_changed') {
       const answered = await assess(deps, mention, body, repliedTo, now, { onlyQuestion: true, about: claim });
       askedModel = true;
@@ -109,12 +107,9 @@ export async function routeMention(deps: BotDeps, mention: Mention, now: Date, w
     if (fixed.outcome !== 'refused' || fixed.reason === 'conflict') {
       return { action: `fix_${fixed.outcome}`, reply: fixed.reply, slug: claim.slug, discloses: fixed.outcome === 'amended' || fixed.outcome === 'recorded' };
     }
-    // A reply under a claim that can no longer change is usually a new prediction — but if it is a
-    // question, answering it beats refusing it (FR-033). The model sees the claim itself, so the answer
-    // is about this prediction and not a guess.
+    // Under a closed claim a question is answered before the reply is taken for a new prediction (FR-033).
     const answered = await assess(deps, mention, body, repliedTo, now, { onlyQuestion: true, about: claim });
-    // The slug carries the answer into the claim's thread (pollMentions → rememberThread), so the next
-    // reply under it is still read with this claim in hand instead of arriving as an unrelated mention.
+    // The slug puts the answer in the claim's thread, so the next reply still arrives with it (FR-033).
     if (answered) return { ...answered, slug: claim.slug };
     askedModel = true;
     log('info', 'closed claim: recording this reply as a new one', { event: 'claim.amend_to_new', slug: claim.slug, reason: fixed.reason });
@@ -152,15 +147,13 @@ export async function routeMention(deps: BotDeps, mention: Mention, now: Date, w
     text: current.text, context, authorId: mention.author_id, sourceTweetId: original, summonTweetId: mention.id, sourceVersion: current.versionId, now,
     moreContext: () => conversationBefore(deps, mention, context),
   });
-  // Refused for any reason: the model reads the thread once per mention (a command word already had its
-  // turn). "Not a prediction" may answer with anything it likes; every other refusal — a deadline too
-  // close or too far, an event not found, a duplicate — keeps its own text unless this was a question,
-  // because the specific reason is more use to the author than a generic answer (FR-033).
+  // Any refusal can be followed by a question; what is not one keeps its own reason, which is more use
+  // than a generic answer (FR-033). One assessment per mention.
   const refused = result.outcome === 'rejected' || result.outcome === 'duplicate';
   if (refused && !firstAssessed && !askedModel) {
     const notPrediction = result.rejectReason === 'not_prediction';
     const assessed = await assess(deps, mention, current.text, repliedTo, now, notPrediction ? { predictionRuledOut: true } : { onlyQuestion: true });
-    // Same as above: the answer joins the thread of the claim it is about, when there is one.
+    // The answer joins the thread of the claim it is about, when there is one.
     if (assessed) return { ...assessed, slug: result.slug };
   }
   return { action: `record_inline_${result.outcome}`, reply: result.reply, slug: result.slug, discloses: result.outcome === 'recorded' };
@@ -195,38 +188,26 @@ async function runCommand(deps: BotDeps, mention: Mention, command: Command, now
 }
 
 const THREAD_DEPTH = 3; // posts above the mention shown to the model (paid X reads, in memory only)
-// X bills per post it returns (~$0.005), so context is bought a page at a time: ten posts first, and ten
-// older ones only when the model says the answer is probably further up (owner decision 2026-10-11). The
-// second page is paged by id, so nothing is read — or paid for — twice.
+// X bills per post (~$0.005), so context is bought a page at a time, the second only on request (FR-033a).
 const CONVERSATION_POSTS = 10;
-// X counts 280; the reply is the answer alone, and the few characters of headroom cover the ones X
-// weighs double (templates.ts weightedLength).
-const ANSWER_MAX_CHARS = 260;
 
-// Context for an answer is the whole conversation before the mention, not three ancestors: on X the post
-// that settles a question often sits beside the one being read rather than above it, which is why the
-// recorder already reads it this way (owner decision 2026-10-07, repeated for answers 2026-10-11). One
-// conversation read, ~10 posts, charged once per mention by the cache; the ancestors are already paid for.
+// A question's context is the conversation, not three ancestors: the post that settles it often sits
+// beside the one being read rather than above it (FR-033a).
 async function contextAround(deps: BotDeps, mention: Mention, repliedTo: string | undefined, before?: string): Promise<{ posts: ThreadPost[]; conversation: ThreadPost[]; oldest?: string }> {
   const above = before ? [] : await threadAbove(deps, repliedTo);
   const seen = new Set(above.map((post) => post.text));
-  // Everything said in the conversation before the mention, **including our own replies**: the recorder
-  // leaves those out on purpose (our refusal must never become the prediction's subject, T048), but a
-  // question is very often about what we ourselves said, and dropping them threw away six posts of ten
-  // on the live thread this came from (owner report 2026-10-11).
+  // Our own replies are context for a question, and still not for the recorder (FR-033a, T048).
   const read = await conversationPosts(deps, mention, before);
   const wider = read
     .filter((post) => !seen.has(post.text))
     .map((post) => ({ from: post.author_id === deps.botUserId ? ('bot' as const) : ('user' as const), text: post.text }));
-  // The oldest post by id, not by position: created_at is second-precision, and a tie at the page edge
-  // would otherwise page from the newer of the two and buy that post again (review 2026-10-11).
+  // Paged by lowest id, not by position: created_at ties would re-buy a post (review 2026-10-11).
   const oldest = read.map((post) => post.id).sort((a, b) => (a.length === b.length ? a.localeCompare(b) : a.length - b.length))[0];
   return { posts: [...above, ...wider], conversation: wider, oldest };
 }
 
-// One web lookup for a question whose answer is a fact nobody in the thread stated. The model answers in
-// its own words; the links it found stay out of the reply, because X turns them into links and a reply
-// may not carry one (owner decision 2026-10-11). Any failure answers nothing and costs the search only.
+// One web lookup for a question no post in the thread can settle. The links it finds stay out of the
+// reply (constitution VI); any failure answers nothing (FR-033b).
 async function liveAnswer(deps: BotDeps, mention: Mention, body: string, thread: readonly ThreadPost[]): Promise<string | null> {
   try {
     const result = await deps.llm.groundedAnswer({
@@ -262,9 +243,7 @@ async function conversationPosts(deps: BotDeps, mention: Mention, before?: strin
 
 type ClaimRef = { slug: string; contract: unknown; status: string; deadlineAt: Date | null };
 
-// What the bot already knows about the claim a mention is standing in, in its own words and from its own
-// rows — no post text is read or kept (INIT_SPEC §6.9). Without this the model is asked "is this a
-// question?" with no idea what the thread is about, and answers accordingly.
+// What we already know about the claim the mention stands in, from our own rows — no post text (§6.9).
 async function claimContext(deps: BotDeps, claim: ClaimRef): Promise<ThreadPost[]> {
   const parsed = ContractSchema.safeParse(claim.contract);
   const statement = parsed.success ? renderStatement(parsed.data) : criterionOf(claim.contract)[0];
@@ -280,13 +259,11 @@ async function claimContext(deps: BotDeps, claim: ClaimRef): Promise<ThreadPost[
   return [{ from: 'bot', text: `#${claim.slug} — "${statement}" — ${state}.` }];
 }
 
-// The model decides what an unclear mention wants, with the thread above it. null = go on with recording.
-// `onlyQuestion`: answer a question, otherwise say nothing and let the caller keep the reply it has.
+// What an unclear mention wants. null = go on with recording.
+// `onlyQuestion`: answer a question, else say nothing and let the caller keep its reply.
 async function assess(deps: BotDeps, mention: Mention, body: string, repliedTo: string | undefined, now: Date, opts: { predictionRuledOut?: boolean; onlyQuestion?: boolean; about?: ClaimRef } = {}): Promise<Routed | null> {
-  // Two lists, deliberately: the model sees our own record first and then the posts above, but only the
-  // posts people wrote are checked for echoing. The echo rule exists to catch "reply exactly …" smuggled
-  // in by a stranger; applied to our own claim line it silences the best answers there are, because an
-  // answer about a verdict naturally repeats the score we just handed the model (review 2026-10-11).
+  // The model sees our own record first, then the posts above; only what people wrote is echo-checked
+  // (FR-033a).
   const ours = opts.about ? await claimContext(deps, opts.about) : [];
   const first = await contextAround(deps, mention, repliedTo);
   // Nearest first, then the conversation oldest to newest, which is the order intent.v4 is told to expect.
@@ -304,9 +281,7 @@ async function assess(deps: BotDeps, mention: Mention, body: string, repliedTo: 
   };
   try {
     ({ intent, answer, wantsOlder, needsLive } = await ask());
-    // One page of the conversation, then a second only if the model says the answer is probably further
-    // up — ten posts are bought before twenty are (owner decision 2026-10-11). At most one extra page,
-    // and never for a fact no earlier post could hold.
+    // A second page only when the model says the answer is further up. At most one (FR-033a).
     if (intent === 'question' && wantsOlder && first.oldest) {
       const older = await contextAround(deps, mention, repliedTo, first.oldest);
       if (older.conversation.length > 0) {
@@ -331,9 +306,7 @@ async function assess(deps: BotDeps, mention: Mention, body: string, repliedTo: 
   });
   if (intent === 'prediction') return opts.predictionRuledOut ? { action: 'help', reply: HELP_REPLY } : null;
   if (intent === 'question') {
-    // Only what other people wrote is checked for echoing. Our own posts are in the context on purpose,
-    // and an answer quoting the prediction we ourselves stated is the answer, not an injection
-    // (review 2026-10-11, the second time this gate ate a good reply).
+    // Our own posts are context, not injection: quoting the prediction we stated is the answer (FR-033a).
     const written = [...above, ...pages].filter((post) => post.from === 'user');
     // A question about the world that nothing in the thread can settle: look it up once, then answer.
     if (needsLive && !answerProblem(answer, body, written, opts.about?.slug)) {
@@ -367,14 +340,11 @@ async function saveCosts(deps: BotDeps, costs: CallCost[]) {
   }
 }
 
-// Why an answer cannot be posted, or null when it can. Each rule earns its place: a link or a handle is
-// platform policy, a stray hashtag is constitution VI, and a long verbatim run is the "reply exactly …"
-// trick. Everything else goes out — a gate that silences good answers is worse than no gate, because the
-// mention then falls through and is refused as a failed prediction (owner report 2026-10-11).
+// Why an answer cannot be posted, or null when it can: platform policy, constitution VI, and the "reply
+// exactly …" trick. A gate that silences a good answer is worse than no gate (FR-033).
 function answerProblem(answer: string | null, body: string, context: readonly ThreadPost[], slug?: string): string | null {
   if (!answer) return 'empty';
-  // X's own count, not the string's: a reply of emoji or Japanese is twice its length to X, and a reply
-  // over the limit is refused after the mention is already marked answered (review 2026-10-11).
+  // X's count, not the string's: emoji and CJK weigh double, and an over-long reply is refused by X.
   if (weightedLength(answer) > X_MAX_CHARS) return 'too_long';
   // The claim's own slug is an id, not a topic, and is the one hashtag an answer may carry (VI 2.4.1).
   const withoutSlug = slug ? answer.replace(new RegExp(`#${escapeRegExp(slug)}\\b`, 'gi'), '') : answer;
@@ -383,9 +353,7 @@ function answerProblem(answer: string | null, body: string, context: readonly Th
   return null;
 }
 
-// A verbatim run this long is someone else's sentence, not an answer that happens to use the facts it was
-// given. It was 20 characters, which with a whole conversation in view caught every answer that quoted a
-// score or a date — exactly what the answer is now asked to do (owner report 2026-10-11).
+// A run this long is someone else's sentence, not an answer using the facts it was given (FR-033a).
 const ECHO_RUN = 40;
 function echoes(answer: string, texts: string[]): boolean {
   const norm = (t: string) => t.toLowerCase().replace(/\s+/g, ' ');
@@ -414,15 +382,14 @@ function cachedReads(deps: BotDeps): BotDeps {
     void fresh.then(() => recordReads(deps, 1, 'thread.post_read'), () => {});
     return fresh;
   };
-  // The conversation read is the expensive one (~10 posts). Both the recorder and an answer want it, so
-  // it is read and charged once per mention and handed to whoever asks second (owner decision 2026-10-11).
+  // One conversation read per mention, charged once, shared by the recorder and the answer (FR-033a).
   const conversations = new Map<string, Promise<Awaited<ReturnType<XClient['getConversation']>>>>();
   const conversationOnce = (id: string, untilId: string | undefined) => {
     const key = `${id}|${untilId ?? ''}`;
     const held = conversations.get(key);
     if (held) return held;
     const fresh = deps.x.getConversation(id, { ...(untilId ? { untilId } : {}), maxResults: CONVERSATION_POSTS });
-    // Each page is a separate read with its own cost; the key above keeps the same page from being bought twice.
+    // The key keeps a page from being bought twice; each page is its own read and its own cost.
     conversations.set(key, fresh);
     void fresh.then((read) => recordReads(deps, read.length, 'thread.conversation_read'), () => {});
     return fresh;
