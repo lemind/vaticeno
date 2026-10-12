@@ -172,6 +172,11 @@ async function applyDecision(
   }
 
   if (decision.kind === 'final') {
+    // An admissible absence disagreed with the records that decided it (004 FR-008): the records stand and
+    // we are told, because this is the case that would make escalating worth building.
+    if ('absenceDisagreed' in decision && decision.absenceDisagreed) {
+      alert('resolution.absence_disagreed', { slug: claim.slug, outcome: decision.outcome });
+    }
     await finalize(db, claim, {
       ...base, outcome: decision.outcome, decidedBy: 'evidence', reviewStatus: 'final', decidedAt: now,
       ...(decision.outcome === 'void' ? { voidReason: decision.voidReason } : { decidingEvidenceId: decision.decidingEvidenceId }),

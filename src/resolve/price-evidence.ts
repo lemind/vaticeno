@@ -68,6 +68,7 @@ export async function gatherPriceEvidence(
       retrievedAt: now,
       quoteFound: null,
       eventMatch: null, // a price feed is not a page about an event (004 FR-014)
+      selfConsistent: null,
       isFinalResult: answer.says === 'hit' || answer.says === 'miss',
       originalSource: null,
       simhash: null,

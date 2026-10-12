@@ -51,13 +51,13 @@ race-specific page can.
 
 **Independent test**: the stored fixtures-page rows cannot carry absence evidence; the self-contradicting row never publishes.
 
-- [ ] T410 [US3] `src/resolve/exhaustive.ts`: the endpoints recorded as complete official records, and the only path by which absence evidence is admitted. Starts empty (FR-007)
-- [ ] T411 [US3] `src/resolve/gates.ts`: a model-set `basis` no longer waives the quote check, and absence is admitted only by T410 (FR-007)
-- [ ] T412 [US3] `src/resolve/decide.ts` keeps records outranking absences; a test proves an admitted absence never overrides a passed record, and the disagreement is logged rather than escalated (FR-008)
-- [ ] T413 [US4] Where a page states a structured outcome and its identity is verified, code applies the locked criterion; a judgement contradicting its own result never counts and is reported (FR-009)
-- [ ] T414 [P] Tests: both football claims from their stored rows, the self-contradicting row escalating, and an absence still deciding when nothing contradicts it (SC-001, SC-004)
+- [x] T410 **Done 2026-10-12.** [US3] `src/resolve/exhaustive.ts`: the endpoints recorded as complete official records, and the only path by which absence evidence is admitted. Starts empty (FR-007) Empty, with the reason and what an entry must prove written above it.
+- [x] T411 **Done 2026-10-12.** [US3] `src/resolve/gates.ts`: a model-set `basis` no longer waives the quote check, and absence is admitted only by T410 (FR-007) One `admissibleAbsence` helper gates both the window and the quote waiver, and the predicate is injectable so a test can name an endpoint while the real list is empty.
+- [x] T412 **Done 2026-10-12.** [US3] `src/resolve/decide.ts` keeps records outranking absences; a test proves an admitted absence never overrides a passed record, and the disagreement is logged rather than escalated (FR-008) `decide.ts` stays pure and returns `absenceDisagreed`; the resolver raises `resolution.absence_disagreed`.
+- [x] T413 **Done 2026-10-12.** [US4] Where a page states a structured outcome and its identity is verified, code applies the locked criterion; a judgement contradicting its own result never counts and is reported (FR-009) `judge.v5` states the outcome in fields (`observed_result`); `src/resolve/consistency.ts` applies the criterion only for a plain "subject wins" shape with no margin, and a new `consistent` gate fails the row. 8 unit tests fix that boundary.
+- [x] T414 **Done 2026-10-12.** [P] Tests: both football claims from their stored rows, the self-contradicting row escalating, and an absence still deciding when nothing contradicts it (SC-001, SC-004) Two integration tests: the football rows now resolve HIT with the silent page counting for nothing, and the self-contradicting row settles nothing. 134 unit + 153 integration pass.
 
-**Checkpoint**: silence decides nothing on its own, and no verdict argues with its own evidence.
+**Checkpoint**: silence decides nothing on its own, and no verdict argues with its own evidence. With the list empty, a claim whose only evidence is an absence now waits and then voids, which is the safer failure.
 
 ## Phase 4: the verdict still standing
 

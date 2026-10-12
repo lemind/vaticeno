@@ -47,7 +47,7 @@ search (unchanged)
   ↓  candidate URLs
 fetch + judge each page            judge.v5: identity, outcome, result, trust
   ↓  one draft per page
-per-page gates                     trusted · quote_found · in_window · final · relevant   ← relevant is new
+per-page gates                     trusted · quote_found · in_window · final · relevant · consistent
   ↓  survivors only
 group                              same site · near-duplicate · same credited origin      ← was a gate
   ↓  one representative per group
@@ -82,8 +82,8 @@ Two nullable columns on `evidences`, the table 001's data model defines. Nullabl
 | `event_identity` | jsonb null | what the page said about which event it describes: date, and whatever of competition, round or race number, venue and participants it stated. The page's words as fields, never a conclusion |
 | `event_match` | text null | CHECK `yes \| no \| unknown \| not_applicable` — what code concluded comparing that identity with the contract's event key. `no` and `unknown` fail the `relevant` gate; `not_applicable` (the contract names nothing comparable) passes it |
 
-The gate result itself goes in the existing `gates` jsonb as `relevant`, like the other five, so the claim
-page shows it with no schema change (001 FR-027).
+The gate results go in the existing `gates` jsonb as `relevant` and `consistent`, like the others, so the
+claim page shows them with no schema change (001 FR-027).
 
 Migration `drizzle/0016_evidence_identity.sql` — the next number free on disk, which is what this feature
 deploys. 002's Phase 8 and 003 reserved 0016–0021 on paper while this did not exist; those reservations move

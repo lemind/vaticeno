@@ -47,6 +47,10 @@ from your own knowledge, even when you are sure. If the page does not state it, 
   matches), report the one your answer rests on, and if you cannot tell which one the question refers to,
   leave `round` null rather than guessing: code checks it against the contract, and a wrong guess decides a
   prediction against the wrong event.
+- `observed_result`: the outcome in fields, or null if the page does not state one. `winner`: the name the
+  page gives as having won this event, exactly as written, or null for a draw, a tie or anything with no
+  winner. `score`: the final score or figure as written, or null. Both describe the page, not the contract:
+  do not adjust them towards the prediction.
 - `is_final_result`: true if the outcome is settled — the event is over and the page reports its result, not
   a projection, preliminary count or pending appeal. This is about the OUTCOME, not about the publisher: a
   newspaper reporting a finished match reports a final result. Who runs the site is `source_trust`'s job.

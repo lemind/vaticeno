@@ -32,7 +32,7 @@ function days(from: string, n: number, close: (i: number) => number): Candle[] {
   return Array.from({ length: n }, (_, i) => ({ day: new Date(start + i * 86400e3).toISOString().slice(0, 10), close: close(i) }));
 }
 
-type WebPage = { says: string; quote: string | null; event_date: string | null; text: string; trust?: 'primary' | 'established' | 'weak'; identity?: EventIdentity };
+type WebPage = { says: string; quote: string | null; event_date: string | null; text: string; trust?: 'primary' | 'established' | 'weak'; identity?: EventIdentity; basis?: 'record' | 'absence'; winner?: string | null };
 
 function deps(options: { candles?: Candle[] | 'outage'; search?: string[]; pages?: Record<string, WebPage>; down?: string[]; blocked?: string[]; badJudge?: string[]; arbiter?: 'malformed' } = {}) {
   const calls = { web: 0 };
@@ -53,7 +53,7 @@ function deps(options: { candles?: Candle[] | 'outage'; search?: string[]; pages
       if (options.badJudge?.includes(url)) throw new LlmSchemaError('bad judge json', [{ provider: 'gemini', operation: 'judge', units: 1, usdCost: 0.001 }]);
       const page = options.pages![url]!;
       return {
-        data: { says: page.says, basis: 'record', quote: page.quote, event_date: page.event_date, event_identity: page.identity ?? null, is_final_result: true, from_contract_source: false, source_trust: page.trust ?? 'primary', trust_reason: 'why', original_source: null, reasoning: 'r' },
+        data: { says: page.says, basis: page.basis ?? 'record', quote: page.quote, event_date: page.event_date, event_identity: page.identity ?? null, observed_result: page.winner === undefined ? null : { winner: page.winner, score: null }, is_final_result: true, from_contract_source: false, source_trust: page.trust ?? 'primary', trust_reason: 'why', original_source: null, reasoning: 'r' },
         costs: [{ provider: 'gemini' as const, operation: 'judge' as const, units: 1, usdCost: 0.001 }],
       };
     },
@@ -283,7 +283,8 @@ describe('rechecking a verdict already given (001 FR-035)', () => {
     const { claim, guardian } = await wrongMiss();
     const check = (await recheckClaim(t.db, claim.slug, AFTER))!;
     assert.equal(check.was, 'miss');
-    assert.deepEqual(check.now, { kind: 'final', outcome: 'hit', decidingEvidenceId: guardian });
+    // The stored absence row disagrees with the records that now decide it, which is reported (004 FR-008).
+    assert.deepEqual(check.now, { kind: 'final', outcome: 'hit', decidingEvidenceId: guardian, absenceDisagreed: true });
     assert.equal(check.differs, true);
     // Finding it changes nothing on its own: the published verdict stands until someone says so.
     assert.equal((await resolutionRow(claim.id))!.outcome, 'miss');
@@ -380,6 +381,50 @@ describe('a page must be about the contract\'s own event (004 FR-002, FR-003)', 
     assert.deepEqual([run.final, run.needs_human], [0, 1], 'the arbiter could not decide, so a human is asked');
     const rows = await t.sql`select url, passed from evidences where claim_id = ${claim.id} and passed = true order by url`;
     assert.equal(rows.length, 2, 'neither page was dropped to make the conflict go away');
+  });
+
+  // 004 FR-007: the live rows that produced two wrong MISS verdicts. The official page had not listed the
+  // match; that silence outranked three outlets reporting the score.
+  test('silence from an official page no longer decides anything (FR-007)', async () => {
+    const claim = await lockedClaim(WEB_CONTRACT);
+    const fixtures = 'https://www.premierleague.com/matches';
+    const guardian = 'https://www.theguardian.com/football/x';
+    const sky = 'https://www.skysports.com/football/y';
+    const { deps: d } = deps({
+      search: [fixtures, guardian, sky],
+      pages: {
+        [fixtures]: { says: 'miss', quote: null, event_date: null, text: 'Fixtures', basis: 'absence', trust: 'primary' },
+        [guardian]: { says: 'hit', quote: 'City beat Liverpool 3-0', event_date: '2026-10-03', text: 'City beat Liverpool 3-0' },
+        [sky]: { says: 'hit', quote: 'Man City 3-0 Liverpool', event_date: '2026-10-03', text: 'Man City 3-0 Liverpool' },
+      },
+    });
+    assert.equal((await resolveDueClaims(d, AFTER)).final, 1);
+
+    const rows = await t.sql`select url, basis, passed, gates from evidences where claim_id = ${claim.id}`;
+    const absence = rows.find((r) => r.basis === 'absence')!;
+    assert.equal(absence.passed, false, 'no endpoint is recorded as a complete record, so silence proves nothing');
+    assert.deepEqual([absence.gates.in_window, absence.gates.quote_found], [false, false], 'and it is held to the quote like any page');
+    assert.equal((await resolutionRow(claim.id))!.outcome, 'hit', 'the verdict that was published as a MISS');
+  });
+
+  // 004 FR-009: the third stored row of the racing run said `miss` beside "Sunny Q won the Kam Tin Handicap".
+  test('a reading that contradicts its own result counts for nothing (FR-009)', async () => {
+    const claim = await lockedClaim({ ...RACE_CONTRACT, subject: 'Sunny Q' });
+    const article = 'https://racingnews.hkjc.com/english/2026/10/04/david-hall-700-wins';
+    const { deps: d } = deps({
+      search: [article],
+      pages: {
+        [article]: {
+          says: 'miss', quote: 'Sunny Q won the Class 5 Kam Tin Handicap', event_date: '2026-10-04',
+          text: 'Sunny Q won the Class 5 Kam Tin Handicap (1000m).', trust: 'primary', winner: 'Sunny Q',
+          identity: { date: '2026-10-04', competition: 'Sha Tin', round: 'Race 2', venue: 'Sha Tin', participants: ['Sunny Q'] },
+        },
+      },
+    });
+    assert.equal((await resolveDueClaims(d, AFTER)).final, 0, 'it cannot settle the claim on a reading that argues with itself');
+    const [row] = await t.sql`select passed, gates from evidences where claim_id = ${claim.id}`;
+    assert.equal(row!.gates.consistent, false);
+    assert.equal(row!.passed, false);
   });
 
   test('a claim whose contract names no round or day is judged as before', async () => {

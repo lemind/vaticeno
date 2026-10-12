@@ -8,6 +8,7 @@ import { log } from '../log.js';
 import { type PageFetcher, SourceUnavailable } from './fetch.js';
 import { settles } from './decide.js';
 import { type EvidenceDraft, type Gates, runGates } from './gates.js';
+import { selfConsistent } from './consistency.js';
 import { type GroupFacts, independenceOf } from './groups.js';
 import { contractEventKey, type EventIdentity, matchEvent } from './relevance.js';
 import { capTrust, hostOf, registrableDomain } from './trust.js';
@@ -89,6 +90,7 @@ export async function gatherWebEvidence(
           originalSource: judgement.original_source,
           simhash: page.simhash,
           eventMatch: matchEvent(eventKey, judgement.event_identity ?? null),
+          selfConsistent: selfConsistent(contract, judgement.says, judgement.observed_result ?? null, matchEvent(eventKey, judgement.event_identity ?? null)),
         },
         value: null,
         eventIdentity: judgement.event_identity ?? null,
@@ -153,8 +155,8 @@ function facts(item: GatheredItem): GroupFacts {
 function emptySearchItem(searchQuery: string | null, now: Date): GatheredItem {
   const draft: EvidenceDraft = {
     sourceKind: 'web', basis: 'record', trustLevel: 'weak', says: 'irrelevant', eventDate: null, eventStart: null, url: null,
-    retrievedAt: now, quoteFound: null, isFinalResult: false, originalSource: null, simhash: null, eventMatch: null,
+    retrievedAt: now, quoteFound: null, isFinalResult: false, originalSource: null, simhash: null, eventMatch: null, selfConsistent: null,
   };
-  const gates: Gates = { trusted: false, quote_found: null, in_window: null, final: false, independent: null, relevant: null };
+  const gates: Gates = { trusted: false, quote_found: null, in_window: null, final: false, independent: null, relevant: null, consistent: null };
   return { draft, gates, passed: false, value: null, sourceName: 'search', trustReason: null, contentSha256: null, searchQuery, modelId: null, instructionVersion: null, pageText: '' };
 }

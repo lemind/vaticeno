@@ -34,6 +34,7 @@ export async function searchSources(llm: LlmClient, model: string, contract: Con
 const DATE = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 // judge.v5: which event the page itself reports. Code checks it against the contract (004 FR-001); rows
 // judged before v5 carry none, so relevance cannot be re-examined over them for free.
+const ObservedResultShape = z.object({ winner: z.string().max(80).nullable(), score: z.string().max(60).nullable() });
 const EventIdentityShape = z.object({
   date: DATE.nullable(),
   competition: z.string().max(80).nullable(),
@@ -48,6 +49,7 @@ const JudgeFields = {
   event_start: z.string().max(40).nullable().optional(), // v3; absent in v2 answers; unparseable = no time (gates.ts)
   result: z.string().max(80).nullable().optional(), // v3; required for a settled hit/miss from v4 (FR-032)
   event_identity: EventIdentityShape.nullable().optional(), // v5; absent in earlier answers (004 FR-001)
+  observed_result: ObservedResultShape.nullable().optional(), // v5; the outcome in fields (004 FR-009)
   is_final_result: z.boolean(),
   from_contract_source: z.boolean(),
   source_trust: z.enum(['primary', 'established', 'weak']),
@@ -66,7 +68,7 @@ const JudgeSchemaV4 = z.object({ ...V4_FIELDS, quote: z.string().max(600).nullab
 const JudgeRecordedSchemaV4 = z.object({ ...V4_FIELDS, quote_sha256: z.string().nullable(), quote_found: z.boolean() });
 const BEFORE_V4 = ['judge.v1', 'judge.v2', 'judge.v3'];
 
-const V5_FIELDS = { ...V4_FIELDS, event_identity: EventIdentityShape.nullable() };
+const V5_FIELDS = { ...V4_FIELDS, event_identity: EventIdentityShape.nullable(), observed_result: ObservedResultShape.nullable() };
 const JudgeSchemaV5 = z.object({ ...V5_FIELDS, quote: z.string().max(600).nullable() });
 const JudgeRecordedSchemaV5 = z.object({ ...V5_FIELDS, quote_sha256: z.string().nullable(), quote_found: z.boolean() });
 const BEFORE_V5 = [...BEFORE_V4, 'judge.v4'];
@@ -113,7 +115,7 @@ export async function judgePage(
   const judgement: Judgement = {
     says: data.says, basis: data.basis, event_date: data.event_date, event_start: data.event_start ?? null, result: data.result ?? null, is_final_result: data.is_final_result,
     from_contract_source: data.from_contract_source, source_trust: data.source_trust, trust_reason: data.trust_reason,
-    event_identity: data.event_identity ?? null,
+    event_identity: data.event_identity ?? null, observed_result: data.observed_result ?? null,
     original_source: data.original_source, reasoning: data.reasoning, quoteFound,
   };
   return { judgement, costs }; // the quote goes no further than this function
