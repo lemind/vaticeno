@@ -17,7 +17,7 @@ Access, which is where the read-only role needs more than a grant.
 
 | Column | Type | Notes |
 |---|---|---|
-| job | text PK | CHECK against the nine names: mentions, lock, expire, resolve, verdicts, pool, original, reconcile, recheck |
+| job | text PK | CHECK against `SCHEDULES` in `src/jobs/scheduler.ts` — nine as of 2026-10-12: mentions, lock, expire, resolve, verdicts, pool, original, reconcile, recheck — plus `settlement_worker`, whose heartbeat makes a dead worker visible even when the outbox is empty |
 | last_started_at | timestamptz null | set when `runJob` enters |
 | last_finished_at | timestamptz null | set when it returns, either way |
 | last_ok_at | timestamptz null | last successful finish |
@@ -53,12 +53,16 @@ measured against the paid model.
 | model | text NOT NULL | name and version of the local model |
 | would_finalise | boolean NOT NULL | whether the gate would have taken it |
 | would_outcome | text null | CHECK `hit \| miss`; null when it would have escalated |
-| min_confidence | real NOT NULL | CHECK between 0 and 1 — the weakest item the gate relied on |
+| min_confidence | real null | CHECK between 0 and 1 — the weakest item the gate relied on; null when the call failed |
 | paid_outcome | text null | CHECK `hit \| miss \| void`; what the paid model concluded |
+| error_tag | text null | set when the call timed out or came back malformed; the row still exists, so a silent failure cannot read as a quiet success |
+| latency_ms | int null | how long the call took, the other half of whether the fast path is worth having |
 | created_at | timestamptz NOT NULL DEFAULT now() | |
 
 Agreement rate = rows where `would_finalise` and `would_outcome = paid_outcome`, over rows where
-`would_finalise`. A disagreement there is the signal the shadow deploy exists to produce.
+`would_finalise` **and `paid_outcome` is not null**. An attempt that never reached a paid verdict, or whose
+call failed, stays out of the denominator — otherwise a week of timeouts reads as a worse or better model
+than it is. A disagreement inside it is the signal the shadow deploy exists to produce.
 
 **Append-only, enforced**: a trigger rejects UPDATE and DELETE, the same way the lock and verdict rules are
 enforced in Postgres rather than in code. Deliberately **not** part of `resolutions`: dropping this table
@@ -112,7 +116,7 @@ person who made the claim", for the cases where that is worth showing.
 | id | uuid PK | |
 | x_user_id | text NOT NULL | the immutable numeric id, never the handle (INIT_SPEC §3) |
 | wallet_family | text NOT NULL | CHECK `evm` for now; a second family is a second verification path, not a column value |
-| address | text NOT NULL | checksummed, as the signature recovered it |
+| address | text NOT NULL | checksummed for display; compared and made unique on its lower-case form, so one wallet cannot hold two identities by case alone |
 | verified_at | timestamptz NOT NULL | when the signature checked out |
 | revoked_at | timestamptz null | when the link ended; the row is never deleted |
 
@@ -122,6 +126,24 @@ addresses, because people have several wallets. Revoking sets `revoked_at`; re-l
 so every link keeps its validity period and a stake placed last year still resolves to whoever was linked
 *then*.
 
+## `wallet_link_challenges`
+
+The code in the link flow cannot live in memory: a restart between the reply and the signature would either
+lose the flow or let a used code be replayed.
+
+| Column | Type | Notes |
+|---|---|---|
+| id | uuid PK | |
+| code_hash | text NOT NULL UNIQUE | the code itself is never stored, only its hash |
+| x_user_id | text null | set when a reply binds the code to an account; null until then |
+| session_hash | text null | binds the browser that asked for it, so another tab cannot finish the flow |
+| expires_at | timestamptz NOT NULL | short-lived; an expired code is refused, never refreshed |
+| consumed_at | timestamptz null | single use, enforced here rather than by deleting the row |
+| created_at | timestamptz NOT NULL DEFAULT now() | |
+
+Neither this table nor `wallet_links` gets a `status_ro` policy: an X account tied to an address is the one
+piece of this feature worth protecting, and the status page has no use for it.
+
 **The contract never sees any of this.** It knows two addresses and a claim hash. Authorship is checked
 off-chain, where it can be changed without a redeployment.
 
@@ -130,19 +152,25 @@ off-chain, where it can be changed without a redeployment.
 ```
 Node service      → owner role → read/write everything (unchanged)
 status service    → status_ro   → SELECT only
-settlement worker → owner role → settlement_outbox only; holds the signing key and nothing else
+settlement worker → settle_rw   → settlement_outbox: SELECT + UPDATE, no INSERT, nothing else
 verifier          → no database at all
 ```
 
-`status_ro` is created once by hand on Supabase (roles are cluster-level and need a password, which must not
-reach git).
+`status_ro` and `settle_rw` are created once by hand on Supabase (roles are cluster-level and need a
+password, which must not reach git). "Owner role, this table only" is not a restriction at all — the owner
+bypasses RLS — so the worker gets its own role with SELECT and UPDATE on `settlement_outbox` and no INSERT:
+the Node service writes the row, the worker sends it and writes the result back.
+
+**One name for one wager.** The worker settles by `claim_id` → the claim's slug hash, which is the
+`claimHash` the contract was opened with. That mapping is computed in one place and nowhere else, so the
+worker cannot settle a wager other than the one its row names.
 
 **A grant alone is not enough.** RLS is enabled with no policies on every table (`drizzle/0002_rls.sql`), and
 that is what keeps Supabase's public API from seeing anything. The owner role bypasses RLS; `status_ro` does
 not, so without a policy it reads zero rows from every table and the page renders empty. Each table the page
 reads therefore gets one policy — `FOR SELECT TO status_ro USING (true)` — alongside the grant: `job_state`,
-`claims`, `resolutions`, `cost_events`, `feed_posts`, `settlement_outbox` and `wallet_links` from Stage 2,
-and `verifier_shadow` from Stage 3. The anon and
+`claims`, `resolutions`, `cost_events`, `feed_posts` and `settlement_outbox` from Stage 2 — never
+`wallet_links` or `wallet_link_challenges` — and `verifier_shadow` from Stage 3. The anon and
 authenticated roles stay with no policy at all, so the public API still sees nothing.
 
 ## Migrations
@@ -151,6 +179,9 @@ authenticated roles stay with no policy at all, so the public API still sees not
 |---|---|
 | `drizzle/0017_job_state.sql` | `job_state`, RLS on, the `status_ro` SELECT policy, a down migration |
 | `drizzle/0018_status_policies.sql` | SELECT policies for `status_ro` on the existing tables the page reads |
-| `drizzle/0019_verifier.sql` | `verifier_shadow` with its append-only trigger and policy, the two `resolutions` columns |
-| `drizzle/0020_settlement.sql` | `settlement_outbox` with its unique key and policy |
-| `drizzle/0021_wallet_links.sql` | `wallet_links`, the partial unique index on an active address, its policy |
+| `drizzle/0019_settlement.sql` | `settlement_outbox`, the `settle_rw` role's policies, its unique key |
+| `drizzle/0020_wallet_links.sql` | `wallet_links` and `wallet_link_challenges`, the partial unique index on an active address |
+| `drizzle/0021_verifier.sql` | `verifier_shadow` with its append-only trigger and policy, the two `resolutions` columns |
+
+Numbered in deploy order, not in the order the tables were designed: Stage 2 ships before Stage 3, so the
+settlement migrations come first and the verifier's cannot be dragged in by a Stage 2 deployment.

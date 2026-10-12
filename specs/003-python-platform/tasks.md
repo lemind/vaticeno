@@ -38,12 +38,12 @@ else. ~55% coverage is a cap, not a floor.
 
 - [ ] T305 Migration `drizzle/0017_job_state.sql` + `src/db/schema.ts` per data-model.md, including the `status_ro` SELECT policy; apply locally, then Supabase
 - [ ] T306 `runJob` in `src/jobs/scheduler.ts` writes `job_state`; a lock skip writes `last_locked_at` only (FR-001, FR-020)
-- [ ] T307 `stale_after_seconds` per job beside `SCHEDULES`, overwritten on startup; seed all eight rows (FR-001, SC-002)
+- [ ] T307 `stale_after_seconds` per job beside `SCHEDULES`, overwritten on startup; seed one row per job — `SCHEDULES` in `src/jobs/scheduler.ts` is the only list, nine jobs as of 2026-10-12 (FR-001, SC-002)
 - [ ] T308 `deploy/deploy.sh` writes `.build-info.json` on the server after the rsync — commit SHA, deploy time, `node --version`. Build info only; the units install with the tasks that create them (FR-002)
 - [ ] T309 `deploy/status-role.md` (`CREATE ROLE` + `GRANT SELECT`, run once by hand) and migration `drizzle/0018_status_policies.sql` — RLS is on with no policies, so a grant alone returns zero rows. `DATABASE_URL_RO` empty in `.env.example` (FR-003)
 - [ ] T310 [P] Test `tests/integration/job-state.test.ts`: success, failure with its tag, lock skip leaves the outcome untouched, never-run
 
-**Checkpoint**: all eight jobs report state; the deploy records what it deployed.
+**Checkpoint**: every job in `SCHEDULES` reports state; the deploy records what it deployed.
 
 ## Phase 3: US1 — the status page (P1) 🎯 MVP
 
@@ -96,26 +96,26 @@ the timeout window.
 ### The contract
 
 - [ ] T327 [US4] Contract toolchain and `contracts/` skeleton; **one network and one stake token**, its testnet RPC and chain id in `.env.example`, no key in git (FR-022, FR-036)
-- [ ] T328 [US4] `contracts/src/Escrow.sol`: `open`, `accept`, `settle`, `void`, `refund`, `expire`; equal stakes, per-stake cap, a fee ceiling and a fixed recipient, a settlement time stored with the verdict, payout callable by anyone after it, a timeout refund anyone can trigger, **no withdrawal path** (FR-023, FR-024, FR-026, FR-030, FR-031b, FR-031f)
-- [ ] T328a [US4] `void` in `contracts/src/Escrow.sol`: callable by the oracle address only, only while the settlement window is open, refunds each side its own stake and has no branch that pays either party, the operator or a fee. Void and the timeout refund are separate transitions (FR-031c, FR-031d)
-- [ ] T329 [US4] Contract tests: every branch of settle, void, refund and expire; a second settle rejected; payout refused before the window and accepted from an unrelated address after it; a void inside the window refunding both and paying nobody; a void after it refused; an unmatched stake recovered by its maker; and a test that tries and fails to move staked funds (SC-013, SC-014, SC-018)
+- [ ] T328 [US4] `contracts/src/Escrow.sol`: `open`, `accept`, `settle`, `payout`, `void`, `refund`, `expire`. `settle` records the verdict and starts the hold and pays nobody; `payout` is the separate, permissionless transition after the hold, or the hold means nothing. One open wager per claim hash, which is what the outbox's unique key assumes. Equal stakes, per-stake cap, a fee ceiling and a fixed recipient — **set to zero in the testnet deployment and fixed at deployment**, so turning fees on is a new deployment and a new decision, never a setting. A timeout refund anyone can trigger, and **no withdrawal path** (FR-023, FR-024, FR-026, FR-030, FR-031b, FR-031f)
+- [ ] T328a [US4] Three paths refund and none of them charges a fee or can pay twice: a verdict of VOID, which settles to refunds like any other verdict; the operator's `void` lever, callable by the oracle address only and only while the hold is open; and the timeout refund when nobody settles at all. The lever has no branch that pays either party, the operator or a fee, and all three are separate transitions from `payout` (FR-031c, FR-031d)
+- [ ] T329 [US4] Contract tests on a local EVM with time advanced, so nothing waits days: every branch of settle, payout, void, refund and expire; a second settle and a second payout rejected; payout refused before the hold and accepted from an unrelated address after it; a VOID verdict, the operator's lever inside the hold and the timeout refund each returning both stakes with no fee taken; the lever after the hold refused; an unmatched stake recovered by its maker; `open` without a valid authorization refused; and a test that tries and fails to move staked funds (SC-013, SC-014, SC-018)
 - [ ] T330 [US4] Deploy to the testnet with the source verified publicly; record the address in `.env.example` and on the status page (FR-029)
 
 ### The settlement path
 
-- [ ] T331 [US4] Migration `drizzle/0020_settlement.sql` + `src/db/schema.ts` per data-model.md: `settlement_outbox` with its `status_ro` policy
+- [ ] T331 [US4] Migration `drizzle/0019_settlement.sql` + `src/db/schema.ts` per data-model.md: `settlement_outbox`, its `status_ro` SELECT policy, and the `settle_rw` policies — SELECT and UPDATE only, no INSERT, so the worker cannot invent a payout; the role itself is created by hand like `status_ro` (`deploy/status-role.md`)
 - [ ] T332 [US4] `src/resolve/resolver.ts` writes an outbox row when a verdict is final and a stake exists; no chain call from Node (FR-027)
 - [ ] T333 [US4] `settle/worker.py`: poll the outbox, read on-chain state first, sign, send, record the transaction; its own systemd unit, the key readable by its own system user alone and nothing else in the process. It builds the transaction from the claim and verdict rather than signing a payload from the table, and checks state, destination, amount, chain id, contract address and prior settlement before signing (FR-025, FR-028, FR-028a)
 - [ ] T334 [US4] Test `tests/integration/settlement-outbox.test.ts`: a final verdict with no stake writes nothing; a replayed row sends nothing twice (FR-026)
 - [ ] T335 [US4] Status page: outbox pending / sent / failed, the contract address, the chain (FR-029)
 - [ ] T336 [US4] The fast path never settles: a verdict decided by the local verifier alone does not produce an outbox row (FR-031)
-- [ ] T336a [US4] Only price-feed claims can be staked: the contract refuses a stake on any other claim, the page never offers one, and the outbox refuses to write one. Tested by trying on a model-judged claim (FR-031a, SC-017)
+- [ ] T336a [US4] Only price-feed claims can be staked, enforced where each layer can actually see it: the page never offers one and the outbox refuses to write one, both of which read the locked contract's resolution method. A `claimHash` tells the contract nothing about the claim, so `open` takes an authorization signed by the oracle naming that hash — eligibility is decided off-chain and proved on-chain, rather than claimed of a contract that cannot inspect it. Tested by trying on a model-judged claim, and by calling `open` with no authorization (FR-031a, SC-017)
 - [ ] T337 [US4] End to end on the testnet — open, accept, deadline, verdict, payout — then VOID, then the timeout refund with the worker stopped (SC-010, SC-011, SC-012)
 
 ### Linking a wallet, optional
 
-- [ ] T338 [US4] Migration `drizzle/0021_wallet_links.sql` + `src/db/schema.ts` per data-model.md: `wallet_links`, partial unique index on an active address, `status_ro` policy (FR-032)
-- [ ] T339 [US4] The link flow: a page issues a single-use code, the bot verifies the code's reply through the API and binds the numeric author id, the page **shows that account and requires a confirm**, then takes the signature privately; a code returned by any other account is discarded (FR-033, FR-034, FR-035)
+- [ ] T338 [US4] Migration `drizzle/0020_wallet_links.sql` + `src/db/schema.ts` per data-model.md: `wallet_links` and `wallet_link_challenges`; the partial unique index on an active address built on its lower-case form; no `status_ro` policy on either, since the page never shows an account tied to an address (FR-032)
+- [ ] T339 [US4] The link flow, with the code's state in `wallet_link_challenges` and never in memory: the page issues a single-use code (hash, browser binding and expiry stored), the bot verifies the code's reply through the API and binds the numeric author id, the page **shows that account and requires a confirm**, then takes the signature privately and marks the code consumed. A code returned by any other account is discarded; an expired or consumed code is refused, never refreshed; a restart loses nothing (FR-033, FR-034, FR-035)
 - [ ] T340 [US4] Test: a link is written only when both halves check out; a code returned by a different account writes nothing; revoking leaves the row and its period intact; a stake opens and settles with no link at all (SC-015, SC-016)
 
 **Checkpoint**: a verdict settles a contract on a testnet, and money cannot be stuck: the timeout refund works with nothing of ours running.
@@ -147,7 +147,7 @@ binary-options bans, and says a new name does not avoid them (FR-031h).
 
 ### Shadow
 
-- [ ] T345 [US3] Migration `drizzle/0019_verifier.sql` + `src/db/schema.ts` per data-model.md: `verifier_shadow` with its append-only trigger and its `status_ro` policy, the two `resolutions` columns (FR-015, FR-016)
+- [ ] T345 [US3] Migration `drizzle/0021_verifier.sql` + `src/db/schema.ts` per data-model.md: `verifier_shadow` with its append-only trigger and its `status_ro` policy, the two `resolutions` columns (FR-015, FR-016)
 - [ ] T346 [US3] `verifier/serve/app.py`: one endpoint, no database, `127.0.0.1:3002`; `deploy/vaticeno-verifier.service` + its install line (FR-020)
 - [ ] T347 [US3] `src/resolve/verifier.ts`: one localhost call with a hard timeout, Zod-parsed, "no opinion" on any failure — timeout, refusal, malformed answer or nothing listening all take the paid path (FR-012, FR-012a)
 - [ ] T348 [US3] Shadow mode in `src/resolve/resolver.ts`: ask, **ignore**, record one row per attempt — what the gate would have concluded, beside what the paid model did; `VERIFIER_URL` and `VERIFIER_MODE` (`off|shadow|live`, default `off`) in `src/config.ts`

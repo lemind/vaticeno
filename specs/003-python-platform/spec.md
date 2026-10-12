@@ -265,6 +265,11 @@ with VOID, and the same with the worker switched off for the whole timeout windo
   shares nothing with the Node service but the database. A second runtime is a departure from
   constitution VII ("Boring by Design", microservices deliberately absent) and needs an owner decision
   recorded alongside the amendment, as the own-feed work did for VI.
+- **FR-020a**: Every process whose silence matters reports that it is alive, not only what it did: the
+  settlement worker writes a heartbeat even with an empty queue, and a verifier call that timed out or came
+  back malformed is recorded as a failed call rather than as no call at all. Each of the three roles that
+  reach the database has only the rights its job needs; "the owner role, this table only" is not a
+  restriction, because the owner bypasses row-level security (review 2026-10-12).
 - **FR-021**: The Python side has its own tests, run in CI alongside the existing suite. The verifier's
   gate is exhaustively tested, like the other gates and the resolver; the status page is not (project rule:
   ~55% coverage is a cap, not a floor).
@@ -300,13 +305,19 @@ with VOID, and the same with the worker switched off for the whole timeout windo
 - **FR-031**: A verdict decided by the local verifier alone never settles a stake. Anything with value
   attached is decided by the paid model or a human.
 - **FR-031a**: Only a claim whose resolution method is the price feed may carry a stake (owner decision
-  2026-10-09). A price claim is decided by one number from the source the locked contract names, so a
+  2026-10-09). Eligibility is decided off-chain, where the locked contract can be read, and proved on-chain:
+  a stake cannot be opened without an authorization signed by the oracle for that claim hash. A hash alone
+  tells the contract nothing about the claim, so without that signature the rule would hold only for stakes
+  opened through our own page (review 2026-10-12). A price claim is decided by one number from the source the locked contract names, so a
   dispute is "was the right number read", answerable from the stored evidence in a minute. A model-judged
   claim is an argument about which source counts and what the evidence means, and that argument is not one
   to have with someone's money on it. Model-judged claims stay free to record and judge, as today.
-- **FR-031b**: A stake is never paid out at the moment the verdict is written. The contract stores a
-  settlement time with the verdict and refuses to pay before it; after it, the payout is callable by
-  **anyone**, so finality does not depend on the operator being online. The window is a fixed number of
+- **FR-031b**: A stake is never paid out at the moment the verdict is written. Recording the verdict and
+  paying are separate transitions: the first stores a settlement time and pays nobody, and after that time
+  the payout is callable by **anyone**, so finality does not depend on the operator being online. A fee is
+  fixed at deployment and set to zero on the testnet, so charging one later is a new deployment and a new
+  decision, not a setting; no refund path — a VOID verdict, the operator's void or the timeout — ever
+  charges one. The window is a fixed number of
   hours in the contract, not a policy anyone can change per stake.
 - **FR-031c**: During that window, and only then, the oracle address may **void** a stake: both parties
   are refunded their own stake and nothing else happens. The function cannot pay either side, cannot pay
@@ -408,7 +419,8 @@ with VOID, and the same with the worker switched off for the whole timeout windo
   critical path.
 - **SC-016**: A code returned by an account other than the one it was issued to never produces a link, and
   the attempt is visible.
-- **SC-017**: A stake on a model-judged claim is impossible to create, proved by trying.
+- **SC-017**: A stake on a model-judged claim is impossible to create, proved by trying: refused by the
+  page, refused by the outbox, and refused by the contract, which has no authorization for it.
 - **SC-018**: On the testnet run, the payout cannot be pulled early and can be pulled by a third address
   after the window; a void inside the window refunds both and pays nobody; a void after it is refused.
 - **SC-019**: Every item in FR-031f is answered in writing before the contract is deployed anywhere, test
