@@ -11,10 +11,10 @@ const draft = (overrides: Partial<EvidenceDraft> = {}): EvidenceDraft => ({
   quoteFound: true, isFinalResult: true, originalSource: null, simhash: null, eventMatch: 'yes', ...overrides,
 });
 
-const gate = (d: EvidenceDraft, accepted: EvidenceDraft[] = [], w = window) => runGates(d, w, accepted);
+const gate = (d: EvidenceDraft, w = window) => runGates(d, w);
 
 test('a clean record passes every gate', () => {
-  assert.deepEqual(gate(draft()), { gates: { trusted: true, quote_found: true, in_window: true, final: true, independent: true, relevant: true }, passed: true });
+  assert.deepEqual(gate(draft()), { gates: { trusted: true, quote_found: true, in_window: true, final: true, independent: null, relevant: true }, passed: true });
 });
 
 test('each gate fails on its own', () => {
@@ -39,7 +39,7 @@ test('window boundaries: the lock day never counts; the deadline day does; the d
 
 test('a match with a start time counts if it began after the claim was set (lock − 15 min), even on the lock day', () => {
   // lock 12:00 → contract last set 11:45
-  const sports = (d: Partial<EvidenceDraft>) => runGates(draft(d), { ...window, startTimeCounts: true }, []).gates.in_window;
+  const sports = (d: Partial<EvidenceDraft>) => runGates(draft(d), { ...window, startTimeCounts: true }).gates.in_window;
   assert.equal(sports({ eventDate: '2026-10-01', eventStart: '2026-10-01T11:55:00Z' }), true, 'kickoff 10 min after recording');
   assert.equal(sports({ eventDate: '2026-10-01', eventStart: '2026-10-01T11:40:00Z' }), false, 'began before the claim was set');
   assert.equal(sports({ eventDate: '2027-05-31', eventStart: '2027-06-01T00:15:00Z' }), false, 'began after the deadline');
@@ -52,12 +52,12 @@ test('a match with a start time counts if it began after the claim was set (lock
 test('absence evidence: only from the contract\'s own exhaustive (primary) source, read at or after the deadline, and only as a miss', () => {
   const absence = draft({ basis: 'absence', says: 'miss', eventDate: null, quoteFound: null });
   const exhaustive = { ...window, absenceIsMeaningful: true };
-  assert.deepEqual(gate(absence, [], exhaustive).gates, { trusted: true, quote_found: null, in_window: true, final: true, independent: true, relevant: true });
-  assert.equal(gate(absence, [], window).gates.in_window, false, 'source not exhaustive');
-  assert.equal(gate(draft({ ...absence, retrievedAt: new Date('2027-05-31T23:59:58Z') }), [], exhaustive).gates.in_window, false, 'read before the deadline');
-  assert.equal(gate(draft({ ...absence, retrievedAt: new Date('2027-05-31T23:59:59Z') }), [], exhaustive).gates.in_window, true, 'read exactly at the deadline');
-  assert.equal(gate(draft({ ...absence, says: 'hit' }), [], exhaustive).gates.in_window, false);
-  assert.equal(gate(draft({ ...absence, trustLevel: 'established' }), [], exhaustive).gates.in_window, false, 'not the contract source');
+  assert.deepEqual(gate(absence, exhaustive).gates, { trusted: true, quote_found: null, in_window: true, final: true, independent: null, relevant: true });
+  assert.equal(gate(absence, window).gates.in_window, false, 'source not exhaustive');
+  assert.equal(gate(draft({ ...absence, retrievedAt: new Date('2027-05-31T23:59:58Z') }), exhaustive).gates.in_window, false, 'read before the deadline');
+  assert.equal(gate(draft({ ...absence, retrievedAt: new Date('2027-05-31T23:59:59Z') }), exhaustive).gates.in_window, true, 'read exactly at the deadline');
+  assert.equal(gate(draft({ ...absence, says: 'hit' }), exhaustive).gates.in_window, false);
+  assert.equal(gate(draft({ ...absence, trustLevel: 'established' }), exhaustive).gates.in_window, false, 'not the contract source');
 });
 
 test('price feed evidence skips the quote and independence gates', () => {
@@ -71,13 +71,6 @@ test('entity_gone and irrelevant answers can pass the gates; the decision rules 
   assert.equal(gate(draft({ says: 'entity_gone' })).passed, true);
 });
 
-test('independence: same site, near-identical page, or same original report count once', () => {
-  const first = draft({ url: 'https://www.bbc.co.uk/sport/a', originalSource: 'AP', simhash: simhash(STORY) });
-  assert.equal(gate(draft({ url: 'https://news.bbc.co.uk/b' }), [first]).gates.independent, false, 'same registrable domain');
-  assert.equal(gate(draft({ url: 'https://espn.com/x', originalSource: 'ap ' }), [first]).gates.independent, false, 'same wire story');
-  assert.equal(gate(draft({ url: 'https://espn.com/x', simhash: simhash(STORY + ' Updated.') }), [first]).gates.independent, false, 'near-identical text');
-  assert.equal(gate(draft({ url: 'https://espn.com/x', simhash: simhash(OTHER) }), [first]).gates.independent, true);
-});
 
 test('quote check is whitespace, case and quote-mark insensitive, and refuses tiny quotes', () => {
   assert.equal(quoteInText('Arsenal  are Champions', 'Final whistle: arsenal are champions of England.'), true);

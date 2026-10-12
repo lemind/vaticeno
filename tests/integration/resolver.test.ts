@@ -358,6 +358,30 @@ describe('a page must be about the contract\'s own event (004 FR-002, FR-003)', 
     assert.equal(resolution!.deciding_evidence_id, by(EXACT).id);
   });
 
+  test('the same pages in reverse order reach the same verdict (SC-002)', async () => {
+    const claim = await lockedClaim(RACE_CONTRACT);
+    const { deps: d } = deps({ search: [OUTLET, EXACT, LANDING], pages });
+    assert.equal((await resolveDueClaims(d, AFTER)).final, 1);
+    const resolution = await resolutionRow(claim.id);
+    assert.equal(resolution!.outcome, 'hit', 'the verdict no longer depends on which page was read first');
+    const [deciding] = await t.sql`select url from evidences where id = ${resolution!.deciding_evidence_id}`;
+    assert.equal(deciding!.url, EXACT);
+  });
+
+  test('two pages of the official record that disagree go to the arbiter, not to whichever won (FR-008a)', async () => {
+    const claim = await lockedClaim(RACE_CONTRACT);
+    const other = 'https://racing.hkjc.com/resultsall?racedate=2026/10/04&alt';
+    const conflicting = {
+      ...pages,
+      [other]: { says: 'miss', quote: 'Sunny Q was unplaced in Race 2', event_date: '2026-10-04', text: 'Sunny Q was unplaced in Race 2', identity: { date: '2026-10-04', competition: 'Sha Tin', round: 'Race 2', venue: 'Sha Tin', participants: ['Sunny Q'] } },
+    };
+    const { deps: d } = deps({ search: [EXACT, other], pages: conflicting });
+    const run = await resolveDueClaims(d, AFTER);
+    assert.deepEqual([run.final, run.needs_human], [0, 1], 'the arbiter could not decide, so a human is asked');
+    const rows = await t.sql`select url, passed from evidences where claim_id = ${claim.id} and passed = true order by url`;
+    assert.equal(rows.length, 2, 'neither page was dropped to make the conflict go away');
+  });
+
   test('a claim whose contract names no round or day is judged as before', async () => {
     const claim = await lockedClaim(WEB_CONTRACT);
     const url = 'https://www.fda.gov/approvals/x';

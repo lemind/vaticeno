@@ -100,7 +100,7 @@ export async function resolveClaim(deps: ResolverDeps, claim: ClaimRow, now: Dat
   try {
     if (contract.resolution_method === 'price_feed' && contract.price) {
       const { draft, value, contentSha256 } = await gatherPriceEvidence(deps.coinbase, contract.price, window, now);
-      const { gates, passed } = runGates(draft, { ...window, absenceIsMeaningful: false }, []);
+      const { gates, passed } = runGates(draft, { ...window, absenceIsMeaningful: false });
       items = [{ draft, gates, passed, value, sourceName: 'coinbase', trustReason: null, contentSha256, searchQuery: null, modelId: null, instructionVersion: null, pageText: '' }];
     } else {
       items = await gatherWebEvidence(deps, contract, window, now, await knownSources(db), costs);

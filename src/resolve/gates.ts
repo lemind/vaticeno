@@ -1,8 +1,7 @@
 // Evidence gates (data-model "Evidence gates"). Model flags are inputs, never the final word. Pure.
 import type { EVIDENCE_BASES, EVIDENCE_SAYS, SOURCE_KINDS } from '../db/schema.js';
-import { nearDuplicate } from './similarity.js';
 import type { EventMatch } from './relevance.js';
-import { hostOf, registrableDomain, type TrustLevel } from './trust.js';
+import type { TrustLevel } from './trust.js';
 
 export type EvidenceDraft = {
   sourceKind: (typeof SOURCE_KINDS)[number];
@@ -28,14 +27,16 @@ const CONTRACT_SET_BEFORE_LOCK_MS = 15 * 60 * 1000;
 
 export type Window = { lockAt: Date; deadlineAt: Date; absenceIsMeaningful: boolean; startTimeCounts?: boolean };
 
-export function runGates(draft: EvidenceDraft, window: Window, accepted: readonly EvidenceDraft[]): { gates: Gates; passed: boolean } {
+export function runGates(draft: EvidenceDraft, window: Window): { gates: Gates; passed: boolean } {
   const isPrice = draft.sourceKind === 'price_feed';
   const gates: Gates = {
     trusted: draft.trustLevel !== 'weak',
     quote_found: isPrice || draft.basis === 'absence' ? null : draft.quoteFound === true,
     in_window: inWindow(draft, window),
     final: draft.isFinalResult && draft.says !== 'pending',
-    independent: isPrice ? null : !accepted.some((other) => sameStory(draft, other)),
+    // Decided after every page is judged, in groups.ts: a page cannot be ranked against the others while
+    // they are still being read, which is what let the first page of a site win (004 FR-005).
+    independent: null,
     // A page about another event decides nothing, and one that will not say which event it shows is not
     // taken for ours: unknown fails closed (004 FR-003). What it said is still stored.
     relevant: isPrice ? null : draft.eventMatch !== 'no' && draft.eventMatch !== 'unknown',
@@ -71,13 +72,3 @@ function nearDate(startMs: number, eventDate: string): boolean {
   return startMs >= day - DAY_MS && startMs < day + 2 * DAY_MS;
 }
 const DAY_MS = 24 * 60 * 60 * 1000;
-
-// Copies count once: same site, a near-identical page, or the same original report (e.g. one AP story).
-function sameStory(a: EvidenceDraft, b: EvidenceDraft): boolean {
-  const hostA = a.url ? hostOf(a.url) : null;
-  const hostB = b.url ? hostOf(b.url) : null;
-  if (hostA && hostB && registrableDomain(hostA) === registrableDomain(hostB)) return true;
-  if (nearDuplicate(a.simhash, b.simhash)) return true;
-  const origin = (s: string | null) => s?.trim().toLowerCase() || null;
-  return !!origin(a.originalSource) && origin(a.originalSource) === origin(b.originalSource);
-}

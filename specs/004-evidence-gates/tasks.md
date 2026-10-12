@@ -40,12 +40,12 @@ race-specific page can.
 
 **Independent test**: the same candidates judged in reverse order reach the same verdict.
 
-- [ ] T406 [US2] `src/resolve/groups.ts` — pure: group by site, near-duplicate text and credited origin; representative by event match, then completeness, then finality, then trust, never by what the page says (FR-005, FR-006)
-- [ ] T407 [US2] `src/resolve/gates.ts` and `src/resolve/web-evidence.ts`: `independent` and `sameStory` leave the per-page gate; judge all, gate all, then group (FR-005)
-- [ ] T408 [US2] Two pages of one site that both match the event and disagree send the resolution to the arbiter: a conflict inside a group is never hidden by picking a representative (FR-006, FR-008a)
-- [ ] T409 [US2] Tests: the reversed-order run, the racing group choosing the race-specific page, a wire story still counting once (SC-002)
+- [x] T406 **Done 2026-10-12.** [US2] `src/resolve/groups.ts` — pure: group by site, near-duplicate text and credited origin; representative by event match, then completeness, then finality, then trust, never by what the page says (FR-005, FR-006) `independenceOf` ranks by match, then detail, then trust, with the url as a deterministic last resort.
+- [x] T407 **Done 2026-10-12.** [US2] `src/resolve/gates.ts` and `src/resolve/web-evidence.ts`: `independent` and `sameStory` leave the per-page gate; judge all, gate all, then group (FR-005) `runGates` now leaves `independent` unassessed (null) and `groupPassed` decides it over the pages that passed.
+- [x] T408 **Done 2026-10-12.** [US2] Two pages of one site that both match the event and disagree send the resolution to the arbiter: a conflict inside a group is never hidden by picking a representative (FR-006, FR-008a) Widened while testing: a disagreement escalates wherever both pages were placed, including contracts with nothing to match, which is most of them. A page that could not be placed never escalates anything.
+- [x] T409 **Done 2026-10-12.** [US2] Tests: the reversed-order run, the racing group choosing the race-specific page, a wire story still counting once (SC-002) 8 grouping tests and two integration tests: the racing run reversed reaches the same HIT, and two conflicting official pages both survive to the arbiter. 125 unit + 151 integration pass.
 
-**Checkpoint**: no verdict depends on judging order.
+**Checkpoint**: no verdict depends on judging order — proved by replaying the racing run with its pages reversed, and by three order-independence tests over the grouping rule.
 
 ## Phase 3: US3 and US4 — silence, and self-contradiction (P2)
 

@@ -166,8 +166,10 @@ was discarded for another reason, so it did no harm this time.
   empty, so the case cannot arise yet, and escalating a case that cannot occur is speculative machinery
   (review 2026-10-12). If the log shows it happening, that is the moment to decide, with the case in hand.
 - **FR-008a**: Grouping MUST NOT hide a disagreement inside a source. One representative per group counts
-  toward corroboration, but where two pages of one group both match the event and disagree about the
-  outcome, the resolution goes to the arbiter rather than the inconvenient page being dropped (FR-006).
+  toward corroboration, but where two pages of one group were both placed and disagree about the outcome,
+  the resolution goes to the arbiter rather than the inconvenient page being dropped (FR-006). Placed means
+  the page matched the contract's event, or the contract named nothing to match it against — which is most
+  claims, and a quiet place for the same mistake. A page that could not be placed escalates nothing.
 - **FR-009**: Where a page states a structured outcome and its event identity is verified, that page's
   verdict MUST be computed in code from the outcome and the locked criterion. A judgement whose own stated
   result contradicts its HIT or MISS MUST NOT count, and MUST be reported.

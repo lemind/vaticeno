@@ -8,6 +8,7 @@ import { log } from '../log.js';
 import { type PageFetcher, SourceUnavailable } from './fetch.js';
 import { settles } from './decide.js';
 import { type EvidenceDraft, type Gates, runGates } from './gates.js';
+import { type GroupFacts, independenceOf } from './groups.js';
 import { contractEventKey, type EventIdentity, matchEvent } from './relevance.js';
 import { capTrust, hostOf, registrableDomain } from './trust.js';
 
@@ -108,14 +109,10 @@ export async function gatherWebEvidence(
     }
   }
 
-  // Gate the strongest sources first, so a primary page wins the independence check over its copies.
-  judged.sort((a, b) => TRUST_ORDER[a.draft.trustLevel] - TRUST_ORDER[b.draft.trustLevel]);
-  const accepted: EvidenceDraft[] = [];
-  const items: GatheredItem[] = judged.map((item) => {
-    const { gates, passed } = runGates(item.draft, { ...window, absenceIsMeaningful: contract.source.absence_is_meaningful, startTimeCounts: SCHEDULED_EVENT_KINDS.includes(contract.source.kind) }, accepted);
-    if (passed) accepted.push(item.draft);
-    return { ...item, gates, passed };
-  });
+  // Each page on its own merits first (004 FR-005); which of them speaks for its source comes after.
+  const gateWindow = { ...window, absenceIsMeaningful: contract.source.absence_is_meaningful, startTimeCounts: SCHEDULED_EVENT_KINDS.includes(contract.source.kind) };
+  const gated: GatheredItem[] = judged.map((item) => ({ ...item, ...runGates(item.draft, gateWindow) }));
+  const items: GatheredItem[] = groupPassed(gated);
 
   // Never "nothing found" when we did not really look (constitution III): a timeout that might have held
   // the answer, or not a single page read although there were pages to read, is an outage.
@@ -127,6 +124,30 @@ export async function gatherWebEvidence(
   // An empty search still writes one row, so "nothing found" runs can be counted (data-model evidences.run_at).
   if (items.length === 0) items.push(emptySearchItem(searchQuery, now));
   return items;
+}
+
+// Independence over the pages that passed: one witness per source, the best placed of its pages, and both
+// sides kept when two placed pages of one source disagree (004 FR-006, FR-008a).
+function groupPassed(gated: readonly GatheredItem[]): GatheredItem[] {
+  const passedIndexes = gated.flatMap((item, index) => (item.passed && item.draft.sourceKind === 'web' ? [index] : []));
+  const independent = independenceOf(passedIndexes.map((index) => facts(gated[index]!)));
+  return gated.map((item, index) => {
+    const at = passedIndexes.indexOf(index);
+    if (at === -1) return item; // failed another gate, or a price feed: independence was never reached
+    const ok = independent[at]!;
+    return { ...item, gates: { ...item.gates, independent: ok }, passed: ok };
+  });
+}
+
+// How much a page pins down, which is what breaks a tie between pages of one source — never what it says.
+function facts(item: GatheredItem): GroupFacts {
+  const identity = item.eventIdentity;
+  const detail = (item.resultSummary ? 1 : 0) + (item.draft.eventDate ? 1 : 0) +
+    (identity ? [identity.date, identity.competition, identity.round, identity.venue, identity.participants?.length].filter(Boolean).length : 0);
+  return {
+    url: item.draft.url, simhash: item.draft.simhash, originalSource: item.draft.originalSource,
+    trustLevel: item.draft.trustLevel, eventMatch: item.draft.eventMatch, says: item.draft.says, detail,
+  };
 }
 
 function emptySearchItem(searchQuery: string | null, now: Date): GatheredItem {

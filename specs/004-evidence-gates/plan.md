@@ -64,7 +64,7 @@ judge.
 |---|---|
 | `src/llm/instructions/judge.v5.md` | new: event identity, finality redefined, result unchanged |
 | `src/llm/judges.ts` | `JUDGE_VERSION`, the v5 schema, v4 and earlier read as before |
-| `src/resolve/gates.ts` | `relevant` gate; `independent` and `sameStory` move out; absence admission tightened |
+| `src/resolve/gates.ts` | `relevant` gate; `independent` left unassessed and `sameStory` moved to groups.ts; absence admission tightened |
 | `src/resolve/relevance.ts` | new, pure: the contract's event key, and match yes/no/unknown |
 | `src/resolve/groups.ts` | new, pure: grouping and representative choice |
 | `src/resolve/exhaustive.ts` | new: the configured endpoints that may carry absence evidence |
