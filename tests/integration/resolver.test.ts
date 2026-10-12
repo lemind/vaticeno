@@ -6,6 +6,7 @@ import { SourceUnavailable } from '../../src/resolve/fetch.js';
 import { decideByHuman, listNeedsHuman } from '../../src/resolve/manual.js';
 import { type ResolverDeps, resolveDueClaims } from '../../src/resolve/resolver.js';
 import { recheckClaim, recheckRecent, writeCorrection } from '../../src/resolve/recheck.js';
+import type { EventIdentity } from '../../src/resolve/relevance.js';
 import { insertClaim, setupTestDb, type TestDb, VALID_CONTRACT } from './helpers.js';
 
 let t: TestDb;
@@ -31,7 +32,7 @@ function days(from: string, n: number, close: (i: number) => number): Candle[] {
   return Array.from({ length: n }, (_, i) => ({ day: new Date(start + i * 86400e3).toISOString().slice(0, 10), close: close(i) }));
 }
 
-type WebPage = { says: string; quote: string | null; event_date: string | null; text: string; trust?: 'primary' | 'established' | 'weak' };
+type WebPage = { says: string; quote: string | null; event_date: string | null; text: string; trust?: 'primary' | 'established' | 'weak'; identity?: EventIdentity };
 
 function deps(options: { candles?: Candle[] | 'outage'; search?: string[]; pages?: Record<string, WebPage>; down?: string[]; blocked?: string[]; badJudge?: string[]; arbiter?: 'malformed' } = {}) {
   const calls = { web: 0 };
@@ -52,7 +53,7 @@ function deps(options: { candles?: Candle[] | 'outage'; search?: string[]; pages
       if (options.badJudge?.includes(url)) throw new LlmSchemaError('bad judge json', [{ provider: 'gemini', operation: 'judge', units: 1, usdCost: 0.001 }]);
       const page = options.pages![url]!;
       return {
-        data: { says: page.says, basis: 'record', quote: page.quote, event_date: page.event_date, is_final_result: true, from_contract_source: false, source_trust: page.trust ?? 'primary', trust_reason: 'why', original_source: null, reasoning: 'r' },
+        data: { says: page.says, basis: 'record', quote: page.quote, event_date: page.event_date, event_identity: page.identity ?? null, is_final_result: true, from_contract_source: false, source_trust: page.trust ?? 'primary', trust_reason: 'why', original_source: null, reasoning: 'r' },
         costs: [{ provider: 'gemini' as const, operation: 'judge' as const, units: 1, usdCost: 0.001 }],
       };
     },
@@ -313,3 +314,58 @@ describe('rechecking a verdict already given (001 FR-035)', () => {
     assert.equal(await writeCorrection(t.db, claim.slug, { ...check, differs: false }, 'no'), false);
   });
 });
+
+describe('a page must be about the contract\'s own event (004 FR-002, FR-003)', () => {
+  // The live failure of 2026-10-12. Four pages, three of them the official record. The meeting landing page
+  // showed Race 1 and was judged "did not participate"; the page naming Race 2 was dropped for sharing its
+  // domain. The claim was published MISS for a horse that won.
+  const RACE_CONTRACT = {
+    ...WEB_CONTRACT,
+    criterion: 'Sunny Q wins Race 2 at Sha Tin on October 4, 2026',
+    source: { ...WEB_CONTRACT.source, name: 'HKJC', kind: 'sports_results', locator: 'https://racing.hkjc.com/results', entity_id: 'Sha Tin Race 2 2026-10-04' },
+  };
+  const LANDING = 'https://racing.hkjc.com/localresults';
+  const EXACT = 'https://racing.hkjc.com/resultsall?racedate=2026/10/04';
+  const OUTLET = 'https://www.sportinglife.com/racing/results/2026-10-04/sha-tin/kam-tin-handicap';
+
+  const pages = {
+    [LANDING]: { says: 'miss', quote: 'SHINYU KOKOROE', event_date: '2026-10-04', text: 'SHINYU KOKOROE won Race 1', identity: { date: '2026-10-04', competition: 'Sha Tin', round: 'Race 1', venue: 'Sha Tin', participants: ['SHINYU KOKOROE'] } },
+    [EXACT]: { says: 'hit', quote: 'Sunny Q won Race 2', event_date: '2026-10-04', text: 'Sunny Q won Race 2', identity: { date: '2026-10-04', competition: 'Sha Tin', round: 'Race 2', venue: 'Sha Tin', participants: ['Sunny Q'] } },
+    [OUTLET]: { says: 'hit', quote: 'Sunny Q won the Kam Tin Handicap', event_date: '2026-10-04', text: 'Sunny Q won the Kam Tin Handicap', trust: 'established' as const, identity: { date: '2026-10-04', competition: 'Sha Tin', round: null, venue: 'Sha Tin', participants: ['Sunny Q'] } },
+  };
+
+  test('the page showing another race decides nothing, and the right one settles it', async () => {
+    const claim = await lockedClaim(RACE_CONTRACT);
+    const { deps: d } = deps({ search: [LANDING, EXACT, OUTLET], pages });
+    assert.equal((await resolveDueClaims(d, AFTER)).final, 1);
+
+    const rows = await t.sql`select id, url, says, event_match, passed, gates from evidences where claim_id = ${claim.id} order by url`;
+    const by = (url: string) => rows.find((r) => r.url === url)!;
+    assert.equal(by(LANDING).event_match, 'no');
+    assert.equal(by(LANDING).passed, false, 'a Race 1 page cannot answer a Race 2 claim');
+    assert.equal(by(LANDING).says, 'miss', 'what it said is still stored, with the reason it did not count');
+    assert.equal(by(LANDING).gates.relevant, false);
+
+    assert.equal(by(EXACT).event_match, 'yes');
+    assert.equal(by(EXACT).passed, true, 'and it is no longer dropped as a copy of the page that beat it');
+
+    // The outlet named the race only by its title, so it cannot be placed: conservative, and not needed.
+    assert.equal(by(OUTLET).event_match, 'unknown');
+    assert.equal(by(OUTLET).passed, false);
+
+    const resolution = await resolutionRow(claim.id);
+    assert.equal(resolution!.outcome, 'hit', 'the verdict that was published as a MISS');
+    assert.equal(resolution!.deciding_evidence_id, by(EXACT).id);
+  });
+
+  test('a claim whose contract names no round or day is judged as before', async () => {
+    const claim = await lockedClaim(WEB_CONTRACT);
+    const url = 'https://www.fda.gov/approvals/x';
+    const { deps: d } = deps({ search: [url], pages: { [url]: { says: 'hit', quote: 'approved', event_date: '2026-10-03', text: 'approved' } } });
+    assert.equal((await resolveDueClaims(d, AFTER)).final, 1);
+    const [row] = await t.sql`select event_match, passed from evidences where claim_id = ${claim.id}`;
+    assert.equal(row!.event_match, 'not_applicable', 'nothing to compare: the judge\'s own answer stands');
+    assert.equal(row!.passed, true);
+  });
+});
+

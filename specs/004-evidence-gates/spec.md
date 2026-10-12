@@ -140,8 +140,12 @@ was discarded for another reason, so it did no harm this time.
   plus whatever of competition, round or race number, venue and participants the page states — alongside its
   result. Identity is what the page says, never a conclusion about the contract.
 - **FR-002**: Code, not the model, MUST decide whether a page's event is the contract's event, comparing what
-  can be compared: the date, and a round or race number where the contract names one. A model-reported match
-  is accepted only where nothing machine-comparable exists.
+  can be compared: the date and the round or race number. Only the source's **entity identifier** may demand
+  confirmation from a page — it is the field whose job is naming the event. A date in the criterion is
+  usually the deadline ("prints at 3.6% or lower on Oct 14 2026"), so requiring it would fail correct pages;
+  a round named only in the criterion may contradict a page but MUST NOT be demanded of it. Where the
+  contract names neither, the match is `not_applicable` and the judge's own answer stands — which is most
+  claims, and they MUST NOT start failing closed.
 - **FR-003**: A page whose event identity does not match, or cannot be determined, MUST count as irrelevant
   and MUST NOT produce HIT or MISS. Unknown fails closed.
 - **FR-004**: A page that does not list the claim's subject MUST NOT produce MISS unless that page is both
@@ -184,8 +188,8 @@ was discarded for another reason, so it did no harm this time.
 ### Key Entities
 
 - **Event identity**: what one page says about which event it describes — date, competition, round or race
-  number, venue, participants — plus whether code found it to match the contract's event: yes, no or unknown.
-  Stored with the evidence row.
+  number, venue, participants — plus whether code found it to match the contract's event: yes, no, unknown,
+  or not applicable when the contract names nothing comparable. Stored with the evidence row.
 - **Source group**: the judged pages that count as one witness — one site, one near-duplicate text, or one
   credited original report — and the representative that speaks for it.
 - **Exhaustive endpoint**: a URL pattern recorded in code as the complete official record for a kind of

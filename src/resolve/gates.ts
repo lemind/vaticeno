@@ -1,6 +1,7 @@
 // Evidence gates (data-model "Evidence gates"). Model flags are inputs, never the final word. Pure.
 import type { EVIDENCE_BASES, EVIDENCE_SAYS, SOURCE_KINDS } from '../db/schema.js';
 import { nearDuplicate } from './similarity.js';
+import type { EventMatch } from './relevance.js';
 import { hostOf, registrableDomain, type TrustLevel } from './trust.js';
 
 export type EvidenceDraft = {
@@ -16,9 +17,10 @@ export type EvidenceDraft = {
   isFinalResult: boolean;
   originalSource: string | null; // who first reported it, if the page credits one
   simhash: string | null; // near-duplicate fingerprint of the page text
+  eventMatch: EventMatch | null; // whether this page shows the contract's own event (004); null = price feed
 };
 
-export type GateName = 'trusted' | 'quote_found' | 'in_window' | 'final' | 'independent';
+export type GateName = 'trusted' | 'quote_found' | 'in_window' | 'final' | 'independent' | 'relevant';
 export type Gates = Record<GateName, boolean | null>; // null = not applicable
 
 // Every contract change sets lock_at 15 min later (LOCK_DELAY_MS), so the last change is lock_at − 15 min.
@@ -34,6 +36,9 @@ export function runGates(draft: EvidenceDraft, window: Window, accepted: readonl
     in_window: inWindow(draft, window),
     final: draft.isFinalResult && draft.says !== 'pending',
     independent: isPrice ? null : !accepted.some((other) => sameStory(draft, other)),
+    // A page about another event decides nothing, and one that will not say which event it shows is not
+    // taken for ours: unknown fails closed (004 FR-003). What it said is still stored.
+    relevant: isPrice ? null : draft.eventMatch !== 'no' && draft.eventMatch !== 'unknown',
   };
   const passed = Object.values(gates).every((g) => g !== false);
   return { gates, passed };

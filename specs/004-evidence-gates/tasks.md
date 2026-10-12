@@ -28,13 +28,13 @@ failures are fixtures. Nothing else.
 **Independent test**: the meeting landing page showing Race 1 cannot decide a Race 2 claim; the
 race-specific page can.
 
-- [ ] T401 [US1] `src/llm/instructions/judge.v5.md` + the v5 schema in `src/llm/judges.ts`: the event identifiers the page states, and finality meaning settled rather than authoritative. Rows judged under v4 keep their shape (FR-001, FR-010)
-- [ ] T402 [P] [US1] `src/resolve/relevance.ts` — pure: the contract's event key from `source.entity_id` and the criterion, and the match (yes / no / unknown) against what a page reported (FR-002, FR-012)
-- [ ] T403 [US1] `relevant` gate in `src/resolve/gates.ts`: no match or unknown forces `irrelevant`, so such a page can never produce HIT or MISS (FR-003, FR-004)
-- [ ] T404 [P] [US1] Migration `drizzle/0016_evidence_identity.sql` + `src/db/schema.ts` per plan.md → Data model: `event_identity` and `event_match` on the evidence row (FR-011)
-- [ ] T405 [US1] Tests `src/resolve/relevance.test.ts` and the racing fixture: both real pages of the meeting, the title-only page as unknown, an open-topic claim falling back to the judge's own answer, the 60 price seeds untouched, and every new row carrying its identity and match (FR-014, SC-001, SC-003, SC-006)
+- [x] T401 **Done 2026-10-12.** [US1] `src/llm/instructions/judge.v5.md` + the v5 schema in `src/llm/judges.ts`: the event identifiers the page states, and finality meaning settled rather than authoritative. Rows judged under v4 keep their shape (FR-001, FR-010) `judge.v5` ships the five identity keys and redefines finality as settled-not-authoritative; v4 and earlier are read by their own schemas (`judgeSchemaFor`).
+- [x] T402 **Done 2026-10-12.** [P] [US1] `src/resolve/relevance.ts` — pure: the contract's event key from `source.entity_id` and the criterion, and the match (yes / no / unknown) against what a page reported (FR-002, FR-012) `src/resolve/relevance.ts`, pure. The real contracts changed the rule: only the source entity may demand confirmation, because criteria carry deadlines (see FR-002).
+- [x] T403 **Done 2026-10-12.** [US1] `relevant` gate in `src/resolve/gates.ts`: no match or unknown forces `irrelevant`, so such a page can never produce HIT or MISS (FR-003, FR-004) The gate fails the page and keeps what it said, rather than rewriting `says`: the claim page then shows why it did not count.
+- [x] T404 **Done 2026-10-12.** [P] [US1] Migration `drizzle/0016_evidence_identity.sql` + `src/db/schema.ts` per plan.md → Data model: `event_identity` and `event_match` on the evidence row (FR-011) `drizzle/0016_evidence_identity.sql`, applied locally; four match values including `not_applicable`.
+- [x] T405 **Done 2026-10-12.** [US1] Tests `src/resolve/relevance.test.ts` and the racing fixture: both real pages of the meeting, the title-only page as unknown, an open-topic claim falling back to the judge's own answer, the 60 price seeds untouched, and every new row carrying its identity and match (FR-014, SC-001, SC-003, SC-006) 10 unit tests on the matcher, one gate test, and two integration tests: the real racing run now resolves HIT off the Race 2 page, and a contract naming nothing comparable is judged as before. 119 unit + 149 integration pass.
 
-**Checkpoint**: a page about another event cannot decide a claim.
+**Checkpoint**: a page about another event cannot decide a claim. Proved on the real racing run: the Race 1 landing page fails the gate, the Race 2 page is no longer dropped behind it, and the verdict is HIT.
 
 ## Phase 2: US2 — the best page, not the first (P1)
 

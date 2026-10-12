@@ -125,6 +125,8 @@ export async function resolveClaim(deps: ResolverDeps, claim: ClaimRow, now: Dat
       says: item.draft.says,
       eventDate: item.draft.eventDate,
       eventStart: item.draft.eventStart && !Number.isNaN(Date.parse(item.draft.eventStart)) ? new Date(item.draft.eventStart) : null,
+      eventIdentity: item.eventIdentity ?? null,
+      eventMatch: item.draft.eventMatch,
       value: item.value?.toString() ?? null,
       url: item.draft.url,
       contentSha256: item.contentSha256,

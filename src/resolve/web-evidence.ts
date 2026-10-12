@@ -8,6 +8,7 @@ import { log } from '../log.js';
 import { type PageFetcher, SourceUnavailable } from './fetch.js';
 import { settles } from './decide.js';
 import { type EvidenceDraft, type Gates, runGates } from './gates.js';
+import { contractEventKey, type EventIdentity, matchEvent } from './relevance.js';
 import { capTrust, hostOf, registrableDomain } from './trust.js';
 
 const MAX_PAGES = 8;
@@ -20,6 +21,7 @@ export type GatheredItem = {
   gates: Gates;
   passed: boolean;
   value: number | null; // price feed answers only
+  eventIdentity?: EventIdentity | null; // what the page said it was about (004 FR-011)
   sourceName: string;
   trustReason: string | null;
   resultSummary?: string | null;
@@ -50,6 +52,7 @@ export async function gatherWebEvidence(
   // The contract's own record is always read (also for absence evidence after the deadline).
   const urls = [...new Set([contract.source.locator, ...found])].slice(0, MAX_PAGES);
   const judged: Array<Omit<GatheredItem, 'gates' | 'passed'>> = [];
+  const eventKey = contractEventKey(contract);
   let transientFailures = 0; // timeouts, 429, 5xx: the page may answer next time
   let unreadable = 0; // any page that could not be fetched or judged
   const seen = new Set<string>(); // search redirect links often land on the same page: judge it once
@@ -84,8 +87,10 @@ export async function gatherWebEvidence(
           isFinalResult: judgement.is_final_result,
           originalSource: judgement.original_source,
           simhash: page.simhash,
+          eventMatch: matchEvent(eventKey, judgement.event_identity ?? null),
         },
         value: null,
+        eventIdentity: judgement.event_identity ?? null,
         sourceName: host ? registrableDomain(host) : page.url,
         trustReason: judgement.trust_reason,
         resultSummary: judgement.result ?? null,
@@ -127,8 +132,8 @@ export async function gatherWebEvidence(
 function emptySearchItem(searchQuery: string | null, now: Date): GatheredItem {
   const draft: EvidenceDraft = {
     sourceKind: 'web', basis: 'record', trustLevel: 'weak', says: 'irrelevant', eventDate: null, eventStart: null, url: null,
-    retrievedAt: now, quoteFound: null, isFinalResult: false, originalSource: null, simhash: null,
+    retrievedAt: now, quoteFound: null, isFinalResult: false, originalSource: null, simhash: null, eventMatch: null,
   };
-  const gates: Gates = { trusted: false, quote_found: null, in_window: null, final: false, independent: null };
+  const gates: Gates = { trusted: false, quote_found: null, in_window: null, final: false, independent: null, relevant: null };
   return { draft, gates, passed: false, value: null, sourceName: 'search', trustReason: null, contentSha256: null, searchQuery, modelId: null, instructionVersion: null, pageText: '' };
 }

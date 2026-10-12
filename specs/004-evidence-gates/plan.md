@@ -80,7 +80,7 @@ Two nullable columns on `evidences`, the table 001's data model defines. Nullabl
 | Column | Type | Notes |
 |---|---|---|
 | `event_identity` | jsonb null | what the page said about which event it describes: date, and whatever of competition, round or race number, venue and participants it stated. The page's words as fields, never a conclusion |
-| `event_match` | text null | CHECK `yes \| no \| unknown` — what code concluded comparing that identity with the contract's event key. `no` and `unknown` both fail the `relevant` gate |
+| `event_match` | text null | CHECK `yes \| no \| unknown \| not_applicable` — what code concluded comparing that identity with the contract's event key. `no` and `unknown` fail the `relevant` gate; `not_applicable` (the contract names nothing comparable) passes it |
 
 The gate result itself goes in the existing `gates` jsonb as `relevant`, like the other five, so the claim
 page shows it with no schema change (001 FR-027).
