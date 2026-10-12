@@ -56,8 +56,8 @@ export async function recheckRecent(db: Db, at: Date, days = 7): Promise<Recheck
   return out;
 }
 
-// Writing the correction is a separate, deliberate step: a recheck never changes a published verdict on
-// its own (001 FR-035). The claim's own status follows the new outcome so the pages agree with the reply.
+// Writing the correction is a separate step: a recheck never changes a published verdict on its own
+// (001 FR-035). The row is what the public pages read; the frozen resolution is never touched.
 export async function writeCorrection(db: Db, slug: string, check: Recheck, reason: string): Promise<boolean> {
   if (!check.differs || check.now.kind !== 'final' || check.now.outcome === 'void') return false;
   const [claim] = await db.select({ id: claims.id }).from(claims).where(eq(claims.slug, slug)).limit(1);

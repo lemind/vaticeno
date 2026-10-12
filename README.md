@@ -15,9 +15,9 @@ answers once in the thread; reply under its answer to fix it within 15 min. Afte
 (HIT / MISS / VOID) is posted as a reply in the same thread, with the result it was decided on — the
 closing price, or the score in one line. Ask it something in that thread and it answers.
 Spec and tasks: [spec](specs/001-stage0-contract-core/spec.md),
-[tasks](specs/001-stage0-contract-core/tasks.md). How it runs: one service with eight timed jobs (mentions
+[tasks](specs/001-stage0-contract-core/tasks.md). How it runs: one service with nine timed jobs (mentions
 and lock every minute, expire every 10 min, resolve hourly, verdicts every 5 min, reconcile every other
-hour, and the two feed jobs at fixed times).
+hour, a weekly recheck of the last week's verdicts, and the two feed jobs at fixed times).
 
 **Own feed (spec 002):** [spec](specs/002-content-feed/spec.md), [tasks](specs/002-content-feed/tasks.md).
 Built, and off until `ENABLE_FEED=true`: twice a day the bot picks one account from a fixed pool by weight
@@ -98,6 +98,7 @@ the lite model that parses predictions; everything else stays on the lite model.
 | `npm run content:tick -- pool|original` | run one feed job by hand (needs `ENABLE_FEED=true`) |
 | `npm run content:queue -- add "…" / load-starters / list / remove <id>` | the owner's queue of own posts |
 | `npm run content:pool-ids` | one-off, paid: resolve new pool handles to numeric X ids |
+| `npm run verdict:recheck -- [--slug X] [--correct "why"] [--post]` | re-decide past verdicts from stored evidence (free); correcting one is deliberate |
 | `npm run db:generate` / `db:studio` | new migration from schema changes / browse tables |
 | `npm test` / `test:integration` | unit tests / database tests (needs Docker Postgres) |
 | `npm run test:coverage` / `typecheck` | coverage report (~55% is a cap, not a goal) / type check |
