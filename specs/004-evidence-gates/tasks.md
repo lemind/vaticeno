@@ -15,7 +15,7 @@ failures are fixtures. Nothing else.
 | Cause 1 — an absence outranked records | fixed before this spec (001 T123, deployed 2026-10-12) |
 | Cause 2 — same domain meant same story | this spec, Phase 2 |
 | Cause 3 — no gate asked about the event | this spec, Phase 1 |
-| Standing wrong verdict | one claim; the re-judge path is built (T415a), the paid run is T415 |
+| Standing wrong verdict | re-judged in production 2026-10-13 and it reaches HIT; writing the correction is T415 |
 
 ## Format: `[ID] [P?] [Story] Description`
 
@@ -31,7 +31,7 @@ race-specific page can.
 - [x] T401 **Done 2026-10-12.** [US1] `src/llm/instructions/judge.v5.md` + the v5 schema in `src/llm/judges.ts`: the event identifiers the page states, and finality meaning settled rather than authoritative. Rows judged under v4 keep their shape (FR-001, FR-010) `judge.v5` ships the five identity keys and redefines finality as settled-not-authoritative; v4 and earlier are read by their own schemas (`judgeSchemaFor`).
 - [x] T402 **Done 2026-10-12.** [P] [US1] `src/resolve/relevance.ts` — pure: the contract's event key from `source.entity_id` and the criterion, and the match (yes / no / unknown) against what a page reported (FR-002, FR-012) `src/resolve/relevance.ts`, pure. The real contracts changed the rule: only the source entity may demand confirmation, because criteria carry deadlines (see FR-002).
 - [x] T403 **Done 2026-10-12.** [US1] `relevant` gate in `src/resolve/gates.ts`: no match or unknown forces `irrelevant`, so such a page can never produce HIT or MISS (FR-003, FR-004) The gate fails the page and keeps what it said, rather than rewriting `says`: the claim page then shows why it did not count.
-- [x] T404 **Done 2026-10-12.** [P] [US1] Migration `drizzle/0016_evidence_identity.sql` + `src/db/schema.ts` per plan.md → Data model: `event_identity` and `event_match` on the evidence row (FR-011) `drizzle/0016_evidence_identity.sql`, applied locally; four match values including `not_applicable`.
+- [x] T404 **Done 2026-10-12.** [P] [US1] Migration `drizzle/0016_evidence_identity.sql` + `src/db/schema.ts` per plan.md → Data model: `event_identity` and `event_match` on the evidence row (FR-011) `drizzle/0016_evidence_identity.sql`, applied to production 2026-10-13; four match values including `not_applicable`.
 - [x] T405 **Done 2026-10-12.** [US1] Tests `src/resolve/relevance.test.ts` and the racing fixture: both real pages of the meeting, the title-only page as unknown, an open-topic claim falling back to the judge's own answer, the 60 price seeds untouched, and every new row carrying its identity and match (FR-014, SC-001, SC-003, SC-006) 10 unit tests on the matcher, one gate test, and two integration tests: the real racing run now resolves HIT off the Race 2 page, and a contract naming nothing comparable is judged as before. 119 unit + 149 integration pass.
 
 **Checkpoint**: a page about another event cannot decide a claim. Proved on the real racing run: the Race 1 landing page fails the gate, the Race 2 page is no longer dropped behind it, and the verdict is HIT.
@@ -62,9 +62,9 @@ race-specific page can.
 ## Phase 4: the verdict still standing
 
 - [x] T415a **Done 2026-10-12.** `rejudgeClaim` + `verdict:recheck -- --slug X --rejudge`: fetches and judges the pages again, writes a new evidence run beside the frozen resolution, records what it spent, and never runs on a schedule. A free recheck only re-reads stored answers, so it can catch a wrong rule and never a wrong reading (004 T415a)
-- [ ] T415 Run it on the horse-racing claim (paid, ~$0.07) and correct it to HIT with `--correct --post`. **Owner's call**: it spends money and posts once in a stranger's thread (001 FR-035)
+- [ ] T415 Correct the horse-racing claim to HIT with `--correct --post`. Re-judged in production 2026-10-13 for $0.051: the race-specific official page and one established report both say HIT, and the Race 1 page is now rejected on relevance. **Owner's call**: it posts once in a stranger's thread (001 FR-035)
 - [x] T416 **Done 2026-10-12.** [P] Measure cost per resolved claim against the baseline and record it; one judging call per page and no second pass (FR-013, SC-005) Measured in production over the ten resolved web claims: **1.00 judge call per judged page** (47 over 47), mean **$0.0662** a claim, worst **$0.0843**, ceiling $0.30. The v5 fields ride on the call already paid for. An integration test holds the one-call rule.
-- [x] T417 **Done 2026-10-12.** Tasks marked with their results; 134 unit and 155 integration tests pass, typecheck clean. One task is left open on purpose: T415 spends money and posts publicly
+- [x] T417 **Done 2026-10-12.** Tasks marked with their results; 135 unit and 156 integration tests pass, typecheck clean. One task is left open on purpose: T415 spends money and posts publicly
 
 **Checkpoint**: nothing published is known to be wrong — pending T415, the one correction still owed, which is the owner's to run.
 
