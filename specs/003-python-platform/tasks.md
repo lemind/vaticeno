@@ -12,7 +12,7 @@ status page — healthy, dead job, no database. Nothing else; ~55% coverage is a
 
 | | |
 |---|---|
-| Stage 1 | not started; unblocked — T301 done 2026-10-09 |
+| Stage 1 | Phase 1 done 2026-10-13; dependencies approved, Python runs in CI |
 | Stage 2 | not started; testnet only, no real value, no fee, price-feed claims only (FR-031h) |
 | Escrow v1 | T326a answers FR-031f before anything is deployed |
 | Stage 3 | not started; may end at T344 |
@@ -29,9 +29,9 @@ status page — healthy, dead job, no database. Nothing else; ~55% coverage is a
 ## Phase 1: Setup
 
 - [x] T301 Constitution VII amended 2.6.0 → 2.7.0 (owner decision 2026-10-09), with the boundary and the undo condition in `docs/decisions/001-second-runtime.md`. **Stage 1 is unblocked.**
-- [ ] T302 [P] Get owner approval for the new dependencies in plan.md → Technical Context
-- [ ] T303 [P] Root `pyproject.toml` (3.12, ruff, pytest) with `status` and `load` groups, plus the new `.gitignore` entries
-- [ ] T304 [P] Python job in `.github/workflows/test.yml`: `ruff check .`, `pytest status load` (FR-021)
+- [x] T302 [P] Get owner approval for the new dependencies in plan.md → Technical Context. All seven approved 2026-10-13: fastapi, uvicorn, jinja2, psycopg3, locust, pytest, ruff. Stage 2's contract toolchain and web3.py are not covered by it
+- [x] T303 [P] Root `pyproject.toml` (3.12, ruff, pytest) with `status` and `load` groups, plus the new `.gitignore` entries. Nothing installs as a package — an install brings in dependencies only and the code runs from the root
+- [x] T304 [P] Python job in `.github/workflows/test.yml`: `ruff check .`, `pytest status load` (FR-021). Its own job, no database: the page's tests are row fixtures. `status/` and `load/` hold a placeholder until later phases fill them, and the step accepts pytest's "no tests collected"
 
 ## Phase 2: Foundational
 

@@ -6,5 +6,11 @@ supabase/.temp/
 .state/
 # Recorded model/search/fetch answers: local only, regenerate with LLM_MODE=record (research R5)
 fixtures/replay/
+# Python caches and the local virtualenv (003)
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.venv/
+*.egg-info/
 # Private notes (not public, not committed)
 docs/private/
