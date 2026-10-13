@@ -94,7 +94,7 @@ def test_a_healthy_service_answers_ok_in_its_first_line(client):
     assert page.status_code == 200
     # SC-001: the state is the first thing on the page, before any detail.
     assert "OK" in page.text.split("</h1>")[0]
-    assert "all 2 jobs inside their own windows" in page.text
+    assert "all 2 running jobs inside their own windows" in page.text
     assert "f35eea9" in page.text, "the page says what is deployed"
 
 
@@ -109,10 +109,15 @@ def test_one_job_past_its_own_window_is_named_and_the_page_is_not_ok(client):
     assert "DEGRADED" in page.text
 
 
-def test_a_job_that_never_ran_reads_as_never_run_rather_than_late(client):
-    state = snapshot([job("recheck", ok_seconds_ago=None, window=1_209_660, outcome=None)])
-    assert state.jobs[0].state == "NEVER_RUN"
-    assert "never" in client(state).get("/").text
+def test_a_job_that_never_ran_is_shown_but_does_not_make_the_page_degraded(client):
+    # Every job reads like this after a deploy, and the weekly one for days: a restart is not a fault.
+    state = snapshot([*HEALTHY, job("recheck", ok_seconds_ago=None, window=1_209_660, outcome=None)])
+    assert state.jobs[-1].state == "NEVER_RUN"
+    assert [j.job for j in state.waiting_jobs] == ["recheck"]
+    assert state.late_jobs == [] and state.state == "OK"
+    page = client(state).get("/").text
+    assert "not seen yet: recheck" in page, "shown, just not alarming"
+    assert "never" in page
 
 
 def test_a_failing_job_shows_its_error_tag(client):

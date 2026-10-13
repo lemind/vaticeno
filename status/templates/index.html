@@ -43,8 +43,10 @@
 <p class="sub">
   {%- if s.db_error %}database unreachable — {{ s.db_error }}
   {%- elif s.late_jobs %}late: {% for job in s.late_jobs %}{{ job.job }} ({{ job.state }}){% if not loop.last %}, {% endif %}{% endfor %}
-  {%- else %}all {{ s.jobs | length }} jobs inside their own windows
-  {%- endif %} · read {{ s.at.strftime('%Y-%m-%d %H:%M:%SZ') }}
+  {%- else %}all {{ s.jobs | length - s.waiting_jobs | length }} running jobs inside their own windows
+  {%- endif %}
+  {%- if s.waiting_jobs %} · not seen yet: {% for job in s.waiting_jobs %}{{ job.job }}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}
+  · read {{ s.at.strftime('%Y-%m-%d %H:%M:%SZ') }}
 </p>
 
 <div class="grid">

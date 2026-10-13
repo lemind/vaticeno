@@ -51,7 +51,14 @@ class Snapshot:
 
     @property
     def late_jobs(self) -> list[queries.Job]:
-        return [job for job in self.jobs if not job.healthy]
+        """Past its own window, or its last run failed. These are the ones that make the page not ok."""
+        return [job for job in self.jobs if job.state in ("STALE", "FAILING")]
+
+    @property
+    def waiting_jobs(self) -> list[queries.Job]:
+        """Never seen to run. Every job reads like this after a deploy, and a weekly one for days, so it
+        is shown but does not colour the page — otherwise a restart reads as a fault for a week."""
+        return [job for job in self.jobs if job.state == "NEVER_RUN"]
 
     @property
     def state(self) -> str:
@@ -178,6 +185,7 @@ def as_json(snapshot: Snapshot) -> dict:
             for job in snapshot.jobs
         ],
         "late_jobs": [job.job for job in snapshot.late_jobs],
+        "waiting_jobs": [job.job for job in snapshot.waiting_jobs],
         "claims": snapshot.claims,
         "verdicts": snapshot.verdicts,
         "spend": _plain(asdict(snapshot.spend)) if snapshot.spend else None,
