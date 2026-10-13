@@ -1,15 +1,15 @@
-// npm run verdict:recheck -- [--slug <slug>] [--days 7] [--correct "<reason>"] [--post]
-// Re-decides verdicts with today's rules, over the evidence already stored: free, no model, no searches.
-// Writing the correction and posting it are separate flags, because a published verdict is never changed
-// by a scheduled run (001 FR-035).
+// npm run verdict:recheck -- [--slug <slug>] [--days 7] [--rejudge] [--correct "<reason>"] [--post]
+
+// Re-decides stored evidence (free), or judges the pages again (--rejudge, paid). Correcting and posting
+// are separate flags: a scheduled run never changes a published verdict (001 FR-035).
 import { buildBotDeps } from '../bot/wire.js';
 import { postCorrection } from '../bot/verdicts.js';
 import { getDb } from '../db/client.js';
-import { recheckClaim, recheckRecent, writeCorrection } from '../resolve/recheck.js';
+import { recheckClaim, recheckRecent, rejudgeClaim, writeCorrection } from '../resolve/recheck.js';
 import { buildDeps, cliArgs, nowFrom, printJson, runCli } from './run.js';
 
 await runCli('verdict-recheck', async (config) => {
-  const { values } = cliArgs({ slug: { type: 'string' }, days: { type: 'string' }, correct: { type: 'string' }, post: { type: 'boolean' }, now: { type: 'string' } });
+  const { values } = cliArgs({ slug: { type: 'string' }, days: { type: 'string' }, rejudge: { type: 'boolean' }, correct: { type: 'string' }, post: { type: 'boolean' }, now: { type: 'string' } });
   const at = nowFrom(values.now);
   const days = Number(values.days ?? 7);
   if (!Number.isFinite(days) || days <= 0) throw new Error('--days must be a positive number of days');
@@ -26,7 +26,11 @@ await runCli('verdict-recheck', async (config) => {
     return;
   }
 
-  const check = await recheckClaim(db, values.slug, at);
+  // Paid, and never scheduled: fetch and judge the pages again, which is the only way to catch a judging
+  // error rather than a rule error (004 T415a).
+  const check = values.rejudge
+    ? await rejudgeClaim(buildDeps(config), values.slug, at)
+    : await recheckClaim(db, values.slug, at);
   if (!check) throw new Error(`no final verdict for ${values.slug}`);
   printJson(check);
   if (!values.correct) return;

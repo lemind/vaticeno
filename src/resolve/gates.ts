@@ -1,7 +1,8 @@
 // Evidence gates (data-model "Evidence gates"). Model flags are inputs, never the final word. Pure.
 import type { EVIDENCE_BASES, EVIDENCE_SAYS, SOURCE_KINDS } from '../db/schema.js';
-import { nearDuplicate } from './similarity.js';
-import { hostOf, registrableDomain, type TrustLevel } from './trust.js';
+import { isExhaustiveRecord } from './exhaustive.js';
+import type { EventMatch } from './relevance.js';
+import type { TrustLevel } from './trust.js';
 
 export type EvidenceDraft = {
   sourceKind: (typeof SOURCE_KINDS)[number];
@@ -16,27 +17,44 @@ export type EvidenceDraft = {
   isFinalResult: boolean;
   originalSource: string | null; // who first reported it, if the page credits one
   simhash: string | null; // near-duplicate fingerprint of the page text
+  eventMatch: EventMatch | null; // whether this page shows the contract's own event (004); null = price feed
+  selfConsistent: boolean | null; // do the page's own facts agree with the verdict given it? null = not code's to check
 };
 
-export type GateName = 'trusted' | 'quote_found' | 'in_window' | 'final' | 'independent';
+export type GateName = 'trusted' | 'quote_found' | 'in_window' | 'final' | 'independent' | 'relevant' | 'consistent';
 export type Gates = Record<GateName, boolean | null>; // null = not applicable
 
 // Every contract change sets lock_at 15 min later (LOCK_DELAY_MS), so the last change is lock_at − 15 min.
 const CONTRACT_SET_BEFORE_LOCK_MS = 15 * 60 * 1000;
 
-export type Window = { lockAt: Date; deadlineAt: Date; absenceIsMeaningful: boolean; startTimeCounts?: boolean };
+// `absenceAdmissible` is the code-held list of complete records (exhaustive.ts); injectable so a test can
+// name one while the real list is empty.
+export type Window = { lockAt: Date; deadlineAt: Date; absenceIsMeaningful: boolean; startTimeCounts?: boolean; absenceAdmissible?: (url: string | null) => boolean };
 
-export function runGates(draft: EvidenceDraft, window: Window, accepted: readonly EvidenceDraft[]): { gates: Gates; passed: boolean } {
+export function runGates(draft: EvidenceDraft, window: Window): { gates: Gates; passed: boolean } {
   const isPrice = draft.sourceKind === 'price_feed';
   const gates: Gates = {
     trusted: draft.trustLevel !== 'weak',
-    quote_found: isPrice || draft.basis === 'absence' ? null : draft.quoteFound === true,
+    // The waiver is granted by code, not by the model saying "absence" (004 FR-007).
+    quote_found: isPrice || admissibleAbsence(draft, window) ? null : draft.quoteFound === true,
     in_window: inWindow(draft, window),
     final: draft.isFinalResult && draft.says !== 'pending',
-    independent: isPrice ? null : !accepted.some((other) => sameStory(draft, other)),
+    // Decided after every page is judged, in groups.ts (004 FR-005).
+    independent: null,
+    // A page about another event decides nothing, and one that will not say which event it shows is not
+    // taken for ours: unknown fails closed (004 FR-003). What it said is still stored.
+    relevant: isPrice ? null : draft.eventMatch !== 'no' && draft.eventMatch !== 'unknown',
+    // A page whose own facts contradict the verdict it was given counts for nothing (004 FR-009).
+    consistent: draft.selfConsistent,
   };
   const passed = Object.values(gates).every((g) => g !== false);
   return { gates, passed };
+}
+
+// Silence is proof only from an endpoint code records as complete (004 FR-007): `absence_is_meaningful`
+// is model-written, so it cannot be the only key.
+function admissibleAbsence(draft: EvidenceDraft, window: Window): boolean {
+  return draft.basis === 'absence' && (window.absenceAdmissible ?? isExhaustiveRecord)(draft.url);
 }
 
 // Record evidence: the event day is inside (lock, deadline]. Day granularity is conservative: an event on
@@ -44,7 +62,8 @@ export function runGates(draft: EvidenceDraft, window: Window, accepted: readonl
 // deadline, and only from the contract's own (primary) source when it marks it exhaustive.
 function inWindow(draft: EvidenceDraft, window: Window): boolean {
   if (draft.basis === 'absence') {
-    return window.absenceIsMeaningful && draft.trustLevel === 'primary' && draft.says === 'miss' && draft.retrievedAt.getTime() >= window.deadlineAt.getTime();
+    return admissibleAbsence(draft, window) && window.absenceIsMeaningful && draft.trustLevel === 'primary'
+      && draft.says === 'miss' && draft.retrievedAt.getTime() >= window.deadlineAt.getTime();
   }
   if (!draft.eventDate || !/^\d{4}-\d{2}-\d{2}$/.test(draft.eventDate)) return false;
   const lockDay = window.lockAt.toISOString().slice(0, 10);
@@ -66,13 +85,3 @@ function nearDate(startMs: number, eventDate: string): boolean {
   return startMs >= day - DAY_MS && startMs < day + 2 * DAY_MS;
 }
 const DAY_MS = 24 * 60 * 60 * 1000;
-
-// Copies count once: same site, a near-identical page, or the same original report (e.g. one AP story).
-function sameStory(a: EvidenceDraft, b: EvidenceDraft): boolean {
-  const hostA = a.url ? hostOf(a.url) : null;
-  const hostB = b.url ? hostOf(b.url) : null;
-  if (hostA && hostB && registrableDomain(hostA) === registrableDomain(hostB)) return true;
-  if (nearDuplicate(a.simhash, b.simhash)) return true;
-  const origin = (s: string | null) => s?.trim().toLowerCase() || null;
-  return !!origin(a.originalSource) && origin(a.originalSource) === origin(b.originalSource);
-}

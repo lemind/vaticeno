@@ -34,6 +34,7 @@ the picks and posts nothing.
 | Verdicts after the deadline: Coinbase daily close, or AI reading web pages behind code gates; human review | |
 | Own feed (spec 002): 2 pool posts a day (repost, or a quote post with our own line), 1 owner-written post a day from a queue; caps and "never twice" enforced by Postgres; off until `ENABLE_FEED=true` | Switch the feed on the server; a weekly stats post |
 | Claim and author pages (localhost on the server) | |
+| Verdicts decide on the right event (spec 004): a page must name the event the contract does before it counts, a site speaks through its best page rather than its first, silence proves nothing, and no verdict contradicts its own evidence | |
 | Error tracking, logs and alerts (Sentry, production only); tests on every pull request | |
 
 ## Commands (on X)

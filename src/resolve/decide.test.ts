@@ -106,7 +106,16 @@ test('an absence never outranks reports of the event (001 FR-034)', () => {
   const guardian = row('established', 'hit');
   const independent = row('established', 'hit');
   const notListed = absence('primary', 'miss');
-  assert.deepEqual(decide([notListed, guardian, independent]), { kind: 'final', outcome: 'hit', decidingEvidenceId: guardian.id });
+  // The records decide, and the disagreement is reported rather than escalated (004 FR-008): escalating a
+  // case the admission list cannot produce yet would be machinery for nobody.
+  assert.deepEqual(decide([notListed, guardian, independent]), { kind: 'final', outcome: 'hit', decidingEvidenceId: guardian.id, absenceDisagreed: true });
+});
+
+test('an absence agreeing with the records is not reported as a disagreement (004 FR-008)', () => {
+  const guardian = row('established', 'miss');
+  const independent = row('established', 'miss');
+  const notListed = absence('primary', 'miss');
+  assert.deepEqual(decide([notListed, guardian, independent]), { kind: 'final', outcome: 'miss', decidingEvidenceId: guardian.id });
 });
 
 test('an absence still decides when nothing else passed', () => {

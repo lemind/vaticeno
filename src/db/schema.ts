@@ -26,6 +26,7 @@ export const REJECT_REASONS = ['not_prediction', 'x_rules', 'deadline_too_close'
 export const RESOLUTION_METHODS = ['price_feed', 'model'] as const;
 export const STANCES = ['agree', 'disagree'] as const;
 export const SOURCE_KINDS = ['price_feed', 'web'] as const;
+export const EVENT_MATCHES = ['yes', 'no', 'unknown', 'not_applicable'] as const;
 export const EVIDENCE_BASES = ['record', 'absence'] as const;
 export const TRUST_LEVELS = ['primary', 'established', 'weak'] as const;
 export const EVIDENCE_SAYS = ['hit', 'miss', 'pending', 'irrelevant', 'entity_gone'] as const;
@@ -124,6 +125,9 @@ export const evidences = pgTable(
     says: text('says', { enum: EVIDENCE_SAYS }).notNull(),
     eventDate: date('event_date'),
     eventStart: utc('event_start'), // when a match began, if the page stated it (in_window, gates.ts)
+    // Which event the page itself reported, and whether that is the contract's (004 FR-011, resolve/relevance.ts).
+    eventIdentity: jsonb('event_identity').$type<Record<string, unknown>>(),
+    eventMatch: text('event_match', { enum: EVENT_MATCHES }),
     value: numeric('value'),
     url: text('url'),
     contentSha256: text('content_sha256'),
@@ -140,6 +144,7 @@ export const evidences = pgTable(
     check('evidences_basis_check', oneOf(t.basis, EVIDENCE_BASES)),
     check('evidences_trust_level_check', oneOf(t.trustLevel, TRUST_LEVELS)),
     check('evidences_says_check', oneOf(t.says, EVIDENCE_SAYS)),
+    check('evidences_event_match_check', sql`${t.eventMatch} is null or ${oneOf(t.eventMatch, EVENT_MATCHES)}`),
     index('evidences_claim_run_idx').on(t.claimId, t.runAt),
   ],
 );

@@ -13,7 +13,7 @@ export type EvidenceRow = {
 };
 
 export type Decision =
-  | { kind: 'final'; outcome: 'hit' | 'miss'; decidingEvidenceId: string }
+  | { kind: 'final'; outcome: 'hit' | 'miss'; decidingEvidenceId: string; absenceDisagreed?: true }
   | { kind: 'final'; outcome: 'void'; voidReason: 'insufficient_evidence' | 'unresolvable' }
   | { kind: 'needs_arbiter'; candidateIds: string[] }
   | { kind: 'needs_human'; reason: 'lone_established' | 'pending_too_long' }
@@ -49,7 +49,15 @@ export function decideResolution(evidences: readonly EvidenceRow[], now: Date, d
   // a wrong MISS went out because one primary fixtures list beat three reports of the score
   // (owner decision 2026-10-12, 001 FR-034). Records decide; an absence only when none passed.
   const records = counted.filter((e) => e.basis === 'record');
-  if (records.length > 0) return weighEvidence(records);
+  if (records.length > 0) {
+    const decision = weighEvidence(records);
+    // Records still win, unchanged (004 FR-008). An admissible absence that disagreed is reported, not
+    // escalated: the admission list is empty, so this cannot happen yet, and the log is how we would know.
+    if (decision.kind !== 'final' || decision.outcome === 'void') return decision;
+    const outcome = decision.outcome;
+    const disagreed = counted.some((e) => e.basis === 'absence' && e.says !== outcome);
+    return disagreed ? { ...decision, absenceDisagreed: true } : decision;
+  }
   const absences = counted.filter((e) => e.basis === 'absence');
   if (absences.length > 0) return weighEvidence(absences);
 

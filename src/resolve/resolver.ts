@@ -1,7 +1,7 @@
 // Resolver service: due claims → evidence → rule table → one resolution per claim (data-model
 // "resolutions", "Resolver schedule"). An outage is never a verdict (constitution III).
 import { and, asc, count, eq, inArray, lte, min, sql } from 'drizzle-orm';
-import { ContractSchema } from '../contract/schema.js';
+import { type Contract, ContractSchema } from '../contract/schema.js';
 import type { Db } from '../db/client.js';
 import { recordCosts } from '../db/costs.js';
 import { type ClaimRow, claims, costEvents, evidences, resolutions } from '../db/schema.js';
@@ -86,6 +86,57 @@ export async function resolveDueClaims(deps: ResolverDeps, now: Date): Promise<R
 }
 
 
+// The evidence a contract needs: the feed answers for itself, anything else is searched and judged. One
+// place, so a re-judge cannot take the other path (review 2026-10-13).
+export async function gatherEvidence(deps: ResolverDeps, contract: Contract, window: { lockAt: Date; deadlineAt: Date }, now: Date, costs: CallCost[]): Promise<GatheredItem[]> {
+  if (contract.resolution_method === 'price_feed' && contract.price) {
+    const { draft, value, contentSha256 } = await gatherPriceEvidence(deps.coinbase, contract.price, window, now);
+    const { gates, passed } = runGates(draft, { ...window, absenceIsMeaningful: false });
+    return [{ draft, gates, passed, value, sourceName: 'coinbase', trustReason: null, contentSha256, searchQuery: null, modelId: null, instructionVersion: null, pageText: '' }];
+  }
+  return gatherWebEvidence(deps, contract, window, now, await knownSources(deps.db), costs);
+}
+
+// What a claim has cost so far, against the per-claim ceiling (INIT_SPEC §9). Loud, never blocking.
+export async function checkBudget(db: Db, claim: { id: string; slug: string }): Promise<void> {
+  const [row] = await db.select({ usd: sql<string>`coalesce(sum(${costEvents.usdCost}), 0)` }).from(costEvents).where(eq(costEvents.claimId, claim.id));
+  const usd = Number(row?.usd ?? 0);
+  if (usd > CLAIM_BUDGET_USD) alert('claim.over_budget', { claim_id: claim.id, slug: claim.slug, usd_cost: usd });
+}
+
+// One run's evidence, written once and never updated (data-model evidences). Shared with the re-judge of a
+// claim already settled, which writes a new run and no resolution (004 T415a).
+export async function storeEvidence(db: Db, claimId: string, items: readonly GatheredItem[], costs: CallCost[], now: Date) {
+  return db.transaction(async (tx) => {
+    const rows = await tx.insert(evidences).values(items.map((item) => ({
+      claimId,
+      runAt: now,
+      sourceKind: item.draft.sourceKind,
+      basis: item.draft.basis,
+      sourceName: item.sourceName,
+      trustLevel: item.draft.trustLevel,
+      trustReason: item.trustReason,
+      resultSummary: item.resultSummary ?? null,
+      says: item.draft.says,
+      eventDate: item.draft.eventDate,
+      eventStart: item.draft.eventStart && !Number.isNaN(Date.parse(item.draft.eventStart)) ? new Date(item.draft.eventStart) : null,
+      eventIdentity: item.eventIdentity ?? null,
+      eventMatch: item.draft.eventMatch,
+      value: item.value?.toString() ?? null,
+      url: item.draft.url,
+      contentSha256: item.contentSha256,
+      searchQuery: item.searchQuery,
+      retrievedAt: item.draft.retrievedAt,
+      modelId: item.modelId,
+      instructionVersion: item.instructionVersion,
+      gates: item.gates,
+      passed: item.passed,
+    }))).returning({ id: evidences.id });
+    await recordCosts(tx, withClaim(costs, claimId));
+    return rows;
+  });
+}
+
 export async function resolveClaim(deps: ResolverDeps, claim: ClaimRow, now: Date): Promise<ClaimRunOutcome> {
   const { db } = deps;
   if (!claim.lockAt || !claim.deadlineAt || now.getTime() <= claim.deadlineAt.getTime()) return 'waiting';
@@ -98,13 +149,7 @@ export async function resolveClaim(deps: ResolverDeps, claim: ClaimRow, now: Dat
   const costs: CallCost[] = [];
   let items: GatheredItem[];
   try {
-    if (contract.resolution_method === 'price_feed' && contract.price) {
-      const { draft, value, contentSha256 } = await gatherPriceEvidence(deps.coinbase, contract.price, window, now);
-      const { gates, passed } = runGates(draft, { ...window, absenceIsMeaningful: false }, []);
-      items = [{ draft, gates, passed, value, sourceName: 'coinbase', trustReason: null, contentSha256, searchQuery: null, modelId: null, instructionVersion: null, pageText: '' }];
-    } else {
-      items = await gatherWebEvidence(deps, contract, window, now, await knownSources(db), costs);
-    }
+    items = await gatherEvidence(deps, contract, window, now, costs);
   } catch (error) {
     if (!isOutage(error)) throw error;
     if (error instanceof LlmSchemaError) costs.push(...error.costs);
@@ -112,32 +157,7 @@ export async function resolveClaim(deps: ResolverDeps, claim: ClaimRow, now: Dat
   }
 
   // Write this run's evidence (insert-only), then decide over all runs.
-  const inserted = await db.transaction(async (tx) => {
-    const rows = await tx.insert(evidences).values(items.map((item) => ({
-      claimId: claim.id,
-      runAt: now,
-      sourceKind: item.draft.sourceKind,
-      basis: item.draft.basis,
-      sourceName: item.sourceName,
-      trustLevel: item.draft.trustLevel,
-      trustReason: item.trustReason,
-      resultSummary: item.resultSummary ?? null,
-      says: item.draft.says,
-      eventDate: item.draft.eventDate,
-      eventStart: item.draft.eventStart && !Number.isNaN(Date.parse(item.draft.eventStart)) ? new Date(item.draft.eventStart) : null,
-      value: item.value?.toString() ?? null,
-      url: item.draft.url,
-      contentSha256: item.contentSha256,
-      searchQuery: item.searchQuery,
-      retrievedAt: item.draft.retrievedAt,
-      modelId: item.modelId,
-      instructionVersion: item.instructionVersion,
-      gates: item.gates,
-      passed: item.passed,
-    }))).returning({ id: evidences.id });
-    await recordCosts(tx, withClaim(costs, claim.id));
-    return rows;
-  });
+  const inserted = await storeEvidence(db, claim.id, items, costs, now);
   const byId = new Map(inserted.map((row, i) => [row.id, items[i]!]));
 
   const history = await db.select({ id: evidences.id, runAt: evidences.runAt, trustLevel: evidences.trustLevel, says: evidences.says, basis: evidences.basis, passed: evidences.passed, gates: evidences.gates })
@@ -170,6 +190,11 @@ async function applyDecision(
   }
 
   if (decision.kind === 'final') {
+    // An admissible absence disagreed with the records that decided it (004 FR-008): the records stand and
+    // we are told, because this is the case that would make escalating worth building.
+    if ('absenceDisagreed' in decision && decision.absenceDisagreed) {
+      alert('resolution.absence_disagreed', { slug: claim.slug, outcome: decision.outcome });
+    }
     await finalize(db, claim, {
       ...base, outcome: decision.outcome, decidedBy: 'evidence', reviewStatus: 'final', decidedAt: now,
       ...(decision.outcome === 'void' ? { voidReason: decision.voidReason } : { decidingEvidenceId: decision.decidingEvidenceId }),
@@ -244,12 +269,6 @@ async function flagForHuman(db: Db, claim: ClaimRow, row: Omit<typeof resolution
     await tx.update(claims).set({ nextCheckAt: null }).where(eq(claims.id, claim.id));
   });
   alert('resolution.needs_human', { claim_id: claim.id, slug: claim.slug, reason });
-}
-
-async function checkBudget(db: Db, claim: ClaimRow): Promise<void> {
-  const [row] = await db.select({ usd: sql<string>`coalesce(sum(${costEvents.usdCost}), 0)` }).from(costEvents).where(eq(costEvents.claimId, claim.id));
-  const usd = Number(row?.usd ?? 0);
-  if (usd > CLAIM_BUDGET_USD) alert('claim.over_budget', { claim_id: claim.id, slug: claim.slug, usd_cost: usd });
 }
 
 function isOutage(error: unknown): boolean {

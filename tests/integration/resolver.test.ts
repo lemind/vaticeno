@@ -5,7 +5,8 @@ import { type LlmClient, LlmSchemaError } from '../../src/llm/client.js';
 import { SourceUnavailable } from '../../src/resolve/fetch.js';
 import { decideByHuman, listNeedsHuman } from '../../src/resolve/manual.js';
 import { type ResolverDeps, resolveDueClaims } from '../../src/resolve/resolver.js';
-import { recheckClaim, recheckRecent, writeCorrection } from '../../src/resolve/recheck.js';
+import { recheckClaim, recheckRecent, rejudgeClaim, writeCorrection } from '../../src/resolve/recheck.js';
+import type { EventIdentity } from '../../src/resolve/relevance.js';
 import { insertClaim, setupTestDb, type TestDb, VALID_CONTRACT } from './helpers.js';
 
 let t: TestDb;
@@ -31,7 +32,7 @@ function days(from: string, n: number, close: (i: number) => number): Candle[] {
   return Array.from({ length: n }, (_, i) => ({ day: new Date(start + i * 86400e3).toISOString().slice(0, 10), close: close(i) }));
 }
 
-type WebPage = { says: string; quote: string | null; event_date: string | null; text: string; trust?: 'primary' | 'established' | 'weak' };
+type WebPage = { says: string; quote: string | null; event_date: string | null; text: string; trust?: 'primary' | 'established' | 'weak'; identity?: EventIdentity; basis?: 'record' | 'absence'; winner?: string | null };
 
 function deps(options: { candles?: Candle[] | 'outage'; search?: string[]; pages?: Record<string, WebPage>; down?: string[]; blocked?: string[]; badJudge?: string[]; arbiter?: 'malformed' } = {}) {
   const calls = { web: 0 };
@@ -52,7 +53,7 @@ function deps(options: { candles?: Candle[] | 'outage'; search?: string[]; pages
       if (options.badJudge?.includes(url)) throw new LlmSchemaError('bad judge json', [{ provider: 'gemini', operation: 'judge', units: 1, usdCost: 0.001 }]);
       const page = options.pages![url]!;
       return {
-        data: { says: page.says, basis: 'record', quote: page.quote, event_date: page.event_date, is_final_result: true, from_contract_source: false, source_trust: page.trust ?? 'primary', trust_reason: 'why', original_source: null, reasoning: 'r' },
+        data: { says: page.says, basis: page.basis ?? 'record', quote: page.quote, event_date: page.event_date, event_identity: page.identity ?? null, observed_result: page.winner === undefined ? null : { winner: page.winner, score: null }, is_final_result: true, from_contract_source: false, source_trust: page.trust ?? 'primary', trust_reason: 'why', original_source: null, reasoning: 'r' },
         costs: [{ provider: 'gemini' as const, operation: 'judge' as const, units: 1, usdCost: 0.001 }],
       };
     },
@@ -282,7 +283,8 @@ describe('rechecking a verdict already given (001 FR-035)', () => {
     const { claim, guardian } = await wrongMiss();
     const check = (await recheckClaim(t.db, claim.slug, AFTER))!;
     assert.equal(check.was, 'miss');
-    assert.deepEqual(check.now, { kind: 'final', outcome: 'hit', decidingEvidenceId: guardian });
+    // The stored absence row disagrees with the records that now decide it, which is reported (004 FR-008).
+    assert.deepEqual(check.now, { kind: 'final', outcome: 'hit', decidingEvidenceId: guardian, absenceDisagreed: true });
     assert.equal(check.differs, true);
     // Finding it changes nothing on its own: the published verdict stands until someone says so.
     assert.equal((await resolutionRow(claim.id))!.outcome, 'miss');
@@ -305,6 +307,44 @@ describe('rechecking a verdict already given (001 FR-035)', () => {
     assert.deepEqual((await recheckRecent(t.db, AFTER, 7)).map((r) => r.slug), [], 'a corrected claim is not raised again');
   });
 
+  // 004 T415a. A free recheck re-reads stored answers, so it can only catch a rule that was wrong. The
+  // racing verdict was wrong because the page was judged against another race — only fetching and judging
+  // again can find that, and it costs money, so nothing schedules it.
+  test('a re-judge fetches and judges again, and leaves the published verdict frozen', async () => {
+    const claim = await lockedClaim(WEB_CONTRACT);
+    const stale = '2026-10-06T00:00:00Z';
+    const [old] = await t.sql`insert into evidences ${t.sql({ claim_id: claim.id, run_at: stale, source_kind: 'web', source_name: 'old.example', trust_level: 'primary', says: 'miss', basis: 'record', passed: true, gates: JSON.stringify({ final: true, trusted: true, in_window: true, independent: true, quote_found: true }), retrieved_at: stale, event_date: '2026-10-03' })} returning id`;
+    await t.sql`insert into resolutions ${t.sql({ claim_id: claim.id, outcome: 'miss', decided_by: 'evidence', review_status: 'final', deciding_evidence_id: old!.id, decided_at: stale })}`;
+
+    const url = 'https://www.fda.gov/approvals/x';
+    const { deps: d } = deps({ search: [url], pages: { [url]: { says: 'hit', quote: 'approved drug X', event_date: '2026-10-03', text: 'The FDA approved drug X.' } } });
+    const check = (await rejudgeClaim(d, claim.slug, new Date('2026-10-07T01:00:00Z')))!;
+
+    assert.equal(check.was, 'miss');
+    assert.equal(check.now.kind, 'final');
+    assert.equal(check.differs, true, 'fresh pages reach a different answer');
+    assert.equal((await resolutionRow(claim.id))!.outcome, 'miss', 'the published verdict is untouched');
+    assert.equal(await evidenceCount(claim.id), 2, 'the new run is written beside the old one, never over it');
+    const [spend] = await t.sql`select count(*)::int as n from cost_events where claim_id = ${claim.id}`;
+    assert.ok(spend!.n > 0, 'and what it cost is recorded against the claim');
+
+    assert.equal(await writeCorrection(t.db, claim.slug, check, 'judged against the wrong race'), true);
+  });
+
+  test('a re-judge of a price claim reads the feed, not the web (review 2026-10-13)', async () => {
+    const claim = await lockedClaim();
+    const stale = '2026-10-06T00:00:00Z';
+    const [old] = await t.sql`insert into evidences ${t.sql({ claim_id: claim.id, run_at: stale, source_kind: 'price_feed', source_name: 'coinbase', trust_level: 'primary', says: 'miss', basis: 'record', passed: true, gates: JSON.stringify({ final: true, trusted: true, in_window: true, independent: null, quote_found: null }), retrieved_at: stale, event_date: '2026-10-03' })} returning id`;
+    await t.sql`insert into resolutions ${t.sql({ claim_id: claim.id, outcome: 'miss', decided_by: 'evidence', review_status: 'final', deciding_evidence_id: old!.id, decided_at: stale })}`;
+
+    const { deps: d, calls } = deps({ candles: days('2026-10-02', 3, () => 151000) });
+    const check = (await rejudgeClaim(d, claim.slug, new Date('2026-10-07T01:00:00Z')))!;
+    assert.equal(calls.web, 0, 'no search, no page fetch, no judge call for a price claim');
+    assert.equal(check.now.kind, 'final');
+    const [row] = await t.sql`select source_kind from evidences where claim_id = ${claim.id} order by run_at desc limit 1`;
+    assert.equal(row!.source_kind, 'price_feed');
+  });
+
   test('a correction cannot be written twice, and a verdict that still stands cannot be corrected', async () => {
     const { claim } = await wrongMiss();
     const check = (await recheckClaim(t.db, claim.slug, AFTER))!;
@@ -313,3 +353,140 @@ describe('rechecking a verdict already given (001 FR-035)', () => {
     assert.equal(await writeCorrection(t.db, claim.slug, { ...check, differs: false }, 'no'), false);
   });
 });
+
+describe('a page must be about the contract\'s own event (004 FR-002, FR-003)', () => {
+  // The live failure of 2026-10-12. Four pages, three of them the official record. The meeting landing page
+  // showed Race 1 and was judged "did not participate"; the page naming Race 2 was dropped for sharing its
+  // domain. The claim was published MISS for a horse that won.
+  const RACE_CONTRACT = {
+    ...WEB_CONTRACT,
+    criterion: 'Sunny Q wins Race 2 at Sha Tin on October 4, 2026',
+    source: { ...WEB_CONTRACT.source, name: 'HKJC', kind: 'sports_results', locator: 'https://racing.hkjc.com/results', entity_id: 'Sha Tin Race 2 2026-10-04' },
+  };
+  const LANDING = 'https://racing.hkjc.com/localresults';
+  const EXACT = 'https://racing.hkjc.com/resultsall?racedate=2026/10/04';
+  const OUTLET = 'https://www.sportinglife.com/racing/results/2026-10-04/sha-tin/kam-tin-handicap';
+
+  const pages = {
+    [LANDING]: { says: 'miss', quote: 'SHINYU KOKOROE', event_date: '2026-10-04', text: 'SHINYU KOKOROE won Race 1', identity: { date: '2026-10-04', competition: 'Sha Tin', round: 'Race 1', venue: 'Sha Tin', participants: ['SHINYU KOKOROE'] } },
+    [EXACT]: { says: 'hit', quote: 'Sunny Q won Race 2', event_date: '2026-10-04', text: 'Sunny Q won Race 2', identity: { date: '2026-10-04', competition: 'Sha Tin', round: 'Race 2', venue: 'Sha Tin', participants: ['Sunny Q'] } },
+    [OUTLET]: { says: 'hit', quote: 'Sunny Q won the Kam Tin Handicap', event_date: '2026-10-04', text: 'Sunny Q won the Kam Tin Handicap', trust: 'established' as const, identity: { date: '2026-10-04', competition: 'Sha Tin', round: null, venue: 'Sha Tin', participants: ['Sunny Q'] } },
+  };
+
+  test('the page showing another race decides nothing, and the right one settles it', async () => {
+    const claim = await lockedClaim(RACE_CONTRACT);
+    const { deps: d } = deps({ search: [LANDING, EXACT, OUTLET], pages });
+    assert.equal((await resolveDueClaims(d, AFTER)).final, 1);
+
+    const rows = await t.sql`select id, url, says, event_match, passed, gates from evidences where claim_id = ${claim.id} order by url`;
+    const by = (url: string) => rows.find((r) => r.url === url)!;
+    assert.equal(by(LANDING).event_match, 'no');
+    assert.equal(by(LANDING).passed, false, 'a Race 1 page cannot answer a Race 2 claim');
+    assert.equal(by(LANDING).says, 'miss', 'what it said is still stored, with the reason it did not count');
+    assert.equal(by(LANDING).gates.relevant, false);
+
+    assert.equal(by(EXACT).event_match, 'yes');
+    assert.equal(by(EXACT).passed, true, 'and it is no longer dropped as a copy of the page that beat it');
+
+    // The outlet named the race only by its title, so it cannot be placed: conservative, and not needed.
+    assert.equal(by(OUTLET).event_match, 'unknown');
+    assert.equal(by(OUTLET).passed, false);
+
+    const resolution = await resolutionRow(claim.id);
+    assert.equal(resolution!.outcome, 'hit', 'the verdict that was published as a MISS');
+    assert.equal(resolution!.deciding_evidence_id, by(EXACT).id);
+  });
+
+  test('the same pages in reverse order reach the same verdict (SC-002)', async () => {
+    const claim = await lockedClaim(RACE_CONTRACT);
+    const { deps: d } = deps({ search: [OUTLET, EXACT, LANDING], pages });
+    assert.equal((await resolveDueClaims(d, AFTER)).final, 1);
+    const resolution = await resolutionRow(claim.id);
+    assert.equal(resolution!.outcome, 'hit', 'the verdict no longer depends on which page was read first');
+    const [deciding] = await t.sql`select url from evidences where id = ${resolution!.deciding_evidence_id}`;
+    assert.equal(deciding!.url, EXACT);
+  });
+
+  test('two pages of the official record that disagree go to the arbiter, not to whichever won (FR-008a)', async () => {
+    const claim = await lockedClaim(RACE_CONTRACT);
+    const other = 'https://racing.hkjc.com/resultsall?racedate=2026/10/04&alt';
+    const conflicting = {
+      ...pages,
+      [other]: { says: 'miss', quote: 'Sunny Q was unplaced in Race 2', event_date: '2026-10-04', text: 'Sunny Q was unplaced in Race 2', identity: { date: '2026-10-04', competition: 'Sha Tin', round: 'Race 2', venue: 'Sha Tin', participants: ['Sunny Q'] } },
+    };
+    const { deps: d } = deps({ search: [EXACT, other], pages: conflicting });
+    const run = await resolveDueClaims(d, AFTER);
+    assert.deepEqual([run.final, run.needs_human], [0, 1], 'the arbiter could not decide, so a human is asked');
+    const rows = await t.sql`select url, passed from evidences where claim_id = ${claim.id} and passed = true order by url`;
+    assert.equal(rows.length, 2, 'neither page was dropped to make the conflict go away');
+  });
+
+  // 004 FR-007: the live rows that produced two wrong MISS verdicts. The official page had not listed the
+  // match; that silence outranked three outlets reporting the score.
+  test('silence from an official page no longer decides anything (FR-007)', async () => {
+    const claim = await lockedClaim(WEB_CONTRACT);
+    const fixtures = 'https://www.premierleague.com/matches';
+    const guardian = 'https://www.theguardian.com/football/x';
+    const sky = 'https://www.skysports.com/football/y';
+    const { deps: d } = deps({
+      search: [fixtures, guardian, sky],
+      pages: {
+        [fixtures]: { says: 'miss', quote: null, event_date: null, text: 'Fixtures', basis: 'absence', trust: 'primary' },
+        [guardian]: { says: 'hit', quote: 'City beat Liverpool 3-0', event_date: '2026-10-03', text: 'City beat Liverpool 3-0' },
+        [sky]: { says: 'hit', quote: 'Man City 3-0 Liverpool', event_date: '2026-10-03', text: 'Man City 3-0 Liverpool' },
+      },
+    });
+    assert.equal((await resolveDueClaims(d, AFTER)).final, 1);
+
+    const rows = await t.sql`select url, basis, passed, gates from evidences where claim_id = ${claim.id}`;
+    const absence = rows.find((r) => r.basis === 'absence')!;
+    assert.equal(absence.passed, false, 'no endpoint is recorded as a complete record, so silence proves nothing');
+    assert.deepEqual([absence.gates.in_window, absence.gates.quote_found], [false, false], 'and it is held to the quote like any page');
+    assert.equal((await resolutionRow(claim.id))!.outcome, 'hit', 'the verdict that was published as a MISS');
+  });
+
+  // 004 FR-009: the third stored row of the racing run said `miss` beside "Sunny Q won the Kam Tin Handicap".
+  test('a reading that contradicts its own result counts for nothing (FR-009)', async () => {
+    const claim = await lockedClaim({ ...RACE_CONTRACT, subject: 'Sunny Q' });
+    const article = 'https://racingnews.hkjc.com/english/2026/10/04/david-hall-700-wins';
+    const { deps: d } = deps({
+      search: [article],
+      pages: {
+        [article]: {
+          says: 'miss', quote: 'Sunny Q won the Class 5 Kam Tin Handicap', event_date: '2026-10-04',
+          text: 'Sunny Q won the Class 5 Kam Tin Handicap (1000m).', trust: 'primary', winner: 'Sunny Q',
+          identity: { date: '2026-10-04', competition: 'Sha Tin', round: 'Race 2', venue: 'Sha Tin', participants: ['Sunny Q'] },
+        },
+      },
+    });
+    assert.equal((await resolveDueClaims(d, AFTER)).final, 0, 'it cannot settle the claim on a reading that argues with itself');
+    const [row] = await t.sql`select passed, gates from evidences where claim_id = ${claim.id}`;
+    assert.equal(row!.gates.consistent, false);
+    assert.equal(row!.passed, false);
+  });
+
+  // 004 FR-013. Measured in production on 2026-10-12: 47 judge calls over 47 judged pages, mean $0.0662 a
+  // claim, worst $0.0843. The new fields ride on the call that was already paid for; nothing judges twice.
+  test('each page is judged exactly once, whatever the new fields ask for (FR-013)', async () => {
+    await lockedClaim(RACE_CONTRACT);
+    let judged = 0;
+    const { deps: d } = deps({ search: [LANDING, EXACT, OUTLET], pages });
+    const counted = { ...d, llm: { ...d.llm, generateJson: async (args: { operation: string; input: string }) => {
+      if (args.operation === 'judge') judged++;
+      return d.llm.generateJson(args as never);
+    } } } as typeof d;
+    await resolveDueClaims(counted, AFTER);
+    assert.equal(judged, 3, 'three pages, three readings — no second pass');
+  });
+
+  test('a claim whose contract names no round or day is judged as before', async () => {
+    const claim = await lockedClaim(WEB_CONTRACT);
+    const url = 'https://www.fda.gov/approvals/x';
+    const { deps: d } = deps({ search: [url], pages: { [url]: { says: 'hit', quote: 'approved', event_date: '2026-10-03', text: 'approved' } } });
+    assert.equal((await resolveDueClaims(d, AFTER)).final, 1);
+    const [row] = await t.sql`select event_match, passed from evidences where claim_id = ${claim.id}`;
+    assert.equal(row!.event_match, 'not_applicable', 'nothing to compare: the judge\'s own answer stands');
+    assert.equal(row!.passed, true);
+  });
+});
+

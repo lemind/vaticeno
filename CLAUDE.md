@@ -3,9 +3,13 @@
 <!-- SPECKIT START -->
 **Constitution**: `.specify/memory/constitution.md` (v2.7.0) — principles every plan must pass.
 
-**Active plan**: `specs/003-python-platform/plan.md` (001's plan, research, data-model and contracts/ stay the reference for the claim pipeline).
+**Active plan**: `specs/004-evidence-gates/plan.md` (001's plan, research, data-model and contracts/ stay the reference for the claim pipeline).
 
-**Active feature**: `specs/003-python-platform/spec.md` — operations, capacity and cost, in three deploy
+**Active feature**: `specs/004-evidence-gates/spec.md` — the gates decide on the right event: a page must
+identify the event the contract names before it can count, one site speaks through its best page rather than
+its first, absence is admitted only from endpoints recorded in code, and a judgement that contradicts its own
+result never publishes. Written after three of the first twelve verdicts were wrong or unsettled.
+Planned beside it: `specs/003-python-platform/spec.md` — operations, capacity and cost, in three deploy
 stages: a private status page over job state and build info; a measured capacity baseline replacing the
 UNRECONCILED numbers; a local entailment verifier in front of the paid model, shadow first and behind a
 switch. The service layer is Python, allowed by constitution VII since 2026-10-09 (`docs/decisions/001-second-runtime.md`).
