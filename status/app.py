@@ -132,9 +132,12 @@ async def login(request: Request) -> Response:
     if configured is None or not auth.check_password(password, configured[0]):
         return RedirectResponse(f"{PREFIX}/login?bad=1", status_code=303)
     answer = RedirectResponse(f"{PREFIX}/", status_code=303)
+    # Secure only when the request arrived over https: a browser will not send a Secure cookie back over
+    # the plain-http SSH tunnel, which is how the page is read before it has a public address.
+    https = request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
     answer.set_cookie(
         auth.COOKIE, auth.issue(configured[1]), max_age=auth.SESSION_SECONDS,
-        path=PREFIX or "/", httponly=True, samesite="lax", secure=True,
+        path=PREFIX or "/", httponly=True, samesite="lax", secure=https,
     )
     return answer
 
