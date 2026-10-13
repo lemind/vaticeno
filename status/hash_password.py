@@ -10,13 +10,13 @@ from __future__ import annotations
 from getpass import getpass
 from secrets import token_urlsafe
 
-from status.auth import hash_password
+from status.auth import MIN_PASSWORD_CHARS, hash_password
 
 
 def main() -> None:
     password = getpass("status page password: ")
-    if len(password) < 12:
-        raise SystemExit("use at least 12 characters: this is the only lock on the page")
+    if len(password) < MIN_PASSWORD_CHARS:
+        raise SystemExit(f"use at least {MIN_PASSWORD_CHARS} characters: this is the only lock on the page")
     if password != getpass("again: "):
         raise SystemExit("they did not match")
     print()

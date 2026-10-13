@@ -17,6 +17,10 @@ from secrets import compare_digest, token_bytes
 COOKIE = "vaticeno_status"
 SESSION_SECONDS = 7 * 24 * 3600
 
+# This password is the only lock on the page, and there is no account to recover, so it is held to a
+# length rather than to character classes.
+MIN_PASSWORD_CHARS = 12
+
 # scrypt at the parameters Python's own docs use for interactive logins.
 _N, _R, _P = 2**14, 8, 1
 
