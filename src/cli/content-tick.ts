@@ -1,7 +1,7 @@
 // npm run content:tick -- pool|original [--mode repost|quote|joke] [--respect-caps] [--now <ISO>] — one content run by hand, under the advisory lock the
 // scheduler uses. It obeys FEED_DRY_RUN: with the default (true) it only records and logs the pick.
 // Reading a pool account's posts costs money even in a dry run (spec 002: ~$0.025 per account read).
-import { getSql } from '../db/client.js';
+import { getLockSql } from '../db/client.js';
 import { withJobLock } from '../jobs/lock.js';
 import { runPoolPost } from '../content/pool-run.js';
 import { runOriginalPost } from '../content/original-run.js';
@@ -23,6 +23,6 @@ await runCli('content-tick', async (config) => {
   if (mode && !['repost', 'quote', 'joke'].includes(mode)) throw new Error('--mode is repost | quote | joke');
   const options = { force: !values['respect-caps'], ...(mode ? { mode } : {}) };
   const jobs = { pool: runPoolPost, original: runOriginalPost };
-  const run = await withJobLock(getSql(), job, async (): Promise<unknown> => jobs[job](content, now, options));
+  const run = await withJobLock(getLockSql(), job, async (): Promise<unknown> => jobs[job](content, now, options));
   printJson({ now: now.toISOString(), job, dry_run: config.FEED_DRY_RUN, result: run.ran ? run.result : 'skipped' });
 });

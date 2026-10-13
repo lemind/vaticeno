@@ -65,6 +65,31 @@ test('a failing run records the tag it sent to Sentry and counts the streak', as
   assert.equal(row?.consecutiveFailures, 2);
 });
 
+// The incident of 2026-10-13 08:00: five jobs fire together at the top of every hour, each reserving a
+// connection for its advisory lock. On the query pool that is all five, so every query inside those jobs
+// waited for a connection that could never free, and systemd had to kill the process.
+test('five jobs starting at once all finish, rather than deadlocking on connections', async () => {
+  await seedJobState(t.db);
+  const atOnce = ['mentions', 'lock', 'expire', 'resolve', 'verdicts'];
+  const finished: string[] = [];
+
+  const runs = atOnce.map((job) =>
+    runJob({ sql: t.locks, db: t.db }, job, async () => {
+      // Every real job queries inside its lock; that is what had nowhere to run.
+      await t.db.select().from(jobState).limit(1);
+      finished.push(job);
+    }),
+  );
+  const raced = await Promise.race([
+    Promise.all(runs).then(() => 'done' as const),
+    new Promise<'hung'>((resolve) => setTimeout(() => resolve('hung'), 10_000).unref()),
+  ]);
+
+  assert.equal(raced, 'done', 'the job loop did not wedge');
+  assert.deepEqual(finished.sort(), [...atOnce].sort());
+  for (const job of atOnce) assert.equal((await stateOf(job))?.lastOutcome, 'ok');
+});
+
 test('a job with no state row is reported, not silently unrecorded', async () => {
   // `record` only updates, so a name that was never seeded would otherwise write nothing and look fine.
   let ran = false;

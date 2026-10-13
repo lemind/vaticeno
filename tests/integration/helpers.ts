@@ -6,15 +6,16 @@ import { createScratchDb } from '../../src/db/scratch.js';
 import type { ClaimStatus } from '../../src/lifecycle/transitions.js';
 import { randomSlug } from '../../src/contract/slug.js';
 
-export type TestDb = { db: Db; sql: Sql; truncateAll: () => Promise<void>; close: () => Promise<void> };
+export type TestDb = { db: Db; sql: Sql; locks: Sql; truncateAll: () => Promise<void>; close: () => Promise<void> };
 
 export async function setupTestDb(): Promise<TestDb> {
   const adminUrl = process.env.DATABASE_URL;
   if (!adminUrl) throw new Error('DATABASE_URL is required for integration tests (docker compose up -d)');
-  const { db, sql, close } = await createScratchDb(adminUrl, 'vaticeno_test');
+  const { db, sql, locks, close } = await createScratchDb(adminUrl, 'vaticeno_test');
   return {
     db,
     sql,
+    locks,
     // TRUNCATE does not fire the row-level insert-only triggers.
     truncateAll: async () => {
       await sql`truncate feed_posts, feed_queue, opt_outs, sources, cost_events, recheck_findings, corrections, resolutions, evidences, positions, claims`;

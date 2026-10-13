@@ -1,6 +1,6 @@
 // npm run jobs:tick -- [--now <ISO>] — one pass of each job: lock, expire needs-info, resolve. Each runs
 // under its own advisory lock, so cron and a manual tick never overlap.
-import { getSql } from '../db/client.js';
+import { getLockSql } from '../db/client.js';
 import { expireNeedsInfo, expireWithheldDrafts } from '../lifecycle/expire.js';
 import { auditOwedWork } from '../lifecycle/reconcile.js';
 import { lockDueDrafts } from '../lifecycle/lock.js';
@@ -13,7 +13,7 @@ await runCli('jobs-tick', async (config) => {
   const { values } = cliArgs({ now: { type: 'string' } });
   const now = nowFrom(values.now);
   const deps = buildDeps(config);
-  const sql = getSql();
+  const sql = getLockSql(); // locks reserve from their own pool, never the query pool
 
   const lock = await withJobLock(sql, 'lock', () => lockDueDrafts({ ...deps, reader: createFileSourceReader() }, now));
   const expire = await withJobLock(sql, 'expire', async () => await expireNeedsInfo(deps.db, now) + await expireWithheldDrafts(deps.db, now));

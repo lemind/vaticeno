@@ -6,7 +6,7 @@ import { loadCoreConfig } from '../config.js';
 import { buildContentDeps } from '../content/wire.js';
 import { buildBotDeps } from '../bot/wire.js';
 import { buildDeps } from '../deps.js';
-import { closeDb, type Db, getDb, getSql } from '../db/client.js';
+import { closeDb, type Db, getDb, getLockSql } from '../db/client.js';
 import { startScheduler } from '../jobs/scheduler.js';
 import { createFileSourceReader } from '../lifecycle/source-reader.js';
 import { log } from '../log.js';
@@ -71,7 +71,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const content = config.ENABLE_FEED ? buildContentDeps(deps, config) : null;
   // On X the lock job re-reads the real post; without X, the Stage 0 simulation file.
   const scheduler = config.ENABLE_JOBS
-    ? await startScheduler({ ...deps, reader: bot?.reader ?? createFileSourceReader(), sql: getSql(), bot, content })
+    ? await startScheduler({ ...deps, reader: bot?.reader ?? createFileSourceReader(), sql: getLockSql(), bot, content })
     : null; // started only once the server is up
   log('info', 'web server listening', { event: 'web.started', port: config.PORT, jobs: config.ENABLE_JOBS, x: Boolean(bot), feed: content ? (config.FEED_DRY_RUN ? 'dry_run' : 'live') : 'off' });
   const stop = async () => {

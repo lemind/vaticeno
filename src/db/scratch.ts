@@ -10,12 +10,13 @@ export async function createScratchDb(adminUrl: string, prefix: string) {
   const url = new URL(adminUrl);
   url.pathname = `/${name}`;
   await runMigrations(url.toString());
-  const { db, sql } = createDb(url.toString());
+  const { db, sql, locks } = createDb(url.toString());
   return {
     db,
     sql,
+    locks,
     close: async () => {
-      await sql.end({ timeout: 5 });
+      await Promise.all([sql.end({ timeout: 5 }), locks.end({ timeout: 5 })]);
       await admin.unsafe(`drop database "${name}" with (force)`);
       await admin.end({ timeout: 5 });
     },
