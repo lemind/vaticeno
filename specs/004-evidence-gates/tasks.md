@@ -15,7 +15,7 @@ failures are fixtures. Nothing else.
 | Cause 1 — an absence outranked records | fixed before this spec (001 T123, deployed 2026-10-12) |
 | Cause 2 — same domain meant same story | this spec, Phase 2 |
 | Cause 3 — no gate asked about the event | this spec, Phase 1 |
-| Standing wrong verdicts | three, all reaching HIT on today's rules: two from the rule alone, one needing the re-judge. Corrections are T415 |
+| Standing wrong verdicts | three found, all reaching HIT. The horse-racing one is corrected and posted; the two football ones are left as they are (T415) |
 
 ## Format: `[ID] [P?] [Story] Description`
 
@@ -62,11 +62,11 @@ race-specific page can.
 ## Phase 4: the verdict still standing
 
 - [x] T415a **Done 2026-10-12.** `rejudgeClaim` + `verdict:recheck -- --slug X --rejudge`: fetches and judges the pages again, writes a new evidence run beside the frozen resolution, records what it spent, and never runs on a schedule. A free recheck only re-reads stored answers, so it can catch a wrong rule and never a wrong reading (004 T415a)
-- [ ] T415 Correct all three standing verdicts to HIT with `--correct --post`, one command each. Confirmed against production 2026-10-13: the two football claims flip on the stored rows alone, for nothing; the horse-racing claim needed the re-judge ($0.051), where the race-specific official page and one established report both say HIT and the Race 1 page is rejected on relevance. **Owner's call**: each posts once in a stranger's thread (001 FR-035)
+- [x] T415 **Done 2026-10-13.** Correct the standing verdicts with `--correct --post`. The horse-racing claim is corrected MISS → HIT and posted in its thread, after the re-judge ($0.051) placed the official race page and one established report on HIT and rejected the Race 1 page on relevance; the claim page shows the correction beside the superseded verdict. The two football claims flip on the stored rows alone and were left unposted by the owner: alpha, no readers, and three replies into strangers' threads buy nothing (owner decision 2026-10-13)
 - [x] T416 **Done 2026-10-12.** [P] Measure cost per resolved claim against the baseline and record it; one judging call per page and no second pass (FR-013, SC-005) Measured in production over the ten resolved web claims: **1.00 judge call per judged page** (47 over 47), mean **$0.0662** a claim, worst **$0.0843**, ceiling $0.30. The v5 fields ride on the call already paid for. An integration test holds the one-call rule.
 - [x] T417 **Done 2026-10-12.** Tasks marked with their results; 135 unit and 156 integration tests pass, typecheck clean. One task is left open on purpose: T415 spends money and posts publicly
 
-**Checkpoint**: nothing published is known to be wrong — pending T415, the three corrections still owed, which are the owner's to run.
+**Checkpoint**: the verdict that was disputed in public is corrected in its thread. Two older football verdicts are known wrong and deliberately left: no audience to correct them for.
 
 ---
 
