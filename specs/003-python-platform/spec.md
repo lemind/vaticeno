@@ -51,6 +51,12 @@ broken within one refresh — not "something is wrong", but which job, and how l
    long it has been outstanding — and it stays listed after it ages out of the recheck's seven-day window,
    until a correction is posted or it is dismissed.
 
+**Still to plan** (owner, 2026-10-13): the page should also answer "where does the book stand" — how many
+claims exist, how many are settled against how many are still open, how many carry a recheck finding nobody
+has cleared, and one line per running service rather than one per scheduled job. Left unplanned on purpose
+until the first version of the page is on screen: the numbers are easy, the right grouping is the part worth
+seeing before deciding.
+
 ---
 
 ### User Story 2 - A measured capacity baseline (Priority: P1)
