@@ -331,6 +331,20 @@ describe('rechecking a verdict already given (001 FR-035)', () => {
     assert.equal(await writeCorrection(t.db, claim.slug, check, 'judged against the wrong race'), true);
   });
 
+  test('a re-judge of a price claim reads the feed, not the web (review 2026-10-13)', async () => {
+    const claim = await lockedClaim();
+    const stale = '2026-10-06T00:00:00Z';
+    const [old] = await t.sql`insert into evidences ${t.sql({ claim_id: claim.id, run_at: stale, source_kind: 'price_feed', source_name: 'coinbase', trust_level: 'primary', says: 'miss', basis: 'record', passed: true, gates: JSON.stringify({ final: true, trusted: true, in_window: true, independent: null, quote_found: null }), retrieved_at: stale, event_date: '2026-10-03' })} returning id`;
+    await t.sql`insert into resolutions ${t.sql({ claim_id: claim.id, outcome: 'miss', decided_by: 'evidence', review_status: 'final', deciding_evidence_id: old!.id, decided_at: stale })}`;
+
+    const { deps: d, calls } = deps({ candles: days('2026-10-02', 3, () => 151000) });
+    const check = (await rejudgeClaim(d, claim.slug, new Date('2026-10-07T01:00:00Z')))!;
+    assert.equal(calls.web, 0, 'no search, no page fetch, no judge call for a price claim');
+    assert.equal(check.now.kind, 'final');
+    const [row] = await t.sql`select source_kind from evidences where claim_id = ${claim.id} order by run_at desc limit 1`;
+    assert.equal(row!.source_kind, 'price_feed');
+  });
+
   test('a correction cannot be written twice, and a verdict that still stands cannot be corrected', async () => {
     const { claim } = await wrongMiss();
     const check = (await recheckClaim(t.db, claim.slug, AFTER))!;

@@ -7,9 +7,7 @@ import { claims, corrections, evidences, resolutions } from '../db/schema.js';
 import type { CallCost } from '../llm/client.js';
 import { log } from '../log.js';
 import { decideResolution, type Decision } from './decide.js';
-import { type ResolverDeps, storeEvidence } from './resolver.js';
-import { knownSources } from './sources.js';
-import { gatherWebEvidence } from './web-evidence.js';
+import { checkBudget, gatherEvidence, type ResolverDeps, storeEvidence } from './resolver.js';
 
 export type Recheck = {
   slug: string;
@@ -52,10 +50,12 @@ export async function rejudgeClaim(deps: ResolverDeps, slug: string, at: Date): 
   const contract = ContractSchema.parse(row.contract);
   const window = { lockAt: row.lockAt, deadlineAt: row.deadlineAt };
   const costs: CallCost[] = [];
-  const items = await gatherWebEvidence(deps, contract, window, at, await knownSources(deps.db), costs);
+  const items = await gatherEvidence(deps, contract, window, at, costs);
   await storeEvidence(deps.db, row.id, items, costs, at);
   const spent = costs.reduce((total, cost) => total + cost.usdCost, 0);
   log('info', 'verdict re-judged', { event: 'recheck.rejudged', slug, pages: items.length, usd_cost: spent });
+  // A claim can be re-judged more than once, and each run adds to what it has cost (INIT_SPEC §9).
+  await checkBudget(deps.db, { id: row.id, slug });
   return recheckClaim(deps.db, slug, at);
 }
 

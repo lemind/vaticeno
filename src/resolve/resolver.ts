@@ -1,7 +1,7 @@
 // Resolver service: due claims → evidence → rule table → one resolution per claim (data-model
 // "resolutions", "Resolver schedule"). An outage is never a verdict (constitution III).
 import { and, asc, count, eq, inArray, lte, min, sql } from 'drizzle-orm';
-import { ContractSchema } from '../contract/schema.js';
+import { type Contract, ContractSchema } from '../contract/schema.js';
 import type { Db } from '../db/client.js';
 import { recordCosts } from '../db/costs.js';
 import { type ClaimRow, claims, costEvents, evidences, resolutions } from '../db/schema.js';
@@ -86,6 +86,24 @@ export async function resolveDueClaims(deps: ResolverDeps, now: Date): Promise<R
 }
 
 
+// The evidence one contract needs: the price feed answers for itself, everything else is searched, fetched
+// and judged. One place, so a re-judge of a settled claim cannot take the other path (review 2026-10-13).
+export async function gatherEvidence(deps: ResolverDeps, contract: Contract, window: { lockAt: Date; deadlineAt: Date }, now: Date, costs: CallCost[]): Promise<GatheredItem[]> {
+  if (contract.resolution_method === 'price_feed' && contract.price) {
+    const { draft, value, contentSha256 } = await gatherPriceEvidence(deps.coinbase, contract.price, window, now);
+    const { gates, passed } = runGates(draft, { ...window, absenceIsMeaningful: false });
+    return [{ draft, gates, passed, value, sourceName: 'coinbase', trustReason: null, contentSha256, searchQuery: null, modelId: null, instructionVersion: null, pageText: '' }];
+  }
+  return gatherWebEvidence(deps, contract, window, now, await knownSources(deps.db), costs);
+}
+
+// What a claim has cost so far, against the per-claim ceiling (INIT_SPEC §9). Loud, never blocking.
+export async function checkBudget(db: Db, claim: { id: string; slug: string }): Promise<void> {
+  const [row] = await db.select({ usd: sql<string>`coalesce(sum(${costEvents.usdCost}), 0)` }).from(costEvents).where(eq(costEvents.claimId, claim.id));
+  const usd = Number(row?.usd ?? 0);
+  if (usd > CLAIM_BUDGET_USD) alert('claim.over_budget', { claim_id: claim.id, slug: claim.slug, usd_cost: usd });
+}
+
 // One run's evidence, written once and never updated (data-model evidences). Shared with the re-judge of a
 // claim already settled, which writes a new run and no resolution (004 T415a).
 export async function storeEvidence(db: Db, claimId: string, items: readonly GatheredItem[], costs: CallCost[], now: Date) {
@@ -131,13 +149,7 @@ export async function resolveClaim(deps: ResolverDeps, claim: ClaimRow, now: Dat
   const costs: CallCost[] = [];
   let items: GatheredItem[];
   try {
-    if (contract.resolution_method === 'price_feed' && contract.price) {
-      const { draft, value, contentSha256 } = await gatherPriceEvidence(deps.coinbase, contract.price, window, now);
-      const { gates, passed } = runGates(draft, { ...window, absenceIsMeaningful: false });
-      items = [{ draft, gates, passed, value, sourceName: 'coinbase', trustReason: null, contentSha256, searchQuery: null, modelId: null, instructionVersion: null, pageText: '' }];
-    } else {
-      items = await gatherWebEvidence(deps, contract, window, now, await knownSources(db), costs);
-    }
+    items = await gatherEvidence(deps, contract, window, now, costs);
   } catch (error) {
     if (!isOutage(error)) throw error;
     if (error instanceof LlmSchemaError) costs.push(...error.costs);
@@ -257,12 +269,6 @@ async function flagForHuman(db: Db, claim: ClaimRow, row: Omit<typeof resolution
     await tx.update(claims).set({ nextCheckAt: null }).where(eq(claims.id, claim.id));
   });
   alert('resolution.needs_human', { claim_id: claim.id, slug: claim.slug, reason });
-}
-
-async function checkBudget(db: Db, claim: ClaimRow): Promise<void> {
-  const [row] = await db.select({ usd: sql<string>`coalesce(sum(${costEvents.usdCost}), 0)` }).from(costEvents).where(eq(costEvents.claimId, claim.id));
-  const usd = Number(row?.usd ?? 0);
-  if (usd > CLAIM_BUDGET_USD) alert('claim.over_budget', { claim_id: claim.id, slug: claim.slug, usd_cost: usd });
 }
 
 function isOutage(error: unknown): boolean {

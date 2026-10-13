@@ -24,11 +24,14 @@ const MATCH_RANK: Record<string, number> = { yes: 0, not_applicable: 1, unknown:
 // any order gives the same answer (SC-002), because groups are built and ranked from the facts, not the order.
 export function independenceOf(facts: readonly GroupFacts[]): boolean[] {
   const order = facts.map((_, i) => i).sort((a, b) => key(facts[a]!).localeCompare(key(facts[b]!)));
-  const groups: number[][] = [];
+  // Matching is not transitive — A shares a domain with B, B shares a wire story with C, A and C share
+  // nothing — so a page joins every group it matches and those groups merge. Keeping only the first match
+  // would leave one story counted twice, which is what this rule exists to prevent.
+  let groups: number[][] = [];
   for (const index of order) {
-    const joined = groups.find((group) => group.some((other) => sameStory(facts[index]!, facts[other]!)));
-    if (joined) joined.push(index);
-    else groups.push([index]);
+    const matched = groups.filter((group) => group.some((other) => sameStory(facts[index]!, facts[other]!)));
+    groups = groups.filter((group) => !matched.includes(group));
+    groups.push([...matched.flat(), index]);
   }
 
   const independent = facts.map(() => false);

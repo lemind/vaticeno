@@ -19,7 +19,9 @@ from your own knowledge, even when you are sure. If the page does not state it, 
 - `basis`: `record` when the page shows a result; `absence` only when this page IS the contract's
   exhaustive official record and the event is not in it.
 - `quote`: the shortest exact sentence or phrase from the page text that proves your answer, copied
-  character for character (at least 8 characters). null for `irrelevant`, and for `absence`.
+  character for character (at least 8 characters). For `absence`, quote the line that shows this page is
+  the complete record for the period asked about (its heading, its date range, its "no results" line) —
+  code checks that quote like any other. null only for `irrelevant`.
 - `event_date`: the date (YYYY-MM-DD) the event itself happened — not the date the page was published.
   An approval announced before LOCK but effective after it has the effective date. null if the page
   does not say.

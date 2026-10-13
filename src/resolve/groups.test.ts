@@ -84,3 +84,15 @@ test('two placed pages of one source that disagree both go through, so the arbit
   const unplaced = facts({ url: 'https://racing.hkjc.com/c', trustLevel: 'primary', eventMatch: 'unknown', says: 'miss', detail: 1 });
   assert.deepEqual(independenceOf([a, b, unplaced]), [true, true, false]);
 });
+
+test('a chain of matches is one group, however the keys sort (review 2026-10-13)', () => {
+  // A shares a domain with B, B shares a wire story with C, A and C share nothing. Keeping only the first
+  // match left C on its own, and one story counted as two witnesses.
+  const a = facts({ url: 'https://www.aaa.com/1', simhash: simhash(STORY) });
+  const b = facts({ url: 'https://www.aaa.com/2', originalSource: 'Reuters' });
+  const c = facts({ url: 'https://www.ccc.com/3', originalSource: 'reuters' });
+  for (const order of [[a, b, c], [a, c, b], [c, b, a], [b, a, c]]) {
+    assert.equal(independenceOf(order).filter(Boolean).length, 1, 'one story, one witness');
+  }
+});
+
