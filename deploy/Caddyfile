@@ -1,5 +1,5 @@
 # HTTPS for the public pages (research: Caddy in front, automatic certificates). /etc/caddy/Caddyfile.
-vaticeno.app {
+vaticeno.n30sk.cc {
 	encode gzip
 
 	# The owner's status page, behind its own password (003 US1). `handle_path` strips the prefix, so the
@@ -12,8 +12,4 @@ vaticeno.app {
 	handle {
 		reverse_proxy localhost:3000
 	}
-}
-
-www.vaticeno.app {
-	redir https://vaticeno.app{uri} permanent
 }

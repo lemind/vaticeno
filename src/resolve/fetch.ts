@@ -1,6 +1,7 @@
 // Fetch one source page and extract its visible text, in memory only (FR-029). Replay files keep the
 // fingerprint (final URL, sha256, simhash, time, status) — never the text.
 import { createHash } from 'node:crypto';
+import { VERSION } from '../version.js';
 import type { ReplayStore } from '../llm/replay.js';
 import { simhash } from './similarity.js';
 
@@ -10,6 +11,9 @@ export const MAX_TEXT_CHARS = 40_000; // what the judge reads; keeps a judge cal
 
 // transient = network error, timeout, 429 or 5xx: retry later. Otherwise the page answered but can't be
 // read (404, 403, not HTML, empty) — a real "nothing here", not an outage.
+// The real version and a host that resolves: a site operator who looks us up should find something.
+const USER_AGENT = `Mozilla/5.0 (compatible; vaticeno/${VERSION}; +https://vaticeno.n30sk.cc)`;
+
 export class SourceUnavailable extends Error {
   readonly transient: boolean;
   constructor(message: string, options?: { cause?: unknown; transient?: boolean }) {
@@ -50,7 +54,7 @@ export function createPageFetcher(options: { mode: 'live' | 'record' | 'replay';
       const response = await fetch(url, {
         redirect: 'follow',
         signal: AbortSignal.timeout(TIMEOUT_MS),
-        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; vaticeno/0.1; +https://vaticeno.app)', Accept: 'text/html,text/plain' },
+        headers: { 'User-Agent': USER_AGENT, Accept: 'text/html,text/plain' },
       });
       finalUrl = response.url || url;
       status = response.status;
