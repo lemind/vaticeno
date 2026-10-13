@@ -1,10 +1,7 @@
 # Capacity
 
-Measured numbers only. Every row carries the date and the machine it was measured on, because a figure
-from a 20-thread laptop says nothing about a 458 MB droplet (003 SC-003, FR-009).
-
-Nothing here is estimated. A number that has not been measured is absent rather than guessed, and the
-rows that only the droplet can answer say so.
+Measured numbers only, each with its date and the machine (003 SC-003, FR-009). Nothing is estimated: a
+number nobody measured is absent rather than guessed.
 
 ## How these were produced
 
@@ -17,7 +14,7 @@ LOAD_SLUG=<slug> LOAD_AUTHOR=<x_user_id> .venv/bin/locust -f load/locustfile.py 
 npm run load:burst
 ```
 
-The page run requires a claim with a position row, or a quarter of the requests are 404s and the latency
+The page run needs a claim with a position row, or a quarter of the requests are 404s and the latency
 figures flatter the service. The first run here made that mistake and was discarded.
 
 ## Laptop — 2026-10-13
@@ -39,15 +36,11 @@ machine · Fastify with `ENABLE_JOBS=false ENABLE_X=false`, database pool `max: 
 | Mention burst re-served | **0 extra replies** | a re-served mention is never answered again |
 | One author flooding, 20 mentions | **3 replies** | the per-author cap holds; the rest are withheld, not dropped |
 
-**What the pool number means.** The ceiling is the pool, not the database and not the CPU: five
-connections saturate at about 430 req/s, and past that the application queues. That is the designed
-behaviour — a clean queue rather than a refusal or a wedge — and it is why raising `max` is the first
-lever if page traffic ever matters. It is set to 5 because the Supabase pooler is the real constraint
-(001 research R1).
+**The ceiling is the pool**, not the CPU or the database, so raising `max` is the first lever if page
+traffic ever matters. It is 5 because the Supabase pooler is the real constraint (001 research R1).
 
-**What the burst number means.** Ten times the live rate arrives and drains in about a second, well
-inside the one-minute poll window, so the mention path has roughly sixty times the headroom it needs at
-today's volume. The caps are what shape a flood, not the throughput.
+**The mention path has about sixty times the headroom it needs** at today's volume: ten times the live
+rate drains in a second, inside the one-minute poll window. Caps shape a flood, not throughput.
 
 ## Droplet — not measured
 
@@ -61,12 +54,9 @@ today's volume. The caps are what shape a flood, not the throughput.
 | Status service RSS | **not measured** — the run was interrupted |
 | Headroom with all processes running (SC-008) | **not stated**: it needs the two rows above |
 
-A load run against the droplet drives the live service, which posts to X and spends money, so it is an
-owner decision and not something a harness should be able to start by accident (FR-008).
-
-What can be said from the figures that exist: the bot peaks at 149 MB of 458 MB, leaving about 212 MB
-before swap. The status service is a second Python process on the same box, and until its footprint is
-measured, SC-008's headroom stays open.
+A load run there drives the live service, which posts to X and spends money, so it is an owner decision
+(FR-008). What is known: the bot peaks at 149 MB of 458 MB, leaving ~212 MB before swap. The status
+service is a second process on the same box, so until its footprint is measured SC-008 stays open.
 
 ## Still UNRECONCILED, and not by omission
 
