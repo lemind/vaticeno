@@ -130,6 +130,8 @@ describe('front page', () => {
     const page = visible((await app().inject({ method: 'GET', url: '/' })).body);
 
     assert.match(page, /operational/);
+    // The account to tag, linked to its own profile.
+    assert.match(page, /<a href="https:\/\/x\.com\/vaticeno" rel="noopener">@vaticeno<\/a>/);
     assert.match(page, /1\.2\.0/, 'the running version is on the page');
     assert.match(page, /Predictions<\/dt>\s*<dd>1<\/dd>/);
     assert.match(page, /Verdicts<\/dt>\s*<dd>1<\/dd>/);

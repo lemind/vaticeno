@@ -60,6 +60,8 @@ const CoreEnvSchema = z
     ENABLE_FEED: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
     // On (the default): picks are logged, nothing is posted. Posting needs an explicit false.
     FEED_DRY_RUN: z.enum(['true', 'false']).default('true').transform((v) => v === 'true'),
+    // Shown on the public front page as the account to tag; the same default as the X config's.
+    X_BOT_HANDLE: z.string().regex(/^\w{1,15}$/).default('vaticeno'),
     // The pool account the owner keeps outside the repo; an empty line = that account is skipped.
     FEED_PLATFORM_ACCOUNT_ID: z.preprocess(blankIsUnset, z.string().regex(/^\d{1,19}$/).optional()),
     // The feed stops for the day once its recorded X and model costs reach this. 0.15/day ≈ $4.5 a month,

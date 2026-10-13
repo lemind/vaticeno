@@ -17,12 +17,12 @@ import { authorPage } from './author-page.js';
 import { claimPage } from './claim-page.js';
 import { html, layout } from './html.js';
 
-export function buildServer(deps: { db: Db; now?: () => Date }) {
+export function buildServer(deps: { db: Db; now?: () => Date; botHandle?: string }) {
   const now = deps.now ?? (() => new Date());
   const app = Fastify({ logger: false });
 
   // The public front page: health, version and the counts. Nothing operational (003 FR-004).
-  app.get('/', async (_request, reply) => reply.type('text/html; charset=utf-8').send(await homePage(deps.db, now())));
+  app.get('/', async (_request, reply) => reply.type('text/html; charset=utf-8').send(await homePage(deps.db, now(), deps.botHandle)));
 
   app.get<{ Params: { slug: string } }>('/c/:slug', async (request, reply) => {
     const page = await claimPage(deps.db, request.params.slug, now());
@@ -63,7 +63,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   process.on('unhandledRejection', (error) => void die(error, 'process.unhandled_rejection'));
   process.on('uncaughtException', (error) => void die(error, 'process.uncaught_exception'));
 
-  const app = buildServer({ db: getDb() });
+  const app = buildServer({ db: getDb(), botHandle: config.X_BOT_HANDLE });
   // Caddy in front terminates HTTPS; the app is never reachable directly from outside.
   await app.listen({ port: config.PORT, host: '127.0.0.1' });
   const deps = buildDeps(config);

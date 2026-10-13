@@ -4,7 +4,7 @@ import { count, eq, isNotNull } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
 import { claims, jobState, resolutions } from '../db/schema.js';
 import { VERSION } from '../version.js';
-import { html, layout } from './html.js';
+import { html, layout, safeHref } from './html.js';
 
 export type Health = { ok: boolean };
 
@@ -22,7 +22,7 @@ export async function publicHealth(db: Db, now: Date): Promise<Health> {
   return { ok: late.length === 0 };
 }
 
-export async function homePage(db: Db, now: Date): Promise<string> {
+export async function homePage(db: Db, now: Date, handle = 'vaticeno'): Promise<string> {
   const [health, claimRows, verdictRows] = await Promise.all([
     publicHealth(db, now),
     db.select({ n: count() }).from(claims).where(isNotNull(claims.contract)),
@@ -41,8 +41,8 @@ export async function homePage(db: Db, now: Date): Promise<string> {
     'Vaticeno',
     html`
 <h1>Vaticeno</h1>
-<p class="muted">Tag the bot under a prediction on X and it records it, then posts the verdict in the same
-thread after the deadline — with the result it was decided on.</p>
+<p class="muted">Tag ${profile(handle)} under a prediction on X and it records it, then posts the verdict
+in the same thread after the deadline — with the result it was decided on.</p>
 
 <h2>Status</h2>
 <dl>
@@ -66,4 +66,10 @@ thread after the deadline — with the result it was decided on.</p>
   <dd class="void">${byOutcome.get('void') ?? 0}</dd>
 </dl>`,
   );
+}
+
+// The bot's own profile. `safeHref` is what keeps a handle from ever becoming a different scheme.
+function profile(handle: string) {
+  const href = safeHref(`https://x.com/${encodeURIComponent(handle)}`);
+  return href ? html`<a href="${href}" rel="noopener">@${handle}</a>` : html`@${handle}`;
 }
