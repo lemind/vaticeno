@@ -15,7 +15,7 @@ failures are fixtures. Nothing else.
 | Cause 1 — an absence outranked records | fixed before this spec (001 T123, deployed 2026-10-12) |
 | Cause 2 — same domain meant same story | this spec, Phase 2 |
 | Cause 3 — no gate asked about the event | this spec, Phase 1 |
-| Standing wrong verdict | re-judged in production 2026-10-13 and it reaches HIT; writing the correction is T415 |
+| Standing wrong verdicts | three, all reaching HIT on today's rules: two from the rule alone, one needing the re-judge. Corrections are T415 |
 
 ## Format: `[ID] [P?] [Story] Description`
 
@@ -62,11 +62,11 @@ race-specific page can.
 ## Phase 4: the verdict still standing
 
 - [x] T415a **Done 2026-10-12.** `rejudgeClaim` + `verdict:recheck -- --slug X --rejudge`: fetches and judges the pages again, writes a new evidence run beside the frozen resolution, records what it spent, and never runs on a schedule. A free recheck only re-reads stored answers, so it can catch a wrong rule and never a wrong reading (004 T415a)
-- [ ] T415 Correct the horse-racing claim to HIT with `--correct --post`. Re-judged in production 2026-10-13 for $0.051: the race-specific official page and one established report both say HIT, and the Race 1 page is now rejected on relevance. **Owner's call**: it posts once in a stranger's thread (001 FR-035)
+- [ ] T415 Correct all three standing verdicts to HIT with `--correct --post`, one command each. Confirmed against production 2026-10-13: the two football claims flip on the stored rows alone, for nothing; the horse-racing claim needed the re-judge ($0.051), where the race-specific official page and one established report both say HIT and the Race 1 page is rejected on relevance. **Owner's call**: each posts once in a stranger's thread (001 FR-035)
 - [x] T416 **Done 2026-10-12.** [P] Measure cost per resolved claim against the baseline and record it; one judging call per page and no second pass (FR-013, SC-005) Measured in production over the ten resolved web claims: **1.00 judge call per judged page** (47 over 47), mean **$0.0662** a claim, worst **$0.0843**, ceiling $0.30. The v5 fields ride on the call already paid for. An integration test holds the one-call rule.
 - [x] T417 **Done 2026-10-12.** Tasks marked with their results; 135 unit and 156 integration tests pass, typecheck clean. One task is left open on purpose: T415 spends money and posts publicly
 
-**Checkpoint**: nothing published is known to be wrong — pending T415, the one correction still owed, which is the owner's to run.
+**Checkpoint**: nothing published is known to be wrong — pending T415, the three corrections still owed, which are the owner's to run.
 
 ---
 
