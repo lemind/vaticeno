@@ -145,6 +145,24 @@ DATABASE_URL_RO=postgres://status_ro:dev@localhost:5433/vaticeno \
 .venv/bin/pytest status load && .venv/bin/ruff check .
 ```
 
+### Load runs
+
+Measured numbers live in [capacity.md](specs/003-python-platform/capacity.md), each with its date and the
+machine it came from. Runs drive **localhost only**: `load/guard.py` refuses a remote target, a real X or
+model credential in the environment, a production database string, or a paid model mode — a load run
+against the live bot would post to X and spend money.
+
+```bash
+npm run dev                     # the service under test, with jobs and X off
+npm run load:burst              # ten times the live mention rate, one reply each
+
+LOAD_SLUG=<slug> LOAD_AUTHOR=<x_user_id> .venv/bin/locust -f load/locustfile.py \
+  --headless -H http://localhost:3000 -u 100 -r 50 -t 30s --only-summary
+```
+
+The page run needs a claim that exists **and** a position row for the author, or a quarter of the
+requests are 404s and the latency numbers come out flattering.
+
 ## Layout
 
 ```

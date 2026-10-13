@@ -40,6 +40,8 @@ jobs:
       - run: npm run test:integration
       # 60 historical price claims on frozen candles (SC-002: must be 100%)
       - run: npm run seeds:crypto
+      # Ten times the live mention rate, answered once each (003 SC-004)
+      - run: npm run load:burst
 
   python:
     runs-on: ubuntu-latest

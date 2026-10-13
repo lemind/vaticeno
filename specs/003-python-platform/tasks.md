@@ -12,7 +12,7 @@ status page — healthy, dead job, no database. Nothing else; ~55% coverage is a
 
 | | |
 |---|---|
-| Stage 1 | Phases 1-3 done 2026-10-13; the page runs. **Migrations 0017-0019 are applied locally and not on Supabase**, and the page is not deployed |
+| Stage 1 | Phases 1-4 done 2026-10-13 except T323. **Migrations 0017-0019 are applied locally and not on Supabase**, and the page is not deployed |
 | Stage 2 | not started; testnet only, no real value, no fee, price-feed claims only (FR-031h) |
 | Escrow v1 | T326a answers FR-031f before anything is deployed |
 | Stage 3 | not started; may end at T344 |
@@ -65,16 +65,16 @@ status page — healthy, dead job, no database. Nothing else; ~55% coverage is a
 
 **Independent test**: a load run produces a table that can be re-run after a change.
 
-- [ ] T319 [US2] `load/guard.py`: refuse a non-local target or any real credential (FR-008)
-- [ ] T320 [US2] `load/locustfile.py`: the public pages and `/healthz`, ramped until p95 degrades (FR-009)
-- [ ] T321 [US2] `load/burst.py`: stubbed X reader, ten times the live mention rate, one reply each (FR-010, SC-004)
-- [ ] T322 [US2] Measure the connection ceiling past the pool: queue, clean refusal or wedge, and recovery time
-- [ ] T323 [US2] Measure peak RSS per process under load against the box's memory, and state the headroom (SC-008)
-- [ ] T324 [US2] `capacity.md`: every row with its number, hardware and date; laptop and droplet separately (SC-003)
-- [ ] T325 [US2] Replace the UNRECONCILED labels these runs answer, with the date (FR-011)
-- [ ] T326 [P] [US2] `README.md`: how to run a load run locally
+- [x] T319 [US2] `load/guard.py`: refuse a non-local target or any real credential (FR-008). It also refuses a production database string and any paid model mode. Thirteen tests, the one part of the harness worth testing exhaustively
+- [x] T320 [US2] `load/locustfile.py`: the public pages and `/healthz`, ramped until p95 degrades (FR-009). Ramped 50 → 300 concurrent: p95 stays under 20 ms to ~320 req/s, saturates at ~430, no errors at any level
+- [x] T321 [US2] ~~`load/burst.py`~~ **`tests/load/mention-burst.test.ts`**: stubbed X reader, ten times the live mention rate, one reply each (FR-010, SC-004). Written in TypeScript, not Python: the mention path and its stubs are TypeScript, so a Python file would only shell out to it. 170 mentions drain in ~1 s, one reply each, a re-served burst adds none, and one author flooding gets 3 — the cap withholds rather than drops. Runs in CI as `npm run load:burst`
+- [x] T322 [US2] Measure the connection ceiling past the pool: queue, clean refusal or wedge, and recovery time. Under 300 concurrent the database saw **5 connections, never 6**: the application queues, refuses nothing, wedges nothing, and the first request after load returns in 4 ms. The pool is the serving ceiling, not the CPU or the database
+- [ ] T323 [US2] Measure peak RSS per process under load against the box's memory, and state the headroom (SC-008). **Half done**: Node holds flat at 81 MB under 300 concurrent here, and the droplet reports a 149 MB peak of 458 MB. The status service's own footprint is still unmeasured, so SC-008's headroom is not yet stated
+- [x] T324 [US2] `capacity.md`: every row with its number, hardware and date; laptop and droplet separately (SC-003). The droplet's rows say **not measured** rather than borrowing the laptop's, since a load run there drives the live bot
+- [x] T325 [US2] Replace the UNRECONCILED labels these runs answer, with the date (FR-011). Only SC-003's applied: a load run stubs X, the model and the price feed, which is what makes it safe, so it can never answer a price or a billing category. The remaining labels are listed in capacity.md as still open, by reason rather than by omission
+- [x] T326 [P] [US2] `README.md`: how to run a load run locally, including that the page run needs a claim **and** a position row — without one, a quarter of the requests 404 and the latency numbers flatter the service, which is how the first run here was wrong
 
-**Checkpoint**: the numbers exist and the droplet's headroom is known.
+**Checkpoint**: partly met. The numbers exist for this machine and are written down with their date and hardware. The droplet's headroom is **not** known: measuring it means running load against the live bot, which is the owner's call, so T323 stays open.
 
 **🚀 Stage 1 deploys here.**
 

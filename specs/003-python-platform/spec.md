@@ -411,7 +411,8 @@ with VOID, and the same with the worker switched off for the whole timeout windo
   stale-after window passing — not two minutes after a missed run, because a twice-daily job and a
   once-a-minute job are not late at the same point.
 - **SC-003**: A capacity table exists with every number measured, none estimated, each dated and tied to the
-  hardware it was measured on. UNRECONCILED until the first run produces it.
+  hardware it was measured on. Met for this machine 2026-10-13 ([capacity.md](capacity.md)); the droplet's
+  rows are named as unmeasured rather than filled in from the laptop's.
 - **SC-004**: A synthetic mention burst at ten times the live rate is answered exactly once per mention, with
   no duplicate reply and no mention lost, and the backlog drains without intervention.
 - **SC-005**: **Zero wrongly auto-finalised claims on the held-out set.** This is the gate that sets the
