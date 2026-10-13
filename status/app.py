@@ -137,7 +137,7 @@ async def login(request: Request) -> Response:
     https = request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
     answer.set_cookie(
         auth.COOKIE, auth.issue(configured[1]), max_age=auth.SESSION_SECONDS,
-        path=PREFIX or "/", httponly=True, samesite="lax", secure=https,
+        path="/", httponly=True, samesite="lax", secure=https,
     )
     return answer
 
@@ -145,7 +145,7 @@ async def login(request: Request) -> Response:
 @app.post("/logout")
 def logout() -> Response:
     answer = RedirectResponse(f"{PREFIX}/login", status_code=303)
-    answer.delete_cookie(auth.COOKIE, path=PREFIX or "/")
+    answer.delete_cookie(auth.COOKIE, path="/")
     return answer
 
 
