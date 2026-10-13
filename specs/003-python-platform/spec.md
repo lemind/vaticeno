@@ -46,6 +46,10 @@ broken within one refresh — not "something is wrong", but which job, and how l
    changed — so a stale plan is visibly stale rather than quietly wrong.
 6. **Given** the page holds operational numbers, **When** it is deployed, **Then** it is not reachable from
    the public internet (the public server stays read-only claim and author pages, no admin routes).
+7. **Given** the weekly recheck found a published verdict that today's rules decide differently, **When** the
+   page is opened, **Then** that verdict is listed with what was published, what the rules reach now, and how
+   long it has been outstanding — and it stays listed after it ages out of the recheck's seven-day window,
+   until a correction is posted or it is dismissed.
 
 ---
 
@@ -170,6 +174,9 @@ with VOID, and the same with the worker switched off for the whole timeout windo
 
 ### Edge Cases
 
+- **A disagreement that ages out**: the weekly recheck re-decides only the last seven days. With no durable
+  record, a verdict flagged one Monday is silently unflagged the next. Three were flagged on 2026-10-13: one
+  was corrected, and the other two leave the window on 2026-10-19 with nothing left pointing at them.
 - **The status page's own health**: if the status service is down, nothing says so. It reports the main
   service's state, not its own; the main service's existing health endpoint stays the machine-readable
   truth, and uptime checking is outside this feature.
@@ -220,6 +227,10 @@ with VOID, and the same with the worker switched off for the whole timeout windo
   so a future uptime check or a script needs no HTML parsing.
 - **FR-007**: The progress block is read from one file the owner edits by hand; the page shows that file's
   last-changed date. The service never writes it.
+- **FR-007a**: A verdict the weekly recheck decides differently is recorded where the status page can read
+  it, and stays listed until a correction is posted or it is dismissed. The log line is not the record: the
+  recheck looks at the last seven days only, so a disagreement found once otherwise disappears when the
+  verdict ages out, and nothing is left saying a published verdict is known to be wrong.
 - **FR-008**: A load harness drives the public pages and the job path, with every external dependency (X,
   the paid model, the price feed) stubbed. It cannot be pointed at production by accident.
 - **FR-009**: Load runs produce a written capacity table: request rate at a stated p95 latency, the

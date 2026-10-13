@@ -39,6 +39,24 @@ window behind. Rows are seeded at startup, so a job that has never run reads as 
 a retention sweep to own. One row answers every question the page asks, and failure history already lives in
 Sentry.
 
+## `recheck_findings`
+
+**One row per claim, not per recheck run.** The weekly recheck re-decides the last seven days; a verdict it
+disagrees with must outlive that window, or Monday's finding is gone by the next Monday (spec FR-007a).
+
+| Column | Type | Notes |
+|---|---|---|
+| claim_id | uuid PK | FK `claims`, one open finding per claim |
+| found_at | timestamptz NOT NULL | the first run that disagreed |
+| last_seen_at | timestamptz NOT NULL | the most recent run that still disagreed, while the claim is in window |
+| published_outcome | text NOT NULL | CHECK `hit \| miss \| void` — what the thread says |
+| recheck_outcome | text null | what today's rules reach; null when they settle nothing |
+| kind | text NOT NULL | CHECK `differs \| unsettled` |
+| cleared_at | timestamptz null | set when a correction answers it, or the owner dismisses it |
+
+**Cleared, never deleted.** A finding that was corrected is the record that the loop closed; the page hides
+it and the row stays. Clearing is the only write the recheck makes to a row it did not create.
+
 ## `verifier_shadow`
 
 **One row per resolution attempt**, not per evidence item. The endpoint answers about a single passage, but
@@ -169,7 +187,7 @@ worker cannot settle a wager other than the one its row names.
 that is what keeps Supabase's public API from seeing anything. The owner role bypasses RLS; `status_ro` does
 not, so without a policy it reads zero rows from every table and the page renders empty. Each table the page
 reads therefore gets one policy — `FOR SELECT TO status_ro USING (true)` — alongside the grant: `job_state`,
-`claims`, `resolutions`, `cost_events`, `feed_posts` and `settlement_outbox` from Stage 2 — never
+`recheck_findings`, `claims`, `resolutions`, `cost_events`, `feed_posts` and `settlement_outbox` from Stage 2 — never
 `wallet_links` or `wallet_link_challenges` — and `verifier_shadow` from Stage 3. The anon and
 authenticated roles stay with no policy at all, so the public API still sees nothing.
 
@@ -178,10 +196,11 @@ authenticated roles stay with no policy at all, so the public API still sees not
 | File | Adds |
 |---|---|
 | `drizzle/0017_job_state.sql` | `job_state`, RLS on, the `status_ro` SELECT policy, a down migration |
-| `drizzle/0018_status_policies.sql` | SELECT policies for `status_ro` on the existing tables the page reads |
-| `drizzle/0019_settlement.sql` | `settlement_outbox`, the `settle_rw` role's policies, its unique key |
-| `drizzle/0020_wallet_links.sql` | `wallet_links` and `wallet_link_challenges`, the partial unique index on an active address |
-| `drizzle/0021_verifier.sql` | `verifier_shadow` with its append-only trigger and policy, the two `resolutions` columns |
+| `drizzle/0018_recheck_findings.sql` | `recheck_findings`, RLS on, its `status_ro` SELECT policy |
+| `drizzle/0019_status_policies.sql` | SELECT policies for `status_ro` on the existing tables the page reads |
+| `drizzle/0020_settlement.sql` | `settlement_outbox`, the `settle_rw` role's policies, its unique key |
+| `drizzle/0021_wallet_links.sql` | `wallet_links` and `wallet_link_challenges`, the partial unique index on an active address |
+| `drizzle/0022_verifier.sql` | `verifier_shadow` with its append-only trigger and policy, the two `resolutions` columns |
 
 Numbered in deploy order, not in the order the tables were designed: Stage 2 ships before Stage 3, so the
 settlement migrations come first and the verifier's cannot be dragged in by a Stage 2 deployment.

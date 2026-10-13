@@ -39,8 +39,9 @@ status page — healthy, dead job, no database. Nothing else; ~55% coverage is a
 - [ ] T306 `runJob` in `src/jobs/scheduler.ts` writes `job_state`; a lock skip writes `last_locked_at` only (FR-001, FR-020)
 - [ ] T307 `stale_after_seconds` beside `SCHEDULES`, overwritten on startup, one row seeded per job. `SCHEDULES` is the only job list (FR-001, SC-002)
 - [ ] T308 `deploy/deploy.sh` writes `.build-info.json` on the server: commit, deploy time, node version (FR-002)
-- [ ] T309 `deploy/status-role.md` for the `status_ro` role, migration `drizzle/0018_status_policies.sql`, `DATABASE_URL_RO` in `.env.example` (FR-003)
+- [ ] T309 `deploy/status-role.md` for the `status_ro` role, migration `drizzle/0019_status_policies.sql`, `DATABASE_URL_RO` in `.env.example` (FR-003)
 - [ ] T310 [P] Test `tests/integration/job-state.test.ts`: success, failure, lock skip, never-run
+- [ ] T310a Migration `drizzle/0018_recheck_findings.sql` + `src/db/schema.ts` per data-model.md: `recheckRecent` records each verdict it decides differently and clears the ones a correction answered, so Monday's finding outlives its seven-day window (FR-007a)
 
 **Checkpoint**: every job in `SCHEDULES` reports state; the deploy records what it deployed.
 
@@ -54,6 +55,7 @@ status page — healthy, dead job, no database. Nothing else; ~55% coverage is a
 - [ ] T314 [US1] `status/templates/`: one screen at 1280px, overall state first, progress last (SC-001)
 - [ ] T315 [US1] `docs/progress.md`: stage / done / now / next, seeded with where the project stands
 - [ ] T316 [P] [US1] `deploy/vaticeno-status.service` + its install line; never in `deploy/Caddyfile` (FR-004)
+- [ ] T316a [US1] Status page block: verdicts the recheck decides differently and nobody has corrected, oldest first, with what was published beside what the rules reach now (FR-007a)
 - [ ] T317 [US1] `status/tests/test_status.py`: healthy, stale job, database down. Fixtures are rows
 - [ ] T318 [P] [US1] `README.md`: the status page and its tunnel command
 
@@ -101,7 +103,7 @@ Then VOID, then the timeout refund with the worker switched off.
 
 ### The settlement path
 
-- [ ] T331 [US4] Migration `drizzle/0019_settlement.sql` + `src/db/schema.ts` per data-model.md, including the `settle_rw` policies; the role is created by hand like `status_ro`
+- [ ] T331 [US4] Migration `drizzle/0020_settlement.sql` + `src/db/schema.ts` per data-model.md, including the `settle_rw` policies; the role is created by hand like `status_ro`
 - [ ] T332 [US4] `src/resolve/resolver.ts` writes an outbox row when a verdict is final and a stake exists; no chain call from Node (FR-027)
 - [ ] T333 [US4] `settle/worker.py`: poll, read on-chain state, build the transaction from the claim and verdict, sign, record. Own systemd unit, key readable by its own user alone (FR-025, FR-028, FR-028a)
 - [ ] T334 [US4] Test `tests/integration/settlement-outbox.test.ts`: no stake writes nothing; a replayed row sends nothing twice (FR-026)
@@ -112,7 +114,7 @@ Then VOID, then the timeout refund with the worker switched off.
 
 ### Linking a wallet, optional
 
-- [ ] T338 [US4] Migration `drizzle/0020_wallet_links.sql` + `src/db/schema.ts` per data-model.md: both wallet tables, no read policy on either (FR-032)
+- [ ] T338 [US4] Migration `drizzle/0021_wallet_links.sql` + `src/db/schema.ts` per data-model.md: both wallet tables, no read policy on either (FR-032)
 - [ ] T339 [US4] The link flow, its code state in `wallet_link_challenges`: a code, the reply checked through the API, the account confirmed, then the signature taken privately (FR-033, FR-034, FR-035)
 - [ ] T340 [US4] Test: a link needs both halves; a code returned by another account writes nothing; revoking keeps the row and its period; a stake works with no link (SC-015, SC-016)
 
@@ -142,7 +144,7 @@ independent reading of the contract, and a written incident policy.
 
 ### Shadow
 
-- [ ] T345 [US3] Migration `drizzle/0021_verifier.sql` + `src/db/schema.ts` per data-model.md (FR-015, FR-016)
+- [ ] T345 [US3] Migration `drizzle/0022_verifier.sql` + `src/db/schema.ts` per data-model.md (FR-015, FR-016)
 - [ ] T346 [US3] `verifier/serve/app.py`: one endpoint, no database, `127.0.0.1:3002`; `deploy/vaticeno-verifier.service` + its install line (FR-020)
 - [ ] T347 [US3] `src/resolve/verifier.ts`: one localhost call, hard timeout, Zod-parsed; any failure means no opinion and the paid path (FR-012, FR-012a)
 - [ ] T348 [US3] Shadow mode in `src/resolve/resolver.ts`: ask, **ignore**, record one row per attempt, failures included. `VERIFIER_URL` and `VERIFIER_MODE` in `src/config.ts` (FR-020a)
