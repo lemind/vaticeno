@@ -73,12 +73,21 @@ const JudgeSchemaV5 = z.object({ ...V5_FIELDS, quote: z.string().max(600).nullab
 const JudgeRecordedSchemaV5 = z.object({ ...V5_FIELDS, quote_sha256: z.string().nullable(), quote_found: z.boolean() });
 const BEFORE_V5 = [...BEFORE_V4, 'judge.v4'];
 
+// What a judge call hands back, live or replayed. A live answer carries the quote; a recorded one carries
+// its hash and whether it was on the page (redactQuote), so each of those three is optional here rather
+// than asserted away with a cast. Every version's schema produces one of these shapes.
+type JudgeData = Omit<z.infer<typeof JudgeSchema>, 'quote'> & {
+  quote?: string | null;
+  quote_sha256?: string | null;
+  quote_found?: boolean;
+};
+
 // Each version answers in the shape it was asked for; an older row is read as it was written.
-function judgeSchemaFor(version: string) {
+function judgeSchemaFor(version: string): z.ZodType<JudgeData> {
   if (BEFORE_V4.includes(version)) return JudgeSchema;
   return BEFORE_V5.includes(version) ? JudgeSchemaV4 : JudgeSchemaV5;
 }
-function replaySchemaFor(version: string) {
+function replaySchemaFor(version: string): z.ZodType<JudgeData> {
   if (BEFORE_V4.includes(version)) return JudgeRecordedSchema;
   return BEFORE_V5.includes(version) ? JudgeRecordedSchemaV4 : JudgeRecordedSchemaV5;
 }
@@ -99,15 +108,15 @@ export async function judgePage(
   page: { url: string; text: string; sha256: string },
   version: string = JUDGE_VERSION,
 ): Promise<{ judgement: Judgement; costs: CallCost[] }> {
-  const { data, costs } = await llm.generateJson<z.infer<typeof JudgeSchema> & { quote_found?: boolean }>({
+  const { data, costs } = await llm.generateJson<JudgeData>({
     model,
     instructionVersion: version,
     operation: 'judge',
     system: loadInstruction(version),
     input: JSON.stringify({ ...judgeInput(contract, window, version), page: { url: page.url, text: page.text } }),
     replayIdentity: { ...judgeInput(contract, window, version), url: page.url, sha256: page.sha256 },
-    schema: judgeSchemaFor(version) as typeof JudgeSchema,
-    replaySchema: replaySchemaFor(version) as unknown as z.ZodType<z.infer<typeof JudgeSchema> & { quote_found?: boolean }>,
+    schema: judgeSchemaFor(version),
+    replaySchema: replaySchemaFor(version),
     recordAs: (raw) => redactQuote(raw, page.text),
   });
   // Live: check the quote against the page now. Replay: use the check made when it was recorded.
