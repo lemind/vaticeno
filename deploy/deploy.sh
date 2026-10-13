@@ -17,3 +17,9 @@ ssh "$HOST" "cd /opt/vaticeno && printf '{\"commit\":\"%s\",\"deployed_at\":\"%s
   '$COMMIT' '$DEPLOYED_AT' \"\$(node --version)\" > .build-info.json"
 ssh "$HOST" 'cd /opt/vaticeno && chown -R vaticeno:vaticeno . && sudo -u vaticeno npm ci --no-audit --no-fund \
   && cp deploy/vaticeno.service /etc/systemd/system/ && systemctl daemon-reload && systemctl restart vaticeno'
+
+# The status page: its own virtualenv on the server, never rsynced, and localhost only (003 FR-004).
+ssh "$HOST" 'cd /opt/vaticeno && test -x .venv/bin/python || sudo -u vaticeno python3 -m venv .venv; \
+  sudo -u vaticeno .venv/bin/pip install -q --upgrade pip && sudo -u vaticeno .venv/bin/pip install -q ".[status]" \
+  && cp deploy/vaticeno-status.service /etc/systemd/system/ && systemctl daemon-reload \
+  && systemctl enable --now vaticeno-status && systemctl restart vaticeno-status'

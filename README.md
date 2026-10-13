@@ -123,6 +123,28 @@ connection string in the gitignored `.env.production`; apply migrations there wi
 `set -a; . ./.env.production; set +a; npm run db:migrate` before deploying code that needs them.
 Claim pages listen on localhost only: `ssh -L 3000:127.0.0.1:3000 root@HOST`, then `http://localhost:3000/c/<slug>`.
 
+### Status page
+
+One screen answering "is it running" and "where are we": the build, every job with its own staleness
+window, claim and verdict counts, spend against the per-claim ceiling, the own feed's day, verdicts the
+weekly recheck found wrong and nobody has corrected, and the hand-edited plan in `docs/progress.md` with
+its age. Read-only, and never reachable from the internet (spec 003):
+
+```bash
+ssh -L 3001:127.0.0.1:3001 root@HOST   # then http://localhost:3001 — and /status.json for a script
+```
+
+Runs as systemd service `vaticeno-status` (`uvicorn status.app:app`, Python, its own virtualenv on the
+server). It connects as `status_ro`, a database role with SELECT and nothing else, whose password is set
+by hand once — see [deploy/status-role.md](deploy/status-role.md). Locally:
+
+```bash
+python3 -m venv .venv && .venv/bin/pip install '.[status,dev]'
+DATABASE_URL_RO=postgres://status_ro:dev@localhost:5433/vaticeno \
+  .venv/bin/uvicorn status.app:app --port 3001
+.venv/bin/pytest status load && .venv/bin/ruff check .
+```
+
 ## Layout
 
 ```

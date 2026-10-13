@@ -12,7 +12,7 @@ status page — healthy, dead job, no database. Nothing else; ~55% coverage is a
 
 | | |
 |---|---|
-| Stage 1 | Phases 1-2 done 2026-10-13. **Migrations 0017-0019 are applied locally and not on Supabase** |
+| Stage 1 | Phases 1-3 done 2026-10-13; the page runs. **Migrations 0017-0019 are applied locally and not on Supabase**, and the page is not deployed |
 | Stage 2 | not started; testnet only, no real value, no fee, price-feed claims only (FR-031h) |
 | Escrow v1 | T326a answers FR-031f before anything is deployed |
 | Stage 3 | not started; may end at T344 |
@@ -49,17 +49,17 @@ status page — healthy, dead job, no database. Nothing else; ~55% coverage is a
 
 **Independent test**: stop one job, or kill the database, and the page names what is broken.
 
-- [ ] T311 [US1] `status/queries.py`: one function per block the page shows (FR-001)
-- [ ] T312 [US1] `status/build_info.py`, `status/progress.py`: read the build and progress files, tolerate both missing (FR-002, FR-007)
-- [ ] T313 [US1] `status/app.py`: FastAPI on `127.0.0.1`, routes `/` and `/status.json`, renders with the database down (FR-005, FR-006)
-- [ ] T314 [US1] `status/templates/`: one screen at 1280px, overall state first, progress last (SC-001)
-- [ ] T315 [US1] `docs/progress.md`: stage / done / now / next, seeded with where the project stands
-- [ ] T316 [P] [US1] `deploy/vaticeno-status.service` + its install line; never in `deploy/Caddyfile` (FR-004)
-- [ ] T316a [US1] Status page block: verdicts the recheck decides differently and nobody has corrected, oldest first, with what was published beside what the rules reach now (FR-007a)
-- [ ] T317 [US1] `status/tests/test_status.py`: healthy, stale job, database down. Fixtures are rows
-- [ ] T318 [P] [US1] `README.md`: the status page and its tunnel command
+- [x] T311 [US1] `status/queries.py`: one function per block the page shows (FR-001). Every statement is a SELECT; the spend query sums per claim in a CTE, because joining the cost and evidence tables multiplies rows and once inflated the figure sixfold
+- [x] T312 [US1] `status/build_info.py`, `status/progress.py`: read the build and progress files, tolerate both missing (FR-002, FR-007). A missing build file is reported as missing rather than guessed at — not knowing what is deployed is itself worth seeing
+- [x] T313 [US1] `status/app.py`: FastAPI on `127.0.0.1`, routes `/` and `/status.json`, renders with the database down (FR-005, FR-006). The files are read whether or not the database answers, so a dead database still leaves a page that names the build and the plan; the error is one line, never a stack trace
+- [x] T314 [US1] `status/templates/`: one screen at 1280px, overall state first, progress last (SC-001). One template, no JavaScript, a four-column grid of compact panels. Laid out for one screen; that it does not scroll is by design and not yet measured in a browser
+- [x] T315 [US1] `docs/progress.md`: stage / done / now / next, seeded with where the project stands. Only those four headings are read, and the file's own modification time is shown beside them
+- [x] T316 [P] [US1] `deploy/vaticeno-status.service` + its install line; never in `deploy/Caddyfile` (FR-004). Localhost only, read-only paths, its own virtualenv built on the server; `setup.sh` installs `python3-venv`. **Unverified on the server until the next deploy**
+- [x] T316a [US1] Status page block: verdicts the recheck decides differently and nobody has corrected, oldest first, with what was published beside what the rules reach now (FR-007a). Each with its age, so one standing nine days reads as nine days
+- [x] T317 [US1] `status/tests/test_status.py`: healthy, stale job, database down. Fixtures are rows. Nine tests: the three named cases plus never-run, failing, an uncorrected verdict, and the JSON twin carrying the same numbers. Writing them caught `httpx` missing from the declared dependencies, which would have failed CI
+- [x] T318 [P] [US1] `README.md`: the status page and its tunnel command, plus how to run and test it locally
 
-**Checkpoint**: Stage 1's page ships. Use it for a week before Phase 4.
+**Checkpoint**: the page runs and was read end to end against the real database as `status_ro` — both routes, every block. It is not yet deployed: that needs the Supabase migrations and the role's password. Use it for a week before Phase 4.
 
 ## Phase 4: US2 — the capacity baseline (P1)
 

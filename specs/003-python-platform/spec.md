@@ -30,8 +30,8 @@ broken within one refresh — not "something is wrong", but which job, and how l
 **Acceptance Scenarios**:
 
 1. **Given** a healthy service, **When** the page is opened, **Then** it shows the build (commit, deploy
-   time, runtime version, uptime), each job's last run and outcome, claim and verdict counts, spend against
-   the per-claim ceiling, and the feed's state — read from the database, the build-info file and the
+   time and how long ago that was, runtime version), each job's last run and outcome, claim and verdict
+   counts, spend against the per-claim ceiling, and the feed's state — read from the database, the build-info file and the
    progress file, with nothing hardcoded in the page itself.
 2. **Given** the resolve job has not run for longer than its declared stale-after window, **When** the page
    is opened, **Then** that job reads **STALE** with its age, and the page's overall state is not "ok".
@@ -183,6 +183,9 @@ with VOID, and the same with the worker switched off for the whole timeout windo
 - **A disagreement that ages out**: the weekly recheck re-decides only the last seven days. With no durable
   record, a verdict flagged one Monday is silently unflagged the next. Three were flagged on 2026-10-13: one
   was corrected, and the other two leave the window on 2026-10-19 with nothing left pointing at them.
+- **Process uptime is not available to this page**: FR-003 allows it a database connection and two files,
+  and nothing else, so it cannot ask systemd how long the bot has been up. It shows how long ago the deploy
+  was, and the job table is what says the service is alive now (narrowed while building, 2026-10-13).
 - **The status page's own health**: if the status service is down, nothing says so. It reports the main
   service's state, not its own; the main service's existing health endpoint stays the machine-readable
   truth, and uptime checking is outside this feature.

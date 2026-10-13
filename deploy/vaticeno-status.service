@@ -1,0 +1,26 @@
+[Unit]
+Description=Vaticeno status page (read-only, localhost only)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=vaticeno
+WorkingDirectory=/opt/vaticeno
+# Bound to 127.0.0.1 on purpose: the page carries operational numbers and is never reachable from the
+# internet (003 FR-004). It is reached over an SSH tunnel, and never added to deploy/Caddyfile.
+ExecStart=/opt/vaticeno/.venv/bin/uvicorn status.app:app --host 127.0.0.1 --port 3001
+EnvironmentFile=/opt/vaticeno/.env
+# The working directory is read-only below, so bytecode has nowhere to go; don't try.
+Environment=PYTHONDONTWRITEBYTECODE=1
+Restart=always
+RestartSec=10
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+# It reads the database as status_ro and two files in the working directory. It writes nothing (FR-003).
+ReadOnlyPaths=/opt/vaticeno
+
+[Install]
+WantedBy=multi-user.target
