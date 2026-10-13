@@ -12,7 +12,7 @@ status page — healthy, dead job, no database. Nothing else; ~55% coverage is a
 
 | | |
 |---|---|
-| Stage 1 | Phase 1 done 2026-10-13; dependencies approved, Python runs in CI |
+| Stage 1 | Phases 1-2 done 2026-10-13. **Migrations 0017-0019 are applied locally and not on Supabase** |
 | Stage 2 | not started; testnet only, no real value, no fee, price-feed claims only (FR-031h) |
 | Escrow v1 | T326a answers FR-031f before anything is deployed |
 | Stage 3 | not started; may end at T344 |
@@ -35,15 +35,15 @@ status page — healthy, dead job, no database. Nothing else; ~55% coverage is a
 
 ## Phase 2: Foundational
 
-- [ ] T305 Migration `drizzle/0017_job_state.sql` + `src/db/schema.ts` per data-model.md; apply locally, then Supabase
-- [ ] T306 `runJob` in `src/jobs/scheduler.ts` writes `job_state`; a lock skip writes `last_locked_at` only (FR-001, FR-020)
-- [ ] T307 `stale_after_seconds` beside `SCHEDULES`, overwritten on startup, one row seeded per job. `SCHEDULES` is the only job list (FR-001, SC-002)
-- [ ] T308 `deploy/deploy.sh` writes `.build-info.json` on the server: commit, deploy time, node version (FR-002)
-- [ ] T309 `deploy/status-role.md` for the `status_ro` role, migration `drizzle/0019_status_policies.sql`, `DATABASE_URL_RO` in `.env.example` (FR-003)
-- [ ] T310 [P] Test `tests/integration/job-state.test.ts`: success, failure, lock skip, never-run
-- [ ] T310a Migration `drizzle/0018_recheck_findings.sql` + `src/db/schema.ts` per data-model.md: `recheckRecent` records each verdict it decides differently and clears the ones a correction answered, so Monday's finding outlives its seven-day window (FR-007a)
+- [x] T305 Migration `drizzle/0017_job_state.sql` + `src/db/schema.ts` per data-model.md; apply locally, then Supabase. **Applied locally only — Supabase pending.** The migration also creates `status_ro` without a login, because the policy that names it cannot apply otherwise; no CHECK enumerates the job names (data-model says why)
+- [x] T306 `runJob` in `src/jobs/scheduler.ts` writes `job_state`; a lock skip writes `last_locked_at` only (FR-001, FR-020). Started is written inside the lock, so a skipped run never claims to have started. Recording state is bookkeeping: a failed write is reported and never fails the run
+- [x] T307 `stale_after_seconds` beside `SCHEDULES`, overwritten on startup, one row seeded per job. `SCHEDULES` is the only job list (FR-001, SC-002). The interval is declared per job rather than parsed from cron: `23 9,18 * * *` has a fifteen-hour gap, not twelve
+- [x] T308 `deploy/deploy.sh` writes `.build-info.json` on the server: commit, deploy time, node version (FR-002). The node version is read on the server; rsync no longer deletes the file, so the page never reads a gap mid-deploy. **Lands on the next deploy**
+- [x] T309 `deploy/status-role.md` for the `status_ro` role, migration `drizzle/0019_status_policies.sql`, `DATABASE_URL_RO` in `.env.example` (FR-003). **Applied locally only — Supabase pending**, and the password is a by-hand step by design. Proved locally: the role reads `job_state` and `claims`, is refused an UPDATE, and is refused `evidences`, which it was never granted
+- [x] T310 [P] Test `tests/integration/job-state.test.ts`: success, failure, lock skip, never-run. Five tests, including that re-seeding rewrites the window but never the history. The new foreign key also meant `truncateAll` had to name the table, or every integration test would have failed
+- [x] T310a Migration `drizzle/0018_recheck_findings.sql` + `src/db/schema.ts` per data-model.md: `recheckRecent` records each verdict it decides differently and clears the ones a correction answered, so Monday's finding outlives its seven-day window (FR-007a). **Applied locally only — Supabase pending.** Covered by the existing weekly-sweep test, which now also proves the finding is recorded and then cleared
 
-**Checkpoint**: every job in `SCHEDULES` reports state; the deploy records what it deployed.
+**Checkpoint**: met. Every job in `SCHEDULES` reports state, proved against a real database; the deploy writes the build file, whose line was checked locally and lands on the next deploy.
 
 ## Phase 3: US1 — the status page (P1) 🎯 MVP
 

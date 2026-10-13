@@ -67,7 +67,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const content = config.ENABLE_FEED ? buildContentDeps(deps, config) : null;
   // On X the lock job re-reads the real post; without X, the Stage 0 simulation file.
   const scheduler = config.ENABLE_JOBS
-    ? startScheduler({ ...deps, reader: bot?.reader ?? createFileSourceReader(), sql: getSql(), bot, content })
+    ? await startScheduler({ ...deps, reader: bot?.reader ?? createFileSourceReader(), sql: getSql(), bot, content })
     : null; // started only once the server is up
   log('info', 'web server listening', { event: 'web.started', port: config.PORT, jobs: config.ENABLE_JOBS, x: Boolean(bot), feed: content ? (config.FEED_DRY_RUN ? 'dry_run' : 'live') : 'off' });
   const stop = async () => {

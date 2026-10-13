@@ -12,5 +12,7 @@ __pycache__/
 .ruff_cache/
 .venv/
 *.egg-info/
+# Written on the server by deploy/deploy.sh (003 FR-002)
+.build-info.json
 # Private notes (not public, not committed)
 docs/private/

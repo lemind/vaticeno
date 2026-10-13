@@ -1,9 +1,9 @@
 // Re-run today's rules over a verdict already given (001 FR-035). The stored resolution is frozen and
 // stays; a different answer is written as a correction beside it.
-import { and, desc, eq, gt, isNull } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNull, sql as raw } from 'drizzle-orm';
 import { ContractSchema } from '../contract/schema.js';
 import type { Db } from '../db/client.js';
-import { claims, corrections, evidences, resolutions } from '../db/schema.js';
+import { claims, corrections, evidences, recheckFindings, resolutions } from '../db/schema.js';
 import type { CallCost } from '../llm/client.js';
 import { log } from '../log.js';
 import { decideResolution, type Decision } from './decide.js';
@@ -58,20 +58,25 @@ export async function rejudgeClaim(deps: ResolverDeps, slug: string, at: Date): 
   return recheckClaim(deps.db, slug, at);
 }
 
-// Every final verdict of the last `days`, re-decided. Reports; it never writes (001 FR-035).
+// Every final verdict of the last `days`, re-decided. It never touches a published verdict (001 FR-035);
+// what it does write is the finding itself, so a disagreement outlives the window (003 FR-007a).
 export async function recheckRecent(db: Db, at: Date, days = 7): Promise<Recheck[]> {
   const since = new Date(at.getTime() - days * 24 * 3_600_000);
   const recent = await db
-    .select({ slug: claims.slug })
+    .select({ slug: claims.slug, claimId: claims.id })
     .from(resolutions).innerJoin(claims, eq(claims.id, resolutions.claimId))
     .where(and(eq(resolutions.reviewStatus, 'final'), gt(resolutions.decidedAt, since), isNull(corrections.id)))
     .leftJoin(corrections, eq(corrections.claimId, claims.id))
     .orderBy(desc(resolutions.decidedAt));
   const out: Recheck[] = [];
-  for (const { slug } of recent) {
+  const ids = new Map<string, string>();
+  for (const { slug, claimId } of recent) {
     const result = await recheckClaim(db, slug, at);
-    if (result) out.push(result);
+    if (!result) continue;
+    out.push(result);
+    ids.set(slug, claimId);
   }
+  await recordFindings(db, out, ids, at);
   const differing = out.filter((r) => r.differs);
   const unsettled = out.filter((r) => r.unsettled);
   log('info', 'verdicts rechecked', {
@@ -79,6 +84,38 @@ export async function recheckRecent(db: Db, at: Date, days = 7): Promise<Recheck
     slugs: differing.map((r) => r.slug), unsettled_slugs: unsettled.map((r) => r.slug),
   });
   return out;
+}
+
+// A finding outlives the seven-day window the recheck looks at, so a verdict known to be wrong keeps
+// saying so until a correction answers it (003 FR-007a). The log line is not the record.
+async function recordFindings(db: Db, results: readonly Recheck[], ids: Map<string, string>, at: Date): Promise<void> {
+  const rows = results
+    .filter((result) => result.differs || result.unsettled)
+    .flatMap((result) => {
+      const claimId = ids.get(result.slug);
+      if (!claimId) return [];
+      const outcome = result.now.kind === 'final' ? result.now.outcome : null;
+      const differs = result.differs && outcome !== null;
+      return [{
+        claimId, foundAt: at, lastSeenAt: at, publishedOutcome: result.was,
+        recheckOutcome: differs ? outcome : null, kind: differs ? ('differs' as const) : ('unsettled' as const),
+      }];
+    });
+  if (rows.length > 0) {
+    await db.insert(recheckFindings).values(rows).onConflictDoUpdate({
+      target: recheckFindings.claimId,
+      // `found_at` and `cleared_at` are left alone: the first sighting is the age the page shows.
+      set: {
+        lastSeenAt: raw`excluded.last_seen_at`, publishedOutcome: raw`excluded.published_outcome`,
+        recheckOutcome: raw`excluded.recheck_outcome`, kind: raw`excluded.kind`,
+      },
+    });
+  }
+  // A correction answers the finding. Cleared, never deleted: the row is the record that the loop closed.
+  const cleared = await db.update(recheckFindings).set({ clearedAt: at })
+    .where(and(isNull(recheckFindings.clearedAt), inArray(recheckFindings.claimId, db.select({ id: corrections.claimId }).from(corrections))))
+    .returning({ claimId: recheckFindings.claimId });
+  log('info', 'recheck findings recorded', { event: 'recheck.findings', open: rows.length, cleared: cleared.length });
 }
 
 // Writing the correction is a separate step: a recheck never changes a published verdict on its own

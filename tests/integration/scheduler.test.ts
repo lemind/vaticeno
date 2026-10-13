@@ -10,9 +10,9 @@ before(async () => { t = await setupTestDb(); });
 after(async () => { await t.close(); });
 
 test('a failing job does not throw; the next run is free to go', async () => {
-  await runJob(t.sql, 'boom', async () => { throw new Error('job broke'); });
+  await runJob({ sql: t.sql, db: t.db }, 'boom', async () => { throw new Error('job broke'); });
   let ran = false;
-  await runJob(t.sql, 'boom', async () => { ran = true; });
+  await runJob({ sql: t.sql, db: t.db }, 'boom', async () => { ran = true; });
   assert.equal(ran, true, 'the lock was released after the failure');
 });
 

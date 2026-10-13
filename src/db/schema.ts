@@ -31,6 +31,8 @@ export const EVIDENCE_BASES = ['record', 'absence'] as const;
 export const TRUST_LEVELS = ['primary', 'established', 'weak'] as const;
 export const EVIDENCE_SAYS = ['hit', 'miss', 'pending', 'irrelevant', 'entity_gone'] as const;
 export const OUTCOMES = ['hit', 'miss', 'void'] as const;
+export const JOB_OUTCOMES = ['ok', 'failed'] as const;
+export const RECHECK_FINDING_KINDS = ['differs', 'unsettled'] as const;
 export const DECIDED_BY = ['evidence', 'arbiter', 'human'] as const;
 export const REVIEW_STATUSES = ['final', 'needs_human'] as const;
 export const VOID_REASONS = ['insufficient_evidence', 'unresolvable'] as const;
@@ -281,5 +283,48 @@ export const feedPosts = pgTable(
     uniqueIndex('feed_posts_queue_item_key').on(t.queueItemId).where(sql`queue_item_id is not null`),
     // The day's caps: one row per slot. A failed row's slot is null, and nulls never collide.
     unique('feed_posts_slot_unique').on(t.capGroup, t.day, t.slot),
+  ],
+);
+
+// One row per scheduled job (003 FR-001). `SCHEDULES` in src/jobs/scheduler.ts is the only job list; the
+// staleness window is written from the code beside it on every startup.
+export const jobState = pgTable(
+  'job_state',
+  {
+    job: text('job').primaryKey(),
+    lastStartedAt: utc('last_started_at'),
+    lastFinishedAt: utc('last_finished_at'),
+    lastOkAt: utc('last_ok_at'),
+    lastOutcome: text('last_outcome', { enum: JOB_OUTCOMES }),
+    lastErrorTag: text('last_error_tag'),
+    // A run skipped because another held the advisory lock. Not an outcome: the lock is normally held by a
+    // run that is working, so recording a failure there would report a healthy job as broken.
+    lastLockedAt: utc('last_locked_at'),
+    consecutiveFailures: integer('consecutive_failures').notNull().default(0),
+    staleAfterSeconds: integer('stale_after_seconds').notNull(),
+  },
+  (t) => [
+    check('job_state_outcome_check', sql`${t.lastOutcome} is null or ${oneOf(t.lastOutcome, JOB_OUTCOMES)}`),
+    check('job_state_stale_after_check', sql`${t.staleAfterSeconds} > 0`),
+  ],
+);
+
+// A verdict the weekly recheck decides differently, kept until a correction answers it (003 FR-007a).
+export const recheckFindings = pgTable(
+  'recheck_findings',
+  {
+    claimId: uuid('claim_id').primaryKey().references(() => claims.id),
+    foundAt: utc('found_at').notNull(),
+    lastSeenAt: utc('last_seen_at').notNull(),
+    publishedOutcome: text('published_outcome', { enum: OUTCOMES }).notNull(),
+    recheckOutcome: text('recheck_outcome', { enum: OUTCOMES }),
+    kind: text('kind', { enum: RECHECK_FINDING_KINDS }).notNull(),
+    clearedAt: utc('cleared_at'),
+  },
+  (t) => [
+    check('recheck_findings_published_check', oneOf(t.publishedOutcome, OUTCOMES)),
+    check('recheck_findings_recheck_check', sql`${t.recheckOutcome} is null or ${oneOf(t.recheckOutcome, OUTCOMES)}`),
+    check('recheck_findings_kind_check', oneOf(t.kind, RECHECK_FINDING_KINDS)),
+    check('recheck_findings_differs_check', sql`(${t.kind} = 'differs') = (${t.recheckOutcome} is not null)`),
   ],
 );

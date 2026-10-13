@@ -303,8 +303,15 @@ describe('rechecking a verdict already given (001 FR-035)', () => {
     assert.deepEqual(found.filter((r) => r.differs).map((r) => r.slug), [claim.slug]);
     assert.equal((await t.sql`select count(*)::int as n from corrections`)[0]!.n, 0, 'a sweep never corrects on its own');
 
+    // The finding outlives the sweep's window, so a verdict known to be wrong keeps saying so (003 FR-007a).
+    const [finding] = await t.sql`select published_outcome, recheck_outcome, kind, cleared_at from recheck_findings where claim_id = ${claim.id}`;
+    assert.deepEqual([finding!.published_outcome, finding!.recheck_outcome, finding!.kind, finding!.cleared_at], ['miss', 'hit', 'differs', null]);
+
     await writeCorrection(t.db, claim.slug, found[0]!, 'tested');
     assert.deepEqual((await recheckRecent(t.db, AFTER, 7)).map((r) => r.slug), [], 'a corrected claim is not raised again');
+    // Cleared, never deleted: the row is the record that the loop closed.
+    const [answered] = await t.sql`select cleared_at from recheck_findings where claim_id = ${claim.id}`;
+    assert.ok(answered?.cleared_at, 'a correction answers the finding');
   });
 
   // 004 T415a. A free recheck re-reads stored answers, so it can only catch a rule that was wrong. The
