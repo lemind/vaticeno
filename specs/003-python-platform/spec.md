@@ -46,7 +46,11 @@ broken within one refresh — not "something is wrong", but which job, and how l
    changed — so a stale plan is visibly stale rather than quietly wrong.
 6. **Given** the page holds operational numbers, **When** it is deployed, **Then** it is not reachable from
    the public internet (the public server stays read-only claim and author pages, no admin routes).
-7. **Given** the weekly recheck found a published verdict that today's rules decide differently, **When** the
+7. **Given** no session, **When** the page or its JSON twin is requested, **Then** the page redirects to a
+   login and the twin answers 401 — and with no password configured on the server, both refuse.
+8. **Given** the public front page, **When** anyone opens it, **Then** it shows the system's state, the
+   running version and the counts of predictions and verdicts, and nothing operational.
+9. **Given** the weekly recheck found a published verdict that today's rules decide differently, **When** the
    page is opened, **Then** that verdict is listed with what was published, what the rules reach now, and how
    long it has been outstanding — and it stays listed after it ages out of the recheck's seven-day window,
    until a correction is posted or it is dismissed.
@@ -228,8 +232,21 @@ with VOID, and the same with the worker switched off for the whole timeout windo
 - **FR-003**: The status page is read-only and holds no credentials beyond a database connection, which is
   a **read-only database role**. It performs no writes, calls no external service, and has no admin action
   of any kind.
-- **FR-004**: The status page is not publicly reachable. The public server keeps serving only claim pages,
-  author pages and health (001 `contracts/http.md`).
+- **FR-004**: The status page is served at `/status` on the public host and is **never reachable without a
+  password** (owner decision 2026-10-13, replacing "not publicly reachable at all"). It binds to localhost
+  and is reached only through the reverse proxy or an SSH tunnel; the machine-readable twin is behind the
+  same lock, because it carries the same numbers. A server with no password configured refuses everyone
+  rather than admitting everyone — a missing credential is never an open door.
+- **FR-004a**: One password, no accounts: no registration, no reset, no user records, and nothing behind it
+  can be written. This is judged not to be the "user auth" constitution VII holds back (there is nothing to
+  log into but this page); if that reading is rejected, it needs an amendment, not a workaround.
+- **FR-004b**: The public front page at `/` shows whether the system is working, the running version, and
+  how many predictions and verdicts exist — and nothing operational. Spend, job names, staleness and the
+  verdicts known to be wrong stay behind the password. A job that has never run since a deploy does not
+  make the public light red; a job past its own window, or one whose last run failed, does.
+- **FR-004c**: One version number, in `package.json`, is the single source. Its minor bumps when a spec
+  ships, so it never goes backwards the way numbering by spec number would; the deploy writes it into the
+  build file, and both pages show the same value.
 - **FR-005**: The status page renders server-side with no client-side JavaScript, matching the existing
   public pages, and renders a usable page when the database is down.
 - **FR-006**: A machine-readable twin of the status page exists (one JSON response with the same numbers),

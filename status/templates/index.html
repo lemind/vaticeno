@@ -26,13 +26,20 @@
   .k { color:var(--dim); padding-right:10px; }
   .OK { color:var(--ok); } .FAILING, .NEVER_RUN { color:var(--bad); } .STALE { color:var(--warn); }
   .note { color:var(--dim); }
+  h1 .ver { font-size:13px; color:var(--dim); font-weight:400; letter-spacing:0; }
+  h1 .out { display:inline; float:right; }
+  h1 .out button { font:11px/1 ui-monospace, Menlo, monospace; color:var(--dim); background:none;
+                   border:1px solid var(--line); border-radius:3px; padding:5px 9px; cursor:pointer; }
   ul { margin:3px 0 0; padding-left:15px; } li { margin:1px 0; }
 </style>
 </head>
 <body>
 
 {#- First line answers "is it running", and names every job that is not fine. -#}
-<h1>Vaticeno <span class="state {{ s.state }}">{{ s.state }}</span></h1>
+<h1>Vaticeno <span class="state {{ s.state }}">{{ s.state }}</span>
+  {%- if s.version %} <span class="ver">v{{ s.version }}</span>{% endif %}
+  <form method="post" action="{{ prefix }}/logout" class="out"><button type="submit">sign out</button></form>
+</h1>
 <p class="sub">
   {%- if s.db_error %}database unreachable — {{ s.db_error }}
   {%- elif s.late_jobs %}late: {% for job in s.late_jobs %}{{ job.job }} ({{ job.state }}){% if not loop.last %}, {% endif %}{% endfor %}
@@ -49,6 +56,7 @@
     {% else %}
       <table>
         <tr><td class="k">commit</td><td class="r">{{ s.build.short_commit }}</td></tr>
+        <tr><td class="k">version</td><td class="r">{{ s.build.version or '—' }}</td></tr>
         <tr><td class="k">node</td><td class="r">{{ s.build.node or '—' }}</td></tr>
         <tr><td class="k">deployed</td><td class="r">
           {%- if s.build.deployed_age_hours is not none %}{{ '%.1f' | format(s.build.deployed_age_hours) }} h ago{% else %}—{% endif %}</td></tr>

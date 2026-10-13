@@ -11,17 +11,24 @@ import os
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from urllib.parse import parse_qs
 
 import psycopg
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 
-from status import queries
+from status import auth, queries
 from status.build_info import Build, read_build
 from status.progress import Progress, read_progress
 
 CONNECT_TIMEOUT_SECONDS = 3
+
+# Caddy serves this under /status and strips the prefix, so links and the cookie carry it back.
+PREFIX = os.environ.get("STATUS_PREFIX", "").rstrip("/")
+
+# Read from the deploy's build file, written from package.json: one source for the running version.
+VERSION = os.environ.get("STATUS_VERSION", "")
 
 app = FastAPI(title="Vaticeno status", docs_url=None, redoc_url=None, openapi_url=None)
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
@@ -40,6 +47,7 @@ class Snapshot:
     backlog: queries.Backlog | None
     findings: list[queries.Finding]
     db_error: str | None
+    version: str = ""
 
     @property
     def late_jobs(self) -> list[queries.Job]:
@@ -56,10 +64,12 @@ class Snapshot:
 def take_snapshot() -> Snapshot:
     """The files are read whether or not the database answers, so a dead database still leaves a page
     that names what is deployed and what the plan says (FR-005)."""
+    build = read_build()
     empty = {
-        "build": read_build(),
+        "build": build,
         "progress": read_progress(),
         "at": datetime.now(UTC),
+        "version": build.version or VERSION,
     }
     try:
         with _connect() as conn:
@@ -94,14 +104,60 @@ def _reason(error: psycopg.Error) -> str:
     return first[0] if first else error.__class__.__name__
 
 
+def signed_in(request: Request) -> bool:
+    """No password configured means nobody gets in, rather than everybody (status/auth.py)."""
+    configured = auth.configured()
+    if configured is None:
+        return False
+    return auth.valid(request.cookies.get(auth.COOKIE), configured[1])
+
+
+@app.get("/login", response_class=HTMLResponse)
+def login_form(request: Request, bad: int = 0) -> HTMLResponse:
+    if signed_in(request):
+        return RedirectResponse(f"{PREFIX}/", status_code=303)
+    unset = auth.configured() is None
+    return templates.TemplateResponse(
+        request, "login.html", {"prefix": PREFIX, "bad": bool(bad), "unset": unset}, status_code=401 if bad else 200
+    )
+
+
+@app.post("/login")
+async def login(request: Request) -> Response:
+    # The form body is read here rather than through `Form(...)`, which would pull in a dependency for
+    # parsing one field.
+    submitted = parse_qs((await request.body()).decode())
+    password = (submitted.get("password") or [""])[0]
+    configured = auth.configured()
+    if configured is None or not auth.check_password(password, configured[0]):
+        return RedirectResponse(f"{PREFIX}/login?bad=1", status_code=303)
+    answer = RedirectResponse(f"{PREFIX}/", status_code=303)
+    answer.set_cookie(
+        auth.COOKIE, auth.issue(configured[1]), max_age=auth.SESSION_SECONDS,
+        path=PREFIX or "/", httponly=True, samesite="lax", secure=True,
+    )
+    return answer
+
+
+@app.post("/logout")
+def logout() -> Response:
+    answer = RedirectResponse(f"{PREFIX}/login", status_code=303)
+    answer.delete_cookie(auth.COOKIE, path=PREFIX or "/")
+    return answer
+
+
 @app.get("/", response_class=HTMLResponse)
-def page(request: Request) -> HTMLResponse:
-    snapshot = take_snapshot()
-    return templates.TemplateResponse(request, "index.html", {"s": snapshot})
+def page(request: Request) -> Response:
+    if not signed_in(request):
+        return RedirectResponse(f"{PREFIX}/login", status_code=303)
+    return templates.TemplateResponse(request, "index.html", {"s": take_snapshot(), "prefix": PREFIX})
 
 
 @app.get("/status.json")
-def status_json() -> JSONResponse:
+def status_json(request: Request) -> JSONResponse:
+    # The machine-readable twin is the same data, so it is behind the same lock (FR-006, FR-004).
+    if not signed_in(request):
+        return JSONResponse({"error": "sign in"}, status_code=401)
     return JSONResponse(as_json(take_snapshot()))
 
 
@@ -110,6 +166,7 @@ def as_json(snapshot: Snapshot) -> dict:
     reader (FR-006)."""
     return {
         "state": snapshot.state,
+        "version": snapshot.version,
         "at": snapshot.at.isoformat(),
         "db_error": snapshot.db_error,
         "build": {**_plain(asdict(snapshot.build)), "short_commit": snapshot.build.short_commit},

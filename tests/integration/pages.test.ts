@@ -114,3 +114,42 @@ describe('health and routes', () => {
     assert.equal((await app().inject('/admin')).statusCode, 404);
   });
 });
+
+describe('front page', () => {
+  // 003: health, version and the counts, and nothing operational — spend, job names and the verdicts we
+  // know are wrong stay on the private status page (FR-004).
+  // `truncateAll` leaves job_state alone — the scheduler seeds it, not a test fixture.
+  beforeEach(async () => { await t.sql`delete from job_state`; });
+
+  const seedJob = (job: string, overrides: Record<string, unknown> = {}) =>
+    t.sql`insert into job_state ${t.sql({ job, stale_after_seconds: 180, ...overrides })}`;
+
+  test('shows the version, the counts and an operational light', async () => {
+    await resolvedClaim();
+    await seedJob('lock', { last_ok_at: new Date(NOW.getTime() - 30_000).toISOString(), last_outcome: 'ok' });
+    const page = visible((await app().inject({ method: 'GET', url: '/' })).body);
+
+    assert.match(page, /operational/);
+    assert.match(page, /1\.2\.0/, 'the running version is on the page');
+    assert.match(page, /Predictions<\/dt>\s*<dd>1<\/dd>/);
+    assert.match(page, /Verdicts<\/dt>\s*<dd>1<\/dd>/);
+    for (const leak of [/spend/i, /ceiling/i, /journal/i, /stale/i]) {
+      assert.doesNotMatch(page, leak, 'nothing operational on the public page');
+    }
+  });
+
+  test('a job past its own window turns the light red; one that never ran does not', async () => {
+    await seedJob('lock', { last_ok_at: new Date(NOW.getTime() - 600_000).toISOString(), last_outcome: 'ok' });
+    assert.match(visible((await app().inject({ method: 'GET', url: '/' })).body), /degraded/);
+
+    await t.sql`delete from job_state`;
+    // Every job reads like this right after a deploy, and a weekly one for days: not a fault.
+    await seedJob('recheck', { stale_after_seconds: 1_209_660 });
+    assert.match(visible((await app().inject({ method: 'GET', url: '/' })).body), /operational/);
+  });
+
+  test('a failed last run turns the light red even inside the window', async () => {
+    await seedJob('resolve', { last_ok_at: new Date(NOW.getTime() - 10_000).toISOString(), last_outcome: 'failed' });
+    assert.match(visible((await app().inject({ method: 'GET', url: '/' })).body), /degraded/);
+  });
+});

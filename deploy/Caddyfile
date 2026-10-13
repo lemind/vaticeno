@@ -1,7 +1,17 @@
 # HTTPS for the public pages (research: Caddy in front, automatic certificates). /etc/caddy/Caddyfile.
 vaticeno.app {
 	encode gzip
-	reverse_proxy localhost:3000
+
+	# The owner's status page, behind its own password (003 US1). `handle_path` strips the prefix, so the
+	# service is told about it through STATUS_PREFIX and puts it back into links and the session cookie.
+	handle_path /status* {
+		reverse_proxy localhost:3001
+	}
+
+	# Everything else: the public front page, claim pages, author pages and health.
+	handle {
+		reverse_proxy localhost:3000
+	}
 }
 
 www.vaticeno.app {

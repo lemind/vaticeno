@@ -13,6 +13,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from status import app as status_app
+from status import auth
 from status.app import Snapshot, as_json
 from status.build_info import Build
 from status.progress import Progress
@@ -60,16 +61,32 @@ def snapshot(jobs: list[Job], *, db_error: str | None = None, findings: list[Fin
 HEALTHY = [job("lock", ok_seconds_ago=30, window=180), job("resolve", ok_seconds_ago=600, window=7260)]
 
 
+PASSWORD = "a-long-enough-password"
+
+
 @pytest.fixture
 def client(monkeypatch: pytest.MonkeyPatch):
-    """The page under test, with the snapshot substituted: these cases are about what it reports, and
-    the database is covered by the TypeScript side's own job-state test."""
+    """The page under test, signed in, with the snapshot substituted: these cases are about what it
+    reports, and the database is covered by the TypeScript side's own job-state test."""
+    monkeypatch.setenv("STATUS_PASSWORD_HASH", auth.hash_password(PASSWORD))
+    monkeypatch.setenv("STATUS_SECRET", "test-secret")
 
     def serve(state: Snapshot):
         monkeypatch.setattr(status_app, "take_snapshot", lambda: state)
-        return TestClient(status_app.app)
+        made = TestClient(status_app.app)
+        made.cookies.set(auth.COOKIE, auth.issue("test-secret"))
+        return made
 
     return serve
+
+
+@pytest.fixture
+def locked(monkeypatch: pytest.MonkeyPatch):
+    """The same page with nobody signed in."""
+    monkeypatch.setenv("STATUS_PASSWORD_HASH", auth.hash_password(PASSWORD))
+    monkeypatch.setenv("STATUS_SECRET", "test-secret")
+    monkeypatch.setattr(status_app, "take_snapshot", lambda: snapshot(HEALTHY))
+    return TestClient(status_app.app, base_url="https://testserver", follow_redirects=False)
 
 
 def test_a_healthy_service_answers_ok_in_its_first_line(client):
@@ -154,3 +171,52 @@ def test_a_missing_url_is_reported_like_any_other_database_failure(monkeypatch: 
     monkeypatch.delenv("DATABASE_URL_RO", raising=False)
     state = status_app.take_snapshot()
     assert state.db_error and "DATABASE_URL_RO" in state.db_error
+
+
+def test_the_page_and_its_json_are_both_shut_without_a_session(locked):
+    page = locked.get("/")
+    assert page.status_code == 303 and page.headers["location"].endswith("/login")
+    # The JSON twin is the same numbers, so it is behind the same lock.
+    assert locked.get("/status.json").status_code == 401
+
+
+def test_the_right_password_signs_in_and_the_wrong_one_does_not(locked):
+    refused = locked.post("/login", data={"password": "wrong"})
+    assert refused.status_code == 303 and "bad=1" in refused.headers["location"]
+    assert auth.COOKIE not in refused.cookies
+
+    allowed = locked.post("/login", data={"password": PASSWORD})
+    assert allowed.status_code == 303
+    assert auth.COOKIE in allowed.cookies
+    # The cookie carries its own expiry and is signed, so it cannot be forged or extended by the holder.
+    assert locked.get("/", follow_redirects=False).status_code == 200
+
+
+def test_no_configured_password_lets_nobody_in(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.delenv("STATUS_PASSWORD_HASH", raising=False)
+    monkeypatch.delenv("STATUS_SECRET", raising=False)
+    monkeypatch.setattr(status_app, "take_snapshot", lambda: snapshot(HEALTHY))
+    shut = TestClient(status_app.app, follow_redirects=False)
+    assert shut.get("/").status_code == 303, "a missing password is never an open door"
+    assert shut.get("/status.json").status_code == 401
+    # And it says so, rather than silently refusing a password that would never match.
+    assert "No password is configured" in shut.get("/login").text
+
+
+def test_a_tampered_or_expired_cookie_is_refused():
+    secret = "test-secret"
+    good = auth.issue(secret)
+    assert auth.valid(good, secret)
+    assert not auth.valid(good, "another-secret"), "signed with a different key"
+    assert not auth.valid(good.replace(".", ".x"), secret), "signature changed"
+    expires, _, signature = good.partition(".")
+    assert not auth.valid(f"{int(expires) + 99999}.{signature}", secret), "expiry extended by hand"
+    assert not auth.valid(auth.issue(secret, now=0), secret), "issued long ago, now expired"
+    assert not auth.valid(None, secret) and not auth.valid(good, "")
+
+
+def test_a_malformed_stored_hash_refuses_rather_than_admits():
+    for stored in ("", "nonsense", "scrypt$only-one-part", "bcrypt$a$b", "scrypt$!!$!!"):
+        assert auth.check_password("anything", stored) is False
+    assert auth.check_password(PASSWORD, auth.hash_password(PASSWORD)) is True
+    assert auth.check_password("Anything-Else", auth.hash_password(PASSWORD)) is False

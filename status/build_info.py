@@ -15,6 +15,7 @@ class Build:
     commit: str | None
     deployed_at: datetime | None
     node: str | None
+    version: str | None = None
     missing: bool = False
 
     @property
@@ -39,6 +40,7 @@ def read_build(path: Path = BUILD_INFO_PATH) -> Build:
         commit=data.get("commit"),
         deployed_at=_parse(data.get("deployed_at")),
         node=data.get("node"),
+        version=data.get("version"),
     )
 
 

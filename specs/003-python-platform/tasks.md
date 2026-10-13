@@ -74,7 +74,23 @@ status page — healthy, dead job, no database. Nothing else; ~55% coverage is a
 - [x] T325 [US2] Replace the UNRECONCILED labels these runs answer, with the date (FR-011). Only SC-003's applied: a load run stubs X, the model and the price feed, which is what makes it safe, so it can never answer a price or a billing category. The remaining labels are listed in capacity.md as still open, by reason rather than by omission
 - [x] T326 [P] [US2] `README.md`: how to run a load run locally, including that the page run needs a claim **and** a position row — without one, a quarter of the requests 404 and the latency numbers flatter the service, which is how the first run here was wrong
 
-**Checkpoint**: partly met. The numbers exist for this machine and are written down with their date and hardware. The droplet's headroom is **not** known: measuring it means running load against the live bot, which is the owner's call, so T323 stays open.
+**Checkpoint (Phase 4)**: partly met. The numbers exist for this machine and are written down with their date and hardware. The droplet's headroom is **not** known: measuring it means running load against the live bot, which is the owner's call, so T323 stays open.
+
+## Phase 4b: US1 — the front page, the lock and the version
+
+Added after the page shipped (owner decision 2026-10-13): the status page gets a password and moves to
+`/status` on the public host, and a public front page carries the short answer.
+
+- [x] T360 [US1] `src/version.ts` reading `package.json`, bumped to **1.2.0**; the deploy writes it into the build file and both pages show it (FR-004c)
+- [x] T361 [US1] `src/web/home-page.ts` + `GET /`: system state, version, prediction and verdict counts, in the existing public layout. Nothing operational, held by a test that greps the page for spend and job names (FR-004b)
+- [x] T362 [US1] `status/auth.py`: one password, scrypt-hashed, and a signed cookie carrying its own expiry. Standard library only — `Form(...)` would have pulled in a dependency to parse one field, so the body is parsed directly (FR-004a)
+- [x] T363 [US1] Login and sign-out in `status/app.py` + `status/templates/login.html`; the JSON twin is behind the same lock, and no configured password refuses everyone (FR-004)
+- [x] T364 [US1] `deploy/Caddyfile` routes `/status` to the page and everything else to the public server; `STATUS_PREFIX` puts the prefix back into links and the cookie (FR-004)
+- [ ] T365 [US1] Generate the password on the server and append `STATUS_PASSWORD_HASH` / `STATUS_SECRET` to `.env.status`. **Owner's**: `python -m status.hash_password` types the password, so it never reaches a shell history or this transcript
+
+**Checkpoint**: the front page answers in one line and the status page asks for a password.
+
+---
 
 **🚀 Stage 1 deploys here.**
 

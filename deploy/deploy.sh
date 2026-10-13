@@ -13,8 +13,9 @@ rsync -az --delete \
 # server's, so it is read there; the commit and the time are this machine's.
 COMMIT="$(git rev-parse HEAD)"
 DEPLOYED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-ssh "$HOST" "cd /opt/vaticeno && printf '{\"commit\":\"%s\",\"deployed_at\":\"%s\",\"node\":\"%s\"}\n' \
-  '$COMMIT' '$DEPLOYED_AT' \"\$(node --version)\" > .build-info.json"
+VERSION="$(node -p 'require("./package.json").version')"
+ssh "$HOST" "cd /opt/vaticeno && printf '{\"commit\":\"%s\",\"deployed_at\":\"%s\",\"node\":\"%s\",\"version\":\"%s\"}\n' \
+  '$COMMIT' '$DEPLOYED_AT' \"\$(node --version)\" '$VERSION' > .build-info.json"
 ssh "$HOST" 'cd /opt/vaticeno && chown -R vaticeno:vaticeno . && sudo -u vaticeno npm ci --no-audit --no-fund \
   && cp deploy/vaticeno.service /etc/systemd/system/ && systemctl daemon-reload && systemctl restart vaticeno'
 
