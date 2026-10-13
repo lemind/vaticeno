@@ -7,7 +7,9 @@ so a script needs no HTML parsing (FR-006).
 
 from __future__ import annotations
 
+import logging
 import os
+import time
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -15,7 +17,7 @@ from urllib.parse import parse_qs
 
 import psycopg
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 
 from status import auth, queries
@@ -24,11 +26,11 @@ from status.progress import Progress, read_progress
 
 CONNECT_TIMEOUT_SECONDS = 3
 
-# Caddy serves this under /status and strips the prefix, so links and the cookie carry it back.
-PREFIX = os.environ.get("STATUS_PREFIX", "").rstrip("/")
+# How many failures, within how long, before the page stops answering a guesser.
+MAX_FAILURES = 5
+FAILURE_WINDOW_SECONDS = 300
 
-# Read from the deploy's build file, written from package.json: one source for the running version.
-VERSION = os.environ.get("STATUS_VERSION", "")
+log = logging.getLogger("vaticeno.status")
 
 app = FastAPI(title="Vaticeno status", docs_url=None, redoc_url=None, openapi_url=None)
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
@@ -76,7 +78,7 @@ def take_snapshot() -> Snapshot:
         "build": build,
         "progress": read_progress(),
         "at": datetime.now(UTC),
-        "version": build.version or VERSION,
+        "version": build.version or "",
     }
     try:
         with _connect() as conn:
@@ -111,6 +113,12 @@ def _reason(error: psycopg.Error) -> str:
     return first[0] if first else error.__class__.__name__
 
 
+def prefix(request: Request) -> str:
+    """Caddy strips `/status` and says so in a header. Read per request, not from the environment: over
+    the SSH tunnel there is no proxy and no prefix, and a fixed one sent browsers to a 404 there."""
+    return (request.headers.get("x-forwarded-prefix") or "").rstrip("/")
+
+
 def signed_in(request: Request) -> bool:
     """No password configured means nobody gets in, rather than everybody (status/auth.py)."""
     configured = auth.configured()
@@ -122,11 +130,25 @@ def signed_in(request: Request) -> bool:
 @app.get("/login", response_class=HTMLResponse)
 def login_form(request: Request, bad: int = 0) -> HTMLResponse:
     if signed_in(request):
-        return RedirectResponse(f"{PREFIX}/", status_code=303)
+        return RedirectResponse(f"{prefix(request)}/", status_code=303)
     unset = auth.configured() is None
     return templates.TemplateResponse(
-        request, "login.html", {"prefix": PREFIX, "bad": bool(bad), "unset": unset}, status_code=401 if bad else 200
+        request,
+        "login.html",
+        {"prefix": prefix(request), "bad": bool(bad), "unset": unset},
+        status_code=401 if bad else 200,
     )
+
+
+# Recent failures, by client address. In memory and single-process on purpose: this is one page with one
+# password, and a store would be more machinery than the thing it protects.
+_failures: dict[str, list[float]] = {}
+
+
+def _recent_failures(who: str, now: float) -> list[float]:
+    kept = [at for at in _failures.get(who, []) if now - at < FAILURE_WINDOW_SECONDS]
+    _failures[who] = kept
+    return kept
 
 
 @app.post("/login")
@@ -136,9 +158,22 @@ async def login(request: Request) -> Response:
     submitted = parse_qs((await request.body()).decode())
     password = (submitted.get("password") or [""])[0]
     configured = auth.configured()
+    who = request.client.host if request.client else "unknown"
+    now = time.time()
+
+    if len(_recent_failures(who, now)) >= MAX_FAILURES:
+        # Said out loud: the page is on the public internet, and a guesser must not be invisible.
+        log.warning("status.login_blocked from=%s failures=%d", who, len(_failures[who]))
+        return PlainTextResponse("too many attempts", status_code=429)
+
     if configured is None or not auth.check_password(password, configured[0]):
-        return RedirectResponse(f"{PREFIX}/login?bad=1", status_code=303)
-    answer = RedirectResponse(f"{PREFIX}/", status_code=303)
+        _failures.setdefault(who, []).append(now)
+        log.warning("status.login_failed from=%s failures=%d", who, len(_failures[who]))
+        return RedirectResponse(f"{prefix(request)}/login?bad=1", status_code=303)
+
+    _failures.pop(who, None)
+    log.info("status.login_ok from=%s", who)
+    answer = RedirectResponse(f"{prefix(request)}/", status_code=303)
     # Secure only when the request arrived over https: a browser will not send a Secure cookie back over
     # the plain-http SSH tunnel, which is how the page is read before it has a public address.
     https = request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
@@ -150,8 +185,8 @@ async def login(request: Request) -> Response:
 
 
 @app.post("/logout")
-def logout() -> Response:
-    answer = RedirectResponse(f"{PREFIX}/login", status_code=303)
+def logout(request: Request) -> Response:
+    answer = RedirectResponse(f"{prefix(request)}/login", status_code=303)
     answer.delete_cookie(auth.COOKIE, path="/")
     return answer
 
@@ -159,8 +194,8 @@ def logout() -> Response:
 @app.get("/", response_class=HTMLResponse)
 def page(request: Request) -> Response:
     if not signed_in(request):
-        return RedirectResponse(f"{PREFIX}/login", status_code=303)
-    return templates.TemplateResponse(request, "index.html", {"s": take_snapshot(), "prefix": PREFIX})
+        return RedirectResponse(f"{prefix(request)}/login", status_code=303)
+    return templates.TemplateResponse(request, "index.html", {"s": take_snapshot(), "prefix": prefix(request)})
 
 
 @app.get("/status.json")

@@ -10,8 +10,6 @@ WorkingDirectory=/opt/vaticeno
 # Bound to 127.0.0.1: reachable through Caddy at /status, behind the page's own password, or over an SSH
 # tunnel. It never listens on a public interface itself (003 FR-004).
 ExecStart=/opt/vaticeno/.venv/bin/uvicorn status.app:app --host 127.0.0.1 --port 3001
-# Caddy serves it at vaticeno.app/status and strips the prefix; the app needs it back for its own links.
-Environment=STATUS_PREFIX=/status
 # Its own file, holding DATABASE_URL_RO and nothing else: the page must hold no credential beyond its
 # database connection (003 FR-003), and the bot's .env carries every X and model secret.
 EnvironmentFile=/opt/vaticeno/.env.status

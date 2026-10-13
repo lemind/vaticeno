@@ -225,3 +225,37 @@ def test_a_malformed_stored_hash_refuses_rather_than_admits():
         assert auth.check_password("anything", stored) is False
     assert auth.check_password(PASSWORD, auth.hash_password(PASSWORD)) is True
     assert auth.check_password("Anything-Else", auth.hash_password(PASSWORD)) is False
+
+
+def test_links_follow_the_proxy_prefix_and_work_without_one(locked):
+    # Behind Caddy the prefix is stripped and sent as a header, so the page must put it back.
+    behind = locked.get("/", headers={"X-Forwarded-Prefix": "/status"})
+    assert behind.headers["location"] == "/status/login"
+    assert 'action="/status/login"' in locked.get("/login", headers={"X-Forwarded-Prefix": "/status"}).text
+
+    # Over the SSH tunnel there is no proxy: a fixed prefix sent browsers to a 404 here (review finding).
+    direct = locked.get("/")
+    assert direct.headers["location"] == "/login"
+    assert locked.get("/login").status_code == 200
+    assert 'action="/login"' in locked.get("/login").text
+
+
+def test_a_guesser_is_refused_after_a_few_tries(locked, monkeypatch: pytest.MonkeyPatch):
+    import status.app as module
+
+    monkeypatch.setattr(module, "_failures", {})
+    for _ in range(module.MAX_FAILURES):
+        assert locked.post("/login", data={"password": "wrong"}).status_code == 303
+    # The page stops answering rather than letting someone try passwords indefinitely.
+    assert locked.post("/login", data={"password": "wrong"}).status_code == 429
+    # And the right password is refused too while blocked: the block is on the attempt, not the answer.
+    assert locked.post("/login", data={"password": PASSWORD}).status_code == 429
+
+
+def test_a_success_clears_the_failure_count(locked, monkeypatch: pytest.MonkeyPatch):
+    import status.app as module
+
+    monkeypatch.setattr(module, "_failures", {})
+    locked.post("/login", data={"password": "wrong"})
+    assert locked.post("/login", data={"password": PASSWORD}).status_code == 303
+    assert module._failures == {}, "a mistyped password is not held against you once you get in"

@@ -6,7 +6,7 @@ import { claims, jobState, resolutions } from '../db/schema.js';
 import { VERSION } from '../version.js';
 import { html, layout } from './html.js';
 
-export type Health = { ok: boolean; jobsWatched: number };
+export type Health = { ok: boolean };
 
 // Red when a job has missed its own window or its last run failed. A job that has never run is not red:
 // after a deploy every job is in that state until its slot comes round, and a weekly one for days.
@@ -19,7 +19,7 @@ export async function publicHealth(db: Db, now: Date): Promise<Health> {
   const late = watched.filter(
     (row) => row.lastOutcome === 'failed' || now.getTime() - row.lastOkAt!.getTime() > row.staleAfterSeconds * 1000,
   );
-  return { ok: late.length === 0, jobsWatched: watched.length };
+  return { ok: late.length === 0 };
 }
 
 export async function homePage(db: Db, now: Date): Promise<string> {

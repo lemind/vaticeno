@@ -5,7 +5,11 @@ vaticeno.n30sk.cc {
 	# The owner's status page, behind its own password (003 US1). `handle_path` strips the prefix, so the
 	# service is told about it through STATUS_PREFIX and puts it back into links and the session cookie.
 	handle_path /status* {
-		reverse_proxy localhost:3001
+		reverse_proxy localhost:3001 {
+			# `handle_path` strips the prefix, so the page is told what it was and puts it back into its
+			# own links. Read over the SSH tunnel there is no header, no prefix, and the links still work.
+			header_up X-Forwarded-Prefix /status
+		}
 	}
 
 	# Everything else: the public front page, claim pages, author pages and health.
