@@ -65,6 +65,14 @@ test('a failing run records the tag it sent to Sentry and counts the streak', as
   assert.equal(row?.consecutiveFailures, 2);
 });
 
+test('a job with no state row is reported, not silently unrecorded', async () => {
+  // `record` only updates, so a name that was never seeded would otherwise write nothing and look fine.
+  let ran = false;
+  await runJob({ sql: t.sql, db: t.db }, 'not-a-job', async () => { ran = true; });
+  assert.equal(ran, true, 'the job still runs; its bookkeeping is not a precondition');
+  assert.equal(await stateOf('not-a-job'), undefined, 'and no row was invented for it');
+});
+
 test('a run skipped on the lock writes only that it was skipped', async () => {
   await seedJobState(t.db);
   let ran = false;

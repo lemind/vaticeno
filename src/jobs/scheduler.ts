@@ -78,7 +78,13 @@ export async function startScheduler(deps: SchedulerDeps): Promise<{ stop: () =>
     recheck: () => recheckRecent(deps.db, now()),
   };
 
-  await seedJobState(deps.db);
+  // Reported, never fatal: the database being briefly unreachable at boot is an outage, and an outage is
+  // never allowed to stop the service coming up (INIT_SPEC §6.7). The next startup seeds it.
+  try {
+    await seedJobState(deps.db);
+  } catch (error) {
+    captureError(error, { event: 'job.state_seed_failed' });
+  }
   const tasks = jobNames().map((name) =>
     cron.schedule(SCHEDULES[name], () => {
       const run = runJob(deps, name, jobs[name]).finally(() => running.delete(run));
@@ -125,7 +131,9 @@ export async function runJob(deps: JobDeps, name: string, fn: () => Promise<unkn
 // Job health is bookkeeping: failing to write it is reported, never allowed to fail the run itself.
 async function record(db: Db, name: string, set: PgUpdateSetSource<typeof jobState>): Promise<void> {
   try {
-    await db.update(jobState).set(set).where(eq(jobState.job, name));
+    const written = await db.update(jobState).set(set).where(eq(jobState.job, name)).returning({ job: jobState.job });
+    // No row means this job was never seeded, so its state would go unrecorded in silence.
+    if (written.length === 0) log('warn', 'job has no state row', { event: 'job.state_row_missing', job: name });
   } catch (error) {
     captureError(error, { event: 'job.state_write_failed', job: name });
   }

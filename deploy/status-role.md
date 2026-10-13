@@ -15,8 +15,17 @@ Run this in the SQL editor, with a password generated locally:
 ALTER ROLE status_ro WITH LOGIN PASSWORD '<generated>';
 ```
 
-Then put the connection string in the server's `.env` as `DATABASE_URL_RO`, pointing at the **session**
-pooler like `DATABASE_URL` does — the transaction pooler rejects prepared statements (001 research R1).
+Then put the connection string on the server in **`/opt/vaticeno/.env.status`**, which holds this one
+line and nothing else:
+
+```
+DATABASE_URL_RO=postgres://status_ro:<generated>@<session-pooler-host>:5432/postgres
+```
+
+Point it at the **session** pooler like `DATABASE_URL` does — the transaction pooler rejects prepared
+statements (001 research R1). It is a separate file from the bot's `.env` on purpose: the page must hold
+no credential beyond its database connection (FR-003), and `.env` carries every X and model secret. Both
+are copied by hand and neither is ever synced by the deploy.
 
 ## Why a second role at all
 

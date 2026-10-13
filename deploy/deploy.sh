@@ -6,7 +6,7 @@ HOST="${1:?usage: deploy/deploy.sh root@HOST}"
 cd "$(dirname "$0")/.."
 
 rsync -az --delete \
-  --exclude node_modules --exclude .git --exclude .state --exclude .env --exclude .env.production --exclude INIT_SPEC.md \
+  --exclude node_modules --exclude .git --exclude .state --exclude .env --exclude .env.production --exclude .env.status --exclude INIT_SPEC.md \
   --exclude .build-info.json --exclude .venv --exclude __pycache__ \
   ./ "$HOST:/opt/vaticeno/"
 # What is running, written here and never inferred at runtime (003 FR-002). The node version is the
