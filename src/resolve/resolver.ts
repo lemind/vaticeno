@@ -86,8 +86,8 @@ export async function resolveDueClaims(deps: ResolverDeps, now: Date): Promise<R
 }
 
 
-// The evidence one contract needs: the price feed answers for itself, everything else is searched, fetched
-// and judged. One place, so a re-judge of a settled claim cannot take the other path (review 2026-10-13).
+// The evidence a contract needs: the feed answers for itself, anything else is searched and judged. One
+// place, so a re-judge cannot take the other path (review 2026-10-13).
 export async function gatherEvidence(deps: ResolverDeps, contract: Contract, window: { lockAt: Date; deadlineAt: Date }, now: Date, costs: CallCost[]): Promise<GatheredItem[]> {
   if (contract.resolution_method === 'price_feed' && contract.price) {
     const { draft, value, contentSha256 } = await gatherPriceEvidence(deps.coinbase, contract.price, window, now);

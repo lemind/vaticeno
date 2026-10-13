@@ -35,13 +35,11 @@ export function runGates(draft: EvidenceDraft, window: Window): { gates: Gates; 
   const isPrice = draft.sourceKind === 'price_feed';
   const gates: Gates = {
     trusted: draft.trustLevel !== 'weak',
-    // The waiver for an absence is granted by code, not by the model saying "absence": a page the judge
-    // labels that way without being a known complete record is held to the quote like any other (FR-007).
+    // The waiver is granted by code, not by the model saying "absence" (004 FR-007).
     quote_found: isPrice || admissibleAbsence(draft, window) ? null : draft.quoteFound === true,
     in_window: inWindow(draft, window),
     final: draft.isFinalResult && draft.says !== 'pending',
-    // Decided after every page is judged, in groups.ts: a page cannot be ranked against the others while
-    // they are still being read, which is what let the first page of a site win (004 FR-005).
+    // Decided after every page is judged, in groups.ts (004 FR-005).
     independent: null,
     // A page about another event decides nothing, and one that will not say which event it shows is not
     // taken for ours: unknown fails closed (004 FR-003). What it said is still stored.
@@ -53,8 +51,8 @@ export function runGates(draft: EvidenceDraft, window: Window): { gates: Gates; 
   return { gates, passed };
 }
 
-// Silence is proof only from an endpoint recorded in code as listing every event of its kind (FR-007).
-// The contract's own `absence_is_meaningful` is written by a model at lock, so it cannot be the only key.
+// Silence is proof only from an endpoint code records as complete (004 FR-007): `absence_is_meaningful`
+// is model-written, so it cannot be the only key.
 function admissibleAbsence(draft: EvidenceDraft, window: Window): boolean {
   return draft.basis === 'absence' && (window.absenceAdmissible ?? isExhaustiveRecord)(draft.url);
 }

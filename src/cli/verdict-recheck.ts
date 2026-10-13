@@ -1,7 +1,7 @@
 // npm run verdict:recheck -- [--slug <slug>] [--days 7] [--rejudge] [--correct "<reason>"] [--post]
-// Re-decides verdicts with today's rules, over the evidence already stored: free, no model, no searches.
-// Writing the correction and posting it are separate flags, because a published verdict is never changed
-// by a scheduled run (001 FR-035).
+
+// Re-decides stored evidence (free), or judges the pages again (--rejudge, paid). Correcting and posting
+// are separate flags: a scheduled run never changes a published verdict (001 FR-035).
 import { buildBotDeps } from '../bot/wire.js';
 import { postCorrection } from '../bot/verdicts.js';
 import { getDb } from '../db/client.js';

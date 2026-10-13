@@ -36,9 +36,8 @@ export async function recheckClaim(db: Db, slug: string, at: Date): Promise<Rech
   return { slug, was: row.outcome, now: decision, differs, unsettled: decision.kind !== 'final', corrected: false };
 }
 
-// A verdict re-examined with pages fetched and judged again (004 T415a): the only way to catch a judging
-// error, because a free recheck re-reads the same stored answers. Paid, so it is never run by a schedule.
-// Writes a new evidence run and no resolution — the published one is frozen (001 FR-035).
+// Pages fetched and judged again: the only way to catch a judging error (004 FR-011). Paid, never
+// scheduled, and it writes a new evidence run beside the frozen resolution (001 FR-035).
 export async function rejudgeClaim(deps: ResolverDeps, slug: string, at: Date): Promise<Recheck | null> {
   const [row] = await deps.db
     .select({ id: claims.id, contract: claims.contract, lockAt: claims.lockAt, deadlineAt: claims.deadlineAt, outcome: resolutions.outcome })

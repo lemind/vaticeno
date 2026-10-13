@@ -73,9 +73,8 @@ const JudgeSchemaV5 = z.object({ ...V5_FIELDS, quote: z.string().max(600).nullab
 const JudgeRecordedSchemaV5 = z.object({ ...V5_FIELDS, quote_sha256: z.string().nullable(), quote_found: z.boolean() });
 const BEFORE_V5 = [...BEFORE_V4, 'judge.v4'];
 
-// What a judge call hands back, live or replayed. A live answer carries the quote; a recorded one carries
-// its hash and whether it was on the page (redactQuote), so each of those three is optional here rather
-// than asserted away with a cast. Every version's schema produces one of these shapes.
+// What a judge call hands back. A live answer carries the quote, a recorded one its hash and whether it
+// was found, so those three are optional here rather than cast away.
 type JudgeData = Omit<z.infer<typeof JudgeSchema>, 'quote'> & {
   quote?: string | null;
   quote_sha256?: string | null;

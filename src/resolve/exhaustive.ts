@@ -1,17 +1,11 @@
 import { hostOf, registrableDomain } from './trust.js';
 
-// Which endpoints may carry absence evidence (004 FR-007). "The event is not listed here" is only proof
-// when the page is known to list every event of its kind — and only code knows that, because a page cannot
-// say it of itself and the judge cannot read it off the page.
-//
-// Deliberately empty. Two public verdicts went out wrong because an official fixtures page that had not yet
-// listed a match was read as proof the match never happened (owner report 2026-10-12). Until an endpoint is
-// confirmed complete for a whole competition and window, a claim with no record waits or voids — which is
-// the safer failure. Add one only with the check that confirmed it.
+// Endpoints that may carry absence evidence: only code can know a page lists every event of its kind
+// (004 FR-007). Empty on purpose — with none, a claim with no record waits and then voids.
 type ExhaustiveEndpoint = {
   host: string; // registrable domain
   pathPrefix: string; // '' matches the whole host
-  confirmed: string; // who checked it covers every event of its kind, and when
+  confirmed: string; // who checked it, and when — add an entry only with that check
 };
 
 const EXHAUSTIVE: readonly ExhaustiveEndpoint[] = [];

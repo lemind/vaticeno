@@ -1,12 +1,10 @@
-// One site is one witness, but the best page of it (004 FR-005, FR-006). Independence is decided here,
-// after every page has been judged and gated on its own — not page by page against whatever was accepted
-// first, which is how a meeting's landing page outranked the page naming the race (owner report 2026-10-12).
+// One site is one witness, but the best page of it (004 FR-005, FR-006): independence is decided here,
+// after every page has been judged on its own, never against whatever was accepted first.
 import type { EventMatch } from './relevance.js';
 import { nearDuplicate } from './similarity.js';
 import { hostOf, registrableDomain, type TrustLevel } from './trust.js';
 
-// What grouping needs to know about one page that passed its own gates. Deliberately not the draft: this
-// file decides by placement and completeness, and must never see a verdict it could prefer.
+// What grouping needs about a page that passed its own gates — never a verdict it could prefer (FR-006).
 export type GroupFacts = {
   url: string | null;
   simhash: string | null;
@@ -20,13 +18,11 @@ export type GroupFacts = {
 const TRUST_RANK: Record<TrustLevel, number> = { primary: 0, established: 1, weak: 2 };
 const MATCH_RANK: Record<string, number> = { yes: 0, not_applicable: 1, unknown: 2, no: 3 };
 
-// Index-aligned: true where this page counts as its group's witness. Order-independent — the same set in
-// any order gives the same answer (SC-002), because groups are built and ranked from the facts, not the order.
+// Index-aligned: true where this page speaks for its group. Order-independent (004 SC-002).
 export function independenceOf(facts: readonly GroupFacts[]): boolean[] {
   const order = facts.map((_, i) => i).sort((a, b) => key(facts[a]!).localeCompare(key(facts[b]!)));
-  // Matching is not transitive — A shares a domain with B, B shares a wire story with C, A and C share
-  // nothing — so a page joins every group it matches and those groups merge. Keeping only the first match
-  // would leave one story counted twice, which is what this rule exists to prevent.
+  // Matching is not transitive (a domain, then a wire story), so a page joins every group it matches and
+  // they merge; keeping only the first left one story counted twice (review 2026-10-13).
   let groups: number[][] = [];
   for (const index of order) {
     const matched = groups.filter((group) => group.some((other) => sameStory(facts[index]!, facts[other]!)));
@@ -36,9 +32,8 @@ export function independenceOf(facts: readonly GroupFacts[]): boolean[] {
 
   const independent = facts.map(() => false);
   for (const group of groups) {
-    // A disagreement inside one source is never hidden by choosing a representative (FR-008a): both pages go
-    // through and the arbiter decides. "Placed" is the contract's own event, or a contract with nothing to
-    // match — which is most of them. A page that could not be placed never escalates anything.
+    // A disagreement inside one source goes to the arbiter, not to a representative (FR-008a). Placed: the
+    // contract's own event, or a contract with nothing to match against.
     const placed = group.filter((i) => facts[i]!.eventMatch === 'yes' || facts[i]!.eventMatch === 'not_applicable' || facts[i]!.eventMatch === null);
     const split = placed.length > 1 && placed.some((i) => facts[i]!.says !== facts[placed[0]!]!.says);
     if (split) {

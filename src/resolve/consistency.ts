@@ -1,6 +1,5 @@
-// A verdict must not argue with its own evidence (004 FR-009). One stored reading said MISS while its own
-// result line said the claim's subject had won: the judge read the page right and classified it wrong
-// (owner report 2026-10-12). Where code can apply the criterion itself, it does. Pure.
+// A verdict must not argue with its own evidence (004 FR-009): where code can apply the criterion to the
+// page's own stated outcome, it does. Pure.
 import type { Contract } from '../contract/schema.js';
 import type { EventMatch } from './relevance.js';
 

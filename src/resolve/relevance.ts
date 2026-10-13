@@ -25,18 +25,15 @@ const ISO_DATE = /\b(\d{4}-\d{2}-\d{2})\b/;
 const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
 const WRITTEN_DATE = new RegExp(`\\b(${MONTHS.join('|')})\\s+(\\d{1,2})(?:st|nd|rd|th)?,?\\s+(\\d{4})\\b`, 'i');
 
-// The event the contract is about, from fields a locked contract already has (FR-012). Only `entity_id`
-// can demand confirmation: it is the field whose job is naming the event. A date in the criterion is
-// usually the deadline ("prints at 3.6% or lower on Oct 14 2026"), so requiring it would fail good pages.
+// The event the contract names, from fields a locked contract already has (004 FR-002, FR-012). Only
+// `entity_id` may demand confirmation: a date in the criterion is usually the deadline.
 export function contractEventKey(contract: Contract): EventKey {
   const entity = contract.source.entity_id;
   const round = roundNumber(entity);
   return { round, date: dateIn(entity), roundHint: round ?? roundNumber(contract.criterion) };
 }
 
-// A page decides only when it shows the event the contract names. A page that will not say which round it
-// reports is not taken for ours: unknown fails closed (FR-003), which is how a Race 1 page came to answer
-// a Race 2 claim (owner report 2026-10-12).
+// Unknown fails closed (004 FR-003): a page that will not say which round it reports is not taken for ours.
 export function matchEvent(key: EventKey, identity: EventIdentity | null): EventMatch {
   const required = key.round !== null || key.date !== null;
   if (!identity) return required ? 'unknown' : 'not_applicable';
