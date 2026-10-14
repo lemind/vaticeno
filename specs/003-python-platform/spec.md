@@ -341,7 +341,7 @@ with VOID, and the same with the worker switched off for the whole timeout windo
 - **FR-030**: If a stake is unsettled longer than the timeout after its deadline, **anyone** may trigger the
   refund and both parties are made whole. This path does not depend on the operator being alive.
 - **FR-031**: A verdict decided by the local verifier alone never settles a stake. Anything with value
-  attached is decided by the paid model or a human.
+  attached is decided by the price feed (FR-031a) or a human.
 - **FR-031a**: Only a claim whose resolution method is the price feed may carry a stake (owner decision
   2026-10-09). Eligibility is decided off-chain, where the locked contract can be read, and proved on-chain:
   a stake cannot be opened without an authorization signed by the oracle for that claim hash. A hash alone
@@ -357,7 +357,8 @@ with VOID, and the same with the worker switched off for the whole timeout windo
   decision, not a setting; no refund path — a VOID verdict, the operator's void or the timeout — ever
   charges one. The window is a fixed number of
   hours in the contract, not a policy anyone can change per stake.
-- **FR-031c**: During that window, and only then, the oracle address may **void** a stake: both parties
+- **FR-031c**: During that window, and only then, the oracle address — or the guardian, a separate key held
+  offline for the case where the oracle's is compromised — may **void** a stake: both parties
   are refunded their own stake and nothing else happens. The function cannot pay either side, cannot pay
   the operator and cannot take a fee — those paths do not exist in it. Its purpose is to bound the cost of
   our own mistake to zero rather than to pay the wrong person.

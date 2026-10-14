@@ -105,7 +105,7 @@ Then VOID, then the timeout refund with the worker switched off.
 
 ### Before a line of Solidity
 
-- [ ] T326a [US4] `docs/decisions/002-escrow-v1.md`: answer every item of FR-031f and FR-031h in writing first — a deployed contract gains none of it later (SC-019)
+- [ ] T326a [US4] `docs/decisions/002-escrow-v1.md`: answer every item of FR-031f and FR-031h in writing first — a deployed contract gains none of it later (SC-019). **Drafted**: Foundry, Base Sepolia, own test ERC-20; six numbers await sign-off
 - [ ] T326b [US4] Publish the settlement window and the void policy: the hours, the grounds, the reason codes, and that a complaint alone pauses nothing (FR-031b, FR-031c, FR-031e)
 - [ ] T326c [US4] Call it an escrow with a named referee wherever it is described — never trustless (FR-031g)
 
@@ -120,6 +120,7 @@ Then VOID, then the timeout refund with the worker switched off.
 ### The settlement path
 
 - [ ] T331 [US4] Migration `drizzle/0020_settlement.sql` + `src/db/schema.ts` per data-model.md, including the `settle_rw` policies; the role is created by hand like `status_ro`
+- [ ] T332a [US4] A staked claim's verdict is rechecked by the TypeScript side before its outbox row is written: the window is 72 hours and the weekly recheck does not fit in it (002-escrow-v1)
 - [ ] T332 [US4] `src/resolve/resolver.ts` writes an outbox row when a verdict is final and a stake exists; no chain call from Node (FR-027)
 - [ ] T333 [US4] `settle/worker.py`: poll, read on-chain state, build the transaction from the claim and verdict, sign, record. Own systemd unit, key readable by its own user alone (FR-025, FR-028, FR-028a)
 - [ ] T334 [US4] Test `tests/integration/settlement-outbox.test.ts`: no stake writes nothing; a replayed row sends nothing twice (FR-026)
