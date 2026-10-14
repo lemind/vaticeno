@@ -41,6 +41,9 @@ export function getLockSql() {
 
 export async function closeDb(): Promise<void> {
   if (!connection) return;
-  await Promise.all([connection.sql.end({ timeout: 5 }), connection.locks.end({ timeout: 5 })]);
+  await Promise.all([
+    connection.sql.end({ timeout: 5 }),
+    connection.locks.end({ timeout: 5 }),
+  ]);
   connection = undefined;
 }

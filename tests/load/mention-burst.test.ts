@@ -20,20 +20,33 @@ const BURST = 170;
 const NOW = new Date('2026-10-01T12:00:00Z');
 
 let t: TestDb;
-before(async () => { t = await setupTestDb(); });
-after(async () => { await t.close(); });
-beforeEach(async () => { await t.truncateAll(); });
+before(async () => {
+  t = await setupTestDb();
+});
+after(async () => {
+  await t.close();
+});
+beforeEach(async () => {
+  await t.truncateAll();
+});
 
 // The narrowest stub that reaches the recording path: every mention is one plain, complete prediction.
 // This measures the lifecycle under load, not the engine's judgement, which bot.test.ts covers.
 const llm = {
   generateJson: async ({ instructionVersion }: { instructionVersion: string }) => {
-    if (instructionVersion.startsWith('intent.')) return { data: { intent: 'prediction' }, costs: [] };
-    if (instructionVersion.startsWith('match.')) return { data: { found: false }, costs: [] };
+    if (instructionVersion.startsWith('intent.'))
+      return { data: { intent: 'prediction' }, costs: [] };
+    if (instructionVersion.startsWith('match.'))
+      return { data: { found: false }, costs: [] };
     return {
       data: {
-        is_prediction: true, x_rules_ok: true, contract: VALID_CONTRACT,
-        unclear: [], unclear_explanation: '', examples: [], self_confidence: 0.9,
+        is_prediction: true,
+        x_rules_ok: true,
+        contract: VALID_CONTRACT,
+        unclear: [],
+        unclear_explanation: '',
+        examples: [],
+        self_confidence: 0.9,
       },
       costs: [],
     };
@@ -44,16 +57,34 @@ async function burstBot(mentionsByPoll: Mention[][]) {
   const replies: Array<{ to: string; text: string }> = [];
   let poll = 0;
   const x = {
-    getMentionsPage: async () => ({ data: [...(mentionsByPoll[poll++] ?? [])].reverse(), meta: { result_count: 0 } }),
+    getMentionsPage: async () => ({
+      data: [...(mentionsByPoll[poll++] ?? [])].reverse(),
+      meta: { result_count: 0 },
+    }),
     getTweet: async (id: string) => Promise.reject(new Error(`404 ${id}`)),
     getConversation: async () => [],
   } as unknown as XClient;
   const deps: BotDeps = {
-    db: t.db, llm, coinbase: { productStatus: async () => 'online' } as unknown as Coinbase,
-    normalizerModel: 'm', answerModel: 'm', x, reader: createMemorySourceReader({}),
-    botUserId: 'bot', botHandle: 'vaticeno',
-    fetchPage: async (url: string) => ({ url, text: '', sha256: 'x', simhash: null, retrievedAt: NOW }),
-    postReply: async (to, text) => { replies.push({ to, text }); return { id: `r-${to}` }; },
+    db: t.db,
+    llm,
+    coinbase: { productStatus: async () => 'online' } as unknown as Coinbase,
+    normalizerModel: 'm',
+    answerModel: 'm',
+    x,
+    reader: createMemorySourceReader({}),
+    botUserId: 'bot',
+    botHandle: 'vaticeno',
+    fetchPage: async (url: string) => ({
+      url,
+      text: '',
+      sha256: 'x',
+      simhash: null,
+      retrievedAt: NOW,
+    }),
+    postReply: async (to, text) => {
+      replies.push({ to, text });
+      return { id: `r-${to}` };
+    },
     allowAuthor: () => true,
     // The live caps, unchanged: a burst must not be answered by raising them.
     caps: { perAuthorPerHour: 3, perDay: 300 },
@@ -79,13 +110,23 @@ test(`${BURST} mentions in one poll are answered exactly once each`, async () =>
   const result = await pollMentions(deps, NOW);
   const elapsed = Date.now() - started;
 
-  assert.equal(result.mentions, BURST, 'every mention was taken up; none was dropped');
+  assert.equal(
+    result.mentions,
+    BURST,
+    'every mention was taken up; none was dropped',
+  );
   assert.equal(replies.length, BURST, 'one reply each');
   const targets = new Set(replies.map((reply) => reply.to));
   assert.equal(targets.size, BURST, 'no mention answered twice');
-  assert.deepEqual([...targets].sort(), mentions.map((m) => m.id).sort(), 'answered the mentions we were sent');
+  assert.deepEqual(
+    [...targets].sort(),
+    mentions.map((m) => m.id).sort(),
+    'answered the mentions we were sent',
+  );
   // Not a threshold to pass, just the figure the capacity table quotes.
-  console.log(`burst: ${BURST} mentions in ${elapsed} ms (${(BURST / (elapsed / 1000)).toFixed(1)}/s)`);
+  console.log(
+    `burst: ${BURST} mentions in ${elapsed} ms (${(BURST / (elapsed / 1000)).toFixed(1)}/s)`,
+  );
 });
 
 test('the same burst seen again adds no reply, and the next one still drains', async () => {
@@ -97,7 +138,11 @@ test('the same burst seen again adds no reply, and the next one still drains', a
   await pollMentions(deps, NOW);
   const afterFirst = replies.length;
   const repeat = await pollMentions(deps, NOW);
-  assert.equal(replies.length, afterFirst, 'a re-served mention is never answered twice (INIT_SPEC §6.7)');
+  assert.equal(
+    replies.length,
+    afterFirst,
+    'a re-served mention is never answered twice (INIT_SPEC §6.7)',
+  );
   assert.equal(repeat.replies, 0);
 
   const next = await pollMentions(deps, NOW);
@@ -119,5 +164,9 @@ test('one author flooding is capped, and the cap is not a lost mention', async (
 
   assert.equal(result.mentions, 20, 'all twenty were read');
   assert.ok(replies.length <= 3, `the cap held: ${replies.length} replies`);
-  assert.equal(new Set(replies.map((r) => r.to)).size, replies.length, 'no duplicate reply');
+  assert.equal(
+    new Set(replies.map((r) => r.to)).size,
+    replies.length,
+    'no duplicate reply',
+  );
 });

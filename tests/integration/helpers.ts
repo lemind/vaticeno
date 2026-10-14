@@ -6,11 +6,20 @@ import { createScratchDb } from '../../src/db/scratch.js';
 import type { ClaimStatus } from '../../src/lifecycle/transitions.js';
 import { randomSlug } from '../../src/contract/slug.js';
 
-export type TestDb = { db: Db; sql: Sql; locks: Sql; truncateAll: () => Promise<void>; close: () => Promise<void> };
+export type TestDb = {
+  db: Db;
+  sql: Sql;
+  locks: Sql;
+  truncateAll: () => Promise<void>;
+  close: () => Promise<void>;
+};
 
 export async function setupTestDb(): Promise<TestDb> {
   const adminUrl = process.env.DATABASE_URL;
-  if (!adminUrl) throw new Error('DATABASE_URL is required for integration tests (docker compose up -d)');
+  if (!adminUrl)
+    throw new Error(
+      'DATABASE_URL is required for integration tests (docker compose up -d)',
+    );
   const { db, sql, locks, close } = await createScratchDb(adminUrl, 'vaticeno_test');
   return {
     db,
@@ -39,7 +48,13 @@ export const VALID_CONTRACT = {
   },
   negative_condition: 'no daily close above 150000 in the window',
   resolution_method: 'price_feed',
-  price: { provider: 'coinbase', product_id: 'BTC-USD', comparison: 'CLOSE_ABOVE', threshold: 150000, window_mode: 'any_time_before' },
+  price: {
+    provider: 'coinbase',
+    product_id: 'BTC-USD',
+    comparison: 'CLOSE_ABOVE',
+    threshold: 150000,
+    window_mode: 'any_time_before',
+  },
 };
 
 // Statuses a claim may be born with; the others are reached through the Lifecycle.
@@ -53,7 +68,11 @@ const PATH_TO: Partial<Record<ClaimStatus, ClaimStatus[]>> = {
 
 export type ClaimRow = { id: string; slug: string; status: ClaimStatus };
 
-export async function insertClaim(sql: Sql, status: ClaimStatus = 'draft', overrides: Record<string, unknown> = {}): Promise<ClaimRow> {
+export async function insertClaim(
+  sql: Sql,
+  status: ClaimStatus = 'draft',
+  overrides: Record<string, unknown> = {},
+): Promise<ClaimRow> {
   const bornAs = PATH_TO[status] ? 'draft' : status;
   const withContract = bornAs === 'draft';
   const row = {
@@ -69,20 +88,38 @@ export async function insertClaim(sql: Sql, status: ClaimStatus = 'draft', overr
     lock_at: withContract ? '2026-09-29T12:15:00Z' : null,
     ...overrides,
   };
-  const [claim] = await sql<ClaimRow[]>`insert into claims ${sql(row)} returning id, slug, status`;
+  const [claim] = await sql<
+    ClaimRow[]
+  >`insert into claims ${sql(row)} returning id, slug, status`;
   for (const next of PATH_TO[status] ?? []) {
     await sql`update claims set status = ${next} where id = ${claim!.id}`;
   }
   return { ...claim!, status };
 }
 
-export async function insertPosition(sql: Sql, claimId: string, overrides: Record<string, unknown> = {}): Promise<{ id: string }> {
-  const row = { claim_id: claimId, x_user_id: '200', stance: 'agree', is_author: true, ...overrides };
-  const [position] = await sql<{ id: string }[]>`insert into positions ${sql(row)} returning id`;
+export async function insertPosition(
+  sql: Sql,
+  claimId: string,
+  overrides: Record<string, unknown> = {},
+): Promise<{ id: string }> {
+  const row = {
+    claim_id: claimId,
+    x_user_id: '200',
+    stance: 'agree',
+    is_author: true,
+    ...overrides,
+  };
+  const [position] = await sql<
+    { id: string }[]
+  >`insert into positions ${sql(row)} returning id`;
   return position!;
 }
 
-export async function insertEvidence(sql: Sql, claimId: string, overrides: Record<string, unknown> = {}): Promise<{ id: string }> {
+export async function insertEvidence(
+  sql: Sql,
+  claimId: string,
+  overrides: Record<string, unknown> = {},
+): Promise<{ id: string }> {
   const row = {
     claim_id: claimId,
     run_at: '2027-01-01T01:00:00Z',
@@ -92,10 +129,17 @@ export async function insertEvidence(sql: Sql, claimId: string, overrides: Recor
     trust_level: 'primary',
     says: 'hit',
     retrieved_at: '2027-01-01T01:00:00Z',
-    gates: JSON.stringify({ trusted: true, in_window: true, final: true, independent: true }),
+    gates: JSON.stringify({
+      trusted: true,
+      in_window: true,
+      final: true,
+      independent: true,
+    }),
     passed: true,
     ...overrides,
   };
-  const [evidence] = await sql<{ id: string }[]>`insert into evidences ${sql(row)} returning id`;
+  const [evidence] = await sql<
+    { id: string }[]
+  >`insert into evidences ${sql(row)} returning id`;
   return evidence!;
 }

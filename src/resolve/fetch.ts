@@ -23,7 +23,8 @@ export class SourceUnavailable extends Error {
   }
 }
 
-const isTransientStatus = (status: number) => status === 0 || status === 429 || status >= 500;
+const isTransientStatus = (status: number) =>
+  status === 0 || status === 429 || status >= 500;
 
 export type FetchedPage = {
   url: string; // final URL after redirects
@@ -33,17 +34,30 @@ export type FetchedPage = {
   retrievedAt: Date;
 };
 
-export function createPageFetcher(options: { mode: 'live' | 'record' | 'replay'; store: ReplayStore }) {
+export function createPageFetcher(options: {
+  mode: 'live' | 'record' | 'replay';
+  store: ReplayStore;
+}) {
   const { mode, store } = options;
 
   return async function fetchPage(url: string): Promise<FetchedPage> {
     if (mode === 'replay') {
       const entry = await store.get('fetch', { url });
-      if (entry.kind !== 'fetch') throw new Error(`replay entry for fetch ${url} has kind ${entry.kind}`);
+      if (entry.kind !== 'fetch')
+        throw new Error(`replay entry for fetch ${url} has kind ${entry.kind}`);
       if (entry.status < 200 || entry.status >= 300 || !entry.sha256) {
-        throw new SourceUnavailable(`recorded fetch of ${url}: HTTP ${entry.status}`, { transient: isTransientStatus(entry.status) });
+        throw new SourceUnavailable(
+          `recorded fetch of ${url}: HTTP ${entry.status}`,
+          { transient: isTransientStatus(entry.status) },
+        );
       }
-      return { url: entry.url, text: '', sha256: entry.sha256, simhash: entry.simhash, retrievedAt: new Date(entry.retrieved_at) };
+      return {
+        url: entry.url,
+        text: '',
+        sha256: entry.sha256,
+        simhash: entry.simhash,
+        retrievedAt: new Date(entry.retrieved_at),
+      };
     }
 
     const retrievedAt = new Date();
@@ -65,18 +79,52 @@ export function createPageFetcher(options: { mode: 'live' | 'record' | 'replay';
         status = 415; // PDFs, images…: not readable as a page here
       }
     } catch (error) {
-      if (mode === 'record') await store.put('fetch', { url }, { kind: 'fetch', url, sha256: null, simhash: null, retrieved_at: retrievedAt.toISOString(), status: 0 });
-      throw new SourceUnavailable(`fetch ${url} failed: ${String(error)}`, { cause: error });
+      if (mode === 'record')
+        await store.put(
+          'fetch',
+          { url },
+          {
+            kind: 'fetch',
+            url,
+            sha256: null,
+            simhash: null,
+            retrieved_at: retrievedAt.toISOString(),
+            status: 0,
+          },
+        );
+      throw new SourceUnavailable(`fetch ${url} failed: ${String(error)}`, {
+        cause: error,
+      });
     }
 
     const ok = status >= 200 && status < 300 && text.length > 0;
     const sha256 = ok ? createHash('sha256').update(text).digest('hex') : null;
     const fingerprint = ok ? simhash(text) : null;
     if (mode === 'record') {
-      await store.put('fetch', { url }, { kind: 'fetch', url: finalUrl, sha256, simhash: fingerprint, retrieved_at: retrievedAt.toISOString(), status });
+      await store.put(
+        'fetch',
+        { url },
+        {
+          kind: 'fetch',
+          url: finalUrl,
+          sha256,
+          simhash: fingerprint,
+          retrieved_at: retrievedAt.toISOString(),
+          status,
+        },
+      );
     }
-    if (!ok || !sha256) throw new SourceUnavailable(`fetch ${url}: HTTP ${status}`, { transient: isTransientStatus(status) });
-    return { url: finalUrl, text: text.slice(0, MAX_TEXT_CHARS), sha256, simhash: fingerprint, retrievedAt };
+    if (!ok || !sha256)
+      throw new SourceUnavailable(`fetch ${url}: HTTP ${status}`, {
+        transient: isTransientStatus(status),
+      });
+    return {
+      url: finalUrl,
+      text: text.slice(0, MAX_TEXT_CHARS),
+      sha256,
+      simhash: fingerprint,
+      retrievedAt,
+    };
   };
 }
 
@@ -110,12 +158,30 @@ export function visibleText(html: string): string {
     .trim();
 }
 
-const NAMED: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', ndash: '–', mdash: '—', rsquo: '’', lsquo: '‘', ldquo: '“', rdquo: '”' };
+const NAMED: Record<string, string> = {
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+  nbsp: ' ',
+  ndash: '–',
+  mdash: '—',
+  rsquo: '’',
+  lsquo: '‘',
+  ldquo: '“',
+  rdquo: '”',
+};
 
 function decodeEntity(match: string, body: string): string {
   if (body.startsWith('#')) {
-    const code = body[1]?.toLowerCase() === 'x' ? parseInt(body.slice(2), 16) : parseInt(body.slice(1), 10);
-    return Number.isFinite(code) && code > 0 && code < 0x110000 ? String.fromCodePoint(code) : match;
+    const code =
+      body[1]?.toLowerCase() === 'x'
+        ? parseInt(body.slice(2), 16)
+        : parseInt(body.slice(1), 10);
+    return Number.isFinite(code) && code > 0 && code < 0x110000
+      ? String.fromCodePoint(code)
+      : match;
   }
   return NAMED[body.toLowerCase()] ?? match;
 }

@@ -25,6 +25,8 @@
 ## Code Style & Consistency
 
 - Follow project linter/formatter rules (ESLint, Prettier, etc.).
+- TypeScript is 85 columns, by Prettier. `npm run format` formats only the files a branch touches; an
+  untouched file reflows the first time it is edited, never in one repo-wide pass.
 - Do not disable linters or skip formatting to "fix" a bug.
 - Match existing naming conventions; do not rename variables without scope.
 - **Naming**: Use descriptive names that make purpose obvious (`acquireMentionLease`, `resolveClaim`, `postResolutionReply`). Avoid generic names like `fetch`, `data`, `result`, `check`, `cleanup`, `doStuff`. Don't over-verbose — `lockClaim` is good, `lockClaimAfterEditWindowExpires` is not.

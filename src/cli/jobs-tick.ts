@@ -15,10 +15,22 @@ await runCli('jobs-tick', async (config) => {
   const deps = buildDeps(config);
   const sql = getLockSql(); // locks reserve from their own pool, never the query pool
 
-  const lock = await withJobLock(sql, 'lock', () => lockDueDrafts({ ...deps, reader: createFileSourceReader() }, now));
-  const expire = await withJobLock(sql, 'expire', async () => await expireNeedsInfo(deps.db, now) + await expireWithheldDrafts(deps.db, now));
-  const resolve = await withJobLock(sql, 'resolve', () => resolveDueClaims(deps, now));
-  const owed = await withJobLock(sql, 'reconcile', () => auditOwedWork(deps.db, now));
+  const lock = await withJobLock(sql, 'lock', () =>
+    lockDueDrafts({ ...deps, reader: createFileSourceReader() }, now),
+  );
+  const expire = await withJobLock(
+    sql,
+    'expire',
+    async () =>
+      (await expireNeedsInfo(deps.db, now)) +
+      (await expireWithheldDrafts(deps.db, now)),
+  );
+  const resolve = await withJobLock(sql, 'resolve', () =>
+    resolveDueClaims(deps, now),
+  );
+  const owed = await withJobLock(sql, 'reconcile', () =>
+    auditOwedWork(deps.db, now),
+  );
 
   printJson({
     now: now.toISOString(),
