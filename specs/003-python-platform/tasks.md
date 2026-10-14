@@ -105,16 +105,16 @@ Then VOID, then the timeout refund with the worker switched off.
 
 ### Before a line of Solidity
 
-- [ ] T326a [US4] `docs/decisions/002-escrow-v1.md`: answer every item of FR-031f and FR-031h in writing first — a deployed contract gains none of it later (SC-019). **Drafted**: Foundry, Base Sepolia, own test ERC-20; six numbers await sign-off
-- [ ] T326b [US4] Publish the settlement window and the void policy: the hours, the grounds, the reason codes, and that a complaint alone pauses nothing (FR-031b, FR-031c, FR-031e)
-- [ ] T326c [US4] Call it an escrow with a named referee wherever it is described — never trustless (FR-031g)
+- [x] T326a [US4] `docs/decisions/002-escrow-v1.md`: answer every item of FR-031f and FR-031h in writing first — a deployed contract gains none of it later (SC-019). **Done**: Foundry, Base Sepolia, own test ERC-20; the six numbers and the guardian key signed off 2026-10-14.
+- [x] T326b [US4] Publish the settlement window and the void policy: the hours, the grounds, the reason codes, and that a complaint alone pauses nothing (FR-031b, FR-031c, FR-031e) **Done**: `docs/settlement-policy.md`, written for the people who would stake.
+- [x] T326c [US4] Call it an escrow with a named referee wherever it is described — never trustless (FR-031g) **Done**: nothing in the repo called it trustless; the policy names Vaticeno, operated by n30sk, as referee.
 
 ### The contract
 
-- [ ] T327 [US4] Contract toolchain and `contracts/` skeleton; one network and one stake token, its testnet RPC and chain id in `.env.example` (FR-022, FR-036)
-- [ ] T328 [US4] `contracts/src/Escrow.sol`: the seven transitions FR-031f names. `settle` starts the hold and pays nobody; the fee is fixed at deployment and zero on the testnet (FR-023, FR-024, FR-026, FR-030, FR-031b)
-- [ ] T328a [US4] Three refund paths — a VOID verdict, the oracle's lever inside the hold, the timeout — each return both stakes, take no fee, and are separate from `payout` (FR-031c, FR-031d)
-- [ ] T329 [US4] Contract tests on a local EVM with time advanced: every branch, a second settle or payout refused, `open` without authorization refused (SC-013, SC-014, SC-018)
+- [x] T327 [US4] Contract toolchain and `contracts/` skeleton; one network and one stake token, its testnet RPC and chain id in `.env.example` (FR-022, FR-036) **Done**: `contracts/` with forge-std v1.17.0 pinned as a submodule; env entries; a CI job that builds, lints with warnings denied, and tests.
+- [x] T328 [US4] `contracts/src/Escrow.sol`: the seven transitions FR-031f names. `settle` starts the hold and pays nobody; the fee is fixed at deployment and zero on the testnet (FR-023, FR-024, FR-026, FR-030, FR-031b) **Done**: open, accept, expire, settle, payout, void, refund, plus a guardian pause that never blocks money owed. Every number immutable.
+- [x] T328a [US4] Three refund paths — a VOID verdict, the oracle's lever inside the hold, the timeout — each return both stakes, take no fee, and are separate from `payout` (FR-031c, FR-031d) **Done**: a VOID verdict refunds at once; the void needs a reason code and an evidence reference; the timeout and the void never share a state.
+- [x] T329 [US4] Contract tests on a local EVM with time advanced: every branch, a second settle or payout refused, `open` without authorization refused (SC-013, SC-014, SC-018) **Done**: 42 tests and an operator-attack invariant; 100% of lines and branches. The first invariant reached no payout at all, so it now counts what succeeds.
 - [ ] T330 [US4] Deploy to the testnet with the source verified publicly; record the address in `.env.example` and on the status page (FR-029)
 
 ### The settlement path

@@ -18,3 +18,7 @@ __pycache__/
 .build-info.json
 # Private notes (not public, not committed)
 docs/private/
+# Foundry build output (spec 003 Stage 2)
+contracts/out/
+contracts/cache/
+contracts/broadcast/

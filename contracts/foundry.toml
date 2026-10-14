@@ -1,0 +1,17 @@
+# The escrow (003 US4, docs/decisions/002-escrow-v1.md). Base Sepolia only until FR-031h is answered.
+[profile.default]
+src = "src"
+test = "test"
+script = "script"
+libs = ["lib"]
+solc = "0.8.28"
+optimizer = true
+optimizer_runs = 200
+fuzz = { runs = 512 }
+
+[rpc_endpoints]
+base_sepolia = "${BASE_SEPOLIA_RPC_URL}"
+
+[lint]
+# Every window here is hours or days; a validator can shift a timestamp by seconds (002-escrow-v1).
+exclude_lints = ["block-timestamp"]
