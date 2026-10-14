@@ -137,26 +137,30 @@ person who made the claim", for the cases where that is worth showing.
 | address | text NOT NULL | checksummed for display; compared and made unique on its lower-case form, so one wallet cannot hold two identities by case alone |
 | verified_at | timestamptz NOT NULL | when the signature checked out |
 | revoked_at | timestamptz null | when the link ended; the row is never deleted |
+| revoked_by | text null | CHECK `account` or `wallet`: which half ended it (FR-035d) |
 
 **Rules.** An address has at most one *active* link at a time — a partial unique index on `address` where
 `revoked_at is null` — or one wallet could claim several identities. An x_user_id may hold several active
 addresses, because people have several wallets. Revoking sets `revoked_at`; re-linking later writes a new row,
 so every link keeps its validity period and a stake placed last year still resolves to whoever was linked
-*then*.
+*then*: a stake counts only under a link active when it was placed (FR-035e).
 
 ## `wallet_link_challenges`
 
 The code in the link flow cannot live in memory: a restart between the reply and the signature would either
-lose the flow or let a used code be replayed.
+lose the flow or let a used code be replayed. Each state change is a conditional update on the state before
+it (`bound_at is null`, then `consumed_at is null`), so two polls reading the same post bind once.
 
 | Column | Type | Notes |
 |---|---|---|
 | id | uuid PK | |
 | code_hash | text NOT NULL UNIQUE | the code itself is never stored, only its hash |
-| x_user_id | text null | set when a reply binds the code to an account; null until then |
-| session_hash | text null | binds the browser that asked for it, so another tab cannot finish the flow |
-| expires_at | timestamptz NOT NULL | short-lived; an expired code is refused, never refreshed |
-| consumed_at | timestamptz null | single use, enforced here rather than by deleting the row |
+| x_user_id | text NOT NULL | the account named on the page, resolved to its numeric id **before** the code is issued; a post from anyone else binds nothing (FR-035) |
+| session_hash | text NOT NULL | binds the browser that asked for it, so another tab cannot finish the flow |
+| expires_at | timestamptz NOT NULL | an expired code is refused, never refreshed; the TTL is UNRECONCILED (FR-035b) |
+| bound_at | timestamptz null | `issued → bound`: the matching post arrived inside the window |
+| foreign_attempts | int NOT NULL DEFAULT 0 | posts of this code by other accounts: counted, never binding (SC-016) |
+| consumed_at | timestamptz null | `bound → completed`: the signature checked; single use, enforced here rather than by deleting the row |
 | created_at | timestamptz NOT NULL DEFAULT now() | |
 
 Neither this table nor `wallet_links` gets a `status_ro` policy: an X account tied to an address is the one

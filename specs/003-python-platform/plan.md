@@ -66,6 +66,7 @@ verifier/    eval and train (offline), serve (localhost:3002), weights never in 
 contracts/   the escrow contract and its tests
 settle/      the settlement worker: reads the outbox, signs, sends — and does nothing else
 src/jobs/scheduler.ts      runJob writes job state — the one touch on the TypeScript side
+src/web/link-page.ts       the wallet-link page: Node, since it resolves an X account; its one vanilla script
 src/resolve/               the verifier client and the fast-path gate
 deploy/                    two more systemd units; the deploy writes build info
 docs/progress.md           hand-edited, rendered with its own modification time
