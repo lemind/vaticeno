@@ -1,7 +1,7 @@
 # 002 — Escrow v1: what the contract settles before it exists
 
-**Date**: 2026-10-14 · **Decided by**: the owner · **Status**: proposed — the numbers below are drafts until
-the owner signs them off · **Answers**: 003 FR-031f and FR-031h, before any Solidity (SC-019)
+**Date**: 2026-10-14 · **Decided by**: the owner · **Status**: accepted 2026-10-14, numbers and guardian key
+included · **Answers**: 003 FR-031f and FR-031h, before any Solidity (SC-019)
 
 A deployed contract gains nothing later. Every item here is answered in version one or deliberately absent.
 
@@ -13,7 +13,7 @@ A deployed contract gains nothing later. Every item here is answered in version 
 | Network | **Base Sepolia** (chain id 84532) | cheap, dependable faucets, public source verification (T330) |
 | Stake token | **our own test ERC-20**, 18 decimals, mintable by the deployer | no faucet to run dry mid-test; exercises the same token path a stablecoin would |
 
-## The numbers — proposed
+## The numbers
 
 All fixed at deployment as immutable constructor arguments: nobody can change them per stake or later.
 
@@ -35,7 +35,7 @@ deployment whose address is published keeps the numbers above.
 |---|---|
 | One terminal state, no double settlement | a stake ends in exactly one of `expired`, `paid`, `voided`, `refunded`; every transition requires the state before it |
 | Permissionless payout after the window | `payout` is callable by anyone once `settledAt + window` has passed; it sends the pot to the winning side |
-| The void path | `void` by the oracle or the guardian, only inside the window; it returns each side its own stake and nothing else (FR-031c) |
+| The void path | `voidStake` by the oracle or the guardian, only inside the window; it returns each side its own stake and nothing else (FR-031c) |
 | The timeout refund | `refund` by anyone once `deadline + timeout` has passed and the stake was never settled (FR-030) |
 | Unmatched expiry | `expire` by anyone after the offer's expiry; the maker gets the full amount back |
 | Maximum stake | enforced at `open` |
@@ -49,7 +49,8 @@ deployment whose address is published keeps the numbers above.
 refund of both stakes, never a payout.
 
 **Opening needs the oracle's authorization** (FR-031a): an EIP-712 signature over the claim hash, the deadline
-and the offer's expiry, issued only for a price-feed claim. Without it the rule would hold only on our page.
+and how long the authorization holds, issued only for a price-feed claim and bound to this contract and chain.
+The offer's own expiry is computed by the contract, not signed. Without it the rule would hold only on our page.
 
 **On-chain, no text** (FR-023): the claim hash is the hash of the claim id and its locked contract hash;
 `evidenceRef` is the hash of the stored resolution evidence; reason codes are `1` wrong source value,
@@ -63,6 +64,5 @@ three is in this feature.
 
 ## Still the owner's
 
-- Sign off or correct the six numbers.
 - Where the guardian key lives, and who can act on it out of hours — its speed is what bounds a compromise.
 - `web3.py` for the worker (T333) and an EVM library for link signatures (T339b): approval with a reason (VII).

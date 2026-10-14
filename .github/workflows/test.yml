@@ -57,3 +57,20 @@ jobs:
       # Exit 5 is pytest's "no tests collected": status/ and load/ fill in later phases of Stage 1 (FR-021).
       - run: pytest status load || [ $? -eq 5 ]
 
+  # The escrow (003 Stage 2). Every branch of every transition, plus the operator trying to move funds.
+  contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: contracts
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.8.5
+      - run: forge build
+      - run: forge lint -D warnings
+      - run: forge test
