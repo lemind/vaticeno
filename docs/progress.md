@@ -35,4 +35,4 @@ read; their bullets are shown as written.
 - Measure this service's own memory, so the box's headroom can be stated
 - Two football verdicts known wrong and left uncorrected on purpose — see the block above
 - Switch the own feed on, on the server
-- Redis and RabbitMQ: planned, each when its trigger is measured — see docs/decisions/002
+- Redis and RabbitMQ: planned, each when its trigger is measured — see docs/decisions/003

@@ -1,6 +1,6 @@
 <!--
 Sync Impact Report
-- Version change: 2.7.0 → 2.7.1 (2026-10-14, PATCH): VII — a pointer to docs/decisions/002-redis-and-rabbitmq.md,
+- Version change: 2.7.0 → 2.7.1 (2026-10-14, PATCH): VII — a pointer to docs/decisions/003-redis-and-rabbitmq.md,
   which names the triggers for Redis and RabbitMQ. Nothing allowed that was not; CLAUDE.md, README.md and
   docs/progress.md updated.
 - Earlier: 2.6.0 → 2.7.0 (2026-10-09, MINOR): VII — a second runtime is allowed, narrowly. Python
@@ -196,7 +196,7 @@ Rationale: the account is the product's only distribution channel. Losing it end
 - Deliberately absent until justified by measurement: Redis, message brokers, frontend
   frameworks, user auth, payments, microservices. (Web search is allowed, for model resolution.)
   The measurements that would bring in Redis and RabbitMQ, and the jobs each would do, are in
-  `docs/decisions/002-redis-and-rabbitmq.md`.
+  `docs/decisions/003-redis-and-rabbitmq.md`.
 - One runtime, with one exception (owner decision 2026-10-09, `docs/decisions/001-second-runtime.md`): a
   second runtime is allowed for read-only operational services, for advisory components the pipeline can
   run without, and for a settlement worker that holds a signing key and does nothing else. The claim
