@@ -52,7 +52,7 @@ refund of both stakes, never a payout.
 and how long the authorization holds, issued only for a price-feed claim and bound to this contract and chain.
 The offer's own expiry is computed by the contract, not signed. Without it the rule would hold only on our page.
 
-**On-chain, no text** (FR-023): the claim hash is the hash of the claim id and its locked contract hash;
+**On-chain, no text** (FR-023): the claim hash is the keccak-256 of the claim's slug, computed in one place (data-model);
 `evidenceRef` is the hash of the stored resolution evidence; reason codes are `1` wrong source value,
 `2` resolver defect, `3` evidence fails the locked contract (FR-031e).
 
