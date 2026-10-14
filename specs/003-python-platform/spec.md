@@ -411,7 +411,7 @@ with VOID, and the same with the worker switched off for the whole timeout windo
   existing reply caps; a capped reply is withheld, but the binding still happens — the reply only tells.
 - **FR-035b**: A challenge moves `issued → bound → completed`, each step a conditional update, so a code read
   twice or by two polls at once binds once. The code is about ten characters of a random alphabet, stored only
-  as a hash; a post created outside the challenge's window is ignored; challenges per session and per address
+  as a hash; a post created outside the challenge's window is ignored; challenges per session and per IP address
   are capped. The TTL is a number measured against poll and API lag — **UNRECONCILED** until then.
 - **FR-035c**: Linking is public attribution, and that is its only use (FR-032). One confirmation, before the
   signature, says the link shows the account beside the address and ties it to the address's on-chain
