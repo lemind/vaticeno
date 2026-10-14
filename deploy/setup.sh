@@ -12,6 +12,10 @@ if ! node -v 2>/dev/null | grep -q '^v22'; then
   apt-get install -y nodejs
 fi
 
+# The status page runs on the system Python (3.12 on 24.04) in its own virtualenv (003 FR-020).
+# The versioned package is the one that carries ensurepip; the meta-package alone left venv broken.
+python3 -m venv --help &>/dev/null || apt-get install -y python3.12-venv python3-venv
+
 id vaticeno &>/dev/null || useradd --system --home /opt/vaticeno --shell /usr/sbin/nologin vaticeno
 mkdir -p /opt/vaticeno/.state
 chown -R vaticeno:vaticeno /opt/vaticeno

@@ -1,0 +1,32 @@
+# The service layer's Python side (003 plan → Technical Context). Dependencies approved by the owner
+# 2026-10-13 under constitution VII; see docs/decisions/001-second-runtime.md for the boundary.
+[project]
+name = "vaticeno-services"
+version = "0.1.0"
+description = "Read-only status page and load harness beside the TypeScript bot"
+requires-python = ">=3.12"
+dependencies = []
+
+[project.optional-dependencies]
+status = ["fastapi>=0.115", "uvicorn>=0.32", "jinja2>=3.1", "psycopg[binary]>=3.2"]
+load = ["locust>=2.32"]
+dev = ["pytest>=8.3", "ruff>=0.8", "httpx>=0.27"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+# Nothing here is imported as an installed package: an install brings in the dependencies only, and the
+# code is run and tested from the repository root.
+[tool.setuptools]
+packages = []
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]

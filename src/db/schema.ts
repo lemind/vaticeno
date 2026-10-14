@@ -20,24 +20,68 @@ import {
 } from 'drizzle-orm/pg-core';
 
 export const CLAIM_STATUSES = [
-  'parsing', 'needs_info', 'draft', 'locked', 'resolving', 'resolved', 'void', 'rejected', 'expired',
+  'parsing',
+  'needs_info',
+  'draft',
+  'locked',
+  'resolving',
+  'resolved',
+  'void',
+  'rejected',
+  'expired',
 ] as const;
-export const REJECT_REASONS = ['not_prediction', 'x_rules', 'deadline_too_close', 'deadline_too_far', 'duplicate', 'event_not_found'] as const;
+export const REJECT_REASONS = [
+  'not_prediction',
+  'x_rules',
+  'deadline_too_close',
+  'deadline_too_far',
+  'duplicate',
+  'event_not_found',
+] as const;
 export const RESOLUTION_METHODS = ['price_feed', 'model'] as const;
 export const STANCES = ['agree', 'disagree'] as const;
 export const SOURCE_KINDS = ['price_feed', 'web'] as const;
 export const EVENT_MATCHES = ['yes', 'no', 'unknown', 'not_applicable'] as const;
 export const EVIDENCE_BASES = ['record', 'absence'] as const;
 export const TRUST_LEVELS = ['primary', 'established', 'weak'] as const;
-export const EVIDENCE_SAYS = ['hit', 'miss', 'pending', 'irrelevant', 'entity_gone'] as const;
+export const EVIDENCE_SAYS = [
+  'hit',
+  'miss',
+  'pending',
+  'irrelevant',
+  'entity_gone',
+] as const;
 export const OUTCOMES = ['hit', 'miss', 'void'] as const;
+export const JOB_OUTCOMES = ['ok', 'failed'] as const;
+export const RECHECK_FINDING_KINDS = ['differs', 'unsettled'] as const;
 export const DECIDED_BY = ['evidence', 'arbiter', 'human'] as const;
 export const REVIEW_STATUSES = ['final', 'needs_human'] as const;
 export const VOID_REASONS = ['insufficient_evidence', 'unresolvable'] as const;
-export const COST_PROVIDERS = ['gemini', 'google_search', 'coinbase', 'web_fetch', 'x'] as const;
+export const COST_PROVIDERS = [
+  'gemini',
+  'google_search',
+  'coinbase',
+  'web_fetch',
+  'x',
+] as const;
 // feed_* are the content jobs' own operations (spec 002): the daily feed spend cap sums exactly these.
-export const COST_OPERATIONS = ['normalize', 'search', 'judge', 'arbitrate', 'fetch', 'price', 'feed_read', 'feed_post', 'feed_model', 'thread_read'] as const;
-export const FEED_COST_OPERATIONS = ['feed_read', 'feed_post', 'feed_model'] as const;
+export const COST_OPERATIONS = [
+  'normalize',
+  'search',
+  'judge',
+  'arbitrate',
+  'fetch',
+  'price',
+  'feed_read',
+  'feed_post',
+  'feed_model',
+  'thread_read',
+] as const;
+export const FEED_COST_OPERATIONS = [
+  'feed_read',
+  'feed_post',
+  'feed_model',
+] as const;
 export const FEED_KINDS = ['repost', 'quote', 'original', 'receipt'] as const;
 // dry_run: the pick the owner reviews before posting is switched on — recorded, but it holds no slot.
 export const FEED_STATUSES = ['reserved', 'posted', 'failed', 'dry_run'] as const;
@@ -56,7 +100,10 @@ export const claims = pgTable(
     slug: text('slug').notNull().unique(),
     sourceTweetId: text('source_tweet_id').notNull().unique(),
     summonTweetId: text('summon_tweet_id').notNull(),
-    threadTweetIds: text('thread_tweet_ids').array().notNull().default(sql`'{}'`), // bot replies and fixes: a reply to any of them is a fix
+    threadTweetIds: text('thread_tweet_ids')
+      .array()
+      .notNull()
+      .default(sql`'{}'`), // bot replies and fixes: a reply to any of them is a fix
     sourceVersion: text('source_version').notNull(),
     lockedSourceVersion: text('locked_source_version'),
     lockedSourceHash: text('locked_source_hash'),
@@ -81,11 +128,20 @@ export const claims = pgTable(
   (t) => [
     check('claims_status_check', oneOf(t.status, CLAIM_STATUSES)),
     check('claims_reject_reason_check', oneOf(t.rejectReason, REJECT_REASONS)),
-    check('claims_resolution_method_check', oneOf(t.resolutionMethod, RESOLUTION_METHODS)),
+    check(
+      'claims_resolution_method_check',
+      oneOf(t.resolutionMethod, RESOLUTION_METHODS),
+    ),
     check('claims_amend_count_check', sql`${t.amendCount} between 0 and 2`),
-    index('claims_due_idx').on(t.nextCheckAt).where(sql`${t.status} in ('locked', 'resolving')`),
-    index('claims_draft_lock_idx').on(t.status, t.lockAt).where(sql`${t.status} = 'draft'`),
-    index('claims_needs_info_idx').on(t.status, t.needsInfoSince).where(sql`${t.status} = 'needs_info'`),
+    index('claims_due_idx')
+      .on(t.nextCheckAt)
+      .where(sql`${t.status} in ('locked', 'resolving')`),
+    index('claims_draft_lock_idx')
+      .on(t.status, t.lockAt)
+      .where(sql`${t.status} = 'draft'`),
+    index('claims_needs_info_idx')
+      .on(t.status, t.needsInfoSince)
+      .where(sql`${t.status} = 'needs_info'`),
     index('claims_author_idx').on(t.authorXUserId, t.createdAt.desc()),
   ],
 );
@@ -96,7 +152,9 @@ export const positions = pgTable(
   'positions',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    claimId: uuid('claim_id').notNull().references(() => claims.id),
+    claimId: uuid('claim_id')
+      .notNull()
+      .references(() => claims.id),
     xUserId: text('x_user_id').notNull(),
     stance: text('stance', { enum: STANCES }).notNull(),
     isAuthor: boolean('is_author').notNull().default(false),
@@ -114,7 +172,9 @@ export const evidences = pgTable(
   'evidences',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    claimId: uuid('claim_id').notNull().references(() => claims.id),
+    claimId: uuid('claim_id')
+      .notNull()
+      .references(() => claims.id),
     runAt: utc('run_at').notNull(),
     sourceKind: text('source_kind', { enum: SOURCE_KINDS }).notNull(),
     basis: text('basis', { enum: EVIDENCE_BASES }).notNull(),
@@ -144,7 +204,10 @@ export const evidences = pgTable(
     check('evidences_basis_check', oneOf(t.basis, EVIDENCE_BASES)),
     check('evidences_trust_level_check', oneOf(t.trustLevel, TRUST_LEVELS)),
     check('evidences_says_check', oneOf(t.says, EVIDENCE_SAYS)),
-    check('evidences_event_match_check', sql`${t.eventMatch} is null or ${oneOf(t.eventMatch, EVENT_MATCHES)}`),
+    check(
+      'evidences_event_match_check',
+      sql`${t.eventMatch} is null or ${oneOf(t.eventMatch, EVENT_MATCHES)}`,
+    ),
     index('evidences_claim_run_idx').on(t.claimId, t.runAt),
   ],
 );
@@ -153,7 +216,10 @@ export const resolutions = pgTable(
   'resolutions',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    claimId: uuid('claim_id').notNull().unique().references(() => claims.id),
+    claimId: uuid('claim_id')
+      .notNull()
+      .unique()
+      .references(() => claims.id),
     outcome: text('outcome', { enum: OUTCOMES }),
     decidedBy: text('decided_by', { enum: DECIDED_BY }),
     reviewStatus: text('review_status', { enum: REVIEW_STATUSES }).notNull(),
@@ -171,9 +237,18 @@ export const resolutions = pgTable(
     check('resolutions_review_status_check', oneOf(t.reviewStatus, REVIEW_STATUSES)),
     check('resolutions_void_reason_check', oneOf(t.voidReason, VOID_REASONS)),
     // HIT/MISS must name the evidence that established it; VOID must say why (data-model resolutions).
-    check('resolutions_hit_miss_evidence_check', sql`${t.outcome} not in ('hit', 'miss') or ${t.decidingEvidenceId} is not null`),
-    check('resolutions_void_reason_required_check', sql`(${t.outcome} is not distinct from 'void') = (${t.voidReason} is not null)`),
-    check('resolutions_final_complete_check', sql`${t.reviewStatus} <> 'final' or (${t.outcome} is not null and ${t.decidedBy} is not null and ${t.decidedAt} is not null)`),
+    check(
+      'resolutions_hit_miss_evidence_check',
+      sql`${t.outcome} not in ('hit', 'miss') or ${t.decidingEvidenceId} is not null`,
+    ),
+    check(
+      'resolutions_void_reason_required_check',
+      sql`(${t.outcome} is not distinct from 'void') = (${t.voidReason} is not null)`,
+    ),
+    check(
+      'resolutions_final_complete_check',
+      sql`${t.reviewStatus} <> 'final' or (${t.outcome} is not null and ${t.decidedBy} is not null and ${t.decidedAt} is not null)`,
+    ),
   ],
 );
 
@@ -182,7 +257,10 @@ export const corrections = pgTable(
   'corrections',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    claimId: uuid('claim_id').notNull().unique().references(() => claims.id),
+    claimId: uuid('claim_id')
+      .notNull()
+      .unique()
+      .references(() => claims.id),
     fromOutcome: text('from_outcome', { enum: OUTCOMES }).notNull(),
     toOutcome: text('to_outcome', { enum: OUTCOMES }).notNull(),
     reason: text('reason').notNull(),
@@ -254,7 +332,9 @@ export const feedPosts = pgTable(
     id: uuid('id').primaryKey().defaultRandom(),
     kind: text('kind', { enum: FEED_KINDS }).notNull(),
     // Reposts and quote posts share one daily cap (FR-005), so the group owns the slot, not the kind.
-    capGroup: text('cap_group').generatedAlwaysAs(sql`case when kind in ('repost', 'quote') then 'pool' else kind end`),
+    capGroup: text('cap_group').generatedAlwaysAs(
+      sql`case when kind in ('repost', 'quote') then 'pool' else kind end`,
+    ),
     status: text('status', { enum: FEED_STATUSES }).notNull().default('reserved'),
     day: date('day').notNull(),
     slot: integer('slot'),
@@ -269,17 +349,90 @@ export const feedPosts = pgTable(
     check('feed_posts_status_check', oneOf(t.status, FEED_STATUSES)),
     // A post X refused frees its slot and keeps its source: never retried, never a lost day (FR-005).
     // A dry-run pick never held a slot at all.
-    check('feed_posts_slot_check', sql`(${t.status} in ('failed', 'dry_run')) = (${t.slot} is null) and (${t.slot} is null or ${t.slot} >= 1)`),
+    check(
+      'feed_posts_slot_check',
+      sql`(${t.status} in ('failed', 'dry_run')) = (${t.slot} is null) and (${t.slot} is null or ${t.slot} >= 1)`,
+    ),
     // A repost creates no post of ours, so it has no posted id; everything else must have one.
-    check('feed_posts_posted_id_check', sql`${t.status} <> 'posted' or ${t.kind} = 'repost' or ${t.postedId} is not null`),
-    check('feed_posts_pool_check', sql`${t.kind} not in ('repost', 'quote') or (${t.accountId} is not null and ${t.sourcePostId} is not null)`),
-    check('feed_posts_original_check', sql`${t.kind} <> 'original' or ${t.queueItemId} is not null`),
-    check('feed_posts_receipt_check', sql`${t.kind} <> 'receipt' or ${t.sourcePostId} is not null`),
+    check(
+      'feed_posts_posted_id_check',
+      sql`${t.status} <> 'posted' or ${t.kind} = 'repost' or ${t.postedId} is not null`,
+    ),
+    check(
+      'feed_posts_pool_check',
+      sql`${t.kind} not in ('repost', 'quote') or (${t.accountId} is not null and ${t.sourcePostId} is not null)`,
+    ),
+    check(
+      'feed_posts_original_check',
+      sql`${t.kind} <> 'original' or ${t.queueItemId} is not null`,
+    ),
+    check(
+      'feed_posts_receipt_check',
+      sql`${t.kind} <> 'receipt' or ${t.sourcePostId} is not null`,
+    ),
     // Never the same post twice, even from two runs at once: pool posts and receipts are keyed by the
     // post they carry, an owner-written original by its queue item.
-    uniqueIndex('feed_posts_source_key').on(t.sourcePostId).where(sql`source_post_id is not null`),
-    uniqueIndex('feed_posts_queue_item_key').on(t.queueItemId).where(sql`queue_item_id is not null`),
+    uniqueIndex('feed_posts_source_key')
+      .on(t.sourcePostId)
+      .where(sql`source_post_id is not null`),
+    uniqueIndex('feed_posts_queue_item_key')
+      .on(t.queueItemId)
+      .where(sql`queue_item_id is not null`),
     // The day's caps: one row per slot. A failed row's slot is null, and nulls never collide.
     unique('feed_posts_slot_unique').on(t.capGroup, t.day, t.slot),
+  ],
+);
+
+// One row per scheduled job (003 FR-001). `SCHEDULES` in src/jobs/scheduler.ts is the only job list; the
+// staleness window is written from the code beside it on every startup.
+export const jobState = pgTable(
+  'job_state',
+  {
+    job: text('job').primaryKey(),
+    lastStartedAt: utc('last_started_at'),
+    lastFinishedAt: utc('last_finished_at'),
+    lastOkAt: utc('last_ok_at'),
+    lastOutcome: text('last_outcome', { enum: JOB_OUTCOMES }),
+    lastErrorTag: text('last_error_tag'),
+    // A run skipped because another held the advisory lock. Not an outcome: the lock is normally held by a
+    // run that is working, so recording a failure there would report a healthy job as broken.
+    lastLockedAt: utc('last_locked_at'),
+    consecutiveFailures: integer('consecutive_failures').notNull().default(0),
+    staleAfterSeconds: integer('stale_after_seconds').notNull(),
+  },
+  (t) => [
+    check(
+      'job_state_outcome_check',
+      sql`${t.lastOutcome} is null or ${oneOf(t.lastOutcome, JOB_OUTCOMES)}`,
+    ),
+    check('job_state_stale_after_check', sql`${t.staleAfterSeconds} > 0`),
+  ],
+);
+
+// A verdict the weekly recheck decides differently, kept until a correction answers it (003 FR-007a).
+export const recheckFindings = pgTable(
+  'recheck_findings',
+  {
+    claimId: uuid('claim_id')
+      .primaryKey()
+      .references(() => claims.id),
+    foundAt: utc('found_at').notNull(),
+    lastSeenAt: utc('last_seen_at').notNull(),
+    publishedOutcome: text('published_outcome', { enum: OUTCOMES }).notNull(),
+    recheckOutcome: text('recheck_outcome', { enum: OUTCOMES }),
+    kind: text('kind', { enum: RECHECK_FINDING_KINDS }).notNull(),
+    clearedAt: utc('cleared_at'),
+  },
+  (t) => [
+    check('recheck_findings_published_check', oneOf(t.publishedOutcome, OUTCOMES)),
+    check(
+      'recheck_findings_recheck_check',
+      sql`${t.recheckOutcome} is null or ${oneOf(t.recheckOutcome, OUTCOMES)}`,
+    ),
+    check('recheck_findings_kind_check', oneOf(t.kind, RECHECK_FINDING_KINDS)),
+    check(
+      'recheck_findings_differs_check',
+      sql`(${t.kind} = 'differs') = (${t.recheckOutcome} is not null)`,
+    ),
   ],
 );

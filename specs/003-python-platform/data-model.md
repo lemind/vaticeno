@@ -17,7 +17,7 @@ Access, which is where the read-only role needs more than a grant.
 
 | Column | Type | Notes |
 |---|---|---|
-| job | text PK | CHECK against `SCHEDULES` in `src/jobs/scheduler.ts` — nine as of 2026-10-12: mentions, lock, expire, resolve, verdicts, pool, original, reconcile, recheck — plus `settlement_worker`, whose heartbeat makes a dead worker visible even when the outbox is empty |
+| job | text PK | the nine names in `SCHEDULES` (`src/jobs/scheduler.ts`), plus `settlement_worker` from Stage 2, whose heartbeat makes a dead worker visible even when the outbox is empty. No CHECK enumerating them: that would duplicate the job list the code owns (SC-002) and need a migration per job. The seeding test asserts the row set equals `SCHEDULES`, and `runJob` only ever updates, so a wrong name writes nothing rather than a bad row |
 | last_started_at | timestamptz null | set when `runJob` enters |
 | last_finished_at | timestamptz null | set when it returns, either way |
 | last_ok_at | timestamptz null | last successful finish |
@@ -174,8 +174,9 @@ settlement worker → settle_rw   → settlement_outbox: SELECT + UPDATE, no INS
 verifier          → no database at all
 ```
 
-`status_ro` and `settle_rw` are created once by hand on Supabase (roles are cluster-level and need a
-password, which must not reach git). "Owner role, this table only" is not a restriction at all — the owner
+`status_ro` is created by its migration **without a login**, so a fresh local database applies the policies
+that name it; its password is set by hand on Supabase and never reaches git (`deploy/status-role.md`).
+`settle_rw` is created by hand the same way when Stage 2 ships. "Owner role, this table only" is not a restriction at all — the owner
 bypasses RLS — so the worker gets its own role with SELECT and UPDATE on `settlement_outbox` and no INSERT:
 the Node service writes the row, the worker sends it and writes the result back.
 

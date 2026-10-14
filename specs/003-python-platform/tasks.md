@@ -12,7 +12,7 @@ status page — healthy, dead job, no database. Nothing else; ~55% coverage is a
 
 | | |
 |---|---|
-| Stage 1 | not started; unblocked — T301 done 2026-10-09 |
+| Stage 1 | Phases 1-4 done 2026-10-13 except T323. **Migrations 0017-0019 are applied locally and not on Supabase**, and the page is not deployed |
 | Stage 2 | not started; testnet only, no real value, no fee, price-feed claims only (FR-031h) |
 | Escrow v1 | T326a answers FR-031f before anything is deployed |
 | Stage 3 | not started; may end at T344 |
@@ -29,52 +29,68 @@ status page — healthy, dead job, no database. Nothing else; ~55% coverage is a
 ## Phase 1: Setup
 
 - [x] T301 Constitution VII amended 2.6.0 → 2.7.0 (owner decision 2026-10-09), with the boundary and the undo condition in `docs/decisions/001-second-runtime.md`. **Stage 1 is unblocked.**
-- [ ] T302 [P] Get owner approval for the new dependencies in plan.md → Technical Context
-- [ ] T303 [P] Root `pyproject.toml` (3.12, ruff, pytest) with `status` and `load` groups, plus the new `.gitignore` entries
-- [ ] T304 [P] Python job in `.github/workflows/test.yml`: `ruff check .`, `pytest status load` (FR-021)
+- [x] T302 [P] Get owner approval for the new dependencies in plan.md → Technical Context. All seven approved 2026-10-13.
+- [x] T303 [P] Root `pyproject.toml` (3.12, ruff, pytest) with `status` and `load` groups, plus the new `.gitignore` entries. Nothing installs as a package; an install brings in dependencies only.
+- [x] T304 [P] Python job in `.github/workflows/test.yml`: `ruff check .`, `pytest status load` (FR-021). Its own job, no database.
 
 ## Phase 2: Foundational
 
-- [ ] T305 Migration `drizzle/0017_job_state.sql` + `src/db/schema.ts` per data-model.md; apply locally, then Supabase
-- [ ] T306 `runJob` in `src/jobs/scheduler.ts` writes `job_state`; a lock skip writes `last_locked_at` only (FR-001, FR-020)
-- [ ] T307 `stale_after_seconds` beside `SCHEDULES`, overwritten on startup, one row seeded per job. `SCHEDULES` is the only job list (FR-001, SC-002)
-- [ ] T308 `deploy/deploy.sh` writes `.build-info.json` on the server: commit, deploy time, node version (FR-002)
-- [ ] T309 `deploy/status-role.md` for the `status_ro` role, migration `drizzle/0019_status_policies.sql`, `DATABASE_URL_RO` in `.env.example` (FR-003)
-- [ ] T310 [P] Test `tests/integration/job-state.test.ts`: success, failure, lock skip, never-run
-- [ ] T310a Migration `drizzle/0018_recheck_findings.sql` + `src/db/schema.ts` per data-model.md: `recheckRecent` records each verdict it decides differently and clears the ones a correction answered, so Monday's finding outlives its seven-day window (FR-007a)
+- [x] T305 Migration `drizzle/0017_job_state.sql` + `src/db/schema.ts` per data-model.md; apply locally, then Supabase. **Local only — Supabase pending.** It also creates `status_ro` without a login.
+- [x] T306 `runJob` in `src/jobs/scheduler.ts` writes `job_state`; a lock skip writes `last_locked_at` only (FR-001, FR-020). Started is written inside the lock, so a skipped run never claims to have started.
+- [x] T307 `stale_after_seconds` beside `SCHEDULES`, overwritten on startup, one row seeded per job. `SCHEDULES` is the only job list (FR-001, SC-002). The interval is declared, not parsed from cron: `23 9,18 * * *` has a fifteen-hour gap, not twelve.
+- [x] T308 `deploy/deploy.sh` writes `.build-info.json` on the server: commit, deploy time, node version (FR-002). The node version is read on the server; rsync no longer deletes the file.
+- [x] T309 `deploy/status-role.md` for the `status_ro` role, migration `drizzle/0019_status_policies.sql`, `DATABASE_URL_RO` in `.env.example` (FR-003). **Local only — Supabase pending**; the password is set by hand.
+- [x] T310 [P] Test `tests/integration/job-state.test.ts`: success, failure, lock skip, never-run. Five tests. The new foreign key also meant `truncateAll` had to name the table.
+- [x] T310a Migration `drizzle/0018_recheck_findings.sql` + `src/db/schema.ts` per data-model.md: `recheckRecent` records each verdict it decides differently and clears the ones a correction answered (FR-007a). **Local only — Supabase pending.**
 
-**Checkpoint**: every job in `SCHEDULES` reports state; the deploy records what it deployed.
+**Checkpoint**: met. Every job in `SCHEDULES` reports state, proved against a real database; the deploy writes the build file, whose line was checked locally and lands on the next deploy.
 
 ## Phase 3: US1 — the status page (P1) 🎯 MVP
 
 **Independent test**: stop one job, or kill the database, and the page names what is broken.
 
-- [ ] T311 [US1] `status/queries.py`: one function per block the page shows (FR-001)
-- [ ] T312 [US1] `status/build_info.py`, `status/progress.py`: read the build and progress files, tolerate both missing (FR-002, FR-007)
-- [ ] T313 [US1] `status/app.py`: FastAPI on `127.0.0.1`, routes `/` and `/status.json`, renders with the database down (FR-005, FR-006)
-- [ ] T314 [US1] `status/templates/`: one screen at 1280px, overall state first, progress last (SC-001)
-- [ ] T315 [US1] `docs/progress.md`: stage / done / now / next, seeded with where the project stands
-- [ ] T316 [P] [US1] `deploy/vaticeno-status.service` + its install line; never in `deploy/Caddyfile` (FR-004)
-- [ ] T316a [US1] Status page block: verdicts the recheck decides differently and nobody has corrected, oldest first, with what was published beside what the rules reach now (FR-007a)
-- [ ] T317 [US1] `status/tests/test_status.py`: healthy, stale job, database down. Fixtures are rows
-- [ ] T318 [P] [US1] `README.md`: the status page and its tunnel command
+- [x] T311 [US1] `status/queries.py`: one function per block the page shows (FR-001). Every statement is a SELECT; spend sums per claim in a CTE, because joining the tables inflates it.
+- [x] T312 [US1] `status/build_info.py`, `status/progress.py`: read the build and progress files, tolerate both missing (FR-002, FR-007). A missing build file is reported as missing, not guessed at.
+- [x] T313 [US1] `status/app.py`: FastAPI on `127.0.0.1`, routes `/` and `/status.json`, renders with the database down (FR-005, FR-006). The files are read even when the database is not; the error is one line, never a stack trace.
+- [x] T314 [US1] `status/templates/`: one screen at 1280px, overall state first, progress last (SC-001). One template, no JavaScript. Laid out for one screen, not measured in a browser.
+- [x] T315 [US1] `docs/progress.md`: stage / done / now / next, seeded with where the project stands. Only those four headings are read, and the file's own modification time is shown.
+- [x] T316 [P] [US1] `deploy/vaticeno-status.service` + its install line; never in `deploy/Caddyfile` (FR-004). Localhost only, read-only paths, its own virtualenv built on the server.
+- [x] T316a [US1] Status page block: verdicts the recheck decides differently and nobody has corrected, oldest first, with what was published beside what the rules reach now (FR-007a). Each with its age.
+- [x] T317 [US1] `status/tests/test_status.py`: healthy, stale job, database down. Fixtures are rows. Nine tests. Writing them caught `httpx` missing from the declared dependencies.
+- [x] T318 [P] [US1] `README.md`: the status page and its tunnel command, plus how to run and test it locally
 
-**Checkpoint**: Stage 1's page ships. Use it for a week before Phase 4.
+**Checkpoint**: the page runs and was read end to end against the real database as `status_ro` — both routes, every block. It is not yet deployed: that needs the Supabase migrations and the role's password. Use it for a week before Phase 4.
 
 ## Phase 4: US2 — the capacity baseline (P1)
 
 **Independent test**: a load run produces a table that can be re-run after a change.
 
-- [ ] T319 [US2] `load/guard.py`: refuse a non-local target or any real credential (FR-008)
-- [ ] T320 [US2] `load/locustfile.py`: the public pages and `/healthz`, ramped until p95 degrades (FR-009)
-- [ ] T321 [US2] `load/burst.py`: stubbed X reader, ten times the live mention rate, one reply each (FR-010, SC-004)
-- [ ] T322 [US2] Measure the connection ceiling past the pool: queue, clean refusal or wedge, and recovery time
-- [ ] T323 [US2] Measure peak RSS per process under load against the box's memory, and state the headroom (SC-008)
-- [ ] T324 [US2] `capacity.md`: every row with its number, hardware and date; laptop and droplet separately (SC-003)
-- [ ] T325 [US2] Replace the UNRECONCILED labels these runs answer, with the date (FR-011)
-- [ ] T326 [P] [US2] `README.md`: how to run a load run locally
+- [x] T319 [US2] `load/guard.py`: refuse a non-local target or any real credential (FR-008). It also refuses a production database string and a paid model mode. Thirteen tests.
+- [x] T320 [US2] `load/locustfile.py`: the public pages and `/healthz`, ramped until p95 degrades (FR-009). p95 under 20 ms to ~320 req/s, saturating at ~430, no errors at any level.
+- [x] T321 [US2] ~~`load/burst.py`~~ **`tests/load/mention-burst.test.ts`**: stubbed X reader, ten times the live mention rate, one reply each (FR-010, SC-004). TypeScript, not Python: the mention path and its stubs are. 170 drain in ~1 s, one reply each; runs in CI.
+- [x] T322 [US2] Measure the connection ceiling past the pool: queue, clean refusal or wedge, and recovery time. Five connections under 300 concurrent, never six: it queues, and recovers in 4 ms.
+- [ ] T323 [US2] Measure peak RSS per process under load against the box's memory, and state the headroom (SC-008). **Half done**: Node holds at 81 MB, the droplet peaks at 149 MB of 458 MB. This service's own footprint is unmeasured.
+- [x] T324 [US2] `capacity.md`: every row with its number, hardware and date; laptop and droplet separately (SC-003). The droplet's rows say **not measured** rather than borrowing the laptop's.
+- [x] T325 [US2] Replace the UNRECONCILED labels these runs answer, with the date (FR-011). Only SC-003's: a load run stubs everything that costs money, so it cannot answer a price.
+- [x] T326 [P] [US2] `README.md`: how to run a load run locally. The page run needs a claim **and** a position row, or a quarter of the requests 404 and the numbers flatter the service
 
-**Checkpoint**: the numbers exist and the droplet's headroom is known.
+**Checkpoint (Phase 4)**: partly met. The numbers exist for this machine and are written down with their date and hardware. The droplet's headroom is **not** known: measuring it means running load against the live bot, which is the owner's call, so T323 stays open.
+
+## Phase 4b: US1 — the front page, the lock and the version
+
+Added after the page shipped (owner decision 2026-10-13): the status page gets a password and moves to
+`/status` on the public host, and a public front page carries the short answer.
+
+- [x] T360 [US1] `src/version.ts` reading `package.json`, bumped to **1.2.0**; the deploy writes it into the build file and both pages show it (FR-004c)
+- [x] T361 [US1] `src/web/home-page.ts` + `GET /`: system state, version, prediction and verdict counts, in the existing public layout. Nothing operational, held by a test that greps the page for spend and job names (FR-004b)
+- [x] T362 [US1] `status/auth.py`: one password, scrypt-hashed, and a signed cookie carrying its own expiry. Standard library only; the form body is parsed directly rather than pulling in a dependency (FR-004a)
+- [x] T363 [US1] Login and sign-out in `status/app.py` + `status/templates/login.html`; the JSON twin is behind the same lock, and no configured password refuses everyone (FR-004)
+- [x] T364 [US1] `deploy/Caddyfile` routes `/status` to the page and everything else to the public server; `STATUS_PREFIX` puts the prefix back into links and the cookie (FR-004)
+- [ ] T365 [US1] Generate the password on the server and append `STATUS_PASSWORD_HASH` / `STATUS_SECRET` to `.env.status`. **Owner's**: `python -m status.hash_password` prompts for it, so it reaches no shell history
+
+**Checkpoint**: the front page answers in one line and the status page asks for a password.
+
+---
 
 **🚀 Stage 1 deploys here.**
 

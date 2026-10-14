@@ -1,0 +1,155 @@
+{#- One screen at 1280px, overall state first and the hand-edited plan last (003 SC-001). No client-side
+    JavaScript: the page is rendered here, like the public claim pages (FR-005). -#}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Vaticeno status — {{ s.state }}</title>
+<style>
+  :root { --bg:#12171c; --panel:#1a2128; --line:#2a333c; --ink:#e7edf2; --dim:#8c9aa6;
+          --ok:#43d6a3; --warn:#f0a93c; --bad:#fb6f85; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:18px 22px; background:var(--bg); color:var(--ink);
+         font:13px/1.45 ui-monospace, "SF Mono", Menlo, monospace; }
+  h1 { margin:0 0 2px; font-size:26px; letter-spacing:-0.3px; }
+  h1 .state.OK { color:var(--ok); } h1 .state.DEGRADED { color:var(--warn); }
+  h1 .state { color:var(--bad); }
+  .sub { color:var(--dim); margin-bottom:14px; }
+  .grid { display:grid; grid-template-columns:repeat(4, 1fr); gap:12px; align-items:start; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:4px; padding:10px 12px; }
+  .panel.wide { grid-column:span 2; }
+  .panel.full { grid-column:1 / -1; }
+  h2 { margin:0 0 7px; font-size:11px; letter-spacing:1.2px; text-transform:uppercase; color:var(--dim); font-weight:600; }
+  table { width:100%; border-collapse:collapse; }
+  td { padding:1px 0; vertical-align:top; }
+  td.r { text-align:right; font-variant-numeric:tabular-nums; }
+  .k { color:var(--dim); padding-right:10px; }
+  .OK { color:var(--ok); } .FAILING, .NEVER_RUN { color:var(--bad); } .STALE { color:var(--warn); }
+  .note { color:var(--dim); }
+  h1 .ver { font-size:13px; color:var(--dim); font-weight:400; letter-spacing:0; }
+  h1 .out { display:inline; float:right; }
+  h1 .out button { font:11px/1 ui-monospace, Menlo, monospace; color:var(--dim); background:none;
+                   border:1px solid var(--line); border-radius:3px; padding:5px 9px; cursor:pointer; }
+  ul { margin:3px 0 0; padding-left:15px; } li { margin:1px 0; }
+</style>
+</head>
+<body>
+
+{#- First line answers "is it running", and names every job that is not fine. -#}
+<h1>Vaticeno <span class="state {{ s.state }}">{{ s.state }}</span>
+  {%- if s.version %} <span class="ver">v{{ s.version }}</span>{% endif %}
+  <form method="post" action="{{ prefix }}/logout" class="out"><button type="submit">sign out</button></form>
+</h1>
+<p class="sub">
+  {%- if s.db_error %}database unreachable — {{ s.db_error }}
+  {%- elif s.late_jobs %}late: {% for job in s.late_jobs %}{{ job.job }} ({{ job.state }}){% if not loop.last %}, {% endif %}{% endfor %}
+  {%- else %}all {{ s.jobs | length - s.waiting_jobs | length }} running jobs inside their own windows
+  {%- endif %}
+  {%- if s.waiting_jobs %} · not seen yet: {% for job in s.waiting_jobs %}{{ job.job }}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}
+  · read {{ s.at.strftime('%Y-%m-%d %H:%M:%SZ') }}
+</p>
+
+<div class="grid">
+
+  <div class="panel">
+    <h2>Build</h2>
+    {% if s.build.missing %}
+      <p class="note">no build file — the deploy has not written one yet</p>
+    {% else %}
+      <table>
+        <tr><td class="k">commit</td><td class="r">{{ s.build.short_commit }}</td></tr>
+        <tr><td class="k">version</td><td class="r">{{ s.build.version or '—' }}</td></tr>
+        <tr><td class="k">node</td><td class="r">{{ s.build.node or '—' }}</td></tr>
+        <tr><td class="k">deployed</td><td class="r">
+          {%- if s.build.deployed_age_hours is not none %}{{ '%.1f' | format(s.build.deployed_age_hours) }} h ago{% else %}—{% endif %}</td></tr>
+      </table>
+    {% endif %}
+  </div>
+
+  <div class="panel">
+    <h2>Claims</h2>
+    <table>
+      {% for status, n in s.claims | dictsort %}<tr><td class="k">{{ status }}</td><td class="r">{{ n }}</td></tr>{% endfor %}
+      {% if not s.claims %}<tr><td class="note">none</td></tr>{% endif %}
+    </table>
+  </div>
+
+  <div class="panel">
+    <h2>Verdicts</h2>
+    <table>
+      {% for outcome, n in s.verdicts | dictsort %}<tr><td class="k">{{ outcome }}</td><td class="r">{{ n }}</td></tr>{% endfor %}
+      {% if not s.verdicts %}<tr><td class="note">none</td></tr>{% endif %}
+      {% if s.backlog %}<tr><td class="k">needs human</td><td class="r {{ 'FAILING' if s.backlog.waiting else '' }}">
+        {{ s.backlog.waiting }}{% if s.backlog.oldest_age_hours is not none %} · {{ '%.0f' | format(s.backlog.oldest_age_hours) }} h{% endif %}</td></tr>{% endif %}
+    </table>
+  </div>
+
+  <div class="panel">
+    <h2>Spend per claim</h2>
+    {% if s.spend %}
+      <table>
+        <tr><td class="k">mean</td><td class="r">${{ '%.4f' | format(s.spend.mean_usd) }}</td></tr>
+        <tr><td class="k">worst</td><td class="r">${{ '%.4f' | format(s.spend.worst_usd) }}</td></tr>
+        <tr><td class="k">ceiling</td><td class="r">${{ '%.2f' | format(s.spend.ceiling_usd) }}</td></tr>
+        <tr><td class="k">over it</td><td class="r {{ 'FAILING' if s.spend.over_budget else 'OK' }}">{{ s.spend.over_budget }}</td></tr>
+      </table>
+    {% else %}<p class="note">—</p>{% endif %}
+  </div>
+
+  <div class="panel wide">
+    <h2>Jobs</h2>
+    <table>
+      {% for job in s.jobs %}
+      <tr>
+        <td class="k">{{ job.job }}</td>
+        <td class="{{ job.state }}">{{ job.state }}</td>
+        <td class="r note">{% if job.age_seconds is not none %}{{ '%.0f' | format(job.age_seconds) }}s / {{ job.stale_after_seconds }}s{% else %}never{% endif %}</td>
+        <td class="r note">{{ job.last_error_tag or '' }}{% if job.consecutive_failures %} ×{{ job.consecutive_failures }}{% endif %}</td>
+      </tr>
+      {% endfor %}
+      {% if not s.jobs %}<tr><td class="note">no job state — the service has not started since this table was added</td></tr>{% endif %}
+    </table>
+  </div>
+
+  <div class="panel">
+    <h2>Own feed today</h2>
+    <table>
+      {% for status, n in s.feed | dictsort %}<tr><td class="k">{{ status }}</td><td class="r">{{ n }}</td></tr>{% endfor %}
+      {% if not s.feed %}<tr><td class="note">nothing today</td></tr>{% endif %}
+    </table>
+  </div>
+
+  {#- Verdicts known to be wrong and not yet corrected. They outlive the recheck's window (FR-007a). -#}
+  <div class="panel">
+    <h2>Verdicts to correct</h2>
+    <table>
+      {% for f in s.findings %}
+      <tr>
+        <td class="k">{{ f.slug }}</td>
+        <td class="FAILING">{{ f.published_outcome }} → {{ f.recheck_outcome or 'unsettled' }}</td>
+        <td class="r note">{{ '%.0f' | format(f.age_days) }} d</td>
+      </tr>
+      {% endfor %}
+      {% if not s.findings %}<tr><td class="note OK">none outstanding</td></tr>{% endif %}
+    </table>
+  </div>
+
+  <div class="panel full">
+    <h2>Progress{% if s.progress.age_days is not none %} · edited {{ '%.0f' | format(s.progress.age_days) }} days ago{% endif %}</h2>
+    {% if s.progress.missing %}
+      <p class="note">no docs/progress.md</p>
+    {% else %}
+      <div class="grid">
+        {% for name in ['stage', 'done', 'now', 'next'] %}
+        <div>
+          <h2>{{ name }}</h2>
+          <ul>{% for line in s.progress.sections.get(name, []) %}<li>{{ line }}</li>{% endfor %}</ul>
+        </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </div>
+
+</div>
+</body>
+</html>

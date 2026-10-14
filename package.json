@@ -1,10 +1,13 @@
 {
   "name": "vaticeno",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "scripts": {
     "typecheck": "tsc --noEmit",
+    "format": "scripts/format-changed.sh",
+    "format:check": "scripts/format-changed.sh --check",
     "test": "node --import tsx --test \"src/**/*.test.ts\"",
     "test:coverage": "node --import tsx --test --experimental-test-coverage --test-coverage-exclude=\"src/**/*.test.ts\" \"src/**/*.test.ts\"",
+    "load:burst": "node --env-file-if-exists=.env --import tsx --test --test-concurrency=1 \"tests/load/*.test.ts\"",
     "test:integration": "node --env-file-if-exists=.env --import tsx --test --test-concurrency=1 \"tests/integration/**/*.test.ts\"",
     "dev": "tsx --env-file-if-exists=.env src/web/server.ts",
     "db:migrate": "tsx --env-file-if-exists=.env src/cli/db-migrate.ts",
@@ -51,6 +54,7 @@
   "devDependencies": {
     "@types/node": "^22.20.4",
     "drizzle-kit": "0.31.11",
+    "prettier": "^3.9.10",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   },

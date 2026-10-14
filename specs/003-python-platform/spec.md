@@ -30,8 +30,8 @@ broken within one refresh — not "something is wrong", but which job, and how l
 **Acceptance Scenarios**:
 
 1. **Given** a healthy service, **When** the page is opened, **Then** it shows the build (commit, deploy
-   time, runtime version, uptime), each job's last run and outcome, claim and verdict counts, spend against
-   the per-claim ceiling, and the feed's state — read from the database, the build-info file and the
+   time and how long ago that was, runtime version), each job's last run and outcome, claim and verdict
+   counts, spend against the per-claim ceiling, and the feed's state — read from the database, the build-info file and the
    progress file, with nothing hardcoded in the page itself.
 2. **Given** the resolve job has not run for longer than its declared stale-after window, **When** the page
    is opened, **Then** that job reads **STALE** with its age, and the page's overall state is not "ok".
@@ -46,7 +46,11 @@ broken within one refresh — not "something is wrong", but which job, and how l
    changed — so a stale plan is visibly stale rather than quietly wrong.
 6. **Given** the page holds operational numbers, **When** it is deployed, **Then** it is not reachable from
    the public internet (the public server stays read-only claim and author pages, no admin routes).
-7. **Given** the weekly recheck found a published verdict that today's rules decide differently, **When** the
+7. **Given** no session, **When** the page or its JSON twin is requested, **Then** the page redirects to a
+   login and the twin answers 401 — and with no password configured on the server, both refuse.
+8. **Given** the public front page, **When** anyone opens it, **Then** it shows the system's state, the
+   running version and the counts of predictions and verdicts, and nothing operational.
+9. **Given** the weekly recheck found a published verdict that today's rules decide differently, **When** the
    page is opened, **Then** that verdict is listed with what was published, what the rules reach now, and how
    long it has been outstanding — and it stays listed after it ages out of the recheck's seven-day window,
    until a correction is posted or it is dismissed.
@@ -183,6 +187,9 @@ with VOID, and the same with the worker switched off for the whole timeout windo
 - **A disagreement that ages out**: the weekly recheck re-decides only the last seven days. With no durable
   record, a verdict flagged one Monday is silently unflagged the next. Three were flagged on 2026-10-13: one
   was corrected, and the other two leave the window on 2026-10-19 with nothing left pointing at them.
+- **Process uptime is not available to this page**: FR-003 allows it a database connection and two files,
+  and nothing else, so it cannot ask systemd how long the bot has been up. It shows how long ago the deploy
+  was, and the job table is what says the service is alive now (narrowed while building, 2026-10-13).
 - **The status page's own health**: if the status service is down, nothing says so. It reports the main
   service's state, not its own; the main service's existing health endpoint stays the machine-readable
   truth, and uptime checking is outside this feature.
@@ -225,8 +232,21 @@ with VOID, and the same with the worker switched off for the whole timeout windo
 - **FR-003**: The status page is read-only and holds no credentials beyond a database connection, which is
   a **read-only database role**. It performs no writes, calls no external service, and has no admin action
   of any kind.
-- **FR-004**: The status page is not publicly reachable. The public server keeps serving only claim pages,
-  author pages and health (001 `contracts/http.md`).
+- **FR-004**: The status page is served at `/status` on the public host and is **never reachable without a
+  password** (owner decision 2026-10-13, replacing "not publicly reachable at all"). It binds to localhost
+  and is reached only through the reverse proxy or an SSH tunnel; the machine-readable twin is behind the
+  same lock, because it carries the same numbers. A server with no password configured refuses everyone
+  rather than admitting everyone — a missing credential is never an open door.
+- **FR-004a**: One password, no accounts: no registration, no reset, no user records, and nothing behind it
+  can be written. This is judged not to be the "user auth" constitution VII holds back (there is nothing to
+  log into but this page); if that reading is rejected, it needs an amendment, not a workaround.
+- **FR-004b**: The public front page at `/` shows whether the system is working, the running version, and
+  how many predictions and verdicts exist — and nothing operational. Spend, job names, staleness and the
+  verdicts known to be wrong stay behind the password. A job that has never run since a deploy does not
+  make the public light red; a job past its own window, or one whose last run failed, does.
+- **FR-004c**: One version number, in `package.json`, is the single source. Its minor bumps when a spec
+  ships, so it never goes backwards the way numbering by spec number would; the deploy writes it into the
+  build file, and both pages show the same value.
 - **FR-005**: The status page renders server-side with no client-side JavaScript, matching the existing
   public pages, and renders a usable page when the database is down.
 - **FR-006**: A machine-readable twin of the status page exists (one JSON response with the same numbers),
@@ -408,7 +428,8 @@ with VOID, and the same with the worker switched off for the whole timeout windo
   stale-after window passing — not two minutes after a missed run, because a twice-daily job and a
   once-a-minute job are not late at the same point.
 - **SC-003**: A capacity table exists with every number measured, none estimated, each dated and tied to the
-  hardware it was measured on. UNRECONCILED until the first run produces it.
+  hardware it was measured on. Met for this machine 2026-10-13 ([capacity.md](capacity.md)); the droplet's
+  rows are named as unmeasured rather than filled in from the laptop's.
 - **SC-004**: A synthetic mention burst at ten times the live rate is answered exactly once per mention, with
   no duplicate reply and no mention lost, and the backlog drains without intervention.
 - **SC-005**: **Zero wrongly auto-finalised claims on the held-out set.** This is the gate that sets the

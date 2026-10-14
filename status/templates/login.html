@@ -1,0 +1,42 @@
+{#- One password, no accounts (003 US1). Same palette as the page behind it; no JavaScript. -#}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vaticeno status</title>
+<style>
+  :root { --bg:#12171c; --panel:#1a2128; --line:#2a333c; --ink:#e7edf2; --dim:#8c9aa6; --bad:#fb6f85; }
+  * { box-sizing: border-box; }
+  body { margin:0; min-height:100vh; display:grid; place-items:center; background:var(--bg); color:var(--ink);
+         font:13px/1.5 ui-monospace, "SF Mono", Menlo, monospace; padding:16px; }
+  form { background:var(--panel); border:1px solid var(--line); border-radius:4px; padding:22px 24px;
+         width:100%; max-width:340px; }
+  h1 { margin:0 0 4px; font-size:18px; }
+  p { margin:0 0 16px; color:var(--dim); }
+  label { display:block; margin-bottom:6px; color:var(--dim); font-size:11px; letter-spacing:1.1px; text-transform:uppercase; }
+  input { width:100%; padding:9px 10px; background:var(--bg); color:var(--ink); font:inherit;
+          border:1px solid var(--line); border-radius:3px; }
+  input:focus { outline:2px solid var(--dim); outline-offset:1px; }
+  button { width:100%; margin-top:14px; padding:9px 10px; font:inherit; color:var(--bg); background:var(--ink);
+           border:0; border-radius:3px; cursor:pointer; }
+  .bad { color:var(--bad); margin:0 0 12px; }
+</style>
+</head>
+<body>
+<form method="post" action="{{ prefix }}/login">
+  <h1>Vaticeno status</h1>
+  {% if unset %}
+    {#- No hash in the environment: refuse everyone rather than let everyone in. -#}
+    <p class="bad">No password is configured on this server, so nothing can sign in.
+      Run <code>python -m status.hash_password</code> and put both lines in <code>.env.status</code>.</p>
+  {% else %}
+    <p>Operational numbers. Owner only.</p>
+    {% if bad %}<p class="bad">Wrong password.</p>{% endif %}
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password" autocomplete="current-password" autofocus required>
+    <button type="submit">Sign in</button>
+  {% endif %}
+</form>
+</body>
+</html>

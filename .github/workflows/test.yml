@@ -40,3 +40,20 @@ jobs:
       - run: npm run test:integration
       # 60 historical price claims on frozen candles (SC-002: must be 100%)
       - run: npm run seeds:crypto
+      # Ten times the live mention rate, answered once each (003 SC-004)
+      - run: npm run load:burst
+
+  python:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: pip install ".[status,load,dev]"
+      - run: ruff check .
+      # Exit 5 is pytest's "no tests collected": status/ and load/ fill in later phases of Stage 1 (FR-021).
+      - run: pytest status load || [ $? -eq 5 ]
+

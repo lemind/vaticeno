@@ -2,9 +2,19 @@ INIT_SPEC.md
 node_modules/
 .env
 .env.production
+.env.status
+.env.status.*
 supabase/.temp/
 .state/
 # Recorded model/search/fetch answers: local only, regenerate with LLM_MODE=record (research R5)
 fixtures/replay/
+# Python caches and the local virtualenv (003)
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.venv/
+*.egg-info/
+# Written on the server by deploy/deploy.sh (003 FR-002)
+.build-info.json
 # Private notes (not public, not committed)
 docs/private/

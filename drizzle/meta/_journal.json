@@ -120,6 +120,27 @@
       "when": 1791802000000,
       "tag": "0016_evidence_identity",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1791866000000,
+      "tag": "0017_job_state",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1791866100000,
+      "tag": "0018_recheck_findings",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1791866200000,
+      "tag": "0019_status_policies",
+      "breakpoints": true
     }
   ]
 }

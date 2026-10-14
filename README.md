@@ -8,6 +8,9 @@ An X bot that puts predictions **on the record** and checks them automatically o
   → after the deadline: HIT / MISS / VOID as a reply in the same thread
 ```
 
+**Live at [vaticeno.n30sk.cc](https://vaticeno.n30sk.cc)** — the front page says whether it is running and
+what version; `/status` is the owner's page, behind a password. On X: [@vaticeno](https://x.com/vaticeno).
+
 ## Status
 
 **Live on X (testing):** tag the bot under your prediction (or put it in the mention): it records it and
@@ -123,6 +126,57 @@ connection string in the gitignored `.env.production`; apply migrations there wi
 `set -a; . ./.env.production; set +a; npm run db:migrate` before deploying code that needs them.
 Claim pages listen on localhost only: `ssh -L 3000:127.0.0.1:3000 root@HOST`, then `http://localhost:3000/c/<slug>`.
 
+### Hosting and capacity
+
+One DigitalOcean droplet (458 MB RAM, 1 GB swap) with Caddy in front, which gets the certificate itself:
+`vaticeno.n30sk.cc` is the front page, `/status` the owner's. The bot peaks at 149 MB of the 458.
+
+It serves **~430 requests a second** before it saturates, and past that requests queue rather than fail:
+latency rises, nothing is refused, and the first request after the load is served in 4 ms. The ceiling is
+the database pool (5 connections), not the CPU. That was measured on a laptop — the droplet's own rate is
+**not measured**, because a load run there drives the live bot
+([capacity.md](specs/003-python-platform/capacity.md)).
+
+### Status page
+
+One screen answering "is it running" and "where are we": the build, every job with its own staleness
+window, claim and verdict counts, spend against the per-claim ceiling, the own feed's day, verdicts the
+weekly recheck found wrong and nobody has corrected, and the hand-edited plan in `docs/progress.md` with
+its age. Read-only, and behind one password (spec 003) — at `/status`, or over a tunnel:
+
+```bash
+ssh -L 3001:127.0.0.1:3001 root@HOST   # then http://localhost:3001 — and /status.json for a script
+```
+
+Runs as systemd service `vaticeno-status` (`uvicorn status.app:app`, Python, its own virtualenv on the
+server). It connects as `status_ro`, a database role with SELECT and nothing else, whose password is set
+by hand once — see [deploy/status-role.md](deploy/status-role.md). Locally:
+
+```bash
+python3 -m venv .venv && .venv/bin/pip install '.[status,dev]'
+DATABASE_URL_RO=postgres://status_ro:dev@localhost:5433/vaticeno \
+  .venv/bin/uvicorn status.app:app --port 3001
+.venv/bin/pytest status load && .venv/bin/ruff check .
+```
+
+### Load runs
+
+Measured numbers live in [capacity.md](specs/003-python-platform/capacity.md), each with its date and the
+machine it came from. Runs drive **localhost only**: `load/guard.py` refuses a remote target, a real X or
+model credential in the environment, a production database string, or a paid model mode — a load run
+against the live bot would post to X and spend money.
+
+```bash
+npm run dev                     # the service under test, with jobs and X off
+npm run load:burst              # ten times the live mention rate, one reply each
+
+LOAD_SLUG=<slug> LOAD_AUTHOR=<x_user_id> .venv/bin/locust -f load/locustfile.py \
+  --headless -H http://localhost:3000 -u 100 -r 50 -t 30s --only-summary
+```
+
+The page run needs a claim that exists **and** a position row for the author, or a quarter of the
+requests are 404s and the latency numbers come out flattering.
+
 ## Layout
 
 ```
@@ -154,3 +208,5 @@ Code follows a light "pure core, I/O at the edges" structure — see
 
 Node 22 · TypeScript (strict) · Zod · PostgreSQL (Supabase) + Drizzle · Gemini · Sentry · X API v2.
 Fastify (server-rendered pages, no client JS) · node-cron (jobs in the same process).
+Python 3.12 · FastAPI + Jinja2 (the status page). Planned, not in yet: Redis and RabbitMQ, each when its
+trigger is measured ([decision 003](docs/decisions/003-redis-and-rabbitmq.md)).
