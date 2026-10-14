@@ -131,8 +131,10 @@ Then VOID, then the timeout refund with the worker switched off.
 ### Linking a wallet, optional
 
 - [ ] T338 [US4] Migration `drizzle/0021_wallet_links.sql` + `src/db/schema.ts` per data-model.md: both wallet tables, no read policy on either (FR-032)
-- [ ] T339 [US4] The link flow, its code state in `wallet_link_challenges`: a code, the reply checked through the API, the account confirmed, then the signature taken privately (FR-033, FR-034, FR-035)
-- [ ] T340 [US4] Test: a link needs both halves; a code returned by another account writes nothing; revoking keeps the row and its period; a stake works with no link (SC-015, SC-016)
+- [ ] T339 [US4] The link flow: the page resolves the named account, issues the code, shows what is public; the post binds it; confirmation, then the private signature. One vanilla script, this page only (FR-033–035c)
+- [ ] T339a [US4] `link` and `unlink` as commands, routed before claim parsing, one capped reply each, no address in it (FR-035a, FR-035d)
+- [ ] T339b [US4] Before building: decide what an X compliance event does to a link (FR-035g, owner's), and approve the EVM library for signature checks (constitution VII)
+- [ ] T340 [US4] Test: a link needs both halves; another account's post binds and consumes nothing; a post read twice binds once; RPC down refuses; no code in logs; revoking keeps the row; a stake works with no link (SC-015, SC-016)
 
 **Checkpoint**: a verdict settles a contract on a testnet, and the timeout refund works with nothing of ours running.
 
