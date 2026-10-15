@@ -5,7 +5,7 @@ import { and, asc, eq, lte } from 'drizzle-orm';
 import { alert, captureError } from '../observe.js';
 import { renderStatement } from '../contract/render.js';
 import { recordCosts } from '../db/costs.js';
-import { type ClaimRow, claims } from '../db/schema.js';
+import { type ClaimRow, claims, settlementOutbox } from '../db/schema.js';
 import { log } from '../log.js';
 import { amendedReply, expiredReply } from '../replies/templates.js';
 import {
@@ -105,24 +105,31 @@ async function lockDraft(
   }
 
   if (post.versionId === claim.sourceVersion) {
-    const rows = await db
-      .update(claims)
-      .set({
-        status: 'locked',
-        lockedSourceVersion: post.versionId,
-        lockedSourceHash: createHash('sha256').update(post.text).digest('hex'), // the text itself is never stored
-        nextCheckAt: claim.deadlineAt,
-      })
-      .where(
-        and(
-          eq(claims.id, claim.id),
-          eq(claims.status, 'draft'),
-          eq(claims.sourceVersion, post.versionId),
-          eq(claims.amendCount, claim.amendCount),
-          lte(claims.lockAt, now), // a fix that landed meanwhile restarts the wait
-        ),
-      )
-      .returning({ id: claims.id });
+    const rows = await db.transaction(async (tx) => {
+      const locked = await tx
+        .update(claims)
+        .set({
+          status: 'locked',
+          lockedSourceVersion: post.versionId,
+          lockedSourceHash: createHash('sha256').update(post.text).digest('hex'), // the text itself is never stored
+          nextCheckAt: claim.deadlineAt,
+        })
+        .where(
+          and(
+            eq(claims.id, claim.id),
+            eq(claims.status, 'draft'),
+            eq(claims.sourceVersion, post.versionId),
+            eq(claims.amendCount, claim.amendCount),
+            lte(claims.lockAt, now), // a fix that landed meanwhile restarts the wait
+          ),
+        )
+        .returning({ id: claims.id });
+      // Only a price-feed claim can carry a stake, so only it gets a settlement row (003 FR-027, FR-031a).
+      if (locked.length > 0 && claim.resolutionMethod === 'price_feed') {
+        await tx.insert(settlementOutbox).values({ claimId: claim.id });
+      }
+      return locked;
+    });
     if (rows.length === 0) return { slug, outcome: 'waiting', reply: null }; // changed meanwhile; next tick decides
     log('info', 'claim locked', {
       event: 'claim.locked',

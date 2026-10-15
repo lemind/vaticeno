@@ -111,10 +111,10 @@ touches it.
 | id | uuid PK | |
 | claim_id | uuid NOT NULL UNIQUE → claims | one row per claim: the unique key is what stops a replay creating a second one |
 | claim_hash | text null | keccak-256 of the slug, written by the worker — the one place it is computed |
-| authorization | text null | the oracle's EIP-712 signature letting anyone open a stake on this claim; set once by the worker |
+| open_authorization | text null | the oracle's EIP-712 signature letting anyone open a stake on this claim; set once by the worker |
 | authorized_until | timestamptz null | when acceptance closes, 24 hours before the deadline; the signature holds until then |
 | outcome | text null | CHECK `hit \| miss \| void`; null until the verdict is final, then copied from it, never recomputed |
-| state | text NOT NULL | CHECK `open \| pending \| sent \| no_stake \| failed`: `open` until the verdict, `pending` once the outcome is set |
+| state | text NOT NULL | CHECK `open \| pending \| held \| sent \| no_stake \| failed`: `open` until the verdict, `pending` once a second read confirms it, `held` when that read disagrees — nothing settles and the timeout refunds |
 | attempts | int NOT NULL DEFAULT 0 | |
 | tx_references | text[] NOT NULL DEFAULT '{}' | one per stake settled; a claim can carry several |
 | last_error | text null | |
