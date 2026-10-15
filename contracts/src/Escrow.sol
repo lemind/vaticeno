@@ -80,6 +80,8 @@ contract Escrow {
     bool public paused;
     uint256 public nextId = 1;
     mapping(uint256 => Stake) public stakes;
+    // Every stake on a claim, so the worker settles all of them from the claim alone (data-model, outbox).
+    mapping(bytes32 => uint256[]) private claimStakes;
 
     event Opened(
         uint256 indexed id,
@@ -169,6 +171,7 @@ contract Escrow {
             state: State.Open,
             outcome: Outcome.None
         });
+        claimStakes[claimHash].push(id);
         // The only call before this is ecrecover, a precompile: nothing can re-enter.
         // forge-lint: disable-next-line(reentrancy-events)
         emit Opened(id, claimHash, msg.sender, makerSaysHit, amount, deadline, offerExpiry);
@@ -266,6 +269,10 @@ contract Escrow {
         stake.state = State.Refunded;
         emit Refunded(id);
         _refundBoth(stake);
+    }
+
+    function stakesOf(bytes32 claimHash) external view returns (uint256[] memory) {
+        return claimStakes[claimHash];
     }
 
     // ---- the guardian: stops new stakes, never blocks a refund ----
