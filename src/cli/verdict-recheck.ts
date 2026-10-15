@@ -31,7 +31,7 @@ await runCli('verdict-recheck', async (config) => {
   // Paid, and never scheduled: fetch and judge the pages again, which is the only way to catch a judging
   // error rather than a rule error (004 T415a).
   const check = values.rejudge
-    ? await rejudgeClaim({ ...buildDeps(config), x: createXClient(loadConfig().X_BEARER_TOKEN) }, values.slug, at) // x: follower counts (004 T420)
+    ? await rejudgeClaim({ ...buildDeps(config), x: createXClient(loadConfig().X_BEARER_TOKEN), botHandle: loadConfig().X_BOT_HANDLE }, values.slug, at) // x: follower counts (004 T420)
     : await recheckClaim(db, values.slug, at);
   if (!check) throw new Error(`no final verdict for ${values.slug}`);
   printJson(check);

@@ -4,7 +4,7 @@ import { type RejectReason, runChecks } from '../contract/checks.js';
 import type { Proposal, UnclearItem } from '../contract/proposal.js';
 import { renderStatement } from '../contract/render.js';
 import { type Contract, ContractSchema, SCHEDULED_EVENT_KINDS } from '../contract/schema.js';
-import { asAuthorFollowerContract } from '../contract/x-profile.js';
+import { resolveFollowerContract, type UserLookup } from '../contract/x-profile.js';
 import { newSlug } from '../contract/slug.js';
 import type { Db } from '../db/client.js';
 import { recordCosts } from '../db/costs.js';
@@ -24,7 +24,8 @@ import type { SourceReader } from './source-reader.js';
 
 export const LOCK_DELAY_MS = 15 * 60 * 1000;
 
-export type ClaimDeps = { db: Db; llm: LlmClient; coinbase: Coinbase; normalizerModel: string; answerModel: string };
+// `x` and `botHandle` name the account a follower prediction is about (004 T419); without X it stays a web claim.
+export type ClaimDeps = { db: Db; llm: LlmClient; coinbase: Coinbase; normalizerModel: string; answerModel: string; x?: UserLookup; botHandle?: string };
 
 export type SubmitInput = {
   text: string; // used for the proposal only — never stored or logged (FR-029)
@@ -70,8 +71,8 @@ export async function evaluateClaimText(deps: ClaimDeps, text: string, now: Date
   else if (checked.outcome === 'needs_info') decision = { outcome: 'needs_info', unclear: checked.unclear, explanation: proposal.unclear_explanation, proposal };
   else if (SCHEDULED_EVENT_KINDS.includes(checked.contract.source.kind)) decision = await confirmFixture(deps, checked.contract, now, costs);
   else {
-    // A follower count on the author's own X account is read from the X API, not searched for (004 T419).
-    const followers = authorId ? asAuthorFollowerContract(checked.contract, authorId) : checked.contract;
+    // A follower count on X is read from the X API, for the account the post names (004 T419).
+    const followers = authorId ? await resolveFollowerContract(deps.x, deps.botHandle ?? 'vaticeno', checked.contract, text, authorId, costs) : checked.contract;
     decision = followers !== checked.contract
       ? { outcome: 'recorded', contract: followers }
       : await confirmPriceFeed(deps.coinbase, checked.contract, proposal);

@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import type { CallCost } from '../llm/client.js';
 import type { Contract } from './schema.js';
-import { asAuthorFollowerContract, parseCount } from './x-profile.js';
+import { followerAccount, parseCount, resolveFollowerContract } from './x-profile.js';
 
-// The contract the normalizer wrote for claim gzrt3 (2026-10-06): "author" was never replaced by an account.
+// The contract the normalizer wrote for claim gzrt3 (2026-10-06). "author" meant the account the post replied
+// to, @0xPaulvibe; reading the poster's count gave a wrong MISS.
 const GZRT3: Contract = {
   subject: "author's X account",
   criterion: 'The author reaches a count of 3,000 followers on X.',
@@ -16,30 +18,40 @@ const GZRT3: Contract = {
   negative_condition: 'The follower count is below 3,000 at the end of the deadline day.',
   resolution_method: 'model',
 };
+const GZRT3_POST = '@0xPaulvibe @vaticeno @0xPaulvibe reaches 3k followers in a week';
+const POSTER = '85641384';
+const lookup = { getUserByUsername: async (username: string) => ({ id: username === '0xPaulvibe' ? '1614958779489026048' : '99', username }) };
 
-test('the gzrt3 contract becomes a follower read of the author\'s own account', () => {
-  const out = asAuthorFollowerContract(GZRT3, '1234567890');
-  assert.equal(out.source.kind, 'x_profile');
-  assert.equal(out.source.locator, 'https://x.com/i/user/1234567890');
-  assert.deepEqual(out.followers, { user_id: '1234567890', comparison: 'AT_LEAST', threshold: 3000 });
-  assert.equal(out.criterion, GZRT3.criterion, 'what the author asked for is kept');
+test('the account comes from the post: gzrt3 is about @0xPaulvibe, not the poster', async () => {
+  assert.deepEqual(followerAccount(GZRT3_POST, 'vaticeno'), { kind: 'handle', handle: '0xPaulvibe' });
+  const costs: CallCost[] = [];
+  const out = await resolveFollowerContract(lookup, 'vaticeno', GZRT3, GZRT3_POST, POSTER, costs);
+  assert.deepEqual(out.followers, { user_id: '1614958779489026048', comparison: 'AT_LEAST', threshold: 3000 });
+  assert.equal(out.source.locator, 'https://x.com/i/user/1614958779489026048');
+  assert.equal(costs.length, 1, 'the handle lookup is paid and recorded');
 });
 
-test('anything else is left as the model wrote it', () => {
+test('the poster only when the post says so or names nobody', () => {
+  assert.deepEqual(followerAccount("I'll reach 3k followers by Friday", 'vaticeno'), { kind: 'poster' });
+  assert.deepEqual(followerAccount('@elonmusk I will reach 3k followers this month', 'vaticeno'), { kind: 'poster' });
+  assert.deepEqual(followerAccount('@vaticeno my account hits 5,000 followers', 'vaticeno'), { kind: 'poster' });
+  assert.deepEqual(followerAccount('@a @vaticeno @b gets to 10k followers', 'vaticeno'), { kind: 'handle', handle: 'b' }, 'the handle right before the phrase');
+  assert.equal(followerAccount('@a will be bigger than @b soon', 'vaticeno'), null, 'no follower phrase: not ours to read');
+});
+
+test('when the account is not certain, the contract stays as the model wrote it', async () => {
+  assert.equal(await resolveFollowerContract(undefined, 'vaticeno', GZRT3, GZRT3_POST, POSTER, []), GZRT3, 'no X client');
+  const failing = { getUserByUsername: async () => { throw new Error('404'); } };
+  assert.equal(await resolveFollowerContract(failing, 'vaticeno', GZRT3, GZRT3_POST, POSTER, []), GZRT3, 'unknown handle');
   const notX = { ...GZRT3, source: { ...GZRT3.source, name: 'Instagram', locator: 'https://instagram.com/x' } };
-  assert.equal(asAuthorFollowerContract(notX, '1'), notX, 'not X');
+  assert.equal(await resolveFollowerContract(lookup, 'vaticeno', notX, GZRT3_POST, POSTER, []), notX, 'not X');
   const noCount = { ...GZRT3, criterion: 'The author posts every day on X.' };
-  assert.equal(asAuthorFollowerContract(noCount, '1'), noCount, 'no follower number');
-  const someoneElse = { ...GZRT3, subject: 'Elon Musk', source: { ...GZRT3.source, entity_id: '@elonmusk' } };
-  assert.equal(asAuthorFollowerContract(someoneElse, '1'), someoneElse, 'another account: not handled here');
-  assert.equal(asAuthorFollowerContract(GZRT3, 'not-a-number'), GZRT3, 'no usable author id');
-  const namedAuthor = { ...GZRT3, subject: 'the author Stephen King', source: { ...GZRT3.source, entity_id: '@StephenKing' } };
-  assert.equal(asAuthorFollowerContract(namedAuthor, '1'), namedAuthor, 'a writer is not the poster');
+  assert.equal(await resolveFollowerContract(lookup, 'vaticeno', noCount, GZRT3_POST, POSTER, []), noCount, 'no follower number');
 });
 
-test('"below" claims compare the other way, and counts read like people write them', () => {
-  const below = asAuthorFollowerContract({ ...GZRT3, criterion: 'The author has fewer than 3k followers on X.' }, '7');
-  assert.deepEqual(below.followers, { user_id: '7', comparison: 'BELOW', threshold: 3000 });
+test('"below" compares the other way, and counts read like people write them', async () => {
+  const below = await resolveFollowerContract(lookup, 'vaticeno', { ...GZRT3, criterion: 'The author has fewer than 3k followers on X.' }, "I'll stay under 3k followers", POSTER, []);
+  assert.deepEqual(below.followers, { user_id: POSTER, comparison: 'BELOW', threshold: 3000 });
   assert.equal(parseCount('3,000', undefined), 3000);
   assert.equal(parseCount('3.5', 'k'), 3500);
   assert.equal(parseCount('2', 'M'), 2_000_000);
