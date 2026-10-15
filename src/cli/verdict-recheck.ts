@@ -54,7 +54,7 @@ await runCli('verdict-recheck', async (config) => {
 
   // A correction already written and never posted: post it, nothing else. Every other branch writes one
   // first, so a row that exists had no way out (004 T421).
-  if (values.post && !values.correct && !values.rejudge) {
+  if (values.post && !values.correct && !values.rejudge && !values.outcome) {
     printJson(
       await postCorrection(buildBotDeps(buildDeps(config)), values.slug, at),
     );
@@ -63,8 +63,7 @@ await runCli('verdict-recheck', async (config) => {
 
   // The owner decides from the evidence already stored: no model call, no re-judge (004 T424).
   if (values.outcome) {
-    if (!values.slug || !values.correct)
-      throw new Error('--outcome needs --slug and --correct "<reason>"');
+    if (!values.correct) throw new Error('--outcome needs --correct "<reason>"');
     if (values.outcome !== 'hit' && values.outcome !== 'miss')
       throw new Error('--outcome is hit or miss');
     if (!values['deciding-evidence'])
