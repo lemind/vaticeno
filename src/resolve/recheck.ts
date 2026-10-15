@@ -253,6 +253,42 @@ async function recordFindings(
 
 // Writing the correction is a separate step: a recheck never changes a published verdict on its own
 // (001 FR-035). The row is what the public pages read; the frozen resolution is never touched.
+// A standing verdict corrected by hand (004 T424): the owner reads the evidence already stored and says
+// what it shows. For when the rules now reach the right answer but re-judging would pass the claim's
+// budget. The frozen resolution is never touched — the correction stands beside it (INIT_SPEC §4).
+export async function correctByHand(
+  db: Db,
+  slug: string,
+  outcome: 'hit' | 'miss',
+  decidingEvidenceId: string,
+  reason: string,
+): Promise<boolean> {
+  if (!reason.trim()) throw new Error('a reason is required: it is shown on the claim page');
+  const [row] = await db
+    .select({ id: claims.id, was: resolutions.outcome })
+    .from(claims)
+    .innerJoin(resolutions, eq(resolutions.claimId, claims.id))
+    .where(and(eq(claims.slug, slug), eq(resolutions.reviewStatus, 'final')))
+    .limit(1);
+  if (!row?.was) throw new Error(`no final verdict for ${slug}`);
+  if (row.was === outcome) throw new Error(`#${slug} already stands at ${outcome}; nothing to correct`);
+  const [evidence] = await db
+    .select({ id: evidences.id })
+    .from(evidences)
+    .where(and(eq(evidences.id, decidingEvidenceId), eq(evidences.claimId, row.id)))
+    .limit(1);
+  if (!evidence) throw new Error('--deciding-evidence must be an evidence row of this claim');
+
+  const written = await db
+    .insert(corrections)
+    .values({ claimId: row.id, fromOutcome: row.was, toOutcome: outcome, reason: reason.trim(), decidingEvidenceId, decidedBy: 'human' })
+    .onConflictDoNothing()
+    .returning({ id: corrections.id });
+  if (written.length === 0) return false;
+  log('info', 'verdict corrected by hand', { event: 'recheck.corrected', slug, from: row.was, to: outcome, decided_by: 'human', reason });
+  return true;
+}
+
 export async function writeCorrection(
   db: Db,
   slug: string,
