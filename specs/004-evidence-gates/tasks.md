@@ -68,6 +68,15 @@ race-specific page can.
 
 **Checkpoint**: the verdict that was disputed in public is corrected in its thread. Two older football verdicts are known wrong and deliberately left: no audience to correct them for.
 
+## Phase 5: two VOIDs that had their answer (2026-10-15)
+
+Both claims went VOID on 2026-10-15 with `insufficient_evidence`. Neither lacked an answer.
+
+- [x] T418 **Done 2026-10-15.** A same-day match recorded in the morning (e9vtp, Atlético Madrid 2–0 Manchester United): three established reports gave the score and the date but no kickoff time, and in_window refuses a lock-day event without one. The fixture check had the kickoff and dropped it. Now kept as `event_start_at` in the contract at recording and used by in_window when a page states only the date (`gates.ts`, `claims.ts`, `web-evidence.ts`). Gate tests cover it.
+- [x] T419 **Done 2026-10-15.** A follower count on the author's own X account (gzrt3, "3,000 followers"): the normalizer wrote the literal "author" as the account, so web search looked for `"author"`. Code now recognises an X source with "N followers" about the author and records it as `x_profile` with the author's numeric id (`src/contract/x-profile.ts`). Other accounts are not handled yet.
+- [x] T420 **Done 2026-10-15.** `x_profile` claims are decided by one read of the follower count from the X API, not by search (`src/resolve/follower-evidence.ts`). The count at the read decides, whenever after the deadline it is made (owner decision 2026-10-15): X keeps no history, and above the threshold now is a HIT. A gone account is `entity_gone`; an API failure is an outage.
+- [ ] T421 Correct e9vtp and gzrt3. Owner decision: e9vtp has its answer (HIT). gzrt3 is decided by the author's current follower count.
+
 ---
 
 ## Dependencies

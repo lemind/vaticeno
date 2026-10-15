@@ -4,6 +4,7 @@ import { type RejectReason, runChecks } from '../contract/checks.js';
 import type { Proposal, UnclearItem } from '../contract/proposal.js';
 import { renderStatement } from '../contract/render.js';
 import { type Contract, ContractSchema, SCHEDULED_EVENT_KINDS } from '../contract/schema.js';
+import { asAuthorFollowerContract } from '../contract/x-profile.js';
 import { newSlug } from '../contract/slug.js';
 import type { Db } from '../db/client.js';
 import { recordCosts } from '../db/costs.js';
@@ -55,7 +56,7 @@ type Evaluation = { decision: Decision; modelId: string; selfConfidence: number 
 
 // Proposal → checks → price feed confirmation. Shared by submit, fixes and edits found at lock. Paid calls go
 // into `costs` as they happen, so a feed outage after the model call still leaves its cost to record.
-export async function evaluateClaimText(deps: ClaimDeps, text: string, now: Date, costs: CallCost[], context: readonly string[] = []): Promise<Evaluation> {
+export async function evaluateClaimText(deps: ClaimDeps, text: string, now: Date, costs: CallCost[], context: readonly string[] = [], authorId?: string): Promise<Evaluation> {
   const proposed = await proposeContract(deps.llm, deps.normalizerModel, text, now.toISOString().slice(0, 10), undefined, context);
   costs.push(...proposed.costs);
   if (proposed.kind === 'malformed') {
@@ -68,7 +69,13 @@ export async function evaluateClaimText(deps: ClaimDeps, text: string, now: Date
   if (checked.outcome === 'rejected') decision = { outcome: 'rejected', reason: checked.reason as Exclude<RejectReason, 'duplicate'> };
   else if (checked.outcome === 'needs_info') decision = { outcome: 'needs_info', unclear: checked.unclear, explanation: proposal.unclear_explanation, proposal };
   else if (SCHEDULED_EVENT_KINDS.includes(checked.contract.source.kind)) decision = await confirmFixture(deps, checked.contract, now, costs);
-  else decision = await confirmPriceFeed(deps.coinbase, checked.contract, proposal);
+  else {
+    // A follower count on the author's own X account is read from the X API, not searched for (004 T419).
+    const followers = authorId ? asAuthorFollowerContract(checked.contract, authorId) : checked.contract;
+    decision = followers !== checked.contract
+      ? { outcome: 'recorded', contract: followers }
+      : await confirmPriceFeed(deps.coinbase, checked.contract, proposal);
+  }
   return { decision, modelId: proposed.modelId, selfConfidence: proposal.self_confidence };
 }
 
@@ -101,14 +108,14 @@ export async function submitClaim(deps: ClaimDeps, input: SubmitInput): Promise<
 
   const costs: CallCost[] = [];
   const { decision, modelId, selfConfidence, slug, reply } = await recordingCostsOnFailure(db, null, costs, async () => {
-    let evaluated = await evaluateClaimText(deps, input.text, input.now, costs, input.context ?? []);
+    let evaluated = await evaluateClaimText(deps, input.text, input.now, costs, input.context ?? [], input.authorId);
     // Nothing is written yet, so a second look is free of consequences: only the reads cost.
     if (input.moreContext && worthMoreContext(evaluated.decision)) {
       const wider = await input.moreContext();
       // Different posts, not more of them: the conversation read can return as many as the parent walk
       // did and still be the only one that names the subject.
       if (wider.length > 0 && wider.join('\u0000') !== (input.context ?? []).join('\u0000')) {
-        const second = await evaluateClaimText(deps, input.text, input.now, costs, wider);
+        const second = await evaluateClaimText(deps, input.text, input.now, costs, wider, input.authorId);
         // The wider read only ever helps: a worse answer is discarded and the first one stands.
         if (second.decision.outcome === 'recorded') evaluated = second;
       }
@@ -172,7 +179,7 @@ export async function amendClaim(deps: ClaimDeps & { reader: SourceReader }, inp
   }
 
   const costs: CallCost[] = [];
-  const { decision, modelId, selfConfidence } = await recordingCostsOnFailure(db, claim.id, costs, () => evaluateClaimText(deps, input.text, input.now, costs, input.context ?? []));
+  const { decision, modelId, selfConfidence } = await recordingCostsOnFailure(db, claim.id, costs, () => evaluateClaimText(deps, input.text, input.now, costs, input.context ?? [], input.authorId));
 
   if (decision.outcome !== 'recorded') {
     const why = decision.outcome === 'rejected' ? rejectReasonWords(decision.reason) : decision.explanation;
@@ -219,7 +226,7 @@ async function amendDraft(deps: ClaimDeps & { reader: SourceReader }, claim: Cla
   if (claim.amendCount >= MAX_AMENDS) return refused(claim, 'limit');
 
   const costs: CallCost[] = [];
-  const { decision, modelId, selfConfidence } = await recordingCostsOnFailure(deps.db, claim.id, costs, () => evaluateClaimText(deps, input.text, input.now, costs, input.context ?? []));
+  const { decision, modelId, selfConfidence } = await recordingCostsOnFailure(deps.db, claim.id, costs, () => evaluateClaimText(deps, input.text, input.now, costs, input.context ?? [], input.authorId));
   if (decision.outcome !== 'recorded') {
     await recordCosts(deps.db, costs.map((cost) => ({ ...cost, claimId: claim.id })));
     const why = decision.outcome === 'rejected' ? rejectReasonWords(decision.reason) : decision.explanation;
@@ -295,6 +302,7 @@ async function confirmFixture(deps: ClaimDeps, contract: Contract, now: Date, co
     ...contract,
     criterion: fixture.criterion && fixture.criterion.length <= 100 ? fixture.criterion : contract.criterion,
     deadline_at: kickoffDayEnd && Date.parse(kickoffDayEnd) > Date.parse(contract.deadline_at) ? kickoffDayEnd : contract.deadline_at,
+    ...(Number.isNaN(kickoff) ? {} : { event_start_at: new Date(kickoff).toISOString() }),
   };
   const valid = ContractSchema.safeParse(confirmed);
   if (!valid.success) log('warn', 'fixture details invalid; recorded without them', { event: 'fixture.invalid' });

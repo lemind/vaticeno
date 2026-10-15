@@ -29,7 +29,8 @@ const CONTRACT_SET_BEFORE_LOCK_MS = 15 * 60 * 1000;
 
 // `absenceAdmissible` is the code-held list of complete records (exhaustive.ts); injectable so a test can
 // name one while the real list is empty.
-export type Window = { lockAt: Date; deadlineAt: Date; absenceIsMeaningful: boolean; startTimeCounts?: boolean; absenceAdmissible?: (url: string | null) => boolean };
+// `knownStart`: the kickoff the fixture check found at recording, used when a page states only the date (004 T418).
+export type Window = { lockAt: Date; deadlineAt: Date; absenceIsMeaningful: boolean; startTimeCounts?: boolean; knownStart?: Date; absenceAdmissible?: (url: string | null) => boolean };
 
 export function runGates(draft: EvidenceDraft, window: Window): { gates: Gates; passed: boolean } {
   const isPrice = draft.sourceKind === 'price_feed';
@@ -71,7 +72,7 @@ function inWindow(draft: EvidenceDraft, window: Window): boolean {
   // With a start time, an event that began after the contract's last change counts even on the lock day
   // (a game 10 min after recording); one that began before it — or before a late fix — never does.
   // Sports matches only (startTimeCounts); the start must agree with the event date (±1 day for time zones).
-  const start = draft.eventStart ? Date.parse(draft.eventStart) : NaN;
+  const start = draft.eventStart ? Date.parse(draft.eventStart) : (window.knownStart?.getTime() ?? NaN);
   if (window.startTimeCounts && draft.sourceKind === 'web' && !Number.isNaN(start) && nearDate(start, draft.eventDate)) {
     return start > window.lockAt.getTime() - CONTRACT_SET_BEFORE_LOCK_MS && start <= window.deadlineAt.getTime();
   }

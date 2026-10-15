@@ -49,6 +49,20 @@ test('a match with a start time counts if it began after the claim was set (lock
   assert.equal(gate(draft({ eventDate: '2026-10-01', eventStart: '2026-10-01T11:55:00Z' })).gates.in_window, false, 'not a match: the date rule');
 });
 
+test('a same-day match report without a time counts by the kickoff the fixture check recorded (004 T418)', () => {
+  // The e9vtp case: recorded the morning of the match, every report gave the score and the date, none the time.
+  const known = (d: Partial<EvidenceDraft>, knownStart: string) =>
+    runGates(draft(d), { ...window, startTimeCounts: true, knownStart: new Date(knownStart) }).gates.in_window;
+  assert.equal(known({ eventDate: '2026-10-01', eventStart: null }, '2026-10-01T19:00:00Z'), true, 'evening kickoff on the lock day');
+  assert.equal(known({ eventDate: '2026-10-01', eventStart: null }, '2026-10-01T11:40:00Z'), false, 'kickoff before the claim was set');
+  assert.equal(known({ eventDate: '2026-09-20', eventStart: null }, '2026-10-01T19:00:00Z'), false, 'page date far from the kickoff: the date rule');
+  assert.equal(known({ eventDate: '2026-10-01', eventStart: '2026-10-01T11:40:00Z' }, '2026-10-01T19:00:00Z'), false, 'a time the page states wins');
+  const noKnown = runGates(draft({ eventDate: '2026-10-01', eventStart: null }), { ...window, startTimeCounts: true }).gates.in_window;
+  assert.equal(noKnown, false, 'no recorded kickoff: the date rule, as before');
+  const notSports = runGates(draft({ eventDate: '2026-10-01', eventStart: null }), { ...window, knownStart: new Date('2026-10-01T19:00:00Z') }).gates.in_window;
+  assert.equal(notSports, false, 'not a match: the date rule');
+});
+
 test('absence evidence: only from the contract\'s own exhaustive (primary) source, read at or after the deadline, and only as a miss', () => {
   const absence = draft({ basis: 'absence', says: 'miss', eventDate: null, quoteFound: null });
   // The contract marks absence meaningful AND code knows this endpoint lists every event of its kind (FR-007).

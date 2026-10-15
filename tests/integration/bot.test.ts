@@ -156,6 +156,8 @@ describe('sports matches', () => {
     const { deps, replies } = await bot([[mention('110', '@vaticeno match Liverpool vs Madrid tomorrow 3:1')]]);
     await pollMentions(deps, NOW);
     assert.match(replies[0]!.text, /^RECORDED[\s\S]*Liverpool beat Real Madrid 3–1 \(UEFA Champions League\)/);
+    const [claim] = await t.sql`select contract->>'event_start_at' as kickoff from claims`;
+    assert.equal(claim!.kickoff, '2026-10-01T19:00:00.000Z', 'the kickoff is kept for in_window (004 T418)');
   });
 
   // 2026-10-07: the fight was named by another account in a reply to the same parent, so walking the

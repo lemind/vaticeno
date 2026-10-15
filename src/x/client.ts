@@ -37,6 +37,11 @@ const MentionsResponseSchema = z.object({
 
 const UserByUsernameResponseSchema = z.object({ data: XUserSchema });
 
+// A suspended or deleted account answers 200 with `errors` and no `data`, so `data` is optional.
+const UserMetricsResponseSchema = z.object({
+  data: z.object({ public_metrics: z.object({ followers_count: z.number().int().nonnegative() }) }).optional(),
+});
+
 // A pool account's latest posts (spec 002): own posts only, no replies or reposts, newest first.
 // Every field is optional on purpose: X omits requested fields on withheld posts, and a gone or
 // protected account answers 200 with `errors` and no `meta`. One odd post must not cost us the page.
@@ -103,6 +108,12 @@ export function createXClient(bearerToken: string) {
     async getUserByUsername(username: string): Promise<XUser> {
       const json = await getJson(`/users/by/username/${encodeURIComponent(username)}`, {});
       return UserByUsernameResponseSchema.parse(json).data;
+    },
+
+    // The account's follower count now; null when X returns no such account (004 T420).
+    async getFollowerCount(userId: string): Promise<number | null> {
+      const json = await getJson(`/users/${encodeURIComponent(userId)}`, { 'user.fields': 'public_metrics' });
+      return UserMetricsResponseSchema.parse(json).data?.public_metrics.followers_count ?? null;
     },
 
     // X's smallest timeline page is 5 posts, and billing is per post returned (src/x/prices.ts).

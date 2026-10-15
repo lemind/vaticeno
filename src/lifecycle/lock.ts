@@ -141,7 +141,7 @@ async function lockDraft(
     db,
     claim.id,
     costs,
-    () => evaluateClaimText(deps, post.text, now, costs),
+    () => evaluateClaimText(deps, post.text, now, costs, [], claim.authorXUserId),
   );
   if (decision.outcome !== 'recorded') {
     await recordCosts(
