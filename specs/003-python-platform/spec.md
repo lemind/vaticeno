@@ -325,19 +325,22 @@ with VOID, and the same with the worker switched off for the whole timeout windo
   without a new deployment.
 - **FR-026**: Settlement is idempotent at two levels: the worker reads on-chain state before sending, and the
   contract rejects a second settlement of the same stake.
-- **FR-027**: The resolver writes an outbox row when a verdict is final and a stake exists; it makes no chain
-  calls itself. The worker reads that table, which is the entire interface between the two runtimes.
+- **FR-027**: The Node service writes one outbox row when a price-feed claim locks and sets its outcome when the
+  verdict is final; it makes no chain calls. The worker signs the claim's open authorization from that row,
+  and after the verdict settles every matched stake the contract holds for the claim, or records that there
+  was none. That table is the entire interface between the two runtimes.
 - **FR-028**: The settlement worker is a separate process holding the signing key, and does nothing else — no
   HTTP, no X, no model calls, no untrusted input. The key never exists in the process that handles text from
   strangers.
 - **FR-028a**: A row in a table is not an instruction. The key is readable by the worker's own system user
-  alone; the worker **builds the transaction itself** from the claim and the verdict rather than signing
-  any payload it is handed; and before signing it checks the stake's on-chain state, the destination, the
+  alone; the worker **builds the transaction itself** from the claim and its final resolution, read from
+  their own tables, rather than signing any payload it is handed, and stops if the row's outcome disagrees; and before signing it checks the stake's on-chain state, the destination, the
   amount, the chain id, the contract address and that the stake is not already settled, stopping and
   reporting on any mismatch. Whoever can write an outbox row still cannot make it sign something the
   contract and the verdict do not already imply.
 - **FR-029**: Every settlement attempt is recorded — stake, verdict, transaction reference, outcome, failure
   reason — and the status page shows the queue's pending, sent and failed counts plus the contract address.
+  The on-chain events are the per-stake record; the outbox keeps one transaction reference per stake.
 - **FR-030**: If a stake is unsettled longer than the timeout after its deadline, **anyone** may trigger the
   refund and both parties are made whole. This path does not depend on the operator being alive.
 - **FR-031**: A verdict decided by the local verifier alone never settles a stake. Anything with value
@@ -346,7 +349,8 @@ with VOID, and the same with the worker switched off for the whole timeout windo
   2026-10-09). Eligibility is decided off-chain, where the locked contract can be read, and proved on-chain:
   a stake cannot be opened without an authorization signed by the oracle for that claim hash. A hash alone
   tells the contract nothing about the claim, so without that signature the rule would hold only for stakes
-  opened through our own page (review 2026-10-12). A price claim is decided by one number from the source the locked contract names, so a
+  opened through our own page (review 2026-10-12). The worker signs it once per claim, from the locked claim
+  alone, and it holds until acceptance closes; every stake on that claim uses the same signature. A price claim is decided by one number from the source the locked contract names, so a
   dispute is "was the right number read", answerable from the stored evidence in a minute. A model-judged
   claim is an argument about which source counts and what the evidence means, and that argument is not one
   to have with someone's money on it. Model-judged claims stay free to record and judge, as today.
@@ -441,7 +445,7 @@ with VOID, and the same with the worker switched off for the whole timeout windo
 - **Verifier decision**: claim, evidence item, entailment outcome, confidence, model version, whether it
   finalised, escalated, or only observed (shadow). Shadow observations live apart from the resolution record.
 - **Stake**: claim, the two addresses, amount, deadline, state, settlement reference — held on-chain.
-- **Settlement outbox row**: claim, verdict, state, attempts, transaction reference, last error.
+- **Settlement outbox row**: one per locked price-feed claim — its hash, the open authorization, the outcome once final, state, attempts, a transaction reference per stake, last error.
 - **Wallet link**: X user id, wallet family, address, when it was verified, when and by which half it was revoked.
 
 ## Success Criteria *(mandatory)*
@@ -509,6 +513,8 @@ with VOID, and the same with the worker switched off for the whole timeout windo
   X stay in TypeScript, unchanged by this feature.
 - The chain is a cheap EVM layer 2, on its testnet. Stablecoin-denominated if it ever leaves a testnet, which
   it may never do.
+- **No stake page in Stage 2.** Stakes are opened and accepted from the command line in the end-to-end run;
+  the claim pages offer no staking. A page for people is a later feature, after the testnet path passes.
 - The contract is Solidity. A Python-syntax alternative exists and is rejected for funds-holding code: a
   smaller reviewer pool, and a compiler bug that once cost a protocol tens of millions.
 - Whether a fee is ever taken, and what would have to be registered first, is deliberately outside this spec.

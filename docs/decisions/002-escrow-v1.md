@@ -19,7 +19,7 @@ All fixed at deployment as immutable constructor arguments: nobody can change th
 
 | Number | Proposed | Why |
 |---|---|---|
-| Settlement window (verdict → payout callable) | **72 hours** | a price verdict is checkable in a minute, but someone has to look; three days covers a weekend. The weekly recheck does not fit inside it, so a staked claim is rechecked by the TypeScript side before its outbox row is written — the worker never re-judges (001-second-runtime) |
+| Settlement window (verdict → payout callable) | **72 hours** | a price verdict is checkable in a minute, but someone has to look; three days covers a weekend. The weekly recheck does not fit inside it, so a staked claim is rechecked by the TypeScript side before its outcome is set on the outbox row — the worker never re-judges (001-second-runtime) |
 | Timeout (deadline → refund callable, if never settled) | **14 days** | a daily close is decided within a day; two weeks absorbs a long source outage, which must never become a payout (INIT_SPEC §6.7) |
 | Acceptance closes | **24 hours before the deadline** | a price claim accepted minutes before its close is a bet on information, not a disagreement |
 | Unmatched offer expires | **7 days after opening, or when acceptance closes**, whichever is first | the maker's money never waits on a stranger for long |
@@ -49,8 +49,10 @@ deployment whose address is published keeps the numbers above.
 refund of both stakes, never a payout.
 
 **Opening needs the oracle's authorization** (FR-031a): an EIP-712 signature over the claim hash, the deadline
-and how long the authorization holds, issued only for a price-feed claim and bound to this contract and chain.
-The offer's own expiry is computed by the contract, not signed. Without it the rule would hold only on our page.
+and how long the authorization holds, bound to this contract and chain. The worker signs it once per price-feed
+claim when the claim locks, valid until acceptance closes; every stake on the claim reuses it, since it says
+the claim is eligible, not that one stake is. The offer's own expiry is computed by the contract, not signed.
+`stakesOf(claimHash)` lists a claim's stakes, so the worker settles all of them from the claim alone.
 
 **On-chain, no text** (FR-023): the claim hash is the keccak-256 of the claim's slug, computed in one place (data-model);
 `evidenceRef` is the hash of the stored resolution evidence; reason codes are `1` wrong source value,

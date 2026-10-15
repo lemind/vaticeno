@@ -157,6 +157,16 @@ contract EscrowTest is Test {
         assertEq(token.balanceOf(address(escrow)), AMOUNT);
     }
 
+    function test_every_stake_on_a_claim_is_found_from_the_claim() public {
+        uint256 first = _open(true);
+        uint256 second = _open(false);
+        uint256[] memory found = escrow.stakesOf(CLAIM);
+        assertEq(found.length, 2);
+        assertEq(found[0], first);
+        assertEq(found[1], second);
+        assertEq(escrow.stakesOf(keccak256("another claim")).length, 0);
+    }
+
     function test_an_offer_expires_seven_days_after_opening_when_that_comes_first() public {
         assertEq(_offerExpiry(_open(true)), vm.getBlockTimestamp() + OFFER_LIFETIME);
     }
