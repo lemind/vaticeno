@@ -54,10 +54,18 @@ CREATE POLICY "claims_settle_rw_select" ON "claims" FOR SELECT TO settle_rw USIN
 CREATE POLICY "resolutions_settle_rw_select" ON "resolutions" FOR SELECT TO settle_rw USING (true);--> statement-breakpoint
 CREATE POLICY "settlement_outbox_settle_rw_select" ON "settlement_outbox" FOR SELECT TO settle_rw USING (true);--> statement-breakpoint
 CREATE POLICY "settlement_outbox_settle_rw_update" ON "settlement_outbox" FOR UPDATE TO settle_rw USING (true) WITH CHECK (true);--> statement-breakpoint
+-- The worker's heartbeat, written even with an empty queue (FR-020a): one job_state row, its own, so the
+-- status page shows it late like any other job. It may write that row and no other.
+INSERT INTO "job_state" ("job", "stale_after_seconds") VALUES ('settle', 180) ON CONFLICT ("job") DO NOTHING;--> statement-breakpoint
+GRANT SELECT ON "job_state" TO settle_rw;--> statement-breakpoint
+GRANT UPDATE ("last_started_at", "last_finished_at", "last_ok_at", "last_outcome", "last_error_tag", "consecutive_failures") ON "job_state" TO settle_rw;--> statement-breakpoint
+CREATE POLICY "job_state_settle_rw_select" ON "job_state" FOR SELECT TO settle_rw USING ("job" = 'settle');--> statement-breakpoint
+CREATE POLICY "job_state_settle_rw_update" ON "job_state" FOR UPDATE TO settle_rw USING ("job" = 'settle') WITH CHECK ("job" = 'settle');--> statement-breakpoint
 -- The status page shows the queue (FR-029).
 GRANT SELECT ON "settlement_outbox" TO status_ro;--> statement-breakpoint
 CREATE POLICY "settlement_outbox_status_ro_select" ON "settlement_outbox" FOR SELECT TO status_ro USING (true);
 
--- Down: DROP POLICY on settlement_outbox (three), claims_settle_rw_select and resolutions_settle_rw_select;
+-- Down: DROP POLICY on settlement_outbox (three), claims_settle_rw_select, resolutions_settle_rw_select and the
+-- two on job_state; DELETE FROM job_state WHERE job = 'settle'; REVOKE ALL ON job_state FROM settle_rw;
 -- REVOKE ALL ON claims, resolutions FROM settle_rw; DROP TABLE "settlement_outbox";
 -- DROP FUNCTION settlement_outbox_outcome_frozen(); DROP ROLE settle_rw.

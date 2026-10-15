@@ -118,6 +118,12 @@ def feed_state(conn: Connection) -> dict[str, int]:
     return {row["status"]: row["n"] for row in rows}
 
 
+def settlement_queue(conn: Connection) -> dict[str, int]:
+    """The settlement outbox by state (003 FR-029): `held` and `failed` need a person, the rest move alone."""
+    rows = _rows(conn, "select state, count(*)::int as n from settlement_outbox group by state")
+    return {row["state"]: row["n"] for row in rows}
+
+
 @dataclass(frozen=True)
 class Backlog:
     waiting: int

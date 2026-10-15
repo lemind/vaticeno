@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import os
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import parse_qs
@@ -50,6 +50,10 @@ class Snapshot:
     findings: list[queries.Finding]
     db_error: str | None
     version: str = ""
+    settlement: dict[str, int] = field(default_factory=dict)
+    # Public addresses, not credentials: the page still holds nothing but its database connection (FR-003).
+    escrow_address: str = ""
+    escrow_chain_id: str = ""
 
     @property
     def late_jobs(self) -> list[queries.Job]:
@@ -79,6 +83,8 @@ def take_snapshot() -> Snapshot:
         "progress": read_progress(),
         "at": datetime.now(UTC),
         "version": build.version or "",
+        "escrow_address": os.environ.get("ESCROW_ADDRESS", ""),
+        "escrow_chain_id": os.environ.get("ESCROW_CHAIN_ID", ""),
     }
     try:
         with _connect() as conn:
@@ -91,6 +97,7 @@ def take_snapshot() -> Snapshot:
                 feed=queries.feed_state(conn),
                 backlog=queries.review_backlog(conn),
                 findings=queries.open_findings(conn),
+                settlement=queries.settlement_queue(conn),
                 db_error=None,
             )
     except psycopg.Error as error:
@@ -225,6 +232,8 @@ def as_json(snapshot: Snapshot) -> dict:
         "verdicts": snapshot.verdicts,
         "spend": _plain(asdict(snapshot.spend)) if snapshot.spend else None,
         "feed": snapshot.feed,
+        "settlement": snapshot.settlement,
+        "escrow": {"address": snapshot.escrow_address, "chain_id": snapshot.escrow_chain_id},
         "backlog": (
             {**_plain(asdict(snapshot.backlog)), "oldest_age_hours": snapshot.backlog.oldest_age_hours}
             if snapshot.backlog

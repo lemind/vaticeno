@@ -24,6 +24,8 @@ packages = []
 [tool.ruff]
 target-version = "py312"
 line-length = 120
+# Vendored by Foundry as a submodule: not ours to lint.
+extend-exclude = ["contracts/lib"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
