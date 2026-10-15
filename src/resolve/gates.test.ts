@@ -3,18 +3,45 @@ import { test } from 'node:test';
 import { type EvidenceDraft, runGates } from './gates.js';
 import { quoteInText, simhash } from './similarity.js';
 
-const window = { lockAt: new Date('2026-10-01T12:00:00Z'), deadlineAt: new Date('2027-05-31T23:59:59Z'), absenceIsMeaningful: false };
+const window = {
+  lockAt: new Date('2026-10-01T12:00:00Z'),
+  deadlineAt: new Date('2027-05-31T23:59:59Z'),
+  absenceIsMeaningful: false,
+};
 
 const draft = (overrides: Partial<EvidenceDraft> = {}): EvidenceDraft => ({
-  sourceKind: 'web', basis: 'record', trustLevel: 'primary', says: 'hit', eventDate: '2027-05-20', eventStart: null,
-  url: 'https://www.premierleague.com/tables', retrievedAt: new Date('2027-06-01T02:00:00Z'),
-  quoteFound: true, isFinalResult: true, originalSource: null, simhash: null, eventMatch: 'yes', selfConsistent: null, ...overrides,
+  sourceKind: 'web',
+  basis: 'record',
+  trustLevel: 'primary',
+  says: 'hit',
+  eventDate: '2027-05-20',
+  eventStart: null,
+  url: 'https://www.premierleague.com/tables',
+  retrievedAt: new Date('2027-06-01T02:00:00Z'),
+  quoteFound: true,
+  isFinalResult: true,
+  originalSource: null,
+  simhash: null,
+  eventMatch: 'yes',
+  selfConsistent: null,
+  ...overrides,
 });
 
 const gate = (d: EvidenceDraft, w = window) => runGates(d, w);
 
 test('a clean record passes every gate', () => {
-  assert.deepEqual(gate(draft()), { gates: { trusted: true, quote_found: true, in_window: true, final: true, independent: null, relevant: true, consistent: null }, passed: true });
+  assert.deepEqual(gate(draft()), {
+    gates: {
+      trusted: true,
+      quote_found: true,
+      in_window: true,
+      final: true,
+      independent: null,
+      relevant: true,
+      consistent: null,
+    },
+    passed: true,
+  });
 });
 
 test('each gate fails on its own', () => {
@@ -23,105 +50,274 @@ test('each gate fails on its own', () => {
   assert.equal(gate(draft({ quoteFound: null })).gates.quote_found, false);
   assert.equal(gate(draft({ eventDate: null })).gates.in_window, false);
   assert.equal(gate(draft({ isFinalResult: false })).gates.final, false);
-  assert.equal(gate(draft({ says: 'pending' })).gates.final, false, 'pending is never final');
-  for (const failing of [{ trustLevel: 'weak' as const }, { quoteFound: false }, { eventDate: '2020-01-01' }, { isFinalResult: false }]) {
+  assert.equal(
+    gate(draft({ says: 'pending' })).gates.final,
+    false,
+    'pending is never final',
+  );
+  for (const failing of [
+    { trustLevel: 'weak' as const },
+    { quoteFound: false },
+    { eventDate: '2020-01-01' },
+    { isFinalResult: false },
+  ]) {
     assert.equal(gate(draft(failing)).passed, false);
   }
 });
 
 test('window boundaries: the lock day never counts; the deadline day does; the day after does not', () => {
-  assert.equal(gate(draft({ eventDate: '2026-10-01' })).gates.in_window, false, 'lock day: may be before lock');
+  assert.equal(
+    gate(draft({ eventDate: '2026-10-01' })).gates.in_window,
+    false,
+    'lock day: may be before lock',
+  );
   assert.equal(gate(draft({ eventDate: '2026-10-02' })).gates.in_window, true);
-  assert.equal(gate(draft({ eventDate: '2027-05-31' })).gates.in_window, true, 'deadline day');
+  assert.equal(
+    gate(draft({ eventDate: '2027-05-31' })).gates.in_window,
+    true,
+    'deadline day',
+  );
   assert.equal(gate(draft({ eventDate: '2027-06-01' })).gates.in_window, false);
-  assert.equal(gate(draft({ eventDate: '2027-5-31' })).gates.in_window, false, 'malformed date');
+  assert.equal(
+    gate(draft({ eventDate: '2027-5-31' })).gates.in_window,
+    false,
+    'malformed date',
+  );
 });
 
 test('a match with a start time counts if it began after the claim was set (lock − 15 min), even on the lock day', () => {
   // lock 12:00 → contract last set 11:45
-  const sports = (d: Partial<EvidenceDraft>) => runGates(draft(d), { ...window, startTimeCounts: true }).gates.in_window;
-  assert.equal(sports({ eventDate: '2026-10-01', eventStart: '2026-10-01T11:55:00Z' }), true, 'kickoff 10 min after recording');
-  assert.equal(sports({ eventDate: '2026-10-01', eventStart: '2026-10-01T11:40:00Z' }), false, 'began before the claim was set');
-  assert.equal(sports({ eventDate: '2027-05-31', eventStart: '2027-06-01T00:15:00Z' }), false, 'began after the deadline');
-  assert.equal(sports({ eventDate: '2026-09-28', eventStart: '2026-10-01T11:55:00Z' }), false, 'start disagrees with the date: the date rule');
-  assert.equal(sports({ eventDate: '2026-10-01', eventStart: 'soon' }), true, 'unreadable time: the match date is enough');
-  assert.equal(sports({ eventDate: null, eventStart: '2026-10-01T11:55:00Z' }), false, 'no date');
-  assert.equal(gate(draft({ eventDate: '2026-10-01', eventStart: '2026-10-01T11:55:00Z' })).gates.in_window, false, 'not a match: the date rule');
+  const sports = (d: Partial<EvidenceDraft>) =>
+    runGates(draft(d), { ...window, startTimeCounts: true }).gates.in_window;
+  assert.equal(
+    sports({ eventDate: '2026-10-01', eventStart: '2026-10-01T11:55:00Z' }),
+    true,
+    'kickoff 10 min after recording',
+  );
+  assert.equal(
+    sports({ eventDate: '2026-10-01', eventStart: '2026-10-01T11:40:00Z' }),
+    false,
+    'began before the claim was set',
+  );
+  assert.equal(
+    sports({ eventDate: '2027-05-31', eventStart: '2027-06-01T00:15:00Z' }),
+    false,
+    'began after the deadline',
+  );
+  assert.equal(
+    sports({ eventDate: '2026-09-28', eventStart: '2026-10-01T11:55:00Z' }),
+    false,
+    'start disagrees with the date: the date rule',
+  );
+  assert.equal(
+    sports({ eventDate: '2026-10-01', eventStart: 'soon' }),
+    false,
+    'unreadable time: the page cannot be placed (004 T426)',
+  );
+  assert.equal(
+    sports({ eventDate: null, eventStart: '2026-10-01T11:55:00Z' }),
+    false,
+    'no date',
+  );
+  assert.equal(
+    gate(draft({ eventDate: '2026-10-01', eventStart: '2026-10-01T11:55:00Z' }))
+      .gates.in_window,
+    false,
+    'not a match: the date rule',
+  );
 });
 
 test('a same-day match report without a time counts by the kickoff the fixture check recorded (004 T418)', () => {
   // The e9vtp case: recorded the morning of the match, every report gave the score and the date, none the time.
   const known = (d: Partial<EvidenceDraft>, knownStart: string) =>
-    runGates(draft(d), { ...window, startTimeCounts: true, knownStart: new Date(knownStart) }).gates.in_window;
-  assert.equal(known({ eventDate: '2026-10-01', eventStart: null }, '2026-10-01T19:00:00Z'), true, 'evening kickoff on the lock day');
-  assert.equal(known({ eventDate: '2026-10-01', eventStart: null }, '2026-10-01T11:40:00Z'), false, 'kickoff before the claim was set');
-  assert.equal(known({ eventDate: '2026-09-20', eventStart: null }, '2026-10-01T19:00:00Z'), false, 'page date far from the kickoff: the date rule');
-  assert.equal(known({ eventDate: '2026-10-01', eventStart: '2026-10-01T11:40:00Z' }, '2026-10-01T19:00:00Z'), false, 'a time the page states wins');
+    runGates(draft(d), {
+      ...window,
+      startTimeCounts: true,
+      knownStart: new Date(knownStart),
+    }).gates.in_window;
+  assert.equal(
+    known({ eventDate: '2026-10-01', eventStart: null }, '2026-10-01T19:00:00Z'),
+    true,
+    'evening kickoff on the lock day',
+  );
+  assert.equal(
+    known({ eventDate: '2026-10-01', eventStart: null }, '2026-10-01T11:40:00Z'),
+    false,
+    'kickoff before the claim was set',
+  );
+  assert.equal(
+    known({ eventDate: '2026-09-20', eventStart: null }, '2026-10-01T19:00:00Z'),
+    false,
+    'page date far from the kickoff: the date rule',
+  );
+  assert.equal(
+    known(
+      { eventDate: '2026-10-01', eventStart: '2026-10-01T11:40:00Z' },
+      '2026-10-01T19:00:00Z',
+    ),
+    false,
+    'a time the page states wins',
+  );
   // Recording confirmed the match was still to come, and an amend after kickoff is refused, so for a
   // scheduled match the date alone proves the order (004 T422, owner decision 2026-10-15).
-  const noKnown = runGates(draft({ eventDate: '2026-10-01', eventStart: null }), { ...window, startTimeCounts: true }).gates.in_window;
-  assert.equal(noKnown, true, 'no kickoff anywhere: one match per day per pair of sides');
-  const notSports = runGates(draft({ eventDate: '2026-10-01', eventStart: null }), { ...window, knownStart: new Date('2026-10-01T19:00:00Z') }).gates.in_window;
+  const noKnown = runGates(draft({ eventDate: '2026-10-01', eventStart: null }), {
+    ...window,
+    startTimeCounts: true,
+  }).gates.in_window;
+  assert.equal(
+    noKnown,
+    true,
+    'no kickoff anywhere: one match per day per pair of sides',
+  );
+  const notSports = runGates(draft({ eventDate: '2026-10-01', eventStart: null }), {
+    ...window,
+    knownStart: new Date('2026-10-01T19:00:00Z'),
+  }).gates.in_window;
   assert.equal(notSports, false, 'not a match: the date rule');
 });
 
-test('absence evidence: only from the contract\'s own exhaustive (primary) source, read at or after the deadline, and only as a miss', () => {
-  const absence = draft({ basis: 'absence', says: 'miss', eventDate: null, quoteFound: null });
+test("absence evidence: only from the contract's own exhaustive (primary) source, read at or after the deadline, and only as a miss", () => {
+  const absence = draft({
+    basis: 'absence',
+    says: 'miss',
+    eventDate: null,
+    quoteFound: null,
+  });
   // The contract marks absence meaningful AND code knows this endpoint lists every event of its kind (FR-007).
-  const exhaustive = { ...window, absenceIsMeaningful: true, absenceAdmissible: () => true };
-  assert.deepEqual(gate(absence, exhaustive).gates, { trusted: true, quote_found: null, in_window: true, final: true, independent: null, relevant: true, consistent: null });
-  assert.equal(gate(absence, window).gates.in_window, false, 'source not exhaustive');
+  const exhaustive = {
+    ...window,
+    absenceIsMeaningful: true,
+    absenceAdmissible: () => true,
+  };
+  assert.deepEqual(gate(absence, exhaustive).gates, {
+    trusted: true,
+    quote_found: null,
+    in_window: true,
+    final: true,
+    independent: null,
+    relevant: true,
+    consistent: null,
+  });
+  assert.equal(
+    gate(absence, window).gates.in_window,
+    false,
+    'source not exhaustive',
+  );
   // The judge calling a page an absence grants it nothing: an endpoint not recorded as complete is refused,
   // and is held to the quote like any other page (004 FR-007).
   const unlisted = gate(absence, { ...window, absenceIsMeaningful: true });
-  assert.deepEqual([unlisted.gates.in_window, unlisted.gates.quote_found, unlisted.passed], [false, false, false]);
-  assert.equal(gate(absence, { ...window, absenceIsMeaningful: true }).passed, false, 'the real list is empty today');
-  assert.equal(gate(draft({ ...absence, retrievedAt: new Date('2027-05-31T23:59:58Z') }), exhaustive).gates.in_window, false, 'read before the deadline');
-  assert.equal(gate(draft({ ...absence, retrievedAt: new Date('2027-05-31T23:59:59Z') }), exhaustive).gates.in_window, true, 'read exactly at the deadline');
-  assert.equal(gate(draft({ ...absence, says: 'hit' }), exhaustive).gates.in_window, false);
-  assert.equal(gate(draft({ ...absence, trustLevel: 'established' }), exhaustive).gates.in_window, false, 'not the contract source');
+  assert.deepEqual(
+    [unlisted.gates.in_window, unlisted.gates.quote_found, unlisted.passed],
+    [false, false, false],
+  );
+  assert.equal(
+    gate(absence, { ...window, absenceIsMeaningful: true }).passed,
+    false,
+    'the real list is empty today',
+  );
+  assert.equal(
+    gate(
+      draft({ ...absence, retrievedAt: new Date('2027-05-31T23:59:58Z') }),
+      exhaustive,
+    ).gates.in_window,
+    false,
+    'read before the deadline',
+  );
+  assert.equal(
+    gate(
+      draft({ ...absence, retrievedAt: new Date('2027-05-31T23:59:59Z') }),
+      exhaustive,
+    ).gates.in_window,
+    true,
+    'read exactly at the deadline',
+  );
+  assert.equal(
+    gate(draft({ ...absence, says: 'hit' }), exhaustive).gates.in_window,
+    false,
+  );
+  assert.equal(
+    gate(draft({ ...absence, trustLevel: 'established' }), exhaustive).gates
+      .in_window,
+    false,
+    'not the contract source',
+  );
 });
 
 test('price feed evidence skips the quote and independence gates', () => {
-  const price = draft({ sourceKind: 'price_feed', url: 'coinbase-candles', quoteFound: null });
-  assert.deepEqual(gate(price).gates, { trusted: true, quote_found: null, in_window: true, final: true, independent: null, relevant: null, consistent: null });
-  assert.equal(gate(draft({ ...price, eventDate: '2026-10-01' })).gates.in_window, true, "the lock day's close is after lock");
-  assert.equal(gate(draft({ ...price, eventDate: '2026-09-30' })).gates.in_window, false);
+  const price = draft({
+    sourceKind: 'price_feed',
+    url: 'coinbase-candles',
+    quoteFound: null,
+  });
+  assert.deepEqual(gate(price).gates, {
+    trusted: true,
+    quote_found: null,
+    in_window: true,
+    final: true,
+    independent: null,
+    relevant: null,
+    consistent: null,
+  });
+  assert.equal(
+    gate(draft({ ...price, eventDate: '2026-10-01' })).gates.in_window,
+    true,
+    "the lock day's close is after lock",
+  );
+  assert.equal(
+    gate(draft({ ...price, eventDate: '2026-09-30' })).gates.in_window,
+    false,
+  );
 });
 
 test('entity_gone and irrelevant answers can pass the gates; the decision rules ignore them', () => {
   assert.equal(gate(draft({ says: 'entity_gone' })).passed, true);
 });
 
-
 test('quote check is whitespace, case and quote-mark insensitive, and refuses tiny quotes', () => {
-  assert.equal(quoteInText('Arsenal  are Champions', 'Final whistle: arsenal are champions of England.'), true);
+  assert.equal(
+    quoteInText(
+      'Arsenal  are Champions',
+      'Final whistle: arsenal are champions of England.',
+    ),
+    true,
+  );
   assert.equal(quoteInText('“the title”', 'they won "the title" today'), true);
   assert.equal(quoteInText('Arsenal lose', 'Arsenal win the league'), false);
-  assert.equal(quoteInText('win', 'Arsenal win the league'), false, 'too short to prove anything');
+  assert.equal(
+    quoteInText('win', 'Arsenal win the league'),
+    false,
+    'too short to prove anything',
+  );
   assert.equal(quoteInText(null, 'anything'), false);
 });
 
-const STORY = 'Arsenal clinched the Premier League title on Sunday with a two nil win at the Emirates, ending a long wait for the north London club as supporters celebrated late into the night across the city and beyond';
-const OTHER = 'The Federal Reserve left interest rates unchanged on Wednesday, citing persistent inflation in services and a labour market that remains tighter than policymakers had expected at the start of the year';
+const STORY =
+  'Arsenal clinched the Premier League title on Sunday with a two nil win at the Emirates, ending a long wait for the north London club as supporters celebrated late into the night across the city and beyond';
+const OTHER =
+  'The Federal Reserve left interest rates unchanged on Wednesday, citing persistent inflation in services and a labour market that remains tighter than policymakers had expected at the start of the year';
 
 // 004 FR-003. A page about another event, or one that will not say which event it shows, decides nothing —
 // what it said is still stored, so the claim page shows why it was not counted.
-test('the relevance gate: only a page placed on the contract\'s own event may count', () => {
+test("the relevance gate: only a page placed on the contract's own event may count", () => {
   assert.equal(gate(draft({ eventMatch: 'yes' })).gates.relevant, true);
   assert.equal(gate(draft({ eventMatch: 'not_applicable' })).gates.relevant, true);
 
   const wrongEvent = gate(draft({ eventMatch: 'no' }));
   assert.equal(wrongEvent.gates.relevant, false);
-  assert.equal(wrongEvent.passed, false, 'a page about Race 1 cannot answer a claim about Race 2');
+  assert.equal(
+    wrongEvent.passed,
+    false,
+    'a page about Race 1 cannot answer a claim about Race 2',
+  );
 
   const unplaceable = gate(draft({ eventMatch: 'unknown' }));
   assert.equal(unplaceable.gates.relevant, false);
   assert.equal(unplaceable.passed, false, 'unknown fails closed');
 
   // A price feed is one number from the contract's own source: there is no page to place (FR-014).
-  const price = gate(draft({ sourceKind: 'price_feed', eventMatch: null, eventDate: '2027-05-20' }));
+  const price = gate(
+    draft({ sourceKind: 'price_feed', eventMatch: null, eventDate: '2027-05-20' }),
+  );
   assert.equal(price.gates.relevant, null);
   assert.equal(price.passed, true);
 });
-

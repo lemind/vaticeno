@@ -1,5 +1,5 @@
-// Follower-count claims: one read of the account's count from the X API (004 T420). The comparison is pure
-// (compareFollowers); gatherFollowerEvidence makes the read. The count at the read decides (owner decision 2026-10-15).
+// Follower-count claims: one read of the account's count, and the count at that read decides
+// (004 T420, owner decision 2026-10-15).
 import { createHash } from 'node:crypto';
 import type { FollowerTerms } from '../contract/schema.js';
 import type { CallCost } from '../llm/client.js';
@@ -7,10 +7,18 @@ import { X_USER_READ_USD } from '../x/prices.js';
 import { SourceUnavailable } from './fetch.js';
 import type { EvidenceDraft } from './gates.js';
 
-export type FollowerReader = { getFollowerCount(userId: string): Promise<number | null> };
+export type FollowerReader = {
+  getFollowerCount(userId: string): Promise<number | null>;
+};
 
-export function compareFollowers(terms: FollowerTerms, count: number): 'hit' | 'miss' {
-  const meets = terms.comparison === 'AT_LEAST' ? count >= terms.threshold : count < terms.threshold;
+export function compareFollowers(
+  terms: FollowerTerms,
+  count: number,
+): 'hit' | 'miss' {
+  const meets =
+    terms.comparison === 'AT_LEAST'
+      ? count >= terms.threshold
+      : count < terms.threshold;
   return meets ? 'hit' : 'miss';
 }
 
@@ -29,17 +37,28 @@ export async function gatherFollowerEvidence(
   } catch (error) {
     throw new SourceUnavailable('X user lookup failed', { cause: error });
   }
-  costs.push({ provider: 'x', operation: 'fetch', units: 1, usdCost: X_USER_READ_USD });
+  costs.push({
+    provider: 'x',
+    operation: 'fetch',
+    units: 1,
+    usdCost: X_USER_READ_USD,
+  });
 
   const before = now.getTime() < deadlineAt.getTime();
-  const says = count === null ? 'entity_gone' : before ? 'pending' : compareFollowers(terms, count);
+  const says =
+    count === null
+      ? 'entity_gone'
+      : before
+        ? 'pending'
+        : compareFollowers(terms, count);
   return {
     draft: {
       sourceKind: 'web',
       basis: 'record',
       trustLevel: 'primary',
       says,
-      eventDate: count === null || before ? null : deadlineAt.toISOString().slice(0, 10), // X keeps no history: the read stands for the deadline
+      eventDate:
+        count === null || before ? null : deadlineAt.toISOString().slice(0, 10), // X keeps no history: the read stands for the deadline
       eventStart: null,
       url: locator,
       retrievedAt: now,
@@ -51,6 +70,8 @@ export async function gatherFollowerEvidence(
       simhash: null,
     },
     value: count,
-    contentSha256: createHash('sha256').update(JSON.stringify({ user_id: terms.user_id, count })).digest('hex'),
+    contentSha256: createHash('sha256')
+      .update(JSON.stringify({ user_id: terms.user_id, count }))
+      .digest('hex'),
   };
 }

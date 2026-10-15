@@ -273,3 +273,37 @@ test('a correction posts the result, never the stored reason', async () => {
     'the correction and the result',
   );
 });
+
+// A long result line is dropped rather than making the correction unpostable: assertReplyFits throws
+// outside the try and before the mark, so a throw here would strand the correction for good (004 T426).
+test('a correction too long with its result line still goes out without it', async () => {
+  const claim = await insertClaim(t.sql, 'resolved', { summon_tweet_id: '560' });
+  const evidence = await insertEvidence(t.sql, claim.id, {
+    source_kind: 'web',
+    source_name: 'nfl.com',
+    says: 'hit',
+    event_date: '2026-10-01',
+    result_summary:
+      'a result line long enough on its own to carry the reply past what X accepts, '.repeat(
+        3,
+      ),
+  });
+  await t.sql`insert into resolutions ${t.sql({ claim_id: claim.id, review_status: 'final', outcome: 'hit', decided_by: 'evidence', deciding_evidence_id: evidence.id, decided_at: '2027-01-01T01:00:00Z' })}`;
+  await t.sql`insert into corrections ${t.sql({ claim_id: claim.id, from_outcome: 'miss', to_outcome: 'hit', reason: 'the score was read from the wrong column', decided_by: 'human', deciding_evidence_id: evidence.id })}`;
+  const posts: string[] = [];
+  const result = await postCorrection(
+    bot(async (_to, text) => {
+      posts.push(text);
+      return { id: 'c7' };
+    }),
+    claim.slug,
+    NOW,
+  );
+  assert.equal(result.posted, 'c7', 'posted, not thrown');
+  assert.doesNotMatch(
+    posts[0]!,
+    /long enough on its own/,
+    'the result line is dropped',
+  );
+  assert.match(posts[0]!, /^CORRECTED · #\w+[\s\S]*Was MISS, is HIT$/);
+});

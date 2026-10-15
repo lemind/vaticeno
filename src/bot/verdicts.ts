@@ -314,9 +314,13 @@ export async function postCorrection(
         : '';
   // The correction and the result, nothing else: the stored reason is for the claim page, not the reply
   // — it is written for us, so it runs long and may name an account (owner decision 2026-10-15).
-  const text = assertReplyFits(
-    `CORRECTED · #${slug}\n"${renderStatement(contract)}"\nWas ${row.from.toUpperCase()}, is ${row.to.toUpperCase()}${shown}`,
-  );
+  // The result line is dropped rather than overflow, the same way a verdict reply degrades (buildReply):
+  // a correction must go out, and the claim page carries the detail.
+  const head = `CORRECTED · #${slug}\n"${renderStatement(contract)}"\nWas ${row.from.toUpperCase()}, is ${row.to.toUpperCase()}`;
+  const text =
+    shown && weightedLength(head + shown) <= X_MAX_CHARS
+      ? head + shown
+      : assertReplyFits(head);
 
   // Marked before posting, guarded on "not yet": the same rule a verdict reply follows (deliverVerdicts).
   const marked = await deps.db
