@@ -202,6 +202,7 @@ drizzle/      SQL migrations (tables, triggers, row-level security)
 status/       the owner's status page (Python, FastAPI)
 load/         load-test harness, local targets only
 contracts/    the testnet escrow (Solidity, Foundry): src, tests, deploy script
+settle/       the settlement worker (Python): signs open authorizations, settles stakes
 tests/        database tests against real Postgres
 deploy/       systemd unit + VPS scripts
 specs/        what we build and why (spec, plan, tasks)
