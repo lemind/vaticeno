@@ -14,7 +14,6 @@ import { log } from '../log.js';
 import { alert, captureError } from '../observe.js';
 import {
   assertReplyFits,
-  defuseTagsAndLinks,
   hasTagsOrLinks,
   weightedLength,
   X_MAX_CHARS,
@@ -313,10 +312,10 @@ export async function postCorrection(
       : evidence?.value
         ? `\n${evidence.value}`
         : '';
-  // Owner-written, so it may name an account or a source: never posted as a live tag or link.
-  const why = defuseTagsAndLinks(row.reason);
+  // The correction and the result, nothing else: the stored reason is for the claim page, not the reply
+  // — it is written for us, so it runs long and may name an account (owner decision 2026-10-15).
   const text = assertReplyFits(
-    `CORRECTED · #${slug}\n"${renderStatement(contract)}"\nWas ${row.from.toUpperCase()}, is ${row.to.toUpperCase()}: ${why}${shown}`,
+    `CORRECTED · #${slug}\n"${renderStatement(contract)}"\nWas ${row.from.toUpperCase()}, is ${row.to.toUpperCase()}${shown}`,
   );
 
   // Marked before posting, guarded on "not yet": the same rule a verdict reply follows (deliverVerdicts).

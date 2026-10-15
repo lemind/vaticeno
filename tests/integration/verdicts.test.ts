@@ -234,9 +234,7 @@ test('a correction is posted once in the claim thread, and a post that never lef
   assert.equal(posts.length, 1);
   assert.match(
     posts[0]!,
-    new RegExp(
-      `^CORRECTED · #${claim.slug}[\\s\\S]*Was MISS, is HIT: an absence outranked three reports`,
-    ),
+    new RegExp(`^CORRECTED · #${claim.slug}[\\s\\S]*Was MISS, is HIT`),
   );
   const [row] =
     await t.sql`select posted_tweet_id from corrections where claim_id = ${claim.id}`;
@@ -248,9 +246,9 @@ test('a correction is posted once in the claim thread, and a post that never lef
   );
 });
 
-// A follower correction names the account the prediction was about, so the reason carries a handle; the
-// bot never posts one (constitution VI 2.5.0). The explanation stays, defused.
-test('a correction whose reason names an account posts it without the tag', async () => {
+// The stored reason is written for us and may name an account; the reply carries the correction and the
+// result only, so it stays short and never posts a tag (owner decision 2026-10-15).
+test('a correction posts the result, never the stored reason', async () => {
   const claim = await resolvedClaim('miss');
   await t.sql`insert into corrections ${t.sql({ claim_id: claim.id, from_outcome: 'miss', to_outcome: 'hit', reason: 'The prediction named @0xPaulvibe; the count is read from that profile at x.com (2,743 below 3,000).', decided_by: 'human' })}`;
   const posts: string[] = [];
@@ -264,6 +262,14 @@ test('a correction whose reason names an account posts it without the tag', asyn
   );
   assert.equal(posts.length, 1);
   assert.doesNotMatch(posts[0]!, /@|https?:|www\./, 'no live tag or link');
-  assert.match(posts[0]!, /0xPaulvibe/, 'the account is still named');
-  assert.match(posts[0]!, /2,743 below 3,000/, 'the explanation survives');
+  assert.doesNotMatch(
+    posts[0]!,
+    /0xPaulvibe|2,743/,
+    'the reason is not in the reply',
+  );
+  assert.match(
+    posts[0]!,
+    /^CORRECTED · #\w+\n"[^"]+"\nWas MISS, is HIT/,
+    'the correction and the result',
+  );
 });
