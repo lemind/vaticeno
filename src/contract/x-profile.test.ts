@@ -33,6 +33,8 @@ test('anything else is left as the model wrote it', () => {
   const someoneElse = { ...GZRT3, subject: 'Elon Musk', source: { ...GZRT3.source, entity_id: '@elonmusk' } };
   assert.equal(asAuthorFollowerContract(someoneElse, '1'), someoneElse, 'another account: not handled here');
   assert.equal(asAuthorFollowerContract(GZRT3, 'not-a-number'), GZRT3, 'no usable author id');
+  const namedAuthor = { ...GZRT3, subject: 'the author Stephen King', source: { ...GZRT3.source, entity_id: '@StephenKing' } };
+  assert.equal(asAuthorFollowerContract(namedAuthor, '1'), namedAuthor, 'a writer is not the poster');
 });
 
 test('"below" claims compare the other way, and counts read like people write them', () => {
@@ -42,4 +44,5 @@ test('"below" claims compare the other way, and counts read like people write th
   assert.equal(parseCount('3.5', 'k'), 3500);
   assert.equal(parseCount('2', 'M'), 2_000_000);
   assert.equal(parseCount('1.5', undefined), null, 'a fraction of a follower is not a count');
+  assert.equal(parseCount('1.1', 'k'), 1100, 'no floating-point leftovers');
 });
