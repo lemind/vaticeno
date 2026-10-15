@@ -14,6 +14,7 @@ import { log } from '../log.js';
 import { alert, captureError } from '../observe.js';
 import {
   assertReplyFits,
+  defuseTagsAndLinks,
   hasTagsOrLinks,
   weightedLength,
   X_MAX_CHARS,
@@ -312,8 +313,10 @@ export async function postCorrection(
       : evidence?.value
         ? `\n${evidence.value}`
         : '';
+  // Owner-written, so it may name an account or a source: never posted as a live tag or link.
+  const why = defuseTagsAndLinks(row.reason);
   const text = assertReplyFits(
-    `CORRECTED · #${slug}\n"${renderStatement(contract)}"\nWas ${row.from.toUpperCase()}, is ${row.to.toUpperCase()}: ${row.reason}${shown}`,
+    `CORRECTED · #${slug}\n"${renderStatement(contract)}"\nWas ${row.from.toUpperCase()}, is ${row.to.toUpperCase()}: ${why}${shown}`,
   );
 
   // Marked before posting, guarded on "not yet": the same rule a verdict reply follows (deliverVerdicts).

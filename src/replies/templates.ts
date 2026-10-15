@@ -190,3 +190,15 @@ export function assertReplyFits(text: string): string {
     );
   return text;
 }
+
+// A handle or link in owner-written text is defused, not dropped: a correction must still say why it
+// changed. "@acme" reads as "acme", a bare domain loses its ending (001 FR-035, constitution VI 2.5.0).
+export function defuseTagsAndLinks(text: string): string {
+  return text
+    .replace(/https?:\/\/\S+/gi, '')
+    .replace(/\bwww\.(\S+)/gi, '$1')
+    .replace(/(^|[^\w])[@#](\w)/g, '$1$2')
+    .replace(/\b([\w-]+)\.([a-z]{2,24})\b/g, '$1 $2')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}

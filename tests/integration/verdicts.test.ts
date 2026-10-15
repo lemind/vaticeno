@@ -247,3 +247,23 @@ test('a correction is posted once in the claim thread, and a post that never lef
     )[0]!.thread_tweet_ids.includes('c1'),
   );
 });
+
+// A follower correction names the account the prediction was about, so the reason carries a handle; the
+// bot never posts one (constitution VI 2.5.0). The explanation stays, defused.
+test('a correction whose reason names an account posts it without the tag', async () => {
+  const claim = await resolvedClaim('miss');
+  await t.sql`insert into corrections ${t.sql({ claim_id: claim.id, from_outcome: 'miss', to_outcome: 'hit', reason: 'The prediction named @0xPaulvibe; the count is read from that profile at x.com (2,743 below 3,000).', decided_by: 'human' })}`;
+  const posts: string[] = [];
+  await postCorrection(
+    bot(async (_to, text) => {
+      posts.push(text);
+      return { id: 'c9' };
+    }),
+    claim.slug,
+    NOW,
+  );
+  assert.equal(posts.length, 1);
+  assert.doesNotMatch(posts[0]!, /@|https?:|www\./, 'no live tag or link');
+  assert.match(posts[0]!, /0xPaulvibe/, 'the account is still named');
+  assert.match(posts[0]!, /2,743 below 3,000/, 'the explanation survives');
+});
