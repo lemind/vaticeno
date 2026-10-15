@@ -29,6 +29,7 @@ export type ResolverDeps = {
   arbiterModel: string;
   judgeVersion?: string; // default JUDGE_VERSION; the seeds replay with SEEDS_JUDGE_VERSION
   x?: FollowerReader; // follower-count claims (004 T420); absent → those claims wait as an outage
+  normalizerModel?: string; // a re-judge re-runs the fixture check for a contract locked without a kickoff (004 T421)
 };
 
 export type ClaimRunOutcome = 'final' | 'needs_human' | 'waiting' | 'outage' | 'failed';

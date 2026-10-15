@@ -1,7 +1,9 @@
 // Re-run today's rules over a verdict already given (001 FR-035). The stored resolution is frozen and
 // stays; a different answer is written as a correction beside it.
 import { and, desc, eq, gt, inArray, isNull, sql as raw } from 'drizzle-orm';
-import { ContractSchema } from '../contract/schema.js';
+import { type Contract, ContractSchema, SCHEDULED_EVENT_KINDS } from '../contract/schema.js';
+import { asAuthorFollowerContract } from '../contract/x-profile.js';
+import { findFixture } from '../llm/fixture.js';
 import type { Db } from '../db/client.js';
 import {
   claims,
@@ -94,6 +96,8 @@ export async function rejudgeClaim(
       lockAt: claims.lockAt,
       deadlineAt: claims.deadlineAt,
       outcome: resolutions.outcome,
+      authorXUserId: claims.authorXUserId,
+      createdAt: claims.createdAt,
     })
     .from(claims)
     .innerJoin(resolutions, eq(resolutions.claimId, claims.id))
@@ -101,9 +105,9 @@ export async function rejudgeClaim(
     .limit(1);
   if (!row?.outcome || !row.deadlineAt || !row.lockAt || !row.contract) return null;
 
-  const contract = ContractSchema.parse(row.contract);
   const window = { lockAt: row.lockAt, deadlineAt: row.deadlineAt };
   const costs: CallCost[] = [];
+  const contract = await readAsRecordedToday(deps, ContractSchema.parse(row.contract), row.authorXUserId, row.createdAt, costs);
   const items = await gatherEvidence(deps, contract, window, at, costs);
   await storeEvidence(deps.db, row.id, items, costs, at);
   const spent = costs.reduce((total, cost) => total + cost.usdCost, 0);
@@ -116,6 +120,22 @@ export async function rejudgeClaim(
   // A claim can be re-judged more than once, and each run adds to what it has cost (INIT_SPEC §9).
   await checkBudget(deps.db, { id: row.id, slug });
   return recheckClaim(deps.db, slug, at);
+}
+
+// A contract locked before 004 T418–T419 read the way recording reads it today: the author's own follower
+// count, and the kickoff the fixture check finds. In memory only — a locked contract is never written (INIT_SPEC §4).
+async function readAsRecordedToday(deps: ResolverDeps, contract: Contract, authorId: string, recordedAt: Date, costs: CallCost[]): Promise<Contract> {
+  if (!contract.followers) {
+    const followers = asAuthorFollowerContract(contract, authorId);
+    if (followers !== contract) return followers;
+  }
+  if (SCHEDULED_EVENT_KINDS.includes(contract.source.kind) && !contract.event_start_at && deps.normalizerModel) {
+    const { fixture, costs: spent } = await findFixture(deps.llm, deps.normalizerModel, contract, recordedAt);
+    costs.push(...spent);
+    const kickoff = fixture.kickoff_utc ? Date.parse(fixture.kickoff_utc) : NaN;
+    if (!Number.isNaN(kickoff)) return { ...contract, event_start_at: new Date(kickoff).toISOString() };
+  }
+  return contract;
 }
 
 // Every final verdict of the last `days`, re-decided. It never touches a published verdict (001 FR-035);

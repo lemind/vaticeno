@@ -4,8 +4,10 @@
 // are separate flags: a scheduled run never changes a published verdict (001 FR-035).
 import { buildBotDeps } from '../bot/wire.js';
 import { postCorrection } from '../bot/verdicts.js';
+import { loadConfig } from '../config.js';
 import { getDb } from '../db/client.js';
 import { recheckClaim, recheckRecent, rejudgeClaim, writeCorrection } from '../resolve/recheck.js';
+import { createXClient } from '../x/client.js';
 import { buildDeps, cliArgs, nowFrom, printJson, runCli } from './run.js';
 
 await runCli('verdict-recheck', async (config) => {
@@ -29,7 +31,7 @@ await runCli('verdict-recheck', async (config) => {
   // Paid, and never scheduled: fetch and judge the pages again, which is the only way to catch a judging
   // error rather than a rule error (004 T415a).
   const check = values.rejudge
-    ? await rejudgeClaim(buildDeps(config), values.slug, at)
+    ? await rejudgeClaim({ ...buildDeps(config), x: createXClient(loadConfig().X_BEARER_TOKEN) }, values.slug, at) // x: follower counts (004 T420)
     : await recheckClaim(db, values.slug, at);
   if (!check) throw new Error(`no final verdict for ${values.slug}`);
   printJson(check);
