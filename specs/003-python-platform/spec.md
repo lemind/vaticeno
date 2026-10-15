@@ -325,8 +325,9 @@ with VOID, and the same with the worker switched off for the whole timeout windo
   without a new deployment.
 - **FR-026**: Settlement is idempotent at two levels: the worker reads on-chain state before sending, and the
   contract rejects a second settlement of the same stake.
-- **FR-027**: The Node service writes one outbox row when a price-feed claim locks and sets its outcome when the
-  verdict is final; it makes no chain calls. The worker signs the claim's open authorization from that row,
+- **FR-027**: The Node service writes one outbox row when a price-feed claim locks and sets its outcome once the
+  verdict is final and a second read of the price agrees; a disagreement holds the row, so nothing settles
+  and the timeout refunds. It makes no chain calls. The worker signs the claim's open authorization from that row,
   and after the verdict settles every matched stake the contract holds for the claim, or records that there
   was none. That table is the entire interface between the two runtimes.
 - **FR-028**: The settlement worker is a separate process holding the signing key, and does nothing else — no

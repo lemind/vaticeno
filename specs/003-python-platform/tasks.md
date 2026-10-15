@@ -119,15 +119,15 @@ Then VOID, then the timeout refund with the worker switched off.
 
 ### The settlement path
 
-- [ ] T331 [US4] Migration `drizzle/0020_settlement.sql` + `src/db/schema.ts` per data-model.md: the outbox as one row per locked price claim, `settle_rw` with SELECT + UPDATE on it and SELECT on claims and resolutions; the role created by hand like `status_ro`
-- [ ] T331a [US4] The lock writes the outbox row for a price-feed claim in the same transaction as the lock; no other claim gets one (FR-027, FR-031a)
-- [ ] T332a [US4] A staked claim's verdict is rechecked by the TypeScript side before its outcome is set on the outbox row: the window is 72 hours and the weekly recheck does not fit in it (002-escrow-v1)
-- [ ] T332 [US4] `src/resolve/resolver.ts` sets the row's outcome when a verdict is final; an update, never an insert, and no chain call from Node (FR-027)
+- [x] T331 [US4] Migration `drizzle/0020_settlement.sql` + `src/db/schema.ts` per data-model.md: the outbox as one row per locked price claim, `settle_rw` with SELECT + UPDATE on it and SELECT on claims and resolutions; the role created by hand like `status_ro` **Done locally**: the worker's UPDATE is granted column by column, so it cannot write an outcome; a trigger freezes the outcome once set. Production waits for approval.
+- [x] T331a [US4] The lock writes the outbox row for a price-feed claim in the same transaction as the lock; no other claim gets one (FR-027, FR-031a) **Done**: a model-judged claim locks with no row.
+- [x] T332a [US4] A staked claim's verdict is rechecked by the TypeScript side before its outcome is set on the outbox row: the window is 72 hours and the weekly recheck does not fit in it (002-escrow-v1) **Done**: a fresh read through `rejudgeClaim`, an hour after the verdict; a disagreement holds the row, an outage leaves it open.
+- [x] T332 [US4] `src/resolve/resolver.ts` sets the row's outcome when a verdict is final; an update, never an insert, and no chain call from Node (FR-027) **Done**: in `src/resolve/settlement.ts`, the one writer of an outcome, run before the resolver in the same job; a human's verdict needs no second read.
 - [ ] T333 [US4] `settle/worker.py`: sign each new row's open authorization; after the verdict, read the resolution, settle every matched stake `stakesOf` returns, or end `no_stake`. Own systemd unit, key readable by its own user alone (FR-025, FR-028, FR-028a)
-- [ ] T334 [US4] Test `tests/integration/settlement-outbox.test.ts`: a model-judged claim gets no row; a claim with no stake sends nothing and ends `no_stake`; a replayed row sends nothing twice (FR-026)
+- [ ] T334 [US4] Test `tests/integration/settlement-outbox.test.ts`: a model-judged claim gets no row; a claim with no stake sends nothing and ends `no_stake`; a replayed row sends nothing twice (FR-026) **Node half done**: 14 tests, two of them proven by breaking the code; the worker half lands with T333.
 - [ ] T335 [US4] Status page: outbox pending / sent / failed, the contract address, the chain, the worker's heartbeat (FR-029, FR-020a)
-- [ ] T336 [US4] The fast path never settles: a verdict the local verifier decided alone sets no outcome on the outbox row (FR-031)
-- [ ] T336a [US4] Only price-feed claims can be staked — refused by the outbox, which gives no other claim a row or a signature, and by the contract. The claim pages offer no staking in this stage. Tested by trying both ways (FR-031a, SC-017)
+- [x] T336 [US4] The fast path never settles: a verdict the local verifier decided alone sets no outcome on the outbox row (FR-031) **Done by construction**: only `evidence`, `arbiter` and `human` may settle; its test lands with Stage 3's decider value, which does not exist yet.
+- [ ] T336a [US4] Only price-feed claims can be staked — refused by the outbox, which gives no other claim a row or a signature, and by the contract. The claim pages offer no staking in this stage. Tested by trying both ways (FR-031a, SC-017) **Two of three**: no row for a model claim, and the contract's authorization; the worker's own check lands with T333.
 - [ ] T337 [US4] End to end on the testnet, scripted with `cast` and two test wallets: open, accept, deadline, verdict, payout; then VOID; then the timeout refund with the worker stopped (SC-010, SC-011, SC-012). No stake page: that is a later feature
 
 ### Linking a wallet, optional

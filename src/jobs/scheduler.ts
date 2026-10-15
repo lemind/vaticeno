@@ -14,6 +14,7 @@ import { jobState } from '../db/schema.js';
 import { log } from '../log.js';
 import { captureError, withCronMonitor } from '../observe.js';
 import { type ResolverDeps, resolveDueClaims } from '../resolve/resolver.js';
+import { confirmStakedVerdicts } from '../resolve/settlement.js';
 import type { ClaimDeps } from '../lifecycle/claims.js';
 import { withJobLock } from './lock.js';
 import { type BotDeps, pollMentions } from '../bot/mentions.js';
@@ -99,7 +100,11 @@ export async function startScheduler(
       needsInfo: await expireNeedsInfo(deps.db, now()),
       withheldDrafts: await expireWithheldDrafts(deps.db, now()),
     }),
-    resolve: () => resolveDueClaims(deps, now()),
+    // Stake verdicts are confirmed first, so a verdict written this run gets its second read the next.
+    resolve: async () => {
+      await confirmStakedVerdicts(deps, now());
+      return resolveDueClaims(deps, now());
+    },
     // Verdict replies on X (ENABLE_X): one per final verdict, in the claim's thread.
     verdicts: async () => (deps.bot ? deliverVerdicts(deps.bot, now()) : null),
     // Own feed (ENABLE_FEED): one pool repost or quote post, or just a logged pick in dry run.
