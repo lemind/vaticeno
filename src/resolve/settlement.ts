@@ -3,7 +3,7 @@
 import { and, eq } from 'drizzle-orm';
 import { claims, DECIDED_BY, resolutions, settlementOutbox } from '../db/schema.js';
 import { log } from '../log.js';
-import { alert } from '../observe.js';
+import { alert, captureError } from '../observe.js';
 import { rejudgeClaim } from './recheck.js';
 import { isOutage, type ResolverDeps } from './resolver.js';
 
@@ -50,13 +50,17 @@ export async function confirmStakedVerdicts(
       agrees =
         row.decidedBy === 'human' || (await secondReadAgrees(deps, row.slug, now));
     } catch (error) {
-      if (!isOutage(error)) throw error;
-      // An outage is not a disagreement: the row stays open and is read again next hour (INIT_SPEC §6.7).
-      log('warn', 'second read failed; retried next run', {
-        event: 'settlement.second_read_failed',
-        slug: row.slug,
-        error: String(error),
-      });
+      // Either way the row stays open and is tried next run, and one bad claim never stops the others.
+      // An outage is not a disagreement (INIT_SPEC §6.7); anything else is a defect, and reported as one.
+      if (isOutage(error)) {
+        log('warn', 'second read failed; retried next run', {
+          event: 'settlement.second_read_failed',
+          slug: row.slug,
+          error: String(error),
+        });
+      } else {
+        captureError(error, { event: 'settlement.confirm_failed', slug: row.slug });
+      }
       result.skipped++;
       continue;
     }
@@ -95,4 +99,17 @@ async function secondReadAgrees(
 ): Promise<boolean> {
   const check = await rejudgeClaim(deps, slug, now);
   return check !== null && !check.differs && !check.unsettled;
+}
+
+// The confirm step never blocks the resolver: a failure here is reported and every other verdict is still
+// decided this run. A stake can wait an hour; every claim's verdict cannot wait on one stake.
+export async function confirmBeforeResolving(
+  deps: ResolverDeps,
+  now: Date,
+): Promise<void> {
+  try {
+    await confirmStakedVerdicts(deps, now);
+  } catch (error) {
+    captureError(error, { event: 'settlement.confirm_run_failed' });
+  }
 }

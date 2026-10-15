@@ -14,7 +14,7 @@ import { jobState } from '../db/schema.js';
 import { log } from '../log.js';
 import { captureError, withCronMonitor } from '../observe.js';
 import { type ResolverDeps, resolveDueClaims } from '../resolve/resolver.js';
-import { confirmStakedVerdicts } from '../resolve/settlement.js';
+import { confirmBeforeResolving } from '../resolve/settlement.js';
 import type { ClaimDeps } from '../lifecycle/claims.js';
 import { withJobLock } from './lock.js';
 import { type BotDeps, pollMentions } from '../bot/mentions.js';
@@ -102,7 +102,7 @@ export async function startScheduler(
     }),
     // Stake verdicts are confirmed first, so a verdict written this run gets its second read the next.
     resolve: async () => {
-      await confirmStakedVerdicts(deps, now());
+      await confirmBeforeResolving(deps, now());
       return resolveDueClaims(deps, now());
     },
     // Verdict replies on X (ENABLE_X): one per final verdict, in the claim's thread.

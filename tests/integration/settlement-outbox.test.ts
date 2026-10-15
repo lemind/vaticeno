@@ -13,7 +13,10 @@ import { createMemorySourceReader } from '../../src/lifecycle/source-reader.js';
 import type { LlmClient } from '../../src/llm/client.js';
 import { decideByHuman } from '../../src/resolve/manual.js';
 import { type ResolverDeps, resolveDueClaims } from '../../src/resolve/resolver.js';
-import { confirmStakedVerdicts } from '../../src/resolve/settlement.js';
+import {
+  confirmBeforeResolving,
+  confirmStakedVerdicts,
+} from '../../src/resolve/settlement.js';
 import { insertClaim, setupTestDb, type TestDb, VALID_CONTRACT } from './helpers.js';
 
 let t: TestDb;
@@ -234,6 +237,44 @@ describe('when a verdict may move a stake (T332, T332a, T336)', () => {
       [(await outbox(claim.id))!.state, (await outbox(claim.id))!.outcome],
       ['pending', 'void'],
     );
+  });
+
+  test('one claim that cannot be read again never stops the others, nor the resolver', async () => {
+    const good = await lockedWithRow();
+    await resolveDueClaims(resolverDeps(ABOVE).deps, AFTER);
+    // Born broken: a locked claim's contract cannot change afterwards, which the database enforces.
+    const broken = await insertClaim(t.sql, 'void', {
+      contract: '{}',
+      resolution_method: 'price_feed',
+      deadline_at: DEADLINE,
+      lock_at: LOCK,
+    });
+    await t.sql`insert into settlement_outbox ${t.sql({ claim_id: broken.id })}`;
+    await t.sql`insert into resolutions ${t.sql({
+      claim_id: broken.id,
+      outcome: 'void',
+      void_reason: 'unresolvable',
+      decided_by: 'evidence',
+      review_status: 'final',
+      decided_at: AFTER.toISOString(),
+    })}`;
+
+    const { deps } = resolverDeps(ABOVE);
+    const result = await confirmStakedVerdicts(deps, NEXT_HOUR);
+    assert.deepEqual([result.confirmed, result.skipped], [1, 1]);
+    assert.equal((await outbox(good.id))!.state, 'pending');
+    assert.equal((await outbox(broken.id))!.state, 'open', 'tried again next run');
+
+    // And when the whole step fails, the resolver still runs.
+    const failing = {
+      ...deps,
+      db: {
+        select: () => {
+          throw new Error('boom');
+        },
+      },
+    } as unknown as ResolverDeps;
+    await confirmBeforeResolving(failing, NEXT_HOUR);
   });
 
   test('a confirmed row is not confirmed twice', async () => {
