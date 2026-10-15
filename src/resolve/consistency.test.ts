@@ -22,10 +22,14 @@ test('the name is matched loosely, since a page writes it its own way', () => {
   assert.equal(selfConsistent(RACE, 'hit', { winner: 'SUNNY Q (4.3)', score: null }, 'yes'), true);
 });
 
-test('nothing is checked unless the page was placed on this event', () => {
+test('a page about another event is not checked; one code cannot place still is', () => {
   // An unplaced page has already failed the relevance gate; its facts prove nothing about our event.
   assert.equal(selfConsistent(RACE, 'miss', { winner: 'Sunny Q', score: null }, 'unknown'), null);
-  assert.equal(selfConsistent(RACE, 'miss', { winner: 'Sunny Q', score: null }, 'not_applicable'), null);
+  assert.equal(selfConsistent(RACE, 'miss', { winner: 'Sunny Q', score: null }, 'no'), null);
+  // e9vtp: a football contract names no round and no date, so code cannot place the page — and two
+  // reports calling a 2–0 win for the subject a "miss" went through the gates (004 T423).
+  assert.equal(selfConsistent(RACE, 'miss', { winner: 'Sunny Q', score: null }, 'not_applicable'), false);
+  assert.equal(selfConsistent(RACE, 'hit', { winner: 'Sunny Q', score: null }, 'not_applicable'), true);
 });
 
 test('a criterion asking how much is never answered here', () => {

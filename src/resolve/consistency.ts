@@ -15,7 +15,10 @@ const QUALIFIED = /\bby\s+(?:\d|a|at least|more|over)|\bmargin\b|\bat least\b|\b
 // page counts for nothing and someone is told. null: nothing here is code's to check.
 export function selfConsistent(contract: Contract, says: string, observed: ObservedResult, match: EventMatch | null): boolean | null {
   if (says !== 'hit' && says !== 'miss') return null;
-  if (match !== 'yes') return null; // the page must be placed on this event before its facts mean anything
+  // The page must not be about another event; "not applicable" means code cannot place it, and the judge
+  // answered about our claim anyway — checking its answer against its own stated winner still holds, and
+  // dropping a page fails closed (004 T423).
+  if (match === 'no' || match === 'unknown') return null;
   if (!observed?.winner) return null;
   if (!WINS.test(contract.criterion) || QUALIFIED.test(contract.criterion)) return null;
   if (!startsWithSubject(contract)) return null;
