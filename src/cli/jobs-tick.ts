@@ -7,7 +7,7 @@ import { lockDueDrafts } from '../lifecycle/lock.js';
 import { createFileSourceReader } from '../lifecycle/source-reader.js';
 import { withJobLock } from '../jobs/lock.js';
 import { resolveDueClaims } from '../resolve/resolver.js';
-import { confirmStakedVerdicts } from '../resolve/settlement.js';
+import { confirmBeforeResolving } from '../resolve/settlement.js';
 import { buildDeps, cliArgs, nowFrom, printJson, runCli } from './run.js';
 
 await runCli('jobs-tick', async (config) => {
@@ -27,7 +27,7 @@ await runCli('jobs-tick', async (config) => {
       (await expireWithheldDrafts(deps.db, now)),
   );
   const resolve = await withJobLock(sql, 'resolve', async () => {
-    await confirmStakedVerdicts(deps, now);
+    await confirmBeforeResolving(deps, now);
     return resolveDueClaims(deps, now);
   });
   const owed = await withJobLock(sql, 'reconcile', () =>
