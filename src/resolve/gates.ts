@@ -21,7 +21,14 @@ export type EvidenceDraft = {
   selfConsistent: boolean | null; // do the page's own facts agree with the verdict given it? null = not code's to check
 };
 
-export type GateName = 'trusted' | 'quote_found' | 'in_window' | 'final' | 'independent' | 'relevant' | 'consistent';
+export type GateName =
+  | 'trusted'
+  | 'quote_found'
+  | 'in_window'
+  | 'final'
+  | 'independent'
+  | 'relevant'
+  | 'consistent';
 export type Gates = Record<GateName, boolean | null>; // null = not applicable
 
 // Every contract change sets lock_at 15 min later (LOCK_DELAY_MS), so the last change is lock_at − 15 min.
@@ -29,21 +36,35 @@ const CONTRACT_SET_BEFORE_LOCK_MS = 15 * 60 * 1000;
 
 // `absenceAdmissible` is the code-held list of complete records (exhaustive.ts); injectable so a test can
 // name one while the real list is empty.
-export type Window = { lockAt: Date; deadlineAt: Date; absenceIsMeaningful: boolean; startTimeCounts?: boolean; absenceAdmissible?: (url: string | null) => boolean };
+// `knownStart`: the kickoff the fixture check found at recording, used when a page states only the date (004 T418).
+export type Window = {
+  lockAt: Date;
+  deadlineAt: Date;
+  absenceIsMeaningful: boolean;
+  startTimeCounts?: boolean;
+  knownStart?: Date;
+  absenceAdmissible?: (url: string | null) => boolean;
+};
 
-export function runGates(draft: EvidenceDraft, window: Window): { gates: Gates; passed: boolean } {
+export function runGates(
+  draft: EvidenceDraft,
+  window: Window,
+): { gates: Gates; passed: boolean } {
   const isPrice = draft.sourceKind === 'price_feed';
   const gates: Gates = {
     trusted: draft.trustLevel !== 'weak',
     // The waiver is granted by code, not by the model saying "absence" (004 FR-007).
-    quote_found: isPrice || admissibleAbsence(draft, window) ? null : draft.quoteFound === true,
+    quote_found:
+      isPrice || admissibleAbsence(draft, window) ? null : draft.quoteFound === true,
     in_window: inWindow(draft, window),
     final: draft.isFinalResult && draft.says !== 'pending',
     // Decided after every page is judged, in groups.ts (004 FR-005).
     independent: null,
     // A page about another event decides nothing, and one that will not say which event it shows is not
     // taken for ours: unknown fails closed (004 FR-003). What it said is still stored.
-    relevant: isPrice ? null : draft.eventMatch !== 'no' && draft.eventMatch !== 'unknown',
+    relevant: isPrice
+      ? null
+      : draft.eventMatch !== 'no' && draft.eventMatch !== 'unknown',
     // A page whose own facts contradict the verdict it was given counts for nothing (004 FR-009).
     consistent: draft.selfConsistent,
   };
@@ -54,7 +75,10 @@ export function runGates(draft: EvidenceDraft, window: Window): { gates: Gates; 
 // Silence is proof only from an endpoint code records as complete (004 FR-007): `absence_is_meaningful`
 // is model-written, so it cannot be the only key.
 function admissibleAbsence(draft: EvidenceDraft, window: Window): boolean {
-  return draft.basis === 'absence' && (window.absenceAdmissible ?? isExhaustiveRecord)(draft.url);
+  return (
+    draft.basis === 'absence' &&
+    (window.absenceAdmissible ?? isExhaustiveRecord)(draft.url)
+  );
 }
 
 // Record evidence: the event day is inside (lock, deadline]. Day granularity is conservative: an event on
@@ -62,21 +86,38 @@ function admissibleAbsence(draft: EvidenceDraft, window: Window): boolean {
 // deadline, and only from the contract's own (primary) source when it marks it exhaustive.
 function inWindow(draft: EvidenceDraft, window: Window): boolean {
   if (draft.basis === 'absence') {
-    return admissibleAbsence(draft, window) && window.absenceIsMeaningful && draft.trustLevel === 'primary'
-      && draft.says === 'miss' && draft.retrievedAt.getTime() >= window.deadlineAt.getTime();
+    return (
+      admissibleAbsence(draft, window) &&
+      window.absenceIsMeaningful &&
+      draft.trustLevel === 'primary' &&
+      draft.says === 'miss' &&
+      draft.retrievedAt.getTime() >= window.deadlineAt.getTime()
+    );
   }
   if (!draft.eventDate || !/^\d{4}-\d{2}-\d{2}$/.test(draft.eventDate)) return false;
   const lockDay = window.lockAt.toISOString().slice(0, 10);
   const deadlineDay = window.deadlineAt.toISOString().slice(0, 10);
-  // With a start time, an event that began after the contract's last change counts even on the lock day
-  // (a game 10 min after recording); one that began before it — or before a late fix — never does.
-  // Sports matches only (startTimeCounts); the start must agree with the event date (±1 day for time zones).
-  const start = draft.eventStart ? Date.parse(draft.eventStart) : NaN;
-  if (window.startTimeCounts && draft.sourceKind === 'web' && !Number.isNaN(start) && nearDate(start, draft.eventDate)) {
-    return start > window.lockAt.getTime() - CONTRACT_SET_BEFORE_LOCK_MS && start <= window.deadlineAt.getTime();
+  // Sports matches: the start time when it agrees with the event date, else the day alone, which
+  // recording has proven still to come (004 T426; claims.ts confirmFixture).
+  if (window.startTimeCounts && draft.sourceKind === 'web') {
+    const start = draft.eventStart
+      ? Date.parse(draft.eventStart)
+      : (window.knownStart?.getTime() ?? NaN);
+    if (!Number.isNaN(start) && nearDate(start, draft.eventDate)) {
+      return (
+        start > window.lockAt.getTime() - CONTRACT_SET_BEFORE_LOCK_MS &&
+        start <= window.deadlineAt.getTime()
+      );
+    }
+    // A page that states a time disagreeing with its own date is not trusted for the date either.
+    if (draft.eventStart) return false;
+    return draft.eventDate >= lockDay && draft.eventDate <= deadlineDay;
   }
   // A daily close happens at the end of its day, so the lock day's close is after lock (price-evidence.ts).
-  const afterLock = draft.sourceKind === 'price_feed' ? draft.eventDate >= lockDay : draft.eventDate > lockDay;
+  const afterLock =
+    draft.sourceKind === 'price_feed'
+      ? draft.eventDate >= lockDay
+      : draft.eventDate > lockDay;
   return afterLock && draft.eventDate <= deadlineDay;
 }
 

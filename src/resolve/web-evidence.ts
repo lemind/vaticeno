@@ -112,7 +112,8 @@ export async function gatherWebEvidence(
   }
 
   // Each page on its own merits first (004 FR-005); which of them speaks for its source comes after.
-  const gateWindow = { ...window, absenceIsMeaningful: contract.source.absence_is_meaningful, startTimeCounts: SCHEDULED_EVENT_KINDS.includes(contract.source.kind) };
+  const knownStart = contract.event_start_at ? new Date(contract.event_start_at) : undefined;
+  const gateWindow = { ...window, absenceIsMeaningful: contract.source.absence_is_meaningful, startTimeCounts: SCHEDULED_EVENT_KINDS.includes(contract.source.kind), knownStart };
   const gated: GatheredItem[] = judged.map((item) => ({ ...item, ...runGates(item.draft, gateWindow) }));
   const items: GatheredItem[] = groupPassed(gated);
 
