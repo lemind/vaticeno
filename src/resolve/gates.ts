@@ -76,6 +76,12 @@ function inWindow(draft: EvidenceDraft, window: Window): boolean {
   if (window.startTimeCounts && draft.sourceKind === 'web' && !Number.isNaN(start) && nearDate(start, draft.eventDate)) {
     return start > window.lockAt.getTime() - CONTRACT_SET_BEFORE_LOCK_MS && start <= window.deadlineAt.getTime();
   }
+  // A scheduled match was confirmed as still to come when the claim was recorded, and an amend after
+  // kickoff is refused too (claims.ts confirmFixture), so the order is already proven and the lock day
+  // needs no kickoff from the page: two sides on one date are one match (owner decision 2026-10-15).
+  if (window.startTimeCounts && draft.sourceKind === 'web') {
+    return draft.eventDate >= lockDay && draft.eventDate <= deadlineDay;
+  }
   // A daily close happens at the end of its day, so the lock day's close is after lock (price-evidence.ts).
   const afterLock = draft.sourceKind === 'price_feed' ? draft.eventDate >= lockDay : draft.eventDate > lockDay;
   return afterLock && draft.eventDate <= deadlineDay;

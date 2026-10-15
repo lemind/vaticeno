@@ -44,7 +44,7 @@ test('a match with a start time counts if it began after the claim was set (lock
   assert.equal(sports({ eventDate: '2026-10-01', eventStart: '2026-10-01T11:40:00Z' }), false, 'began before the claim was set');
   assert.equal(sports({ eventDate: '2027-05-31', eventStart: '2027-06-01T00:15:00Z' }), false, 'began after the deadline');
   assert.equal(sports({ eventDate: '2026-09-28', eventStart: '2026-10-01T11:55:00Z' }), false, 'start disagrees with the date: the date rule');
-  assert.equal(sports({ eventDate: '2026-10-01', eventStart: 'soon' }), false, 'unreadable time: the date rule');
+  assert.equal(sports({ eventDate: '2026-10-01', eventStart: 'soon' }), true, 'unreadable time: the match date is enough');
   assert.equal(sports({ eventDate: null, eventStart: '2026-10-01T11:55:00Z' }), false, 'no date');
   assert.equal(gate(draft({ eventDate: '2026-10-01', eventStart: '2026-10-01T11:55:00Z' })).gates.in_window, false, 'not a match: the date rule');
 });
@@ -57,8 +57,10 @@ test('a same-day match report without a time counts by the kickoff the fixture c
   assert.equal(known({ eventDate: '2026-10-01', eventStart: null }, '2026-10-01T11:40:00Z'), false, 'kickoff before the claim was set');
   assert.equal(known({ eventDate: '2026-09-20', eventStart: null }, '2026-10-01T19:00:00Z'), false, 'page date far from the kickoff: the date rule');
   assert.equal(known({ eventDate: '2026-10-01', eventStart: '2026-10-01T11:40:00Z' }, '2026-10-01T19:00:00Z'), false, 'a time the page states wins');
+  // Recording confirmed the match was still to come, and an amend after kickoff is refused, so for a
+  // scheduled match the date alone proves the order (004 T422, owner decision 2026-10-15).
   const noKnown = runGates(draft({ eventDate: '2026-10-01', eventStart: null }), { ...window, startTimeCounts: true }).gates.in_window;
-  assert.equal(noKnown, false, 'no recorded kickoff: the date rule, as before');
+  assert.equal(noKnown, true, 'no kickoff anywhere: one match per day per pair of sides');
   const notSports = runGates(draft({ eventDate: '2026-10-01', eventStart: null }), { ...window, knownStart: new Date('2026-10-01T19:00:00Z') }).gates.in_window;
   assert.equal(notSports, false, 'not a match: the date rule');
 });
