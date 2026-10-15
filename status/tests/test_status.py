@@ -6,6 +6,7 @@ The page is not exhaustively tested — that is reserved for the gates and the r
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 import psycopg
@@ -145,6 +146,22 @@ def test_verdicts_known_wrong_are_listed_until_corrected(client):
     page = client(snapshot(HEALTHY, findings=[finding])).get("/")
     # They outlive the recheck's seven-day window, which is why they are recorded (FR-007a).
     assert "s3wt9" in page.text and "miss → hit" in page.text and "9 d" in page.text
+
+
+def test_the_settlement_queue_shows_what_needs_a_person(client):
+    state = snapshot(HEALTHY)
+    state = replace(state, settlement={"pending": 2, "held": 1}, escrow_address="0xEsc", escrow_chain_id="84532")
+    page = client(state).get("/").text
+    assert "Settlement · testnet" in page and "0xEsc · chain 84532" in page
+    # A held claim is a second read that disagreed: nothing settles it, and somebody should know.
+    assert '<td class="r FAILING">1</td>' in page
+    body = client(state).get("/status.json").json()
+    assert body["settlement"] == {"pending": 2, "held": 1}
+    assert body["escrow"] == {"address": "0xEsc", "chain_id": "84532"}
+
+
+def test_an_undeployed_escrow_says_so(client):
+    assert "not deployed" in client(snapshot(HEALTHY)).get("/").text
 
 
 def test_the_json_twin_carries_the_same_numbers(client):

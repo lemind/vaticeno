@@ -141,6 +141,13 @@
       "when": 1791866200000,
       "tag": "0019_status_policies",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1791866300000,
+      "tag": "0020_settlement",
+      "breakpoints": true
     }
   ]
 }
