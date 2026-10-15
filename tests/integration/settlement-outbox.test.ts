@@ -305,6 +305,33 @@ describe("the worker's role (settle_rw, FR-028a)", () => {
     );
   });
 
+  test('it beats its own heartbeat and no other job, and cannot move its own window (FR-020a)', async () => {
+    // Other suites clear job_state, so the row the migration seeds is put back first.
+    await t.sql`insert into job_state (job, stale_after_seconds) values ('settle', 180) on conflict do nothing`;
+    await t.sql`insert into job_state (job, stale_after_seconds) values ('resolve', 7260) on conflict do nothing`;
+    const own = await asWorker(
+      (sql) =>
+        sql`update job_state set last_ok_at = now(), last_outcome = 'ok' where job = 'settle' returning job`,
+    );
+    assert.equal((own as unknown[]).length, 1);
+    const other = await asWorker(
+      (sql) =>
+        sql`update job_state set last_ok_at = now() where job = 'resolve' returning job`,
+    );
+    assert.equal(
+      (other as unknown[]).length,
+      0,
+      'row-level security hides every other job',
+    );
+    await assert.rejects(
+      asWorker(
+        (sql) =>
+          sql`update job_state set stale_after_seconds = 1 where job = 'settle'`,
+      ),
+      /permission denied/,
+    );
+  });
+
   test('it cannot insert a row, nor touch any other table', async () => {
     const claim = await lockedWithRow();
     await t.sql`delete from settlement_outbox where claim_id = ${claim.id}`;
