@@ -460,6 +460,26 @@ describe('sports matches', () => {
 
   // 2026-10-07: the fight was named by another account in a reply to the same parent, so walking the
   // parents never saw it and a real prediction was refused. What sits above a post on X is not its ancestry.
+  // Plain chatter is refused as "not a prediction" too, and must not buy the paid conversation read that
+  // rescues a dated post: the reason alone is the bucket every noise mention lands in (004 T428).
+  test('chatter refused as not a prediction costs no conversation read', async () => {
+    const m = mention('320', '@vaticeno nice one', {
+      conversation_id: 'conv8',
+      created_at: '2026-09-30T12:00:00Z',
+      referenced_tweets: [{ type: 'replied_to', id: '321' }],
+    });
+    threadPosts['321'] = { id: '321', text: 'some post', author_id: ME };
+    const { deps, conversationReads } = await bot([[m]], {}, '', [
+      { id: '322', text: 'what is your call?', created_at: '2026-09-30T10:00:00Z' },
+    ]);
+    await pollMentions(deps, NOW);
+    assert.deepEqual(
+      conversationReads,
+      [],
+      'no conversation was bought for chatter',
+    );
+  });
+
   // Live 2026-10-17: two real predictions were refused as "not a prediction" twice each, because a dated
   // result with a link reads as news. Only needs_info and event_not_found bought a second look, so the
   // bot refused without ever reading the conversation that showed it was a call (004 T428).

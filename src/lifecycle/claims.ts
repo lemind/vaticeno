@@ -153,17 +153,17 @@ export async function evaluateClaimText(
   };
 }
 
-// Which refusals the thread can still rescue: something was missing, or the event was named too vaguely
-// to find. A text that is not a prediction, or a deadline out of range, is not a context problem.
-// `not_prediction` is here because the post alone can read as news: a dated result with a link looks
-// like a headline, and the conversation around it is what shows it was a call (004 T428).
-function worthMoreContext(decision: Decision): boolean {
-  return (
-    decision.outcome === 'needs_info' ||
-    (decision.outcome === 'rejected' &&
-      (decision.reason === 'event_not_found' ||
-        decision.reason === 'not_prediction'))
-  );
+// A date or a number: what a post needs before "not a prediction" is worth paying to look into. Plain
+// chatter has neither, and every noise mention is refused for that same reason (004 T428).
+const COULD_BE_A_CLAIM = /\d/;
+
+// Which refusals the thread can still rescue: something missing, an event too vaguely named to find, or
+// a post that alone reads as news. A deadline out of range is not a context problem.
+function worthMoreContext(decision: Decision, text: string): boolean {
+  if (decision.outcome === 'needs_info') return true;
+  if (decision.outcome !== 'rejected') return false;
+  if (decision.reason === 'event_not_found') return true;
+  return decision.reason === 'not_prediction' && COULD_BE_A_CLAIM.test(text);
 }
 
 // A step that throws after paid calls (feed outage, unreadable post) still records what was spent (FR-031).
@@ -211,7 +211,7 @@ export async function submitClaim(
         input.authorId,
       );
       // Nothing is written yet, so a second look is free of consequences: only the reads cost.
-      if (input.moreContext && worthMoreContext(evaluated.decision)) {
+      if (input.moreContext && worthMoreContext(evaluated.decision, input.text)) {
         const wider = await input.moreContext();
         // Different posts, not more of them: the conversation read can return as many as the parent walk
         // did and still be the only one that names the subject.

@@ -75,13 +75,25 @@ const QUOTE_RETRY_MINUTES = [1, 5, 30, 120]; // polls a failing mention is retri
 const POINTS_AT_PARENT =
   /^(this|that|it|this one|that one|above|here|[^\p{L}\p{N}]*)$/iu;
 
-// The text the model reads: handles and shortened links removed. A t.co link on a dated result makes the
-// post read as a news headline, and the normalizer refused real predictions for it (004 T428).
+// What the bot reads a mention as: handles off, nothing else. Routing keys on this, so a command, the
+// addressing check and "this" under a post must all see the text they always saw.
+function cleanBody(text: string): string {
+  return text.replace(/@\w+/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+// A t.co link, with its query string when the app added one, up to the punctuation that ends the
+// sentence; and the same link when brackets hold nothing else, so no empty pair is left behind.
+const TCO_LINK = /\bhttps?:\/\/t\.co\/\w+(?:\?\S*?)?(?=[\s)\].,!?]|$)/gi;
+const LINK_IN_BRACKETS = /\(\s*https?:\/\/t\.co\/\w+(?:\?\S*?)?\s*\)/gi;
+
+// HACK(x,gemini): OBSERVED 2026-10-17 — X rewrites links as t.co, and a dated result carrying one reads
+// to the normalizer as a news headline, so two real predictions were refused (004 T428). Only the text
+// the model judges is stripped; routing keeps the body as posted.
+// REVISIT: drop this if the normalizer stops treating a bare link as a mark of news.
 function forModel(text: string): string {
-  return text
-    .replace(/@\w+/g, ' ')
-    .replace(/\bhttps?:\/\/t\.co\/\w+/gi, ' ')
-    .replace(/\(\s*\)/g, ' ') // the brackets a stripped link leaves behind
+  return cleanBody(text)
+    .replace(LINK_IN_BRACKETS, ' ') // the brackets too, when they held only the link
+    .replace(TCO_LINK, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -97,7 +109,7 @@ export async function routeMention(
     return { action: 'ignored_self', reply: null };
   if (mention.referenced_tweets?.some((ref) => ref.type === 'retweeted'))
     return { action: 'ignored_repost', reply: null };
-  const body = forModel(mention.text);
+  const body = cleanBody(mention.text);
   const command = resolveCommand(body); // a bare command, matched in code: no model call
 
   // No mention, no reply (constitution VI, owner decision 2026-10-09). Decided before any spend.
@@ -209,7 +221,7 @@ export async function routeMention(
     const post = await deps.reader.readVersion(repliedTo);
     // The summon's own words are context for the parent post ("@vaticeno this, by next month").
     const result = await submitClaim(deps, {
-      text: post.text,
+      text: forModel(post.text),
       context: [body],
       authorId: mention.author_id,
       sourceTweetId: repliedTo,
@@ -238,7 +250,7 @@ export async function routeMention(
   const latest = mention.edit_history_tweet_ids?.at(-1) ?? mention.id;
   const current =
     latest === mention.id
-      ? { versionId: mention.id, text: body }
+      ? { versionId: mention.id, text: forModel(mention.text) }
       : await currentVersion(deps, mention.id);
   // An edit of the mention gets a new id: the claim is keyed on the first version, so edits never record twice.
   const original = mention.edit_history_tweet_ids?.[0] ?? mention.id;
