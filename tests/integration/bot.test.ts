@@ -194,6 +194,33 @@ const llm = {
         costs: [],
       };
     }
+    // "newsy": a dated result reads as a headline on its own, and as a call once the conversation shows
+    // someone asking for a prediction (the live 2026-10-17 shape, 004 T428).
+    if (text.startsWith('newsy')) {
+      const called = (context ?? []).some((post) => post.includes('your call'));
+      return {
+        data: called
+          ? {
+              is_prediction: true,
+              x_rules_ok: true,
+              contract: { ...VALID_CONTRACT },
+              unclear: [],
+              unclear_explanation: '',
+              examples: [],
+              self_confidence: 0.8,
+            }
+          : {
+              is_prediction: false,
+              x_rules_ok: true,
+              contract: null,
+              unclear: [],
+              unclear_explanation: '',
+              examples: [],
+              self_confidence: 0.9,
+            },
+        costs: [],
+      };
+    }
     if (text.startsWith('down')) throw new LlmUnavailable('model down');
     if (text.endsWith('?'))
       return {
@@ -400,6 +427,23 @@ describe('sports matches', () => {
 
   // A match the search finds but cannot time, on a day already under way: the order is unproven, and the
   // in_window gate would take the date alone, so the claim is refused rather than recorded (004 T426).
+  // Live 2026-10-17: "Chelsea beat Everton in the Premier League on Oct 17, 2026 (https://t.co/…)" was
+  // refused twice as not a prediction — a dated result with a link reads as a news headline. The link is
+  // X's own shortener and carries no meaning for the model, so it never reaches it (004 T428).
+  test('a shortened link does not make a prediction read as news', async () => {
+    const { deps, replies } = await bot([
+      [
+        mention(
+          '130',
+          '@vaticeno match Liverpool vs Madrid tomorrow 3:1 (https://t.co/xfNkFHM3Dx)',
+        ),
+      ],
+    ]);
+    await pollMentions(deps, NOW);
+    assert.match(replies[0]!.text, /^RECORDED/);
+    assert.doesNotMatch(replies[0]!.text, /t\.co/, 'the link is not echoed back');
+  });
+
   test('a match today that the search cannot time is not recorded', async () => {
     const { deps, replies } = await bot([
       [mention('115', '@vaticeno match untimed Fulham vs Brentford today')],
@@ -416,6 +460,35 @@ describe('sports matches', () => {
 
   // 2026-10-07: the fight was named by another account in a reply to the same parent, so walking the
   // parents never saw it and a real prediction was refused. What sits above a post on X is not its ancestry.
+  // Live 2026-10-17: two real predictions were refused as "not a prediction" twice each, because a dated
+  // result with a link reads as news. Only needs_info and event_not_found bought a second look, so the
+  // bot refused without ever reading the conversation that showed it was a call (004 T428).
+  test('a post refused as not a prediction gets the conversation read before it is dropped', async () => {
+    const m = mention(
+      '310',
+      '@vaticeno newsy Chelsea beat Everton on Oct 17, 2026',
+      {
+        conversation_id: 'conv9',
+        created_at: '2026-09-30T12:00:00Z',
+        referenced_tweets: [{ type: 'replied_to', id: '311' }],
+      },
+    );
+    threadPosts['311'] = { id: '311', text: 'big match today', author_id: ME }; // nothing about a call
+    const { deps, replies } = await bot([[m]], {}, '', [
+      {
+        id: '312',
+        text: 'what is your call for tonight?',
+        created_at: '2026-09-30T10:00:00Z',
+      },
+    ]);
+    await pollMentions(deps, NOW);
+    assert.match(
+      replies[0]!.text,
+      /^RECORDED/,
+      'the wider conversation showed it was a prediction',
+    );
+  });
+
   test('a prediction the parents cannot explain is rescued by the rest of the conversation', async () => {
     const m = mention('300', '@vaticeno match Invented wins', {
       conversation_id: 'conv1',

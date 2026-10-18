@@ -155,10 +155,14 @@ export async function evaluateClaimText(
 
 // Which refusals the thread can still rescue: something was missing, or the event was named too vaguely
 // to find. A text that is not a prediction, or a deadline out of range, is not a context problem.
+// `not_prediction` is here because the post alone can read as news: a dated result with a link looks
+// like a headline, and the conversation around it is what shows it was a call (004 T428).
 function worthMoreContext(decision: Decision): boolean {
   return (
     decision.outcome === 'needs_info' ||
-    (decision.outcome === 'rejected' && decision.reason === 'event_not_found')
+    (decision.outcome === 'rejected' &&
+      (decision.reason === 'event_not_found' ||
+        decision.reason === 'not_prediction'))
   );
 }
 
@@ -259,14 +263,12 @@ export async function submitClaim(
       .onConflictDoNothing({ target: claims.sourceTweetId })
       .returning({ id: claims.id });
     if (!claim) return null;
-    await tx
-      .insert(positions)
-      .values({
-        claimId: claim.id,
-        xUserId: input.authorId,
-        stance: 'agree',
-        isAuthor: true,
-      });
+    await tx.insert(positions).values({
+      claimId: claim.id,
+      xUserId: input.authorId,
+      stance: 'agree',
+      isAuthor: true,
+    });
     await recordCosts(
       tx,
       costs.map((cost) => ({ ...cost, claimId: claim.id })),
