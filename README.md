@@ -25,8 +25,8 @@ hour, a weekly recheck of the last week's verdicts, and the two feed jobs at fix
 **Own feed (spec 002):** [spec](specs/002-content-feed/spec.md), [tasks](specs/002-content-feed/tasks.md).
 Built, and off until `ENABLE_FEED=true`: twice a day the bot picks one account from a fixed pool by weight
 and reposts its latest post, or quotes it with a line of its own (1 in 10); one owner-written post a day
-from a queue; up to two RECEIPT quote posts of real verdicts. `FEED_DRY_RUN=true` (the default) records
-the picks and posts nothing.
+from a queue. The feed never republishes a verdict: a hit or a miss is told once, in its author's thread.
+`FEED_DRY_RUN=true` (the default) records the picks and posts nothing.
 
 | Done | Next |
 |---|---|
@@ -38,6 +38,7 @@ the picks and posts nothing.
 | Own feed (spec 002): 2 pool posts a day (repost, or a quote post with our own line), 1 owner-written post a day from a queue; caps and "never twice" enforced by Postgres; off until `ENABLE_FEED=true` | Switch the feed on the server; a weekly stats post |
 | Claim and author pages (localhost on the server) | |
 | Verdicts decide on the right event (spec 004): a page must name the event the contract does before it counts, a site speaks through its best page rather than its first, silence proves nothing, and no verdict contradicts its own evidence | |
+| A verdict that was wrong is corrected (spec 004): the original is never edited, the correction is a separate record posted once in the claim's thread, and a match nobody can place in time is refused rather than recorded | |
 | Error tracking, logs and alerts (Sentry, production only); tests on every pull request | |
 
 ## Commands (on X)
@@ -103,6 +104,8 @@ the lite model that parses predictions; everything else stays on the lite model.
 | `npm run content:queue -- add "…" / load-starters / list / remove <id>` | the owner's queue of own posts |
 | `npm run content:pool-ids` | one-off, paid: resolve new pool handles to numeric X ids |
 | `npm run verdict:recheck -- [--slug X] [--correct "why"] [--post]` | re-decide past verdicts from stored evidence (free); correcting one is deliberate |
+| `npm run verdict:recheck -- --slug X --outcome hit\|miss --correct "why" --deciding-evidence <id>` | decide a standing verdict by hand, naming the stored row it rests on |
+| `npm run verdict:recheck -- --slug X --post` | post a correction already written |
 | `npm run db:generate` / `db:studio` | new migration from schema changes / browse tables |
 | `npm test` / `test:integration` | unit tests / database tests (needs Docker Postgres) |
 | `npm run test:coverage` / `typecheck` | coverage report (~55% is a cap, not a goal) / type check |
