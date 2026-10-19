@@ -65,8 +65,11 @@ load/         locust for the pages, a burst harness for the job path
 verifier/    eval and train (offline), serve (localhost:3002), weights never in git
 contracts/   the escrow contract and its tests
 settle/      the settlement worker: reads the outbox, signs, sends — and does nothing else
-src/jobs/scheduler.ts      runJob writes job state — the one touch on the TypeScript side
-src/web/link-page.ts       the wallet-link page: Node, since it resolves an X account; its one vanilla script
+src/jobs/scheduler.ts      runJob writes job state
+src/web/link-page.ts       the wallet-link page: Node, since it resolves an X account
+src/web/wager-page.ts      /claim/<slug>/wager: Node renders the claim and its authorization; the chain is read in the browser
+src/web/wallet.js          the one vanilla script both pages share: EIP-1193 calls to the browser's wallet, calls encoded by hand
+mention command router     `wager` recognised before claim parsing, where `help` and `STOP` already are
 src/resolve/               the verifier client and the fast-path gate
 deploy/                    two more systemd units; the deploy writes build info
 docs/progress.md           hand-edited, rendered with its own modification time
@@ -83,7 +86,7 @@ localhost that Node treats as optional (FR-012a).
 | Stage | What reaches the server | Where |
 |---|---|---|
 | **1** | job state, build info, the status service, the capacity table | [tasks.md](tasks.md) Phases 1–4 |
-| **2** | the escrow contract, its settlement worker, and optional wallet links, testnet only | [tasks.md](tasks.md) Phase 5 |
+| **2** | the escrow contract, its settlement worker, the wager page and the `wager` command, and optional wallet links, testnet only | [tasks.md](tasks.md) Phase 5 |
 | **3** | the verifier — shadow first, then behind a switch | [tasks.md](tasks.md) Phase 6 |
 
 No stage waits for another. They meet in two places: the status page, which is one query function per block so
@@ -110,4 +113,14 @@ database access is never signing authority.
 ## Out of scope
 
 Uptime monitoring from outside the box, a public status page, authentication, alerting beyond Sentry, any
-change to how claims are recorded, locked, judged or replied to, and any new X behaviour.
+change to how claims are recorded, locked or judged, and any new X behaviour beyond the `wager`, `link` and
+`unlink` commands. A faucet, gas paid on anyone's behalf, and real value (FR-031h).
+
+**The wager page reads the chain in the browser.** Node makes no chain calls (FR-027), so the page is rendered
+with the claim, its hash and its authorization from the outbox row, and the script reads the chain through a
+fixed public RPC (the testnet's own, from config), so the page works with no wallet connected: one `stakesOf`
+call for the id list, then the newest 20 stakes, with the total shown. An RPC failure is shown as one, never
+as "no offers". The handful of calls it sends — approve, open, accept, expire, payout, refund — are encoded by
+hand, with their selectors and encodings tested against the ABI forge builds; a browser library is a new
+dependency and needs approval (VII). Amounts are BigInt in token units. The Node service already reads the
+outbox as the owner role, which bypasses RLS, so no grant changes.

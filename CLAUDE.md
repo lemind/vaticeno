@@ -1,7 +1,7 @@
 @AGENTS.md
 
 <!-- SPECKIT START -->
-**Constitution**: `.specify/memory/constitution.md` (v2.7.1) — principles every plan must pass.
+**Constitution**: `.specify/memory/constitution.md` (v2.8.0) — principles every plan must pass.
 
 **Active plan**: `specs/004-evidence-gates/plan.md` (001's plan, research, data-model and contracts/ stay the reference for the claim pipeline).
 
@@ -11,8 +11,8 @@ its first, absence is admitted only from endpoints recorded in code, and a judge
 result never publishes. Written after three of the first twelve verdicts were wrong or unsettled.
 Shipping now: `specs/003-python-platform/spec.md` — operations, capacity and cost, in three deploy
 stages: Stage 1, the owner's status page over job state and build info, with the measured capacity table
-replacing the UNRECONCILED numbers (live); Stage 2, the escrow contract and its settlement worker, testnet
-only; Stage 3, a local entailment verifier in front of the paid model, shadow first and behind a switch.
+replacing the UNRECONCILED numbers (live); Stage 2, the escrow contract, its settlement worker and the wager
+page people reach with `@vaticeno wager`, testnet only; Stage 3, a local entailment verifier in front of the paid model, shadow first and behind a switch.
 The service layer is Python, allowed by constitution VII since 2026-10-09
 (`docs/decisions/001-second-runtime.md`).
 Shipped before it: `specs/002-content-feed/spec.md` — the account's own feed: weighted pool reposts, the

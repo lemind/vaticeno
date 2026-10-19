@@ -137,6 +137,26 @@ Idempotency is enforced in three places, the same shape as never retrying a post
 check (INIT_SPEC §6.7): the worker reads each stake's on-chain state before sending, the contract rejects a
 second settlement, and the unique key here allows one row per claim.
 
+## `wager_replies`
+
+What makes "one link per claim" (FR-038) hold across restarts. The row is inserted **before** the reply is
+sent, under the unique key; an insert that conflicts means the link was already spent, and the mention gets
+no reply. The reply then goes out as every reply does: marked answered before the post, never retried
+(INIT_SPEC §6.7). This is at most once, on purpose: a crash between the insert and the post loses that
+claim's link rather than risk a second one. The mention job runs one at a time under its job lock, so the
+daily count and the insert cannot race.
+
+| Column | Type | Notes |
+|---|---|---|
+| id | uuid PK | |
+| claim_id | uuid NOT NULL → claims | |
+| kind | text NOT NULL | CHECK `link \| not_locked \| not_price \| closed`; UNIQUE (claim_id, kind): one link, and one refusal per reason |
+| mention_id | text NOT NULL | the X post id the reply answered; ids only (V) |
+| created_at | timestamptz NOT NULL DEFAULT now() | |
+
+A `not_locked` row does not block the later `link` row, which is the point of keeping the kinds apart. The
+daily cap counts today's `link` rows (UTC); refusals count only against the existing reply caps.
+
 ## `wallet_links`
 
 Off-chain and **optional**: a stake works without one. It exists only to say "this address belongs to the
@@ -218,8 +238,9 @@ authenticated roles stay with no policy at all, so the public API still sees not
 | `drizzle/0018_recheck_findings.sql` | `recheck_findings`, RLS on, its `status_ro` SELECT policy |
 | `drizzle/0019_status_policies.sql` | SELECT policies for `status_ro` on the existing tables the page reads |
 | `drizzle/0020_settlement.sql` | `settlement_outbox` (one row per locked price claim), the `settle_rw` role's policies, its unique key |
-| `drizzle/0021_wallet_links.sql` | `wallet_links` and `wallet_link_challenges`, the partial unique index on an active address |
-| `drizzle/0022_verifier.sql` | `verifier_shadow` with its append-only trigger and policy, the two `resolutions` columns |
+| `drizzle/0021_wager_replies.sql` | `wager_replies` with its unique key and CHECK, RLS on with no policy |
+| `drizzle/0022_wallet_links.sql` | `wallet_links` and `wallet_link_challenges`, the partial unique index on an active address |
+| `drizzle/0023_verifier.sql` | `verifier_shadow` with its append-only trigger and policy, the two `resolutions` columns |
 
 Numbered in deploy order, not in the order the tables were designed: Stage 2 ships before Stage 3, so the
 settlement migrations come first and the verifier's cannot be dragged in by a Stage 2 deployment.
