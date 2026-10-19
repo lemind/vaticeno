@@ -616,7 +616,8 @@ shown but never count as a contradiction.
 - Crypto prices come from one public feed's UTC daily close; seeded price claims use frozen copies of
   historical data so results never drift.
 - Model-written NEEDS INFO text and model-decided verdicts make Vaticeno an AI reply bot under X's
-  developer rules; written approval from X is required before these replies go live (Stage 1+).
+  developer rules; no written approval from X is needed, and the bot posts live (owner decision
+  2026-10-19).
 - Reply delivery, mention polling, rate caps and display names fetched from X are Stage 1+
   concerns; Stage 0 exercises lock and expiry timing with simulated times.
 - `@vaticeno help` is recognised in Stage 0 on the submitted text; the X intake (Stage 1) must test the
