@@ -128,7 +128,7 @@ Then VOID, then the timeout refund with the worker switched off.
 - [x] T335 [US4] Status page: outbox pending / sent / failed, the contract address, the chain, the worker's heartbeat (FR-029, FR-020a) **Done**: the queue by state with `held` and `failed` in red, the contract and chain from env; the heartbeat is a `settle` row in `job_state` the worker alone may write, and only that row.
 - [x] T336 [US4] The fast path never settles: a verdict the local verifier decided alone sets no outcome on the outbox row (FR-031) **Done by construction**: only `evidence`, `arbiter` and `human` may settle; its test lands with Stage 3's decider value, which does not exist yet.
 - [x] T336a [US4] Only price-feed claims can be staked — refused by the outbox, which gives no other claim a row or a signature, and by the contract. The claim pages offer no staking in this stage. Tested by trying both ways (FR-031a, SC-017) **Done**: no row for a model claim, no signature from the worker, and no stake without one on-chain.
-- [ ] T337 [US4] End to end on the testnet, scripted with `cast` and two test wallets: open, accept, deadline, verdict, payout; then VOID; then the timeout refund with the worker stopped (SC-010, SC-011, SC-012). No stake page: that is a later feature
+- [x] T337 [US4] End to end on the testnet, scripted with `cast` and two test wallets: open, accept, deadline, verdict, payout; then VOID; then the timeout refund with the worker stopped (SC-010, SC-011, SC-012). No stake page: that is a later feature **Passed 2026-10-19** (`scripts/e2e-testnet.sh`, escrow `0xBa1f…1f3d`): HIT paid by a third address after the window and refused inside it; VOID refunded at once; no verdict refunded at the timeout with no worker.
 
 ### Linking a wallet, optional
 
