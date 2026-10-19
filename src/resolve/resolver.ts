@@ -14,6 +14,8 @@ import { alert, captureError } from '../observe.js';
 import { decideResolution, type Decision } from './decide.js';
 import { type PageFetcher, SourceUnavailable } from './fetch.js';
 import { runGates } from './gates.js';
+import type { UserLookup } from '../contract/x-profile.js';
+import { type FollowerReader, gatherFollowerEvidence } from './follower-evidence.js';
 import { gatherPriceEvidence } from './price-evidence.js';
 import { knownSources, recordSourceStanding } from './sources.js';
 import { gatherWebEvidence, type GatheredItem } from './web-evidence.js';
@@ -27,6 +29,10 @@ export type ResolverDeps = {
   judgeModelB: string;
   arbiterModel: string;
   judgeVersion?: string; // default JUDGE_VERSION; the seeds replay with SEEDS_JUDGE_VERSION
+  // Follower-count claims (004 T420); absent → they wait as an outage. A re-judge also names the account from the post.
+  x?: Partial<FollowerReader & UserLookup & { getTweet(id: string): Promise<{ text: string }> }>;
+  botHandle?: string;
+  normalizerModel?: string; // a re-judge re-runs the fixture check for a contract locked without a kickoff (004 T421)
 };
 
 export type ClaimRunOutcome = 'final' | 'needs_human' | 'waiting' | 'outage' | 'failed';
@@ -93,6 +99,11 @@ export async function gatherEvidence(deps: ResolverDeps, contract: Contract, win
     const { draft, value, contentSha256 } = await gatherPriceEvidence(deps.coinbase, contract.price, window, now);
     const { gates, passed } = runGates(draft, { ...window, absenceIsMeaningful: false });
     return [{ draft, gates, passed, value, sourceName: 'coinbase', trustReason: null, contentSha256, searchQuery: null, modelId: null, instructionVersion: null, pageText: '' }];
+  }
+  if (contract.followers) {
+    const { draft, value, contentSha256 } = await gatherFollowerEvidence(deps.x?.getFollowerCount ? (deps.x as FollowerReader) : undefined, contract.followers, contract.source.locator, window.deadlineAt, now, costs);
+    const { gates, passed } = runGates(draft, { ...window, absenceIsMeaningful: false });
+    return [{ draft, gates, passed, value, sourceName: 'x.com', trustReason: 'the account\'s own profile, read from the X API', contentSha256, searchQuery: null, modelId: null, instructionVersion: null, pageText: '' }];
   }
   return gatherWebEvidence(deps, contract, window, now, await knownSources(deps.db), costs);
 }

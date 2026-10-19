@@ -1,7 +1,14 @@
 // Re-run today's rules over a verdict already given (001 FR-035). The stored resolution is frozen and
 // stays; a different answer is written as a correction beside it.
 import { and, desc, eq, gt, inArray, isNull, sql as raw } from 'drizzle-orm';
-import { ContractSchema } from '../contract/schema.js';
+import {
+  type Contract,
+  ContractSchema,
+  SCHEDULED_EVENT_KINDS,
+} from '../contract/schema.js';
+import { resolveFollowerContract, type UserLookup } from '../contract/x-profile.js';
+import { findFixture } from '../llm/fixture.js';
+import { X_POST_READ_USD } from '../x/prices.js';
 import type { Db } from '../db/client.js';
 import {
   claims,
@@ -94,6 +101,9 @@ export async function rejudgeClaim(
       lockAt: claims.lockAt,
       deadlineAt: claims.deadlineAt,
       outcome: resolutions.outcome,
+      authorXUserId: claims.authorXUserId,
+      sourceTweetId: claims.sourceTweetId,
+      createdAt: claims.createdAt,
     })
     .from(claims)
     .innerJoin(resolutions, eq(resolutions.claimId, claims.id))
@@ -101,9 +111,14 @@ export async function rejudgeClaim(
     .limit(1);
   if (!row?.outcome || !row.deadlineAt || !row.lockAt || !row.contract) return null;
 
-  const contract = ContractSchema.parse(row.contract);
   const window = { lockAt: row.lockAt, deadlineAt: row.deadlineAt };
   const costs: CallCost[] = [];
+  const contract = await readAsRecordedToday(
+    deps,
+    ContractSchema.parse(row.contract),
+    row,
+    costs,
+  );
   const items = await gatherEvidence(deps, contract, window, at, costs);
   await storeEvidence(deps.db, row.id, items, costs, at);
   const spent = costs.reduce((total, cost) => total + cost.usdCost, 0);
@@ -116,6 +131,54 @@ export async function rejudgeClaim(
   // A claim can be re-judged more than once, and each run adds to what it has cost (INIT_SPEC §9).
   await checkBudget(deps.db, { id: row.id, slug });
   return recheckClaim(deps.db, slug, at);
+}
+
+// A contract locked before 004 T418–T419, read as recording reads it today. In memory only: a locked
+// contract is never written (INIT_SPEC §4).
+async function readAsRecordedToday(
+  deps: ResolverDeps,
+  contract: Contract,
+  claim: { authorXUserId: string; sourceTweetId: string; createdAt: Date },
+  costs: CallCost[],
+): Promise<Contract> {
+  const recordedAt = claim.createdAt;
+  // Post text is never stored (§6.9), so it is read again from X: it names the account, the contract does not.
+  if (!contract.followers && deps.x?.getTweet) {
+    const post = await deps.x.getTweet(claim.sourceTweetId);
+    costs.push({
+      provider: 'x',
+      operation: 'thread_read',
+      units: 1,
+      usdCost: X_POST_READ_USD,
+    });
+    const lookup = deps.x.getUserByUsername ? (deps.x as UserLookup) : undefined;
+    const followers = await resolveFollowerContract(
+      lookup,
+      deps.botHandle ?? 'vaticeno',
+      contract,
+      post.text,
+      claim.authorXUserId,
+      costs,
+    );
+    if (followers !== contract) return followers;
+  }
+  if (
+    SCHEDULED_EVENT_KINDS.includes(contract.source.kind) &&
+    !contract.event_start_at &&
+    deps.normalizerModel
+  ) {
+    const { fixture, costs: spent } = await findFixture(
+      deps.llm,
+      deps.normalizerModel,
+      contract,
+      recordedAt,
+    );
+    costs.push(...spent);
+    const kickoff = fixture.kickoff_utc ? Date.parse(fixture.kickoff_utc) : NaN;
+    if (!Number.isNaN(kickoff))
+      return { ...contract, event_start_at: new Date(kickoff).toISOString() };
+  }
+  return contract;
 }
 
 // Every final verdict of the last `days`, re-decided. It never touches a published verdict (001 FR-035);
@@ -221,6 +284,59 @@ async function recordFindings(
 
 // Writing the correction is a separate step: a recheck never changes a published verdict on its own
 // (001 FR-035). The row is what the public pages read; the frozen resolution is never touched.
+// A standing verdict corrected by hand (004 T424): the owner reads the evidence already stored and says
+// what it shows. For when the rules now reach the right answer but re-judging would pass the claim's
+// budget. The frozen resolution is never touched — the correction stands beside it (INIT_SPEC §4).
+export async function correctByHand(
+  db: Db,
+  slug: string,
+  outcome: 'hit' | 'miss',
+  decidingEvidenceId: string,
+  reason: string,
+): Promise<boolean> {
+  if (!reason.trim())
+    throw new Error('a reason is required: it is shown on the claim page');
+  const [row] = await db
+    .select({ id: claims.id, was: resolutions.outcome })
+    .from(claims)
+    .innerJoin(resolutions, eq(resolutions.claimId, claims.id))
+    .where(and(eq(claims.slug, slug), eq(resolutions.reviewStatus, 'final')))
+    .limit(1);
+  if (!row?.was) throw new Error(`no final verdict for ${slug}`);
+  if (row.was === outcome)
+    throw new Error(`#${slug} already stands at ${outcome}; nothing to correct`);
+  const [evidence] = await db
+    .select({ id: evidences.id })
+    .from(evidences)
+    .where(and(eq(evidences.id, decidingEvidenceId), eq(evidences.claimId, row.id)))
+    .limit(1);
+  if (!evidence)
+    throw new Error('--deciding-evidence must be an evidence row of this claim');
+
+  const written = await db
+    .insert(corrections)
+    .values({
+      claimId: row.id,
+      fromOutcome: row.was,
+      toOutcome: outcome,
+      reason: reason.trim(),
+      decidingEvidenceId,
+      decidedBy: 'human',
+    })
+    .onConflictDoNothing()
+    .returning({ id: corrections.id });
+  if (written.length === 0) return false;
+  log('info', 'verdict corrected by hand', {
+    event: 'recheck.corrected',
+    slug,
+    from: row.was,
+    to: outcome,
+    decided_by: 'human',
+    reason,
+  });
+  return true;
+}
+
 export async function writeCorrection(
   db: Db,
   slug: string,

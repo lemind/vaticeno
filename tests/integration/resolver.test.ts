@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import { after, before, beforeEach, describe, test } from 'node:test';
 import {
   type Candle,
@@ -13,6 +14,7 @@ import {
   recheckClaim,
   recheckRecent,
   rejudgeClaim,
+  correctByHand,
   writeCorrection,
 } from '../../src/resolve/recheck.js';
 import type { EventIdentity } from '../../src/resolve/relevance.js';
@@ -665,6 +667,23 @@ describe('rechecking a verdict already given (001 FR-035)', () => {
     );
     // The original verdict is frozen and stays: the record shows both (001 FR-035).
     assert.equal((await resolutionRow(claim.id))!.outcome, 'miss');
+  });
+
+  test('the owner corrects a standing verdict by hand, from the evidence already stored', async () => {
+    // e9vtp: the fixed rules reach HIT, but re-judging would pass the claim's budget (004 T424).
+    const { claim, guardian } = await wrongMiss();
+    assert.equal(await correctByHand(t.db, claim.slug, 'hit', guardian, 'every report shows the subject won'), true);
+    const [correction] = await t.sql`select from_outcome, to_outcome, decided_by, posted_tweet_id from corrections where claim_id = ${claim.id}`;
+    assert.deepEqual(
+      [correction!.from_outcome, correction!.to_outcome, correction!.decided_by, correction!.posted_tweet_id],
+      ['miss', 'hit', 'human', null],
+    );
+    // The published resolution is frozen, as with any correction (001 FR-035).
+    assert.equal((await resolutionRow(claim.id))!.outcome, 'miss');
+
+    await assert.rejects(correctByHand(t.db, claim.slug, 'miss', guardian, 'same as it stands'), /already stands at miss/);
+    await assert.rejects(correctByHand(t.db, claim.slug, 'hit', randomUUID(), 'not our row'), /evidence row of this claim/);
+    await assert.rejects(correctByHand(t.db, claim.slug, 'hit', guardian, '  '), /reason is required/);
   });
 
   test('the weekly sweep reports and never writes, and skips what it already corrected', async () => {

@@ -105,6 +105,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const scheduler = config.ENABLE_JOBS
     ? await startScheduler({
         ...deps,
+        x: bot?.x, // follower-count claims read the X API; without X they wait as an outage (004 T420)
         reader: bot?.reader ?? createFileSourceReader(),
         sql: getLockSql(),
         bot,
