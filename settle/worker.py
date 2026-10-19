@@ -19,6 +19,7 @@ import psycopg
 from eth_account import Account
 from psycopg.rows import dict_row
 from web3 import Web3
+from web3.exceptions import Web3Exception
 
 from settle.chain import SETTLED_STATES, ChainMismatch, Escrow, claim_hash, evidence_ref
 
@@ -77,7 +78,7 @@ def sign_authorizations(conn: psycopg.Connection, escrow: Escrow, now: datetime,
 def settle_confirmed(conn: psycopg.Connection, escrow: Escrow, now: datetime, run: Run) -> None:
     """Rows whose verdict Node has confirmed. The verdict is read from its own table, never from the row."""
     rows = _rows(conn, """
-        select o.claim_id, o.outcome, c.slug, c.deadline_at,
+        select o.claim_id, o.outcome, o.tx_references, c.slug, c.deadline_at,
                r.id::text as resolution_id, r.outcome as verdict, r.review_status
         from settlement_outbox o
         join claims c on c.id = o.claim_id
@@ -99,7 +100,7 @@ def settle_confirmed(conn: psycopg.Connection, escrow: Escrow, now: datetime, ru
             continue
         try:
             _settle_claim(conn, escrow, row, run)
-        except (ChainMismatch, RuntimeError, OSError, ValueError) as error:
+        except (ChainMismatch, Web3Exception, RuntimeError, OSError, ValueError) as error:
             # The row stays pending and is tried next run; the contract refuses a stake settled twice.
             _execute(conn, """
                 update settlement_outbox set attempts = attempts + 1, last_error = %s
@@ -110,6 +111,9 @@ def settle_confirmed(conn: psycopg.Connection, escrow: Escrow, now: datetime, ru
 
 
 def _settle_claim(conn: psycopg.Connection, escrow: Escrow, row: dict, run: Run) -> None:
+    # A transaction sent by an earlier run and not mined yet: wait for it rather than send a second.
+    if any(escrow.in_flight(tx) for tx in row["tx_references"]):
+        raise RuntimeError("an earlier settle is still in flight")
     hash_ = claim_hash(row["slug"])
     deadline = int(row["deadline_at"].timestamp())
     stakes = escrow.stakes_of(hash_)
@@ -123,12 +127,13 @@ def _settle_claim(conn: psycopg.Connection, escrow: Escrow, row: dict, run: Run)
             continue
         if stake.state != "Matched":
             continue  # an offer nobody took: it expires back to its maker on its own
-        tx = escrow.settle(stake, row["outcome"], evidence_ref(row["resolution_id"]))
-        # Recorded the moment it lands, so a crash between two stakes loses nothing.
+        tx = escrow.send_settle(stake, row["outcome"], evidence_ref(row["resolution_id"]))
+        # Recorded the moment it is sent, before waiting: a crash or a slow receipt loses nothing.
         _execute(conn, """
             update settlement_outbox set tx_references = array_append(tx_references, %s)
             where claim_id = %s
         """, (tx, row["claim_id"]))
+        escrow.wait_mined(tx)
         run.tx_references.append(tx)
         sent_here += 1
         log.info("settle.sent slug=%s stake=%s tx=%s", row["slug"], stake.id, tx)

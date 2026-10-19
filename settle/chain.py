@@ -12,6 +12,7 @@ from eth_account.messages import encode_typed_data
 from eth_account.signers.local import LocalAccount
 from web3 import Web3
 from web3.contract import Contract
+from web3.exceptions import TransactionNotFound
 
 # Escrow.Outcome and Escrow.State, in the contract's own order.
 OUTCOMES = {"hit": 1, "miss": 2, "void": 3}
@@ -81,6 +82,7 @@ class Escrow:
             raise ChainMismatch(f"the contract's oracle is {oracle}, this key is {account.address}")
         self.acceptance_closes: int = self.contract.functions.acceptanceCloses().call()
         self.timeout: int = self.contract.functions.timeout().call()
+        self._next_nonce = 0
 
     def sign_open(self, hash_: bytes, deadline: int, valid_until: int) -> str:
         """The EIP-712 authorization `Escrow.open` checks (FR-031a), bound to this contract and chain."""
@@ -114,9 +116,9 @@ class Escrow:
         row = self.contract.functions.stakes(stake_id).call()
         return Stake(id=stake_id, claim_hash=bytes(row[0]), deadline=int(row[4]), state=STATES[row[8]])
 
-    def settle(self, stake: Stake, outcome: str, evidence: bytes) -> str:
-        """Settle one stake and wait for it. The worker builds this itself from the claim and the verdict;
-        it never signs a payload it was handed (FR-028a)."""
+    def send_settle(self, stake: Stake, outcome: str, evidence: bytes) -> str:
+        """Send the settlement of one stake and return its hash at once; `wait_mined` confirms it. The worker
+        builds this itself from the claim and the verdict, never from a payload it was handed (FR-028a)."""
         if self.w3.eth.chain_id != self.chain_id:
             raise ChainMismatch("the chain changed under the worker")
         current = self.stake(stake.id)
@@ -124,14 +126,29 @@ class Escrow:
             raise ChainMismatch(f"stake {stake.id} is {current.state}, not the matched stake that was read")
         tx = self.contract.functions.settle(stake.id, OUTCOMES[outcome], evidence).build_transaction({
             "from": self.account.address,
-            "nonce": self.w3.eth.get_transaction_count(self.account.address, "pending"),
+            "nonce": self._nonce(),
             "chainId": self.chain_id,
         })
         if Web3.to_checksum_address(tx["to"]) != self.address:
             raise ChainMismatch("the transaction is not addressed to the escrow")
         signed = self.account.sign_transaction(tx)
         tx_hash = self.w3.eth.send_raw_transaction(signed.raw_transaction)
+        self._next_nonce = tx["nonce"] + 1
+        return "0x" + tx_hash.hex().removeprefix("0x")
+
+    def wait_mined(self, tx_hash: str) -> None:
         receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
         if receipt["status"] != 1:
-            raise RuntimeError(f"settle of stake {stake.id} reverted in {tx_hash.hex()}")
-        return "0x" + tx_hash.hex().removeprefix("0x")
+            raise RuntimeError(f"settle reverted in {tx_hash}")
+
+    def in_flight(self, tx_hash: str) -> bool:
+        """Sent and not mined yet. A transaction the node no longer knows is not in flight."""
+        try:
+            return self.w3.eth.get_transaction(tx_hash)["blockNumber"] is None
+        except TransactionNotFound:
+            return False
+
+    def _nonce(self) -> int:
+        # HACK(base-sepolia-rpc): OBSERVED 2026-10-19 in the end-to-end run: the public RPC is several nodes and
+        # one may answer a block behind. REVISIT: if the worker moves to a single dedicated RPC node.
+        return max(self._next_nonce, self.w3.eth.get_transaction_count(self.account.address, "pending"))

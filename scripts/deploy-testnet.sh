@@ -27,9 +27,10 @@ fi
 
 export ORACLE_ADDRESS="$("$cast" wallet address "$(cat "$keys/oracle.key")")"
 export GUARDIAN_ADDRESS="$("$cast" wallet address "$(cat "$keys/guardian.key")")"
+export DEPLOYER_PRIVATE_KEY="$deployer_key"
 export FEE_RECIPIENT_ADDRESS="$deployer"
 
 cd contracts
 "$forge" script script/Deploy.s.sol \
-  --rpc-url "$rpc" --private-key "$deployer_key" --broadcast \
+  --rpc-url "$rpc" --broadcast \
   --verify --etherscan-api-key "$api_key" --chain 84532

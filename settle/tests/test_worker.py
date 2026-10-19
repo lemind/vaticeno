@@ -17,6 +17,7 @@ import psycopg
 import pytest
 from eth_account import Account
 from web3 import Web3
+from web3.exceptions import ContractLogicError
 
 from settle.chain import ChainMismatch, Escrow, claim_hash
 from settle.worker import heartbeat, read_key, run_once
@@ -249,6 +250,57 @@ def test_an_offer_nobody_took_is_left_to_expire_and_counts_as_no_stake(chain, db
     _final_verdict(db["owner"], claim, "hit")
     assert run_once(db["worker"], chain["client"], _now(w3)).no_stake == 1
     assert _stake_state(escrow, 1) == 1  # still Open: its maker takes it back with `expire`
+
+
+def _matched_stake(chain, db, claim):
+    w3, escrow = chain["w3"], chain["escrow"]
+    run_once(db["worker"], chain["client"], _now(w3))
+    row = _row(db["owner"], claim)
+    _send(w3, MAKER, escrow.functions.open(
+        claim_hash(claim["slug"]), claim["deadline"], int(row["authorized_until"].timestamp()),
+        bytes.fromhex(row["open_authorization"][2:]), True, AMOUNT))
+    stake_id = escrow.functions.stakesOf(claim_hash(claim["slug"])).call()[0]
+    _send(w3, TAKER, escrow.functions.accept(stake_id))
+    return stake_id
+
+
+def test_a_chain_error_on_one_claim_never_stops_the_others(chain, db, monkeypatch):
+    w3 = chain["w3"]
+    first = _locked_claim(db["owner"], _chain_now(w3) + 3 * DAY)
+    second = _locked_claim(db["owner"], _chain_now(w3) + 3 * DAY)
+    _matched_stake(chain, db, first)
+    _matched_stake(chain, db, second)
+    _warp_to(w3, first["deadline"] + 3600)
+    _final_verdict(db["owner"], first, "hit")
+    _final_verdict(db["owner"], second, "hit")
+
+    real_send = chain["client"].send_settle
+    calls = {"n": 0}
+    def fails_once(stake, outcome, evidence):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise ContractLogicError("execution reverted: TooLate()")
+        return real_send(stake, outcome, evidence)
+    monkeypatch.setattr(chain["client"], "send_settle", fails_once)
+
+    run = run_once(db["worker"], chain["client"], _now(w3))
+    assert (run.retrying, run.sent) == (1, 1), "one claim retried, the other settled in the same run"
+    states = sorted(_row(db["owner"], c)["state"] for c in (first, second))
+    assert states == ["pending", "sent"]
+
+
+def test_a_settle_still_in_flight_is_never_sent_twice(chain, db, monkeypatch):
+    w3 = chain["w3"]
+    claim = _locked_claim(db["owner"], _chain_now(w3) + 3 * DAY)
+    _matched_stake(chain, db, claim)
+    _warp_to(w3, claim["deadline"] + 3600)
+    _final_verdict(db["owner"], claim, "hit")
+    # An earlier run sent a settle and died before its receipt: the hash is on the row, the chain has not mined it.
+    db["owner"].execute("update settlement_outbox set tx_references = '{0xabc}' where claim_id = %s", (claim["id"],))
+    monkeypatch.setattr(chain["client"], "in_flight", lambda tx: tx == "0xabc")
+    run = run_once(db["worker"], chain["client"], _now(w3))
+    assert (run.retrying, run.tx_references) == (1, [])
+    assert _row(db["owner"], claim)["tx_references"] == ["0xabc"]
 
 
 # ---- what it refuses ----

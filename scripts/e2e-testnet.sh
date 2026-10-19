@@ -12,10 +12,11 @@ deployer_key="$(cat "$keys/deployer.key")"
 
 export ORACLE_ADDRESS="$("$cast" wallet address "$(cat "$keys/oracle.key")")"
 export GUARDIAN_ADDRESS="$("$cast" wallet address "$(cat "$keys/guardian.key")")"
+export DEPLOYER_PRIVATE_KEY="$deployer_key"
 export FEE_RECIPIENT_ADDRESS="$("$cast" wallet address "$deployer_key")"
 
 out="$(cd contracts && "$HOME/.foundry/bin/forge" script script/Deploy.s.sol --sig "runEndToEnd()" \
-  --rpc-url "$rpc" --private-key "$deployer_key" --broadcast)"
+  --rpc-url "$rpc" --broadcast)"
 escrow="$(grep -o 'ESCROW_ADDRESS=0x[0-9a-fA-F]*' <<<"$out" | cut -d= -f2)"
 token="$(grep -o 'STAKE_TOKEN_ADDRESS=0x[0-9a-fA-F]*' <<<"$out" | cut -d= -f2)"
 echo "throwaway escrow $escrow, token $token"

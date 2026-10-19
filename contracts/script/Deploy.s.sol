@@ -8,9 +8,9 @@ import {TestToken} from "../src/TestToken.sol";
 /// Deploys the test token and the escrow (003 T330). The numbers are docs/decisions/002-escrow-v1.md's;
 /// `runEndToEnd` is the throwaway deployment for T337, with the same rules in minutes.
 ///
-///   forge script script/Deploy.s.sol --rpc-url base_sepolia --account <keystore> --broadcast --verify
+///   scripts/deploy-testnet.sh
 ///
-/// The deployer key lives in Foundry's encrypted keystore (`cast wallet import`), never in an env var.
+/// The deployer key arrives as DEPLOYER_PRIVATE_KEY, never on the command line, where `ps` would show it.
 contract Deploy is Script {
     function run() external returns (TestToken token, Escrow escrow) {
         return _deploy(72 hours, 14 days, 24 hours, 7 days);
@@ -29,7 +29,7 @@ contract Deploy is Script {
         address guardian = vm.envAddress("GUARDIAN_ADDRESS");
         address feeRecipient = vm.envAddress("FEE_RECIPIENT_ADDRESS");
 
-        vm.startBroadcast();
+        vm.startBroadcast(vm.envUint("DEPLOYER_PRIVATE_KEY"));
         token = new TestToken();
         escrow = new Escrow(
             Escrow.Config({

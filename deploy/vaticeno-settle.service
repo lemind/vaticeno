@@ -10,8 +10,8 @@ Type=simple
 User=vaticeno-settle
 WorkingDirectory=/opt/vaticeno
 ExecStart=/opt/vaticeno/.venv/bin/python -m settle.worker
-# DATABASE_URL_SETTLE (the settle_rw role), BASE_SEPOLIA_RPC_URL, ESCROW_ADDRESS, ESCROW_CHAIN_ID and
-# ORACLE_KEY_FILE. Owned by vaticeno-settle, mode 600. The key itself is a separate file, mode 600.
+# DATABASE_URL_SETTLE, BASE_SEPOLIA_RPC_URL, ESCROW_ADDRESS, ESCROW_CHAIN_ID and ORACLE_KEY_FILE=/etc/vaticeno-settle/oracle.key.
+# Both files owned by vaticeno-settle, mode 600. ProtectHome hides every home: the key must be copied here.
 EnvironmentFile=/etc/vaticeno-settle/env
 Environment=PYTHONDONTWRITEBYTECODE=1
 Restart=always

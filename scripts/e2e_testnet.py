@@ -14,6 +14,7 @@ import time
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
+from urllib.parse import urlparse
 
 import psycopg
 from eth_account import Account
@@ -23,6 +24,7 @@ from web3.exceptions import ContractLogicError
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from load.guard import LOCAL_HOSTS, REMOTE_MARKERS  # noqa: E402
 from settle.chain import Escrow, claim_hash  # noqa: E402
 from settle.worker import run_once  # noqa: E402
 
@@ -55,7 +57,6 @@ ESCROW_ABI = [
     {"type": "function", "name": "settlementWindow", "stateMutability": "view", "inputs": [],
      "outputs": [{"name": "", "type": "uint64"}]},
 ]
-STATE = ["None", "Open", "Matched", "Settled", "Paid", "Voided", "Refunded", "Expired"]
 
 
 def say(message: str) -> None:
@@ -125,7 +126,8 @@ def database_url() -> str:
     for line in (ROOT / ".env").read_text().splitlines():
         if line.startswith("DATABASE_URL="):
             url = line.split("=", 1)[1].strip()
-            if "localhost" not in url and "127.0.0.1" not in url:
+            host = urlparse(url).hostname
+            if host not in LOCAL_HOSTS or any(marker in url for marker in REMOTE_MARKERS):
                 raise SystemExit("DATABASE_URL is not local: this run writes claims, so it never touches production")
             return url
     raise SystemExit("no DATABASE_URL in .env")
