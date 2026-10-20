@@ -163,11 +163,12 @@ with VOID, and the same with the worker switched off for the whole timeout windo
 7. **Given** a claim with no stake on it, **When** its verdict is written, **Then** nothing on-chain happens.
 8. **Given** a verdict the local verifier decided alone, **When** a stake exists, **Then** it is not settled on
    that verdict.
-9. **Given** someone who wants their stake attributed to them, **When** they link a wallet, **Then** they prove
-   the X account on one side and the wallet on the other, and the page shows which account is being linked
-   before it asks for a signature.
-10. **Given** a code copied from a public reply and returned by a different account, **When** the page checks
-    it, **Then** the code is rejected and discarded — not retried — and no link is written.
+9. **Given** someone who wants their stake attributed to them, **When** they name their X account on the link
+   page, post `@vaticeno link <code>` from it, confirm the account the page shows, and sign with the wallet,
+   **Then** the link is written — and not before the page has said that the link is public and permanent.
+10. **Given** a code copied from a public post and returned by a different account, **When** the bot reads
+    it, **Then** nothing binds and nothing is consumed: the code stays good for the account it was issued
+    to until it expires, and the attempt is recorded.
 11. **Given** nobody has linked a wallet, **When** a stake is opened and settled, **Then** everything works:
     linking is never required to take a side.
 12. **Given** a claim the model judged rather than the price feed, **When** a stake is attempted on it,
@@ -181,6 +182,62 @@ with VOID, and the same with the worker switched off for the whole timeout windo
     time, not an opinion.
 16. **Given** a stake nobody accepted, **When** its offer expires, **Then** the maker recovers the full
     amount without the operator.
+
+---
+
+### User Story 5 - The wager page (Priority: P3)
+
+Someone reads a recorded price claim on X and wants to back one side of it. They reply `@vaticeno wager`,
+the bot answers once with a link, and the page lets them connect their own wallet, make an offer or take one,
+and later collect what they won or the refund they are owed. This is the human front of Story 4: the contract
+and the worker already exist, and without this page a stake can only be made from the command line (owner
+decision 2026-10-19, after the testnet run passed).
+
+**Why this priority**: Story 4 proved a verdict can settle a contract, but nobody outside the operator can
+use it. This is the smallest page that lets two people who disagree actually put the claim to the test.
+
+**Independent test**: on a throwaway testnet deployment whose hold and timeout are minutes, as in T337, two
+browsers with two wallets, and four separate wagers, one per ending, because a wager has one ending only: (a)
+`wager` gets the link, one wallet opens on HIT, the other accepts on MISS, payout is refused during the hold
+and pressed by a third address after it; (b) a VOID refunds both at once; (c) an offer nobody took is
+returned after expiry; (d) with the worker stopped, a matched wager is refunded from the page at the timeout.
+
+**Acceptance Scenarios**:
+
+1. **Given** a locked price claim inside its acceptance window, **When** anyone posts `@vaticeno wager` as a
+   direct reply to the claim's post, its summon, a fix or a bot reply in it, **Then** the bot replies once in
+   that thread with the claim's wager link and the no-value line, and later `wager` posts for the same claim
+   get no reply.
+2. **Given** a price claim that is not locked yet, **When** `wager` arrives, **Then** one short reply without
+   a link says when wagering opens, and the claim's one link reply is still unused.
+3. **Given** a model-judged claim, or one whose acceptance window has closed or never existed, **When**
+   `wager` arrives, **Then** one short reply without a link says why, once per claim and reason.
+4. **Given** a `wager` post whose direct parent is none of those, **When** the bot reads it, **Then** nothing
+   is posted and nothing is recorded as a claim.
+5. **Given** the wager page, **When** it opens, **Then** it shows the locked contract and its resolution rule,
+   the deadline, when wagering closes, when an unmatched offer expires, the open and matched wagers read from
+   the chain, the payout rule (twice the stake, minus the fee if one is set), and the no-value line —
+   before any wallet is connected.
+6. **Given** a connected wallet on the wrong network, **When** the person tries to act, **Then** the page asks
+   to switch and does nothing until it has.
+7. **Given** a maker who picks a side and an amount within the maximum, **When** they confirm, **Then** the page
+   asks for the token approval if the allowance is short, then the open, shows each transaction as pending
+   until it is mined, and lists the offer only once the chain shows it.
+8. **Given** an open offer, **When** a second wallet takes it, **Then** the page asks for the approval if needed,
+   then the accept, and the wager shows as matched only once the chain says so. The maker cannot take their
+   own offer.
+9. **Given** a verdict posted on X but not yet written on-chain, **When** the page opens, **Then** it shows the
+   verdict and says settlement is pending; it never says paid before the chain does.
+10. **Given** a HIT or MISS inside the hold, **When** the page opens, **Then** Pay out is shown disabled with
+    its countdown; after the hold, any wallet can press it.
+11. **Given** an unmatched offer past its expiry, a matched wager with no settlement on the chain by the
+    timeout, or a VOID, **When** the page opens, **Then** it offers "Return expired offer" (to anyone; the money
+    goes to the maker) or Refund where the contract allows it, and shows a VOID refund as already done. A
+    verdict posted on X does not stop the timeout refund if it never reached the chain, and the page says so.
+12. **Given** the guardian has paused new stakes, **When** the page opens, **Then** it says new offers and
+    accepts are stopped and every way out still works.
+13. **Given** a wallet with no active link, **When** its wager is shown, **Then** it is shown by address; a
+    handle appears only for a link that was active when that address took its side (FR-035e).
 
 ### Edge Cases
 
@@ -216,6 +273,23 @@ with VOID, and the same with the worker switched off for the whole timeout windo
   no withdrawal path. That is the property the design exists to guarantee.
 - **Gas runs out**: settlement stalls, the timeout eventually refunds everyone, and the status page shows the
   stalled queue.
+- **Many offers on one claim**: the open authorization is one public signature per claim, and any holder can
+  open any number of offers with it (FR-031a). The contract has no limit on their count, so the page cannot
+  impose one either; it lists the newest first and caps how many it shows. A spammer spends their own tokens
+  and gas.
+- **A `wager` storm**: every URL-bearing post costs far more than a plain one, so one link reply per claim
+  and a daily cap bound the spend; a request that is refused costs a plain reply at most once per claim and
+  reason.
+- **A wager mistaken for the author's bet**: anyone can make an offer on anyone's claim, against the author
+  too. The page says so above the offers, and never states what the author did or did not wager.
+- **The page and the chain disagree**: a wallet returning control is not a mined transaction, and an RPC can
+  lag. The page shows what the chain says, the transaction hash while pending, and a failure plainly; it
+  never infers success from a click. If the chain cannot be read at all, the page says so, never "no offers".
+- **The link arrives before the signature**: the worker signs a claim's authorization a minute or so after
+  lock. A link sent in that gap still works: the page says wagering opens shortly and shows the controls once
+  the signature is there.
+- **A short claim**: one whose deadline falls less than 24 hours after its lock can never be wagered, because
+  acceptance has already closed (002-escrow-v1). It gets no link.
 
 ## Requirements *(mandatory)*
 
@@ -324,28 +398,33 @@ with VOID, and the same with the worker switched off for the whole timeout windo
   without a new deployment.
 - **FR-026**: Settlement is idempotent at two levels: the worker reads on-chain state before sending, and the
   contract rejects a second settlement of the same stake.
-- **FR-027**: The resolver writes an outbox row when a verdict is final and a stake exists; it makes no chain
-  calls itself. The worker reads that table, which is the entire interface between the two runtimes.
+- **FR-027**: The Node service writes one outbox row when a price-feed claim locks and sets its outcome once the
+  verdict is final and a second read of the price agrees; a disagreement holds the row, so nothing settles
+  and the timeout refunds. It makes no chain calls. The worker signs the claim's open authorization from that row,
+  and after the verdict settles every matched stake the contract holds for the claim, or records that there
+  was none. That table is the entire interface between the two runtimes.
 - **FR-028**: The settlement worker is a separate process holding the signing key, and does nothing else — no
   HTTP, no X, no model calls, no untrusted input. The key never exists in the process that handles text from
   strangers.
 - **FR-028a**: A row in a table is not an instruction. The key is readable by the worker's own system user
-  alone; the worker **builds the transaction itself** from the claim and the verdict rather than signing
-  any payload it is handed; and before signing it checks the stake's on-chain state, the destination, the
+  alone; the worker **builds the transaction itself** from the claim and its final resolution, read from
+  their own tables, rather than signing any payload it is handed, and stops if the row's outcome disagrees; and before signing it checks the stake's on-chain state, the destination, the
   amount, the chain id, the contract address and that the stake is not already settled, stopping and
   reporting on any mismatch. Whoever can write an outbox row still cannot make it sign something the
   contract and the verdict do not already imply.
 - **FR-029**: Every settlement attempt is recorded — stake, verdict, transaction reference, outcome, failure
   reason — and the status page shows the queue's pending, sent and failed counts plus the contract address.
+  The on-chain events are the per-stake record; the outbox keeps one transaction reference per stake.
 - **FR-030**: If a stake is unsettled longer than the timeout after its deadline, **anyone** may trigger the
   refund and both parties are made whole. This path does not depend on the operator being alive.
 - **FR-031**: A verdict decided by the local verifier alone never settles a stake. Anything with value
-  attached is decided by the paid model or a human.
+  attached is decided by the price feed (FR-031a) or a human.
 - **FR-031a**: Only a claim whose resolution method is the price feed may carry a stake (owner decision
   2026-10-09). Eligibility is decided off-chain, where the locked contract can be read, and proved on-chain:
   a stake cannot be opened without an authorization signed by the oracle for that claim hash. A hash alone
   tells the contract nothing about the claim, so without that signature the rule would hold only for stakes
-  opened through our own page (review 2026-10-12). A price claim is decided by one number from the source the locked contract names, so a
+  opened through our own page (review 2026-10-12). The worker signs it once per claim, from the locked claim
+  alone, and it holds until acceptance closes; every stake on that claim uses the same signature. A price claim is decided by one number from the source the locked contract names, so a
   dispute is "was the right number read", answerable from the stored evidence in a minute. A model-judged
   claim is an argument about which source counts and what the evidence means, and that argument is not one
   to have with someone's money on it. Model-judged claims stay free to record and judge, as today.
@@ -356,7 +435,8 @@ with VOID, and the same with the worker switched off for the whole timeout windo
   decision, not a setting; no refund path — a VOID verdict, the operator's void or the timeout — ever
   charges one. The window is a fixed number of
   hours in the contract, not a policy anyone can change per stake.
-- **FR-031c**: During that window, and only then, the oracle address may **void** a stake: both parties
+- **FR-031c**: During that window, and only then, the oracle address — or the guardian, a separate key held
+  offline for the case where the oracle's is compromised — may **void** a stake: both parties
   are refunded their own stake and nothing else happens. The function cannot pay either side, cannot pay
   the operator and cannot take a fee — those paths do not exist in it. Its purpose is to bound the cost of
   our own mistake to zero rather than to pay the wrong person.
@@ -390,19 +470,101 @@ with VOID, and the same with the worker switched off for the whole timeout windo
 - **FR-032**: Wallet linking is **optional**. Opening, accepting, settling and refunding a stake all work
   with no link, because the contract knows only addresses. Linking exists to attribute a stake to the author
   of a claim, and nothing else depends on it.
-- **FR-033**: A link proves both halves. The wallet is proved by a signature over a single-use, short-lived
-  challenge bound to one numeric X user id (the EIP-4361 pattern, with ERC-1271 for contract wallets); the X
-  account is proved by the code coming back through the API with that author id. A signature alone proves
-  nothing about who owns the account, and an account alone proves nothing about the wallet.
+- **FR-033**: A link proves both halves. **The site issues the code**, after the person names their X account
+  and the page resolves it to its numeric id; the account is proved when a post carrying that code arrives
+  through the API from that id. The wallet is proved by an EIP-4361 signature whose message names the domain,
+  URI, nonce, chain id, expiry, address and the numeric X user id, every field checked; ERC-1271 contract
+  wallets are verified through the configured chain's RPC, and an RPC failure refuses, never accepts, leaving
+  the challenge retryable until it expires. Undeployed smart accounts (EIP-6492) are out. A signature alone
+  proves nothing about the account, and an account alone proves nothing about the wallet.
 - **FR-034**: The signature is submitted privately, never in a public post, because a public one ties a handle
-  to an address — and so to its whole balance and history — permanently. The reply that starts the flow
-  carries only a code. Session tokens MUST NOT travel in a URL that appears in a public post.
-- **FR-035**: The code is public, so the first reply wins: the page MUST show which X account the code bound
-  to and require an explicit confirmation before asking for a signature, and a mismatch MUST discard the code
-  rather than retry it. Without that step, a stranger who answers first has the victim signing a link to
-  their identity.
+  to an address permanently. The post that proves the account carries only `@vaticeno link <code>`, and the
+  bot's one reply in that thread names no address. Before issuing a code the page says what is public: the
+  code post and the reply. Session tokens MUST NOT travel in a URL that appears in a public post.
+- **FR-035**: The code is public, so it is bound to the expected account from the start: a post from any other
+  author binds nothing and consumes nothing — otherwise anyone who sees a code can spend it and lock its owner
+  out. The page still shows which account the code bound and asks for confirmation before the signature.
+- **FR-035a**: `link` and `unlink` are commands, recognised before any claim parsing, so a code never becomes a
+  claim or a NEEDS INFO reply. Each mention gets its one reply in its own thread and counts against the
+  existing reply caps; a capped reply is withheld, but the binding still happens — the reply only tells.
+- **FR-035b**: A challenge moves `issued → bound → completed`, each step a conditional update, so a code read
+  twice or by two polls at once binds once. The code is about ten characters of a random alphabet, stored only
+  as a hash; a post created outside the challenge's window is ignored; challenges per session and per IP address
+  are capped. The TTL is a number measured against poll and API lag — **UNRECONCILED** until then.
+- **FR-035c**: Linking is public attribution, and that is its only use (FR-032). One confirmation, before the
+  signature, says the link shows the account beside the address and ties it to the address's on-chain
+  history for good; there is no private link.
+- **FR-035d**: Either half can revoke: the account by posting `@vaticeno unlink`, which ends all its links, or
+  the wallet by signing. Revoking ends the public attribution; the row keeps its validity period.
+- **FR-035e**: Each side of a stake is attributed only by a link that was active when that address took its
+  side on-chain — the opener at open, the other at accept. A link made later attributes nothing earlier.
+- **FR-035f**: An address with an active link refuses a second one with a message that names no other account;
+  the holder revokes first.
+- **FR-035g**: **NEEDS DECISION** (owner): what an X compliance event does to a link. Proposed: account
+  deletion revokes it, and suspension hides it while suspended — both reversible on X, so neither erases it.
+- **FR-035h**: No code and no post text reaches a log, an error report or a fixture: the code is read from the
+  post in memory, hashed, and dropped (INIT_SPEC §6.9).
 - **FR-036**: One network and one stake token for the whole feature. A second chain family is a second
   verification path, a second toolchain and a second settlement worker — not a configuration value.
+- **FR-036a**: The network for real value — Arbitrum One or Base, both Ethereum layer 2s with native USDC on
+  which the contract runs unchanged — is part of the real-value decision (FR-031h), outside this feature and
+  blocking nothing in it. Whichever is chosen, its own testnet gets a redeploy and the end-to-end runs again
+  before any real value, so what is tested is what ships. This feature stays on Base Sepolia, where the
+  contract is live (002-escrow-v1).
+
+- **FR-037**: `wager` is a command, recognised before any claim parsing like `link` and `unlink` (FR-035a),
+  from anyone in the thread of a recorded claim — not only its author, because the contract lets anyone
+  holding the authorization open a stake. The claim is found the way the bot already finds one: the post's
+  direct parent is the claim's post, its summon, a fix or a bot reply in it. Never the conversation root,
+  which can be an older, unrelated post, and never the post's text. Any other `wager` post gets no reply.
+- **FR-038**: A claim gets **at most one reply carrying its wager link**, to the first `wager` that arrives
+  while the claim is locked, price-feed and inside its acceptance window. Later `wager` posts for that claim
+  get no reply. A refusal — not locked yet, not a price claim, wagering closed — is one short reply with no
+  link, at most once per claim and reason, and a refusal before lock does not use up the link. Reasons are
+  checked in one order: not a price claim, then not locked, then closed (acceptance over, deadline passed, or
+  a verdict in), so a claim that can never be wagered is never told it will open. A pause is shown on the
+  page and is never a refusal. That the link was used is recorded before the reply is sent, and the reply goes
+  out the way every reply does: the mention is marked answered before the post, and a failed post is never
+  retried (INIT_SPEC §6.7). So a claim gets its link at most once, and a crash mid-post loses that link rather
+  than risk a second one. Each reply is the
+  one reply for that mention, counts against the existing caps (constitution IV), and goes only into the
+  thread where the bot was tagged. Link replies also have a daily cap of their own, per UTC day, because a
+  URL-bearing post is priced well above a plain one; its number is set later, and the price is
+  **UNRECONCILED** until measured on a real reply.
+- **FR-039**: The wager reply carries exactly one link, to our own domain, written as plain text, plus the
+  line that the testnet token has no value. No other reply carries a link (constitution VI).
+- **FR-040**: Claim pages move to `/claim/<slug>`, with the wager page at `/claim/<slug>/wager`. The old
+  `/c/<slug>` redirects there permanently, because links to it are already published. The slug is the
+  lookup key; the on-chain claim hash comes from the outbox row, never computed in the browser.
+- **FR-041**: The wager page shows, before any wallet connects: the locked contract and its resolution rule,
+  the deadline, when wagering closes, the offer-expiry rule, the payout (twice the stake, minus the fee set at
+  deployment — zero on the testnet), the maximum stake, the newest 20 wagers on the claim as the chain
+  reports them with how many there are in all, and that anyone can make an offer, so a wager is not the
+  author's unless a link says so. No post text (V). Every field is escaped in the HTML, and the script
+  receives data only as JSON, never as text spliced into code.
+- **FR-042**: Everything that moves money is done by the person's own wallet, which signs and pays the gas;
+  the page holds no key, sends nothing on anyone's behalf and has no faucet (owner decision 2026-10-19). Only
+  the verdict is written by us, through the worker, at our cost. On the testnet, test tokens reach testers by
+  the operator's script, the one the end-to-end run mints with, not through the page.
+- **FR-043**: The page offers each action only in the state the contract allows it: open while not paused and
+  before acceptance closes; accept while not paused and before the offer's own expiry, which is at the latest
+  when acceptance closes; each preceded by a token approval when the allowance is short; return an expired
+  offer, by anyone, to its maker; pay out after the hold, shown disabled with its countdown during it; refund
+  after the timeout. Void is never
+  a button: it belongs to the oracle and the guardian. Amounts are whole token units in the token's own
+  decimals, never floating point. Every action shows its transaction as pending, mined or failed, and the
+  page's state is what the chain says, re-read after each transaction — never what a click implies.
+- **FR-044**: The page separates the verdict from settlement: the verdict as decided, then whether it is on
+  the chain, then the hold's countdown, then paid or refunded. The hold is named as a payout hold during
+  which the referee can void its own mistake (FR-031c, FR-031e) — not as a dispute anyone can open — and the
+  page links the settlement policy.
+- **FR-045**: The wager page and the link page are the only pages with a script: one small vanilla script,
+  shared, that talks to the wallet the browser already has. No framework (constitution VII) and no new
+  dependency without approval; every other page stays server-rendered without one. The page works read-only
+  with no wallet at all.
+- **FR-046**: The open authorization is public by design and served read-only, for a claim that has one and
+  only until acceptance closes, with caching off so no copy outlives that. Nothing else from the outbox is
+  served. The contract enforces the expiry itself either way.
 
 ### Key Entities
 
@@ -416,8 +578,10 @@ with VOID, and the same with the worker switched off for the whole timeout windo
 - **Verifier decision**: claim, evidence item, entailment outcome, confidence, model version, whether it
   finalised, escalated, or only observed (shadow). Shadow observations live apart from the resolution record.
 - **Stake**: claim, the two addresses, amount, deadline, state, settlement reference — held on-chain.
-- **Settlement outbox row**: claim, verdict, state, attempts, transaction reference, last error.
-- **Wallet link**: X user id, wallet family, address, when it was verified, when it was revoked.
+- **Settlement outbox row**: one per locked price-feed claim — its hash, the open authorization, the outcome once final, state, attempts, a transaction reference per stake, last error.
+- **Wallet link**: X user id, wallet family, address, when it was verified, when and by which half it was revoked.
+- **Wager reply**: claim, which kind of reply (the link, or the reason it was refused), the mention it
+  answered, when. One per claim and kind; it is what makes "one link per claim" hold across restarts.
 
 ## Success Criteria *(mandatory)*
 
@@ -456,13 +620,21 @@ with VOID, and the same with the worker switched off for the whole timeout windo
 - **SC-015**: A full stake, settled, with no wallet ever linked — proving linking is optional and not on the
   critical path.
 - **SC-016**: A code returned by an account other than the one it was issued to never produces a link, and
-  the attempt is visible.
+  the attempt is logged with both account ids and never the code — the status page has no read on links.
 - **SC-017**: A stake on a model-judged claim is impossible to create, proved by trying: refused by the
   page, refused by the outbox, and refused by the contract, which has no authorization for it.
 - **SC-018**: On the testnet run, the payout cannot be pulled early and can be pulled by a third address
   after the window; a void inside the window refunds both and pays nobody; a void after it is refused.
 - **SC-019**: Every item in FR-031f is answered in writing before the contract is deployed anywhere, test
   network included — because the answers cannot be added to a deployed contract.
+- **SC-020**: Story 5's independent test passes on a short-window testnet deployment with two real browser
+  wallets, four wagers, one per ending: paid out after the hold, VOID, offer returned, timeout refund with
+  the worker stopped. The deployed contract's real 72-hour and 14-day numbers are covered by the contract's
+  time-warp tests (T329), not by waiting.
+- **SC-021**: Across a burst of `wager` posts on one claim, exactly one reply carries a link; a refused
+  request before lock leaves that link unused; nothing is posted for `wager` outside a claim's thread.
+- **SC-022**: The page never shows a wager as opened, matched, paid or refunded before the chain does, tested
+  with a transaction left pending and one that reverts.
 
 ## Assumptions
 
@@ -481,13 +653,21 @@ with VOID, and the same with the worker switched off for the whole timeout windo
   too small to trust a measurement, the fast path stays off — a small set is a reason to wait, not a reason
   to lower the bar.
 - A second runtime is accepted for the service layer only. The bot, the resolver and anything that posts to
-  X stay in TypeScript, unchanged by this feature.
+  X stay in TypeScript. This feature changes them only where Story 5 says: the `wager` command, its reply
+  and the claim routes; Story 4's lock writing the outbox row and the confirm step before the resolver.
 - The chain is a cheap EVM layer 2, on its testnet. Stablecoin-denominated if it ever leaves a testnet, which
   it may never do.
+- **The wager page is in Stage 2** (owner decision 2026-10-19, replacing "no stake page in Stage 2"): the
+  testnet path passed from the command line, and a contract nobody can reach from a page proves nothing to
+  the people it is for. Story 5 builds it; it needs no wallet link (FR-032).
 - The contract is Solidity. A Python-syntax alternative exists and is rejected for funds-holding code: a
   smaller reviewer pool, and a compiler bug that once cost a protocol tens of millions.
 - Whether a fee is ever taken, and what would have to be registered first, is deliberately outside this spec.
-- The wallet-link page is the one place in this feature that accepts input from a person. It holds a
-  short-lived session and nothing else: no password, no email, no account. This is not user auth returning
+- The wallet-link page and the wager page are the only places in this feature that accept input from a
+  person, and the only pages with a script: signing needs the wallet in the browser. One small vanilla
+  script shared by the two (FR-045) — no framework (constitution VII), and every other page stays
+  server-rendered without one. The wager page keeps no session at all. The link page holds a
+  short-lived session and nothing else: no password, no email, no account. The session is a random token in a
+  Secure, HttpOnly, SameSite cookie, stored only as a hash. This is not user auth returning
   through the back door (constitution VII) — there is nothing to log into, and a link can be revoked without
   losing the history it covered.

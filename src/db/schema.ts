@@ -54,6 +54,14 @@ export const EVIDENCE_SAYS = [
 export const OUTCOMES = ['hit', 'miss', 'void'] as const;
 export const JOB_OUTCOMES = ['ok', 'failed'] as const;
 export const RECHECK_FINDING_KINDS = ['differs', 'unsettled'] as const;
+export const OUTBOX_STATES = [
+  'open',
+  'pending',
+  'held',
+  'sent',
+  'no_stake',
+  'failed',
+] as const;
 export const DECIDED_BY = ['evidence', 'arbiter', 'human'] as const;
 export const REVIEW_STATUSES = ['final', 'needs_human'] as const;
 export const VOID_REASONS = ['insufficient_evidence', 'unresolvable'] as const;
@@ -434,5 +442,47 @@ export const recheckFindings = pgTable(
       'recheck_findings_differs_check',
       sql`(${t.kind} = 'differs') = (${t.recheckOutcome} is not null)`,
     ),
+  ],
+);
+
+// One row per locked price-feed claim: its open authorization, then its settlement. The whole interface
+// between Node and the settlement worker (003 FR-027, data-model → settlement_outbox).
+export const settlementOutbox = pgTable(
+  'settlement_outbox',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    claimId: uuid('claim_id')
+      .notNull()
+      .unique()
+      .references(() => claims.id),
+    claimHash: text('claim_hash'),
+    openAuthorization: text('open_authorization'),
+    authorizedUntil: utc('authorized_until'),
+    outcome: text('outcome', { enum: OUTCOMES }),
+    state: text('state', { enum: OUTBOX_STATES }).notNull().default('open'),
+    attempts: integer('attempts').notNull().default(0),
+    txReferences: text('tx_references')
+      .array()
+      .notNull()
+      .default(sql`'{}'`),
+    lastError: text('last_error'),
+    createdAt: utc('created_at').notNull().defaultNow(),
+    sentAt: utc('sent_at'),
+  },
+  (t) => [
+    check(
+      'settlement_outbox_outcome_check',
+      sql`${t.outcome} is null or ${oneOf(t.outcome, OUTCOMES)}`,
+    ),
+    check('settlement_outbox_state_check', oneOf(t.state, OUTBOX_STATES)),
+    check(
+      'settlement_outbox_outcome_state_check',
+      sql`(${t.state} = 'open') = (${t.outcome} is null)`,
+    ),
+    check(
+      'settlement_outbox_authorization_pair_check',
+      sql`(${t.openAuthorization} is null) = (${t.authorizedUntil} is null)`,
+    ),
+    check('settlement_outbox_attempts_check', sql`${t.attempts} >= 0`),
   ],
 );

@@ -28,6 +28,8 @@ jobs:
       LLM_MODE: replay
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -42,6 +44,18 @@ jobs:
       - run: npm run seeds:crypto
       # Ten times the live mention rate, answered once each (003 SC-004)
       - run: npm run load:burst
+      # The settlement worker against a local chain and this job's migrated database (003 T333, T334).
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.8.5
+      - run: pip install ".[settle,dev]"
+      - run: pytest settle
+        env:
+          REQUIRE_CHAIN_TESTS: '1'
 
   python:
     runs-on: ubuntu-latest
@@ -57,3 +71,20 @@ jobs:
       # Exit 5 is pytest's "no tests collected": status/ and load/ fill in later phases of Stage 1 (FR-021).
       - run: pytest status load || [ $? -eq 5 ]
 
+  # The escrow (003 Stage 2). Every branch of every transition, plus the operator trying to move funds.
+  contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: contracts
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.8.5
+      - run: forge build
+      - run: forge lint -D warnings
+      - run: forge test

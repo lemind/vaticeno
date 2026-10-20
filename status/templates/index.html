@@ -119,6 +119,16 @@
     </table>
   </div>
 
+  {#- The testnet escrow's queue (FR-029). Its heartbeat is the `settle` row in the jobs table (FR-020a). -#}
+  <div class="panel">
+    <h2>Settlement · testnet</h2>
+    <table>
+      {% for state, n in s.settlement | dictsort %}<tr><td class="k">{{ state }}</td><td class="r{% if state in ('held', 'failed') %} FAILING{% endif %}">{{ n }}</td></tr>{% endfor %}
+      {% if not s.settlement %}<tr><td class="note">no price claim locked since it began</td></tr>{% endif %}
+      <tr><td class="k">contract</td><td class="r note">{{ s.escrow_address or 'not deployed' }}{% if s.escrow_chain_id %} · chain {{ s.escrow_chain_id }}{% endif %}</td></tr>
+    </table>
+  </div>
+
   {#- Verdicts known to be wrong and not yet corrected. They outlive the recheck's window (FR-007a). -#}
   <div class="panel">
     <h2>Verdicts to correct</h2>

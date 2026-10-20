@@ -199,6 +199,10 @@ src/
   cli/        command-line entry points
   commands/ ingest/ poc/   the first proof-of-concept bot (not run)
 drizzle/      SQL migrations (tables, triggers, row-level security)
+status/       the owner's status page (Python, FastAPI)
+load/         load-test harness, local targets only
+contracts/    the testnet escrow (Solidity, Foundry): src, tests, deploy script
+settle/       the settlement worker (Python): signs open authorizations, settles stakes
 tests/        database tests against real Postgres
 deploy/       systemd unit + VPS scripts
 specs/        what we build and why (spec, plan, tasks)
@@ -211,5 +215,6 @@ Code follows a light "pure core, I/O at the edges" structure — see
 
 Node 22 · TypeScript (strict) · Zod · PostgreSQL (Supabase) + Drizzle · Gemini · Sentry · X API v2.
 Fastify (server-rendered pages, no client JS) · node-cron (jobs in the same process).
-Python 3.12 · FastAPI + Jinja2 (the status page). Planned, not in yet: Redis and RabbitMQ, each when its
+Python 3.12 · FastAPI + Jinja2 (the status page). Solidity + Foundry on Base Sepolia (the testnet escrow,
+[settlement policy](docs/settlement-policy.md)). Planned, not in yet: Redis and RabbitMQ, each when its
 trigger is measured ([decision 003](docs/decisions/003-redis-and-rabbitmq.md)).

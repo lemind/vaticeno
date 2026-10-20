@@ -12,15 +12,15 @@ status page — healthy, dead job, no database. Nothing else; ~55% coverage is a
 
 | | |
 |---|---|
-| Stage 1 | Phases 1-4 done 2026-10-13 except T323. **Migrations 0017-0019 are applied locally and not on Supabase**, and the page is not deployed |
-| Stage 2 | not started; testnet only, no real value, no fee, price-feed claims only (FR-031h) |
+| Stage 1 | **done** 2026-10-20: the front page and `/status` behind its password are live; memory measured on the droplet (T323) |
+| Stage 2 | contract and settlement path done, live on Base Sepolia, end to end passed 2026-10-19; the wager page (US5) and wallet links next. Testnet only, no real value, no fee, price-feed claims only (FR-031h) |
 | Escrow v1 | T326a answers FR-031f before anything is deployed |
 | Stage 3 | not started; may end at T344 |
 | `docs/decisions/` | 001 second runtime (done); 002 escrow v1 is T326a |
 
 ## Format: `[ID] [P?] [Story] Description`
 
-[P] parallelisable · US1 status page · US2 capacity · US4 settlement and wallet links · US3 verifier
+[P] parallelisable · US1 status page · US2 capacity · US4 settlement and wallet links · US5 wager page · US3 verifier
 
 ---
 
@@ -69,7 +69,7 @@ status page — healthy, dead job, no database. Nothing else; ~55% coverage is a
 - [x] T320 [US2] `load/locustfile.py`: the public pages and `/healthz`, ramped until p95 degrades (FR-009). p95 under 20 ms to ~320 req/s, saturating at ~430, no errors at any level.
 - [x] T321 [US2] ~~`load/burst.py`~~ **`tests/load/mention-burst.test.ts`**: stubbed X reader, ten times the live mention rate, one reply each (FR-010, SC-004). TypeScript, not Python: the mention path and its stubs are. 170 drain in ~1 s, one reply each; runs in CI.
 - [x] T322 [US2] Measure the connection ceiling past the pool: queue, clean refusal or wedge, and recovery time. Five connections under 300 concurrent, never six: it queues, and recovers in 4 ms.
-- [ ] T323 [US2] Measure peak RSS per process under load against the box's memory, and state the headroom (SC-008). **Half done**: Node holds at 81 MB, the droplet peaks at 149 MB of 458 MB. This service's own footprint is unmeasured.
+- [x] T323 [US2] Measure peak RSS per process under load against the box's memory, and state the headroom (SC-008). **Done 2026-10-20, narrowed**: peaks from live traffic, since a burst against production is forbidden (FR-008): bot 147 MiB, status 60 MiB, about 128 MiB left of 458 if both peak together (`capacity.md`).
 - [x] T324 [US2] `capacity.md`: every row with its number, hardware and date; laptop and droplet separately (SC-003). The droplet's rows say **not measured** rather than borrowing the laptop's.
 - [x] T325 [US2] Replace the UNRECONCILED labels these runs answer, with the date (FR-011). Only SC-003's: a load run stubs everything that costs money, so it cannot answer a price.
 - [x] T326 [P] [US2] `README.md`: how to run a load run locally. The page run needs a claim **and** a position row, or a quarter of the requests 404 and the numbers flatter the service
@@ -86,7 +86,7 @@ Added after the page shipped (owner decision 2026-10-13): the status page gets a
 - [x] T362 [US1] `status/auth.py`: one password, scrypt-hashed, and a signed cookie carrying its own expiry. Standard library only; the form body is parsed directly rather than pulling in a dependency (FR-004a)
 - [x] T363 [US1] Login and sign-out in `status/app.py` + `status/templates/login.html`; the JSON twin is behind the same lock, and no configured password refuses everyone (FR-004)
 - [x] T364 [US1] `deploy/Caddyfile` routes `/status` to the page and everything else to the public server; `STATUS_PREFIX` puts the prefix back into links and the cookie (FR-004)
-- [ ] T365 [US1] Generate the password on the server and append `STATUS_PASSWORD_HASH` / `STATUS_SECRET` to `.env.status`. **Owner's**: `python -m status.hash_password` prompts for it, so it reaches no shell history
+- [x] T365 [US1] Generate the password on the server and append `STATUS_PASSWORD_HASH` / `STATUS_SECRET` to `.env.status`. **Owner's**: `python -m status.hash_password` prompts for it, so it reaches no shell history **Done**: both lines are in the server's `.env.status` and the service is active (checked 2026-10-20).
 
 **Checkpoint**: the front page answers in one line and the status page asks for a password.
 
@@ -105,36 +105,58 @@ Then VOID, then the timeout refund with the worker switched off.
 
 ### Before a line of Solidity
 
-- [ ] T326a [US4] `docs/decisions/002-escrow-v1.md`: answer every item of FR-031f and FR-031h in writing first — a deployed contract gains none of it later (SC-019)
-- [ ] T326b [US4] Publish the settlement window and the void policy: the hours, the grounds, the reason codes, and that a complaint alone pauses nothing (FR-031b, FR-031c, FR-031e)
-- [ ] T326c [US4] Call it an escrow with a named referee wherever it is described — never trustless (FR-031g)
+- [x] T326a [US4] `docs/decisions/002-escrow-v1.md`: answer every item of FR-031f and FR-031h in writing first — a deployed contract gains none of it later (SC-019). **Done**: Foundry, Base Sepolia, own test ERC-20; the six numbers and the guardian key signed off 2026-10-14.
+- [x] T326b [US4] Publish the settlement window and the void policy: the hours, the grounds, the reason codes, and that a complaint alone pauses nothing (FR-031b, FR-031c, FR-031e) **Done**: `docs/settlement-policy.md`, written for the people who would stake.
+- [x] T326c [US4] Call it an escrow with a named referee wherever it is described — never trustless (FR-031g) **Done**: nothing in the repo called it trustless; the policy names Vaticeno, operated by n30sk, as referee.
 
 ### The contract
 
-- [ ] T327 [US4] Contract toolchain and `contracts/` skeleton; one network and one stake token, its testnet RPC and chain id in `.env.example` (FR-022, FR-036)
-- [ ] T328 [US4] `contracts/src/Escrow.sol`: the seven transitions FR-031f names. `settle` starts the hold and pays nobody; the fee is fixed at deployment and zero on the testnet (FR-023, FR-024, FR-026, FR-030, FR-031b)
-- [ ] T328a [US4] Three refund paths — a VOID verdict, the oracle's lever inside the hold, the timeout — each return both stakes, take no fee, and are separate from `payout` (FR-031c, FR-031d)
-- [ ] T329 [US4] Contract tests on a local EVM with time advanced: every branch, a second settle or payout refused, `open` without authorization refused (SC-013, SC-014, SC-018)
-- [ ] T330 [US4] Deploy to the testnet with the source verified publicly; record the address in `.env.example` and on the status page (FR-029)
+- [x] T327 [US4] Contract toolchain and `contracts/` skeleton; one network and one stake token, its testnet RPC and chain id in `.env.example` (FR-022, FR-036) **Done**: `contracts/` with forge-std v1.17.0 pinned as a submodule; env entries; a CI job that builds, lints with warnings denied, and tests.
+- [x] T328 [US4] `contracts/src/Escrow.sol`: the seven transitions FR-031f names. `settle` starts the hold and pays nobody; the fee is fixed at deployment and zero on the testnet (FR-023, FR-024, FR-026, FR-030, FR-031b) **Done**: open, accept, expire, settle, payout, void, refund, plus a guardian pause that never blocks money owed. Every number immutable.
+- [x] T328a [US4] Three refund paths — a VOID verdict, the oracle's lever inside the hold, the timeout — each return both stakes, take no fee, and are separate from `payout` (FR-031c, FR-031d) **Done**: a VOID verdict refunds at once; the void needs a reason code and an evidence reference; the timeout and the void never share a state.
+- [x] T329 [US4] Contract tests on a local EVM with time advanced: every branch, a second settle or payout refused, `open` without authorization refused (SC-013, SC-014, SC-018) **Done**: 43 tests and an operator-attack invariant; 100% of lines and branches. The first invariant reached no payout at all, so it now counts what succeeds.
+- [x] T330 [US4] Deploy to the testnet with the source verified publicly; record the address in `.env.example` and on the status page (FR-029) **Done 2026-10-19**: escrow `0x6281F12b…0A72`, token `0x5C2cfb7a…c2d7`, both verified (redeployed 2026-10-20 after the signature check named its numbers; the first pair, `0x19322CaA…5DD4` and `0x854B1d3a…C2F2`, is retired); every number read back from the chain matches 002-escrow-v1. The deploy cost 0.00003 ETH.
 
 ### The settlement path
 
-- [ ] T331 [US4] Migration `drizzle/0020_settlement.sql` + `src/db/schema.ts` per data-model.md, including the `settle_rw` policies; the role is created by hand like `status_ro`
-- [ ] T332 [US4] `src/resolve/resolver.ts` writes an outbox row when a verdict is final and a stake exists; no chain call from Node (FR-027)
-- [ ] T333 [US4] `settle/worker.py`: poll, read on-chain state, build the transaction from the claim and verdict, sign, record. Own systemd unit, key readable by its own user alone (FR-025, FR-028, FR-028a)
-- [ ] T334 [US4] Test `tests/integration/settlement-outbox.test.ts`: no stake writes nothing; a replayed row sends nothing twice (FR-026)
-- [ ] T335 [US4] Status page: outbox pending / sent / failed, the contract address, the chain, the worker's heartbeat (FR-029, FR-020a)
-- [ ] T336 [US4] The fast path never settles: a verdict the local verifier decided alone writes no outbox row (FR-031)
-- [ ] T336a [US4] Only price-feed claims can be staked — refused by the page, by the outbox, and by the contract's oracle authorization. Tested by trying both ways (FR-031a, SC-017)
-- [ ] T337 [US4] End to end on the testnet: open, accept, deadline, verdict, payout; then VOID; then the timeout refund with the worker stopped (SC-010, SC-011, SC-012)
+- [x] T331 [US4] Migration `drizzle/0020_settlement.sql` + `src/db/schema.ts` per data-model.md: the outbox as one row per locked price claim, `settle_rw` with SELECT + UPDATE on it and SELECT on claims and resolutions; the role created by hand like `status_ro` **Done locally**: the worker's UPDATE is granted column by column, so it cannot write an outcome; a trigger freezes the outcome once set. Production waits for approval.
+- [x] T331a [US4] The lock writes the outbox row for a price-feed claim in the same transaction as the lock; no other claim gets one (FR-027, FR-031a) **Done**: a model-judged claim locks with no row.
+- [x] T332a [US4] A staked claim's verdict is rechecked by the TypeScript side before its outcome is set on the outbox row: the window is 72 hours and the weekly recheck does not fit in it (002-escrow-v1) **Done**: a fresh read through `rejudgeClaim`, an hour after the verdict; a disagreement holds the row, an outage leaves it open.
+- [x] T332 [US4] `src/resolve/resolver.ts` sets the row's outcome when a verdict is final; an update, never an insert, and no chain call from Node (FR-027) **Done**: in `src/resolve/settlement.ts`, the one writer of an outcome, run before the resolver in the same job; a human's verdict needs no second read.
+- [x] T333 [US4] `settle/worker.py`: sign each new row's open authorization; after the verdict, read the resolution, settle every matched stake `stakesOf` returns, or end `no_stake`. Own systemd unit, key readable by its own user alone (FR-025, FR-028, FR-028a) **Done**: `settle/`; it refuses a key file others can read, a chain or contract it was not built for, and an outcome the verdict does not say. Unit file written; installed by hand at deploy.
+- [x] T334 [US4] Test `tests/integration/settlement-outbox.test.ts`: a model-judged claim gets no row; a claim with no stake sends nothing and ends `no_stake`; a replayed row sends nothing twice (FR-026) **Done**: 16 Node tests and 11 against a real local chain as `settle_rw`, run in CI; a replayed row sends nothing twice.
+- [x] T335 [US4] Status page: outbox pending / sent / failed, the contract address, the chain, the worker's heartbeat (FR-029, FR-020a) **Done**: the queue by state with `held` and `failed` in red, the contract and chain from env; the heartbeat is a `settle` row in `job_state` the worker alone may write, and only that row.
+- [x] T336 [US4] The fast path never settles: a verdict the local verifier decided alone sets no outcome on the outbox row (FR-031) **Done by construction**: only `evidence`, `arbiter` and `human` may settle; its test lands with Stage 3's decider value, which does not exist yet.
+- [x] T336a [US4] Only price-feed claims can be staked — refused by the outbox, which gives no other claim a row or a signature, and by the contract. The claim pages offered no staking then; US5 adds the wager page (2026-10-19). Tested by trying both ways (FR-031a, SC-017) **Done**: no row for a model claim, no signature from the worker, and no stake without one on-chain.
+- [x] T337 [US4] End to end on the testnet, scripted with `cast` and two test wallets: open, accept, deadline, verdict, payout; then VOID; then the timeout refund with the worker stopped (SC-010, SC-011, SC-012). No stake page then; US5 adds it **Passed 2026-10-19** (`scripts/e2e-testnet.sh`, escrow `0xBa1f…1f3d`): HIT paid by a third address after the window and refused inside it; VOID refunded at once; no verdict refunded at the timeout with no worker.
+
+### The wager page (US5)
+
+**Independent test**: a short-window testnet deployment, two browser wallets, four wagers, one per ending:
+paid out after the hold (refused inside it, pressed by a third address), VOID, an expired offer returned, a
+timeout refund from the page with the worker stopped (SC-020).
+
+- [ ] T366 [US5] Migration `drizzle/0021_wager_replies.sql` + `src/db/schema.ts` per data-model.md: one link and one refusal per reason per claim, RLS on with no policy (FR-038)
+- [ ] T367 [US5] `wager` as a command, routed before claim parsing; the claim found from the post's direct parent, never the conversation root; refusal reasons in FR-038's order; the row inserted before the reply, a conflict posts nothing, at most once; the daily link cap (number set later); no reply outside a claim's thread (FR-037, FR-038, constitution IV)
+- [ ] T368 [US5] The wager reply template in `src/replies/templates.ts`: one plain-text link to our domain and the no-value line; the refusal replies without a link. The link check allows exactly this one template, and model or web text still never carries a link (FR-039, constitution VI)
+- [ ] T369 [US5] Routes `/claim/<slug>` and `/claim/<slug>/wager` in `src/web/server.ts`; `/c/<slug>` redirects permanently; `contracts/http.md` of spec 001 and the slug comment follow (FR-040)
+- [ ] T370 [US5] `src/web/wager-page.ts`: server-rendered contract, rule, deadline, wagering close, expiry rule, payout rule, maximum stake, the "anyone can make an offer" line, the settlement-policy link, every field escaped and data to the script as JSON; "opens shortly" until the authorization exists; the authorization served only while acceptance is open, with caching off (FR-041, FR-044, FR-046)
+- [ ] T371 [US5] `src/web/wallet.js`: reads through the public RPC with no wallet; connect, switch network; `stakesOf` then the newest 20; approve when the allowance is short, open, accept, return expired offer, payout, refund — each offered only in the state the contract allows, each shown pending, mined or failed, state re-read after every transaction; amounts BigInt; an RPC failure shown as one (FR-042, FR-043, FR-045)
+- [ ] T371a [US5] Test the hand-encoded calls and decoders against forge's ABI for the deployed contract and token: selectors, calldata, decoded stakes, the max-stake boundary in token units
+- [ ] T372 [US5] Test the command and the reply: a burst of `wager` on one claim posts one link; a crash between the insert and the post never posts a second; a price claim before lock refuses without using it up; a model-judged claim is told "not a price claim" even before lock; a closed claim refuses once; a post whose parent is not the claim's posts nothing (SC-021)
+- [ ] T373 [US5] End to end on a short-window testnet deployment with two browser wallets, the four wagers above, plus a pending and a reverted transaction never shown as done, and a verdict on X not yet on the chain shown as pending (SC-020, SC-022)
+- [ ] T374 [US5] **Owner's, blocks nothing here**: the network for real value, Arbitrum One or Base, decided with FR-031h; if it is not Base, a redeploy and the end-to-end runs on its testnet come before any real value (FR-036a)
 
 ### Linking a wallet, optional
 
-- [ ] T338 [US4] Migration `drizzle/0021_wallet_links.sql` + `src/db/schema.ts` per data-model.md: both wallet tables, no read policy on either (FR-032)
-- [ ] T339 [US4] The link flow, its code state in `wallet_link_challenges`: a code, the reply checked through the API, the account confirmed, then the signature taken privately (FR-033, FR-034, FR-035)
-- [ ] T340 [US4] Test: a link needs both halves; a code returned by another account writes nothing; revoking keeps the row and its period; a stake works with no link (SC-015, SC-016)
+- [ ] T338 [US4] Migration `drizzle/0022_wallet_links.sql` + `src/db/schema.ts` per data-model.md: both wallet tables, no read policy on either (FR-032)
+- [ ] T339 [US4] The link flow: the page resolves the named account, issues the code, shows what is public; the post binds it; confirmation, then the private signature, through the script the wager page shares (FR-033–035c, FR-045)
+- [ ] T339a [US4] `link` and `unlink` as commands, routed before claim parsing, one capped reply each, no address in it (FR-035a, FR-035d)
+- [ ] T339b [US4] Before building: decide what an X compliance event does to a link (FR-035g, owner's), and approve the EVM library for signature checks (constitution VII)
+- [ ] T340 [US4] Test: a link needs both halves; another account's post binds and consumes nothing; a post read twice binds once; RPC down refuses; no code in logs; revoking keeps the row; a stake works with no link (SC-015, SC-016)
 
-**Checkpoint**: a verdict settles a contract on a testnet, and the timeout refund works with nothing of ours running.
+**Checkpoint**: a verdict settles a contract on a testnet, the timeout refund works with nothing of ours
+running, and two people can do all of it from the wager page.
 
 **🚀 Stage 2 deploys here** — testnet only, no real value, no fee.
 
@@ -160,7 +182,7 @@ independent reading of the contract, and a written incident policy.
 
 ### Shadow
 
-- [ ] T345 [US3] Migration `drizzle/0022_verifier.sql` + `src/db/schema.ts` per data-model.md (FR-015, FR-016)
+- [ ] T345 [US3] Migration `drizzle/0023_verifier.sql` + `src/db/schema.ts` per data-model.md (FR-015, FR-016)
 - [ ] T346 [US3] `verifier/serve/app.py`: one endpoint, no database, `127.0.0.1:3002`; `deploy/vaticeno-verifier.service` + its install line (FR-020)
 - [ ] T347 [US3] `src/resolve/verifier.ts`: one localhost call, hard timeout, Zod-parsed; any failure means no opinion and the paid path (FR-012, FR-012a)
 - [ ] T348 [US3] Shadow mode in `src/resolve/resolver.ts`: ask, **ignore**, record one row per attempt, failures included. `VERIFIER_URL` and `VERIFIER_MODE` in `src/config.ts` (FR-020a)
@@ -200,7 +222,7 @@ independent reading of the contract, and a written incident policy.
 T301 ─ blocks all Python work
   └─ Phase 2 (T305–T310) → US1 (T311–T318) → 🚀 Stage 1
                               US2 (T319–T326) ┘
-US4 contract (T327–T330) → settlement path (T331–T337) → links, optional (T338–T340) 🚀 Stage 2
+US4 contract (T327–T330) → settlement path (T331–T337) → US5 wager page (T366–T373) → links, optional (T338–T340) 🚀 Stage 2
 US3 offline (T341–T344) → shadow (T345–T349) 🚀 → live (T350–T356) 🚀
 ```
 

@@ -1,0 +1,27 @@
+[Unit]
+Description=Vaticeno settlement worker (testnet escrow; holds the oracle key and nothing else)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Its own user: the oracle key is readable by this process alone, never by the bot that reads posts from
+# strangers (003 FR-028, FR-028a). Created once by hand: useradd --system --no-create-home vaticeno-settle.
+User=vaticeno-settle
+WorkingDirectory=/opt/vaticeno
+ExecStart=/opt/vaticeno/.venv/bin/python -m settle.worker
+# DATABASE_URL_SETTLE, BASE_SEPOLIA_RPC_URL, ESCROW_ADDRESS, ESCROW_CHAIN_ID and ORACLE_KEY_FILE=/etc/vaticeno-settle/oracle.key.
+# Both files owned by vaticeno-settle, mode 600. ProtectHome hides every home: the key must be copied here.
+EnvironmentFile=/etc/vaticeno-settle/env
+Environment=PYTHONDONTWRITEBYTECODE=1
+Restart=always
+RestartSec=30
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadOnlyPaths=/opt/vaticeno
+ReadOnlyPaths=/etc/vaticeno-settle
+
+[Install]
+WantedBy=multi-user.target

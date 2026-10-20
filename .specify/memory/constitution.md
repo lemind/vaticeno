@@ -1,6 +1,9 @@
 <!--
 Sync Impact Report
-- Version change: 2.7.0 → 2.7.1 (2026-10-14, PATCH): VII — a pointer to docs/decisions/003-redis-and-rabbitmq.md,
+- Version change: 2.7.1 → 2.8.0 (2026-10-19, MINOR): VI — replies carry no links, except one plain-text
+  link to our own domain in the reply to a `wager` command, once per claim (owner decision, spec 003 Story 5).
+  Model and web text still never carry one. CLAUDE.md version line updated.
+- Earlier: 2.7.0 → 2.7.1 (2026-10-14, PATCH): VII — a pointer to docs/decisions/003-redis-and-rabbitmq.md,
   which names the triggers for Redis and RabbitMQ. Nothing allowed that was not; CLAUDE.md, README.md and
   docs/progress.md updated.
 - Earlier: 2.6.0 → 2.7.0 (2026-10-09, MINOR): VII — a second runtime is allowed, narrowly. Python
@@ -183,6 +186,10 @@ entire class of problems, and it is what X's terms require.
   decision 2026-10-09). It MUST NOT name, link or single out any claim whose result is in that count.
 - A claim that carries money MUST NOT be the subject of an own-feed post, in a count or by name (owner
   decision 2026-10-09): the account does not advertise a wager it is also judging.
+- Replies carry no links, with one exception (owner decision 2026-10-19, spec 003): the reply to a
+  `@vaticeno wager` command in a recorded claim's thread MAY carry one plain-text link to our own domain,
+  once per claim, and only while the claim can be wagered. Text from a model or the web never carries a
+  link, in any reply.
 - There are no topic exclusions, but content the bot republishes MUST comply with X's rules. X allows
   automated reposts and quote posts that are not bulk, aggressive or spammy (X's automation rules).
 - Behavior that depends on X's answers (third-party recording) MUST be configuration, not code, and MUST
@@ -247,4 +254,4 @@ Rationale: a one-person proto survives on code it can read in one sitting.
 - Every plan passes the Constitution Check before design and again after it. A justified violation
   is recorded in the plan's Complexity Tracking table; an unjustified one blocks the work.
 
-**Version**: 2.7.1 | **Ratified**: 2026-09-28 | **Last Amended**: 2026-10-14
+**Version**: 2.8.0 | **Ratified**: 2026-09-28 | **Last Amended**: 2026-10-19
