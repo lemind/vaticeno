@@ -12,7 +12,7 @@ status page — healthy, dead job, no database. Nothing else; ~55% coverage is a
 
 | | |
 |---|---|
-| Stage 1 | Phases 1-4 done 2026-10-13 except T323. **Migrations 0017-0019 are applied locally and not on Supabase**, and the page is not deployed |
+| Stage 1 | live: the front page and `/status` behind its login are deployed. Open: T323 (the status service's own memory) and T365 (the owner sets the password) |
 | Stage 2 | contract and settlement path done, live on Base Sepolia, end to end passed 2026-10-19; the wager page (US5) and wallet links next. Testnet only, no real value, no fee, price-feed claims only (FR-031h) |
 | Escrow v1 | T326a answers FR-031f before anything is deployed |
 | Stage 3 | not started; may end at T344 |
