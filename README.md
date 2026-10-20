@@ -98,7 +98,7 @@ the lite model that parses predictions; everything else stays on the lite model.
 | `npm run poc:poll` | old proof-of-concept poller (ping only); do not run next to the service |
 | `npm run poc:parse -- "<text>"` | see how a mention is parsed, offline |
 | `npm run poc:whoami` / `poc:auth` | bot user ID / one-time browser login for posting |
-| `npm run dev` | public pages on `PORT` (default 3000): `/c/<slug>`, `/u/<x_user_id>`, `/healthz` |
+| `npm run dev` | public pages on `PORT` (default 3000): `/claim/<slug>`, `/claim/<slug>/wager`, `/u/<x_user_id>`, `/healthz` |
 | `npm run db:migrate` | apply database migrations (uses `DATABASE_URL`) |
 | `npm run content:tick -- pool|original` | run one feed job by hand (needs `ENABLE_FEED=true`) |
 | `npm run content:queue -- add "…" / load-starters / list / remove <id>` | the owner's queue of own posts |
@@ -127,7 +127,7 @@ Runs as systemd service `vaticeno` (`src/web/server.ts` with `ENABLE_JOBS=true E
 `SENTRY_DSN` and `NODE_ENV=production` in the server's `.env`. Production database: Supabase (Frankfurt),
 connection string in the gitignored `.env.production`; apply migrations there with
 `set -a; . ./.env.production; set +a; npm run db:migrate` before deploying code that needs them.
-Claim pages listen on localhost only: `ssh -L 3000:127.0.0.1:3000 root@HOST`, then `http://localhost:3000/c/<slug>`.
+Claim pages listen on localhost only: `ssh -L 3000:127.0.0.1:3000 root@HOST`, then `http://localhost:3000/claim/<slug>`.
 
 ### Hosting and capacity
 

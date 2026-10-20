@@ -40,6 +40,7 @@ const SIGNATURES: Record<string, [string, string]> = {
   feeBps: ['Escrow', 'feeBps()'],
   settlementWindow: ['Escrow', 'settlementWindow()'],
   timeout: ['Escrow', 'timeout()'],
+  offerLifetime: ['Escrow', 'offerLifetime()'],
   open: ['Escrow', 'open(bytes32,uint64,uint64,bytes,bool,uint128)'],
   accept: ['Escrow', 'accept(uint256)'],
   expire: ['Escrow', 'expire(uint256)'],

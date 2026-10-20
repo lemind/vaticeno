@@ -57,6 +57,7 @@ type Routed = {
   discloses?: boolean;
   deferQuote?: boolean;
   quoteTopic?: string;
+  onNotSent?: () => Promise<void>; // undoes what routing recorded, when the reply provably never left
 };
 
 const HOUR_MS = 3_600_000;
@@ -929,7 +930,7 @@ export async function pollMentions(
         });
       }
       const replyId = routed.reply
-        ? await sendReply(deps, state, mention, routed.reply, now)
+        ? await sendReply(deps, state, mention, routed.reply, now, routed.onNotSent)
         : null;
       if (replyId) replies++;
       if (routed.slug && replyId)
@@ -1052,6 +1053,7 @@ async function sendReply(
   mention: Mention,
   text: string,
   now: Date,
+  onNotSent?: () => Promise<void>,
 ): Promise<string | null> {
   state.replied_tweet_ids = [...state.replied_tweet_ids, mention.id].slice(
     -REPLIED_IDS_KEPT,
@@ -1076,8 +1078,10 @@ async function sendReply(
   } catch (error) {
     // The reply never left the machine (no usable token): the account is failing to post at all, so this
     // is an alert, not a log line. The claim's lock is withheld below, so nothing locks unseen.
-    if (error instanceof PostNotSent)
+    if (error instanceof PostNotSent) {
       alert('reply.not_sent', { tweet_id: mention.id });
+      await onNotSent?.();
+    }
     const detail = error instanceof XApiError ? { status: error.status } : {};
     captureError(error, { event: 'reply.failed', tweet_id: mention.id, ...detail });
     return null;

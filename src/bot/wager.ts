@@ -1,7 +1,13 @@
 // `@vaticeno wager` (003 Story 5): one link reply per claim, one plain refusal per reason, nothing anywhere
-// else. The row is written before the reply goes, so a crash mid-post loses the link rather than send two.
+// else. The row is written before the reply goes, so a crash mid-post loses the link rather than send two;
+// only a post that provably never left gives it back.
 import { and, count, eq, gte } from 'drizzle-orm';
-import { claims, wagerReplies, type WagerReplyKind } from '../db/schema.js';
+import {
+  claims,
+  settlementOutbox,
+  wagerReplies,
+  type WagerReplyKind,
+} from '../db/schema.js';
 import type { Db } from '../db/client.js';
 import { log } from '../log.js';
 import { alert } from '../observe.js';
@@ -23,7 +29,12 @@ export async function wagerReply(
   slug: string,
   mentionId: string,
   now: Date,
-): Promise<{ action: string; reply: string | null; slug?: string }> {
+): Promise<{
+  action: string;
+  reply: string | null;
+  slug?: string;
+  onNotSent?: () => Promise<void>;
+}> {
   const [claim] = await deps.db
     .select({
       id: claims.id,
@@ -32,8 +43,11 @@ export async function wagerReply(
       deadlineAt: claims.deadlineAt,
       lockAt: claims.lockAt,
       contract: claims.contract,
+      outboxId: settlementOutbox.id,
+      authorizedUntil: settlementOutbox.authorizedUntil,
     })
     .from(claims)
+    .leftJoin(settlementOutbox, eq(settlementOutbox.claimId, claims.id))
     .where(eq(claims.slug, slug))
     .limit(1);
   // A claim still asking for its prediction has nothing to wager on yet, and nothing to say about it.
@@ -43,7 +57,8 @@ export async function wagerReply(
     return { action: 'wager_not_configured', reply: null };
   }
 
-  const kind = wagerKind(claim, now);
+  const outbox = claim.outboxId ? { authorizedUntil: claim.authorizedUntil } : null;
+  const kind = wagerKind({ ...claim, outbox }, now);
   if (
     kind === 'link' &&
     (await linksToday(deps.db, now)) >= deps.wager.linksPerDay
@@ -65,10 +80,15 @@ export async function wagerReply(
     });
     return { action: `wager_${kind}_spent`, reply: null, slug };
   }
+  const [row] = spent;
   return {
     action: `wager_${kind}`,
     reply: replyFor(kind, deps.wager.host, slug, claim.lockAt, now),
     slug,
+    // A post that provably never left (PostNotSent) gives the link back; an uncertain one never does (§6.7).
+    onNotSent: async () => {
+      await deps.db.delete(wagerReplies).where(eq(wagerReplies.id, row!.id));
+    },
   };
 }
 

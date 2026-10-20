@@ -29,39 +29,57 @@ const short = (addr) => `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 const nowSeconds = () => Math.floor(Date.now() / 1000);
 const utc = (seconds) => new Date(seconds * 1000).toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
 
-async function rpc(method, params) {
+async function post(body) {
   const response = await fetch(data.rpcUrl, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+    body: JSON.stringify(body),
   });
-  const body = await response.json();
+  if (!response.ok) throw new Error(`the network answered ${response.status}`); // a 429 is HTML, not JSON
+  return response.json();
+}
+
+async function rpc(method, params) {
+  const body = await post({ jsonrpc: '2.0', id: 1, method, params });
   if (body.error) throw new Error(body.error.message);
   return body.result;
+}
+
+// Many reads in one request (JSON-RPC batch): a page load is two requests, not one per wager.
+async function readAll(calls) {
+  const body = await post(calls.map(([to, callData], id) => ({ jsonrpc: '2.0', id, method: 'eth_call', params: [{ to, data: callData }, 'latest'] })));
+  if (!Array.isArray(body)) throw new Error(body.error?.message ?? 'unexpected answer from the network');
+  const byId = new Map(body.map((item) => [item.id, item]));
+  return calls.map((_, id) => {
+    const item = byId.get(id);
+    if (!item || item.error) throw new Error(item?.error?.message ?? 'a read went missing');
+    return item.result;
+  });
 }
 
 const read = (to, callData) => rpc('eth_call', [{ to, data: callData }, 'latest']);
 
 async function loadChain() {
-  const [paused, maxStake, feeBps, settlementWindow, timeout, decimals] = await Promise.all(
-    ['paused', 'maxStake', 'feeBps', 'settlementWindow', 'timeout'].map((name) =>
-      read(data.escrow, SELECTORS[name]).then(decodeUint),
-    ).concat(read(data.token, SELECTORS.decimals).then(decodeUint)),
-  );
-  const ids = data.claimHash ? decodeUintArray(await read(data.escrow, encodeStakesOf(data.claimHash))) : [];
+  const terms = ['paused', 'maxStake', 'feeBps', 'settlementWindow', 'timeout', 'offerLifetime'];
+  const first = await readAll([
+    ...terms.map((name) => [data.escrow, SELECTORS[name]]),
+    [data.token, SELECTORS.decimals],
+    ...(data.claimHash ? [[data.escrow, encodeStakesOf(data.claimHash)]] : []),
+  ]);
+  const [paused, maxStake, feeBps, settlementWindow, timeout, offerLifetime, decimals] = first.slice(0, 7).map(decodeUint);
+  const ids = data.claimHash ? decodeUintArray(first[7]) : [];
   const newest = ids.slice(-SHOWN).reverse();
-  const stakes = await Promise.all(
-    newest.map(async (id) => ({ id, ...decodeStake(await read(data.escrow, encodeStakeCall('stakes', id))) })),
-  );
+  const raw = newest.length ? await readAll(newest.map((id) => [data.escrow, encodeStakeCall('stakes', id)])) : [];
   return {
     paused: paused === 1n,
     maxStake,
     feeBps: Number(feeBps),
     settlementWindow: Number(settlementWindow),
     timeout: Number(timeout),
+    offerLifetime: Number(offerLifetime),
     decimals: Number(decimals),
     total: ids.length,
-    stakes,
+    stakes: raw.map((hex, i) => ({ id: newest[i], ...decodeStake(hex) })),
   };
 }
 
@@ -72,12 +90,14 @@ async function refresh() {
   } catch (error) {
     $('chain-error').hidden = false; // never "no offers": we could not look (003 FR-043)
     $('chain-error').textContent = `Can't read the chain right now (${error.message}). Try again in a minute.`;
+    $('offer-closed').textContent = 'Offers can be made once the chain can be read.';
+    $('offer').hidden = true;
     return;
   }
   renderTerms();
   renderWagers();
   renderOfferForm();
-  if (account) renderBalance();
+  if (account) renderBalance().catch((error) => status(`Can't read your balance: ${error.message}`));
 }
 
 function renderTerms() {
@@ -87,6 +107,11 @@ function renderTerms() {
       ? 'twice the stake, no fee'
       : `twice the stake, minus a ${chain.feeBps / 100}% fee`;
   $('paused').hidden = !chain.paused;
+  // The contract's own numbers, so the terms always say what the buttons will do (review 2026-10-20).
+  const span = (seconds) => (seconds % 86400 === 0 ? `${seconds / 86400} days` : seconds % 3600 === 0 ? `${seconds / 3600} hours` : `${Math.round(seconds / 60)} minutes`);
+  $('hold').textContent = span(chain.settlementWindow);
+  $('timeout').textContent = span(chain.timeout);
+  $('offer-lifetime').textContent = `after ${span(chain.offerLifetime)}`;
 }
 
 function renderWagers() {
@@ -149,6 +174,9 @@ function renderOfferForm() {
   const open = data.authorization && nowSeconds() < data.validUntil && !chain.paused;
   $('offer').hidden = !open;
   $('offer-closed').hidden = Boolean(open);
+  // The server's line stands for not-yet-locked and not-yet-signed; once read, the chain decides the rest.
+  if (!open && data.authorization)
+    $('offer-closed').textContent = chain.paused ? 'New offers are paused by the referee.' : 'Wagering is closed for new offers.';
 }
 
 async function renderBalance() {
@@ -199,8 +227,16 @@ async function send(label, to, callData) {
   const hash = await window.ethereum.request({ method: 'eth_sendTransaction', params: [{ from: account, to, data: callData }] });
   status(`${label}: pending…`, hash);
   const started = Date.now();
+  let failures = 0;
   while (Date.now() - started < RECEIPT_WAIT_MS) {
-    const receipt = await rpc('eth_getTransactionReceipt', [hash]).catch(() => null);
+    let receipt = null;
+    try {
+      receipt = await rpc('eth_getTransactionReceipt', [hash]);
+      failures = 0;
+    } catch (error) {
+      // One blip is retried; a network that keeps failing is said plainly, not shown as "pending".
+      if (++failures >= 5) throw new Error(`${label} was sent, but the network can't be read (${error.message}); check it on the explorer`);
+    }
     if (receipt) {
       if (receipt.status !== '0x1') throw new Error(`${label} failed on the chain`);
       status(`${label}: done.`, hash);
@@ -236,6 +272,7 @@ async function act(name, stake) {
 async function makeOffer(event) {
   event.preventDefault();
   try {
+    if (!chain) throw new Error("the chain hasn't been read yet; try again in a moment");
     if (!account) await connect();
     const amount = parseUnits($('amount').value, chain.decimals);
     if (amount === 0n || amount > chain.maxStake) throw new Error(`the amount must be above 0 and at most ${formatUnits(chain.maxStake, chain.decimals)} VTS`);

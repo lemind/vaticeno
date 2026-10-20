@@ -188,7 +188,7 @@ export const wagerNotPriceReply = (slug: string) =>
   `#${slug} can't carry a wager: only claims decided by a price feed can.`;
 
 export const wagerClosedReply = (slug: string) =>
-  `Wagering on #${slug} is closed: it shuts 24 hours before the deadline.`;
+  `Wagering on #${slug} is closed for new offers.`;
 
 // Length as X counts it: links weigh 23, everything else one per character (code point).
 // A bot reply must not tag anyone or carry links (constitution VI): model or web text that does is not posted.

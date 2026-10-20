@@ -35,7 +35,7 @@ class PublicPages(HttpUser):
     @task(5)
     def claim_page(self) -> None:
         # 404 is a valid answer and still costs a query, so it is not failed here.
-        self.client.get(f"/c/{SLUG}", name="/c/:slug", catch_response=False)
+        self.client.get(f"/claim/{SLUG}", name="/claim/:slug", catch_response=False)
 
     @task(2)
     def author_page(self) -> None:

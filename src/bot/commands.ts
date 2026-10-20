@@ -136,7 +136,9 @@ export function commandWordIn(body: string): Command | null {
     .filter((w) => /[\p{L}\p{N}]/u.test(w));
   const first =
     words[0] === 'self' && words.length > 1 ? `self${words[1]}` : words[0];
-  return first ? (ALIASES[first] ?? null) : null;
+  const command = first ? (ALIASES[first] ?? null) : null;
+  // The model has no wager intent: "Wager: BTC above 100k" is a prediction, not a paid detour (review 2026-10-20).
+  return command === 'wager' ? null : command;
 }
 
 // Damerau-Levenshtein (optimal string alignment): a swap of two neighbours ("qoute") counts as one edit.

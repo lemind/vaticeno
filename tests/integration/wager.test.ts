@@ -10,8 +10,14 @@ import type { Coinbase } from '../../src/feeds/coinbase.js';
 import { createMemorySourceReader } from '../../src/lifecycle/source-reader.js';
 import type { LlmClient } from '../../src/llm/client.js';
 import { buildServer } from '../../src/web/server.js';
-import type { Mention, XClient } from '../../src/x/client.js';
-import { insertClaim, setupTestDb, type TestDb, VALID_CONTRACT } from './helpers.js';
+import { type Mention, PostNotSent, type XClient } from '../../src/x/client.js';
+import {
+  insertClaim,
+  insertEvidence,
+  setupTestDb,
+  type TestDb,
+  VALID_CONTRACT,
+} from './helpers.js';
 
 let t: TestDb;
 before(async () => {
@@ -37,11 +43,12 @@ const llm = new Proxy(
 
 async function bot(
   mentionsByPoll: Mention[][],
-  opts: { linksPerDay?: number; failPosts?: number } = {},
+  opts: { linksPerDay?: number; failPosts?: number; notSent?: number } = {},
 ) {
   const replies: Array<{ to: string; text: string }> = [];
   let poll = 0;
   let failures = opts.failPosts ?? 0;
+  let unsent = opts.notSent ?? 0;
   const deps: BotDeps = {
     db: t.db,
     llm,
@@ -61,6 +68,7 @@ async function bot(
       throw new Error('no page read expected');
     },
     postReply: async (to, text) => {
+      if (unsent-- > 0) throw new PostNotSent(new Error('no token')); // provably never reached X
       if (failures-- > 0) throw new Error('X timed out'); // a post whose fate is unknown: never retried
       replies.push({ to, text });
       return { id: `r-${to}` };
@@ -90,8 +98,11 @@ const THREAD = {
   thread_tweet_ids: [BOT_REPLY],
 };
 
+// Locked since Stage 2 shipped: the lock wrote its settlement row (src/lifecycle/lock.ts).
 async function lockedPriceClaim(overrides: Record<string, unknown> = {}) {
-  return insertClaim(t.sql, 'locked', { ...THREAD, ...overrides });
+  const claim = await insertClaim(t.sql, 'locked', { ...THREAD, ...overrides });
+  await t.sql`insert into settlement_outbox (claim_id) values (${claim.id})`;
+  return claim;
 }
 
 describe('the wager command', () => {
@@ -142,6 +153,7 @@ describe('the wager command', () => {
     await pollMentions(deps, NOW);
     assert.equal(replies.length, 1, 'the refusal is said once per claim');
     await t.sql`update claims set status = 'locked' where id = ${claim.id}`;
+    await t.sql`insert into settlement_outbox (claim_id) values (${claim.id})`;
     await pollMentions(deps, NOW);
     assert.match(
       replies[1]!.text,
@@ -164,14 +176,13 @@ describe('the wager command', () => {
   });
 
   test('a claim whose wagering has closed refuses once, without a link', async () => {
-    await lockedPriceClaim({ deadline_at: '2026-10-21T06:00:00Z' }); // under 24 hours away
+    const claim = await lockedPriceClaim({ deadline_at: '2026-10-21T06:00:00Z' });
+    await t.sql`update settlement_outbox set open_authorization = '0x00',
+      authorized_until = '2026-10-20T06:00:00Z' where claim_id = ${claim.id}`; // the signed close has passed
     const { deps, replies } = await bot([[wager('10'), wager('11')]]);
     await pollMentions(deps, NOW);
     assert.equal(replies.length, 1);
-    assert.match(
-      replies[0]!.text,
-      /is closed: it shuts 24 hours before the deadline/,
-    );
+    assert.match(replies[0]!.text, /is closed for new offers/);
   });
 
   test("a wager whose parent is not the claim's gets nothing: no reply, no claim", async () => {
@@ -188,6 +199,26 @@ describe('the wager command', () => {
       1,
       'never recorded as a claim',
     );
+  });
+
+  test('a claim locked before settlement existed has no row, so no dead link: closed', async () => {
+    await insertClaim(t.sql, 'locked', THREAD);
+    const { deps, replies } = await bot([[wager('10')]]);
+    await pollMentions(deps, NOW);
+    assert.equal(replies.length, 1);
+    assert.match(replies[0]!.text, /is closed for new offers/);
+  });
+
+  test('a post that provably never left gives the link back for the next ask', async () => {
+    await lockedPriceClaim();
+    const { deps, replies } = await bot([[wager('10')], [wager('11')]], {
+      notSent: 1,
+    });
+    await pollMentions(deps, NOW);
+    assert.equal(replies.length, 0);
+    await pollMentions(deps, NOW);
+    assert.match(replies[0]!.text, /^WAGER · /);
+    assert.equal(replies[0]!.to, '11');
   });
 
   test('past the daily cap the link waits, unspent, and alerts', async () => {
@@ -224,8 +255,9 @@ describe('the wager page', () => {
 
   async function withAuthorization() {
     const claim = await lockedPriceClaim();
-    await t.sql`insert into settlement_outbox (claim_id, claim_hash, open_authorization, authorized_until)
-      values (${claim.id}, ${'0x' + 'ab'.repeat(32)}, ${'0x' + '11'.repeat(65)}, '2026-12-30T23:59:59Z')`;
+    await t.sql`update settlement_outbox set claim_hash = ${'0x' + 'ab'.repeat(32)},
+      open_authorization = ${'0x' + '11'.repeat(65)}, authorized_until = '2026-12-30T23:59:59Z'
+      where claim_id = ${claim.id}`;
     return claim;
   }
 
@@ -280,6 +312,21 @@ describe('the wager page', () => {
     });
     const res = await app().inject(`/claim/${claim.slug}/wager`);
     assert.doesNotMatch(res.body, /<img src=x/);
+  });
+
+  test('a corrected verdict is the one the page shows', async () => {
+    const claim = await insertClaim(t.sql, 'resolved', THREAD);
+    const evidence = await insertEvidence(t.sql, claim.id, { says: 'hit' });
+    await t.sql`insert into resolutions ${t.sql({ claim_id: claim.id, outcome: 'hit', decided_by: 'evidence', review_status: 'final', decided_at: NOW.toISOString(), deciding_evidence_id: evidence.id })}`;
+    await t.sql`insert into corrections ${t.sql({ claim_id: claim.id, from_outcome: 'hit', to_outcome: 'miss', reason: 'the close was misread', decided_by: 'human' })}`;
+    const page = (await app().inject(`/claim/${claim.slug}/wager`)).body.replace(
+      /\s+/g,
+      ' ',
+    );
+    assert.match(
+      page,
+      /Vaticeno's verdict<\/dt> ?<dd> ?MISS ?<span class="muted">corrected<\/span>/,
+    );
   });
 
   test('old /c/ links move for good to /claim/', async () => {

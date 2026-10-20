@@ -10,6 +10,7 @@ export const SELECTORS = {
   feeBps: '0x24a9d853',
   settlementWindow: '0xb4a7bdf9',
   timeout: '0x70dea79a',
+  offerLifetime: '0x13738b0b',
   open: '0x1c4cf960', // open(bytes32,uint64,uint64,bytes,bool,uint128)
   accept: '0x19b05f49',
   expire: '0xbf81bf43',

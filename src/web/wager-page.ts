@@ -4,13 +4,8 @@ import { eq } from 'drizzle-orm';
 import { renderStatement } from '../contract/render.js';
 import { ContractSchema } from '../contract/schema.js';
 import type { Db } from '../db/client.js';
-import { claims, resolutions, settlementOutbox } from '../db/schema.js';
-import {
-  OFFER_LIFETIME_MS,
-  SETTLEMENT_WINDOW_MS,
-  TIMEOUT_MS,
-  wageringClosesAt,
-} from '../wager/terms.js';
+import { claims, corrections, resolutions, settlementOutbox } from '../db/schema.js';
+import { wagerKind } from '../wager/terms.js';
 import { html, jsonData, layout, utc } from './html.js';
 
 export type WagerConfig = {
@@ -24,7 +19,6 @@ export type WagerConfig = {
 
 const POLICY_URL =
   'https://github.com/lemind/vaticeno/blob/main/docs/settlement-policy.md';
-const HOURS = (ms: number) => ms / 3_600_000;
 
 // What the settlement row's state means to someone holding a wager (data-model → settlement_outbox).
 const SETTLEMENT_WORDS: Record<string, string> = {
@@ -49,16 +43,20 @@ export async function wagerPage(
     .limit(1);
   if (!claim?.contract) return null;
   const contract = ContractSchema.parse(claim.contract);
-  const [[outbox], [resolution]] = await Promise.all([
+  const [[outbox], [resolution], [correction]] = await Promise.all([
     db
       .select()
       .from(settlementOutbox)
       .where(eq(settlementOutbox.claimId, claim.id))
       .limit(1),
     db.select().from(resolutions).where(eq(resolutions.claimId, claim.id)).limit(1),
+    db.select().from(corrections).where(eq(corrections.claimId, claim.id)).limit(1),
   ]);
   const deadline = new Date(contract.deadline_at);
-  const closes = wageringClosesAt(deadline);
+  // The same rule the bot answers by (src/wager/terms.ts).
+  const kind = wagerKind({ ...claim, outbox: outbox ?? null }, now);
+  // The close the worker signed, from the contract's own acceptanceCloses; none until it has signed.
+  const closes = outbox?.authorizedUntil ?? null;
   const statement = renderStatement(contract);
   const head = html`<p class="muted">
       <a href="/claim/${claim.slug}">#${claim.slug}</a> · wager
@@ -69,7 +67,7 @@ export async function wagerPage(
       the Base Sepolia test network. Nothing here is real money.
     </p>`;
 
-  if (contract.resolution_method !== 'price_feed')
+  if (kind === 'not_price')
     return layout(
       `#${claim.slug} · wager`,
       html`${head}
@@ -92,13 +90,18 @@ export async function wagerPage(
       ? outbox.openAuthorization
       : null;
   const final = resolution?.reviewStatus === 'final' ? resolution : null;
+  // A corrected verdict is what holds now, as on the claim page (001 FR-035).
+  const verdict = correction?.toOutcome ?? final?.outcome ?? null;
+  // Until the script has read the chain it claims nothing; it replaces this line or hides it (FR-043).
   const opening =
-    claim.status === 'draft'
+    kind === 'not_locked'
       ? html`Wagering opens when the claim locks, ${utc(claim.lockAt)}.`
-      : claim.status === 'locked' && now < closes && !authorization
-        ? html`Wagering opens shortly: the referee is signing this claim's
-          permission.`
-        : html`Wagering is closed for new offers.`;
+      : kind === 'closed'
+        ? html`Wagering is closed for new offers.`
+        : authorization
+          ? html`Reading the chain…`
+          : html`Wagering opens shortly: the referee is signing this claim's
+            permission.`;
 
   const body = html`${head}
     <h2>Terms</h2>
@@ -112,11 +115,11 @@ export async function wagerPage(
       <dt>Deadline</dt>
       <dd>${utc(deadline)}</dd>
       <dt>Wagering closes</dt>
-      <dd>${utc(closes)}, 24 hours before the deadline</dd>
+      <dd>${closes ? utc(closes) : 'set when the referee signs this claim'}</dd>
       <dt>An offer</dt>
       <dd>
-        expires after ${HOURS(OFFER_LIFETIME_MS) / 24} days, or when wagering closes
-        if sooner; then anyone can return it to its maker
+        expires <span id="offer-lifetime">after a fixed time</span>, or when wagering
+        closes if sooner; then anyone can return it to its maker
       </dd>
       <dt>The winner gets</dt>
       <dd id="payout-rule">twice the stake, minus the fee set at deployment</dd>
@@ -124,15 +127,16 @@ export async function wagerPage(
       <dd id="max-stake">read from the chain</dd>
       <dt>Payout hold</dt>
       <dd>
-        ${HOURS(SETTLEMENT_WINDOW_MS)} hours after the verdict reaches the chain.
+        <span id="hold">A fixed time</span> after the verdict reaches the chain.
         During it the referee can void its own mistake, which refunds both sides.
         After it anyone can pay out.
         <a href="${POLICY_URL}" rel="noopener">Settlement policy</a>
       </dd>
       <dt>No settlement</dt>
       <dd>
-        if no verdict reaches the chain within ${HOURS(TIMEOUT_MS) / 24} days of the
-        deadline, anyone can refund both sides
+        if no verdict reaches the chain within
+        <span id="timeout">a fixed time</span> of the deadline, anyone can refund
+        both sides
       </dd>
     </dl>
     <p class="muted">
@@ -144,7 +148,7 @@ export async function wagerPage(
     <dl>
       <dt>Vaticeno's verdict</dt>
       <dd>
-        ${final ? (final.outcome ?? '').toUpperCase() : resolution ? 'waiting for a human decision' : 'not yet'}
+        ${verdict ? verdict.toUpperCase() : resolution ? 'waiting for a human decision' : 'not yet'}${correction ? html` <span class="muted">corrected</span>` : ''}
       </dd>
       <dt>On the chain</dt>
       <dd>${SETTLEMENT_WORDS[outbox?.state ?? 'open']}</dd>
