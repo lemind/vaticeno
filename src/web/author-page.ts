@@ -13,7 +13,13 @@ type Result = 'right' | 'wrong' | 'void' | null;
 const MAX_CLAIMS_SHOWN = 500; // a public URL never reads without bound; counts cover what is shown
 
 export async function authorPage(db: Db, xUserId: string): Promise<string | null> {
-  const rows = await db.select({ claim: claims, position: positions, resolution: resolutions, correction: corrections })
+  const rows = await db
+    .select({
+      claim: claims,
+      position: positions,
+      resolution: resolutions,
+      correction: corrections,
+    })
     .from(positions)
     .innerJoin(claims, eq(claims.id, positions.claimId))
     .leftJoin(resolutions, eq(resolutions.claimId, claims.id))
@@ -29,10 +35,16 @@ export async function authorPage(db: Db, xUserId: string): Promise<string | null
   if (shown.length === 0) return null;
 
   const withResult = shown.map((row) => {
-    const final = row.resolution?.reviewStatus === 'final' ? row.resolution.outcome : null;
+    const final =
+      row.resolution?.reviewStatus === 'final' ? row.resolution.outcome : null;
     // A corrected verdict counts as what it is now, not as what was first said (001 FR-035).
-    const verdict = final === null ? null : row.correction?.toOutcome ?? final;
-    return { ...row, verdict, corrected: Boolean(row.correction), result: derivedResult(verdict, row.position.stance) };
+    const verdict = final === null ? null : (row.correction?.toOutcome ?? final);
+    return {
+      ...row,
+      verdict,
+      corrected: Boolean(row.correction),
+      result: derivedResult(verdict, row.position.stance),
+    };
   });
   const counts = {
     recorded: withResult.filter((r) => REACHED_LOCK.has(r.claim.status)).length,
@@ -42,21 +54,45 @@ export async function authorPage(db: Db, xUserId: string): Promise<string | null
     void: withResult.filter((r) => r.result === 'void').length,
   };
 
-  const body = html`
-<p class="muted">X user ${xUserId}</p>
-<h1>Predictions on record</h1>
-<p>${counts.recorded} recorded · ${counts.resolved} resolved · <span class="hit">${counts.right} right</span> · <span class="miss">${counts.wrong} wrong</span> · <span class="void">${counts.void} void</span></p>
-<div class="scroll"><table>
-<tr><th>Prediction</th><th>Side</th><th>Deadline</th><th>Status</th><th>Verdict</th><th>Result</th></tr>
-${withResult.map(({ claim, contract, position, verdict, corrected, result }) => html`<tr>
-  <td><a href="/c/${claim.slug}">${renderStatement(contract)}</a></td>
-  <td>${position.stance}</td>
-  <td>${utc(claim.deadlineAt)}</td>
-  <td>${claim.status}</td>
-  <td>${verdict ? verdict.toUpperCase() : '—'}${corrected ? html`<br><span class="muted">corrected</span>` : ''}</td>
-  <td class="${result === 'right' ? 'hit' : result === 'wrong' ? 'miss' : 'void'}">${result ?? '—'}</td>
-</tr>`)}
-</table></div>`;
+  const body = html` <p class="muted">X user ${xUserId}</p>
+    <h1>Predictions on record</h1>
+    <p>
+      ${counts.recorded} recorded · ${counts.resolved} resolved ·
+      <span class="hit">${counts.right} right</span> ·
+      <span class="miss">${counts.wrong} wrong</span> ·
+      <span class="void">${counts.void} void</span>
+    </p>
+    <div class="scroll">
+      <table>
+        <tr>
+          <th>Prediction</th>
+          <th>Side</th>
+          <th>Deadline</th>
+          <th>Status</th>
+          <th>Verdict</th>
+          <th>Result</th>
+        </tr>
+        ${withResult.map(
+          ({ claim, contract, position, verdict, corrected, result }) =>
+            html`<tr>
+              <td>
+                <a href="/claim/${claim.slug}">${renderStatement(contract)}</a>
+              </td>
+              <td>${position.stance}</td>
+              <td>${utc(claim.deadlineAt)}</td>
+              <td>${claim.status}</td>
+              <td>
+                ${verdict ? verdict.toUpperCase() : '—'}${corrected ? html`<br /><span class="muted">corrected</span>` : ''}
+              </td>
+              <td
+                class="${result === 'right' ? 'hit' : result === 'wrong' ? 'miss' : 'void'}"
+              >
+                ${result ?? '—'}
+              </td>
+            </tr>`,
+        )}
+      </table>
+    </div>`;
   return layout(`User ${xUserId}`, body);
 }
 

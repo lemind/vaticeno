@@ -205,7 +205,7 @@ returned after expiry; (d) with the worker stopped, a matched wager is refunded 
 **Acceptance Scenarios**:
 
 1. **Given** a locked price claim inside its acceptance window, **When** anyone posts `@vaticeno wager` as a
-   direct reply to the claim's post, its summon, a fix or a bot reply in it, **Then** the bot replies once in
+   reply to the bot's reply in the claim's thread, **Then** the bot replies once in
    that thread with the claim's wager link and the no-value line, and later `wager` posts for the same claim
    get no reply.
 2. **Given** a price claim that is not locked yet, **When** `wager` arrives, **Then** one short reply without
@@ -517,6 +517,9 @@ returned after expiry; (d) with the worker stopped, a matched wager is refunded 
   holding the authorization open a stake. The claim is found the way the bot already finds one: the post's
   direct parent is the claim's post, its summon, a fix or a bot reply in it. Never the conversation root,
   which can be an older, unrelated post, and never the post's text. Any other `wager` post gets no reply.
+  The existing addressing rule still holds: once the bot is in a thread, a handle at the start of a reply
+  may be one X carried, so a stranger is heard when they reply **to the bot's own reply**, and the author
+  also under their own post (found while building, 2026-10-20).
 - **FR-038**: A claim gets **at most one reply carrying its wager link**, to the first `wager` that arrives
   while the claim is locked, price-feed and inside its acceptance window. Later `wager` posts for that claim
   get no reply. A refusal — not locked yet, not a price claim, wagering closed — is one short reply with no

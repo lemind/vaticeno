@@ -20,6 +20,7 @@ import { recordCosts } from '../db/costs.js';
 import { type ExtrasDeps, quoteReply, selfpromoReply } from './extras.js';
 import { logTopic, resolveQuoteTopic } from './quote-topic.js';
 import { loadInstruction } from '../llm/instructions.js';
+import { type WagerDeps, wagerReply } from './wager.js';
 import { alert, captureError } from '../observe.js';
 import {
   HELP_REPLY,
@@ -32,16 +33,17 @@ import {
 import { type Mention, PostNotSent, XApiError, type XClient } from '../x/client.js';
 import { X_POST_READ_USD } from '../x/prices.js';
 
-export type BotDeps = ExtrasDeps & {
-  x: XClient;
-  reader: SourceReader;
-  botUserId: string;
-  botHandle: string;
-  postReply: (inReplyToTweetId: string, text: string) => Promise<{ id: string }>;
-  allowAuthor: (authorId: string) => boolean; // pre-launch gate: REPLY_ALLOWLIST_USER_IDS ('*' = anyone)
-  caps: { perAuthorPerHour: number; perDay: number };
-  statePath?: string;
-};
+export type BotDeps = ExtrasDeps &
+  WagerDeps & {
+    x: XClient;
+    reader: SourceReader;
+    botUserId: string;
+    botHandle: string;
+    postReply: (inReplyToTweetId: string, text: string) => Promise<{ id: string }>;
+    allowAuthor: (authorId: string) => boolean; // pre-launch gate: REPLY_ALLOWLIST_USER_IDS ('*' = anyone)
+    caps: { perAuthorPerHour: number; perDay: number };
+    statePath?: string;
+  };
 
 // slug: the claim this mention belongs to. quoteTopic: the page a deferred quote should try first, so a
 // retry never pays the topic cascade again.
@@ -317,6 +319,16 @@ async function runCommand(
   if (command === 'help') return { action: 'help', reply: HELP_REPLY };
   if (command === 'selfpromo')
     return { action: 'selfpromo', reply: await selfpromoReply(deps) };
+  if (command === 'wager') {
+    // The claim is the direct parent's, the same lookup a fix uses; anywhere else, no reply (003 FR-037).
+    const repliedTo = mention.referenced_tweets?.find(
+      (ref) => ref.type === 'replied_to',
+    )?.id;
+    const claim = await claimInThread(deps, mention, repliedTo);
+    return claim
+      ? wagerReply(deps, claim.slug, mention.id, now)
+      : { action: 'wager_no_claim', reply: null };
+  }
   if (command === 'quote') {
     const repliedTo = mention.referenced_tweets?.find(
       (ref) => ref.type === 'replied_to',

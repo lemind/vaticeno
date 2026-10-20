@@ -486,3 +486,29 @@ export const settlementOutbox = pgTable(
     check('settlement_outbox_attempts_check', sql`${t.attempts} >= 0`),
   ],
 );
+
+// One link reply per claim, one refusal per reason; written before the reply goes (003 FR-038).
+export const WAGER_REPLY_KINDS = [
+  'link',
+  'not_locked',
+  'not_price',
+  'closed',
+] as const;
+export type WagerReplyKind = (typeof WAGER_REPLY_KINDS)[number];
+
+export const wagerReplies = pgTable(
+  'wager_replies',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    claimId: uuid('claim_id')
+      .notNull()
+      .references(() => claims.id),
+    kind: text('kind', { enum: WAGER_REPLY_KINDS }).notNull(),
+    mentionId: text('mention_id').notNull(),
+    createdAt: utc('created_at').notNull().defaultNow(),
+  },
+  (t) => [
+    unique('wager_replies_claim_kind_unique').on(t.claimId, t.kind),
+    check('wager_replies_kind_check', oneOf(t.kind, WAGER_REPLY_KINDS)),
+  ],
+);

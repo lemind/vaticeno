@@ -10,9 +10,15 @@ import { createXSourceReader } from './x-source-reader.js';
 
 export function buildBotDeps(claimDeps: ExtrasDeps): BotDeps {
   const config = loadConfig();
-  if (!config.X_BOT_USER_ID) throw new Error('X_BOT_USER_ID is missing. Run `npm run poc:whoami` first.');
-  if (!config.X_OAUTH2_CLIENT_ID || !config.X_OAUTH2_CLIENT_SECRET) throw new Error('X_OAUTH2_CLIENT_ID/SECRET are needed to post replies');
-  const creds = { clientId: config.X_OAUTH2_CLIENT_ID, clientSecret: config.X_OAUTH2_CLIENT_SECRET, redirectUri: config.X_OAUTH2_REDIRECT_URI };
+  if (!config.X_BOT_USER_ID)
+    throw new Error('X_BOT_USER_ID is missing. Run `npm run poc:whoami` first.');
+  if (!config.X_OAUTH2_CLIENT_ID || !config.X_OAUTH2_CLIENT_SECRET)
+    throw new Error('X_OAUTH2_CLIENT_ID/SECRET are needed to post replies');
+  const creds = {
+    clientId: config.X_OAUTH2_CLIENT_ID,
+    clientSecret: config.X_OAUTH2_CLIENT_SECRET,
+    redirectUri: config.X_OAUTH2_REDIRECT_URI,
+  };
   const allow = new Set(config.REPLY_ALLOWLIST_USER_IDS);
   const x = createXClient(config.X_BEARER_TOKEN);
 
@@ -23,7 +29,11 @@ export function buildBotDeps(claimDeps: ExtrasDeps): BotDeps {
     botUserId: config.X_BOT_USER_ID,
     botHandle: config.X_BOT_HANDLE,
     allowAuthor: (authorId) => allow.has('*') || allow.has(authorId),
-    caps: { perAuthorPerHour: config.REPLY_MAX_PER_AUTHOR_PER_HOUR, perDay: config.REPLY_MAX_PER_DAY },
+    caps: {
+      perAuthorPerHour: config.REPLY_MAX_PER_AUTHOR_PER_HOUR,
+      perDay: config.REPLY_MAX_PER_DAY,
+    },
+    wager: { host: config.PUBLIC_HOST, linksPerDay: config.WAGER_LINKS_PER_DAY },
     // HACK(x): SPECULATIVE — a 401 can mean a stale stored expiry: refresh once and retry (the token rotates). See src/x/oauth.ts.
     // REVISIT: if 401s after a refresh show up in Sentry, the stored token is broken, not stale.
     postReply: async (inReplyTo, replyText) => {
@@ -36,8 +46,15 @@ export function buildBotDeps(claimDeps: ExtrasDeps): BotDeps {
         return await postReply(token, inReplyTo, text);
       } catch (error) {
         if (!(error instanceof XApiError) || error.status !== 401) throw error;
-        log('warn', 'reply got 401; refreshing the token once', { event: 'reply.token_refresh', tweet_id: inReplyTo });
-        return postReply(await accessToken(creds, { forceRefresh: true }), inReplyTo, text);
+        log('warn', 'reply got 401; refreshing the token once', {
+          event: 'reply.token_refresh',
+          tweet_id: inReplyTo,
+        });
+        return postReply(
+          await accessToken(creds, { forceRefresh: true }),
+          inReplyTo,
+          text,
+        );
       }
     },
   };
@@ -46,7 +63,10 @@ export function buildBotDeps(claimDeps: ExtrasDeps): BotDeps {
 // No token, no request: the live defect of 2026-10-06/07, when the token file became unreadable and every
 // caller treated "never sent" as "may have landed". PostNotSent says it provably did not, so the caller
 // can try again instead of dropping the reply (INIT_SPEC §6.7 only forbids retrying an uncertain post).
-export async function accessToken(creds: Parameters<typeof getValidAccessToken>[0], opts?: { forceRefresh: boolean }): Promise<string> {
+export async function accessToken(
+  creds: Parameters<typeof getValidAccessToken>[0],
+  opts?: { forceRefresh: boolean },
+): Promise<string> {
   try {
     return await getValidAccessToken(creds, opts);
   } catch (error) {
