@@ -60,8 +60,15 @@ contract Escrow {
         keccak256("OpenAuthorization(bytes32 claimHash,uint64 deadline,uint64 validUntil)");
     bytes32 private constant DOMAIN_TYPEHASH =
         keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
-    // secp256k1n / 2: a signature with a larger s is the malleable twin of a valid one.
+    // secp256k1n / 2: a signature with a larger s is the malleable twin of a valid one (EIP-2).
     uint256 private constant HALF_ORDER = 0x7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a0;
+    // A signature is r (32 bytes), then s (32), then v (1): 65 bytes, s at byte 32, v at byte 64.
+    uint256 private constant SIGNATURE_LENGTH = 65;
+    uint256 private constant S_OFFSET = 32;
+    uint256 private constant V_OFFSET = 64;
+    // Ethereum's two valid recovery ids; any other v is not a signature.
+    uint8 private constant V_EVEN = 27;
+    uint8 private constant V_ODD = 28;
 
     IERC20 public immutable token;
     address public immutable oracle;
@@ -313,16 +320,17 @@ contract Escrow {
         private
         view
     {
-        if (signature.length != 65) revert BadAuthorization();
+        if (signature.length != SIGNATURE_LENGTH) revert BadAuthorization();
         bytes32 r;
         bytes32 s;
         uint8 v;
+        // Slices r, s and v out of the 65 bytes; byte(0, …) keeps only the first byte of the last word.
         assembly {
             r := calldataload(signature.offset)
-            s := calldataload(add(signature.offset, 32))
-            v := byte(0, calldataload(add(signature.offset, 64)))
+            s := calldataload(add(signature.offset, S_OFFSET))
+            v := byte(0, calldataload(add(signature.offset, V_OFFSET)))
         }
-        if (uint256(s) > HALF_ORDER || (v != 27 && v != 28)) revert BadAuthorization();
+        if (uint256(s) > HALF_ORDER || (v != V_EVEN && v != V_ODD)) revert BadAuthorization();
         address signer = ecrecover(openDigest(claimHash, deadline, validUntil), v, r, s);
         if (signer == address(0) || signer != oracle) revert BadAuthorization();
     }
