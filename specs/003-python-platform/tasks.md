@@ -12,7 +12,7 @@ status page — healthy, dead job, no database. Nothing else; ~55% coverage is a
 
 | | |
 |---|---|
-| Stage 1 | live: the front page and `/status` behind its login are deployed. Open: T323 (the status service's own memory) and T365 (the owner sets the password) |
+| Stage 1 | **done** 2026-10-20: the front page and `/status` behind its password are live; memory measured on the droplet (T323) |
 | Stage 2 | contract and settlement path done, live on Base Sepolia, end to end passed 2026-10-19; the wager page (US5) and wallet links next. Testnet only, no real value, no fee, price-feed claims only (FR-031h) |
 | Escrow v1 | T326a answers FR-031f before anything is deployed |
 | Stage 3 | not started; may end at T344 |
@@ -69,7 +69,7 @@ status page — healthy, dead job, no database. Nothing else; ~55% coverage is a
 - [x] T320 [US2] `load/locustfile.py`: the public pages and `/healthz`, ramped until p95 degrades (FR-009). p95 under 20 ms to ~320 req/s, saturating at ~430, no errors at any level.
 - [x] T321 [US2] ~~`load/burst.py`~~ **`tests/load/mention-burst.test.ts`**: stubbed X reader, ten times the live mention rate, one reply each (FR-010, SC-004). TypeScript, not Python: the mention path and its stubs are. 170 drain in ~1 s, one reply each; runs in CI.
 - [x] T322 [US2] Measure the connection ceiling past the pool: queue, clean refusal or wedge, and recovery time. Five connections under 300 concurrent, never six: it queues, and recovers in 4 ms.
-- [ ] T323 [US2] Measure peak RSS per process under load against the box's memory, and state the headroom (SC-008). **Half done**: Node holds at 81 MB, the droplet peaks at 149 MB of 458 MB. This service's own footprint is unmeasured.
+- [x] T323 [US2] Measure peak RSS per process under load against the box's memory, and state the headroom (SC-008). **Done 2026-10-20, narrowed**: peaks from live traffic, since a burst against production is forbidden (FR-008): bot 147 MiB, status 60 MiB, about 128 MiB left of 458 if both peak together (`capacity.md`).
 - [x] T324 [US2] `capacity.md`: every row with its number, hardware and date; laptop and droplet separately (SC-003). The droplet's rows say **not measured** rather than borrowing the laptop's.
 - [x] T325 [US2] Replace the UNRECONCILED labels these runs answer, with the date (FR-011). Only SC-003's: a load run stubs everything that costs money, so it cannot answer a price.
 - [x] T326 [P] [US2] `README.md`: how to run a load run locally. The page run needs a claim **and** a position row, or a quarter of the requests 404 and the numbers flatter the service
@@ -86,7 +86,7 @@ Added after the page shipped (owner decision 2026-10-13): the status page gets a
 - [x] T362 [US1] `status/auth.py`: one password, scrypt-hashed, and a signed cookie carrying its own expiry. Standard library only; the form body is parsed directly rather than pulling in a dependency (FR-004a)
 - [x] T363 [US1] Login and sign-out in `status/app.py` + `status/templates/login.html`; the JSON twin is behind the same lock, and no configured password refuses everyone (FR-004)
 - [x] T364 [US1] `deploy/Caddyfile` routes `/status` to the page and everything else to the public server; `STATUS_PREFIX` puts the prefix back into links and the cookie (FR-004)
-- [ ] T365 [US1] Generate the password on the server and append `STATUS_PASSWORD_HASH` / `STATUS_SECRET` to `.env.status`. **Owner's**: `python -m status.hash_password` prompts for it, so it reaches no shell history
+- [x] T365 [US1] Generate the password on the server and append `STATUS_PASSWORD_HASH` / `STATUS_SECRET` to `.env.status`. **Owner's**: `python -m status.hash_password` prompts for it, so it reaches no shell history **Done**: both lines are in the server's `.env.status` and the service is active (checked 2026-10-20).
 
 **Checkpoint**: the front page answers in one line and the status page asks for a password.
 

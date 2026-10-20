@@ -42,7 +42,7 @@ traffic ever matters. It is 5 because the Supabase pooler is the real constraint
 **The mention path has about sixty times the headroom it needs** at today's volume: ten times the live
 rate drains in a second, inside the one-minute poll window. Caps shape a flood, not throughput.
 
-## Droplet — not measured
+## Droplet — memory measured, throughput not
 
 458 MB RAM total, 212 MB available, plus a 1 GB swapfile · the bot's own peak is **149 MB** (systemd
 `MemoryPeak`, read 2026-10-13, not under load).
@@ -50,13 +50,14 @@ rate drains in a second, inside the one-minute poll window. Caps shape a flood, 
 | What | Status |
 |---|---|
 | Request rate and p95 on the droplet | **not measured** — needs a load run against the server |
-| Peak RSS under load on the droplet | **not measured** |
-| Status service RSS | **not measured** — the run was interrupted |
-| Headroom with all processes running (SC-008) | **not stated**: it needs the two rows above |
+| Peak RSS under synthetic load on the droplet | **not measured, on purpose**: no load run against production (FR-008) |
+| Bot (`vaticeno`), systemd `MemoryPeak` | **147 MiB** over two days of live traffic (since 2026-10-18), 107 MiB at the read |
+| Status service (`vaticeno-status`), systemd `MemoryPeak` | **60 MiB** since its restart that morning, 20 MiB at the read |
+| Headroom with all processes running (SC-008) | **208 MiB available** of 458 with both running; **about 128 MiB** if both hit their peaks together, before the 1 GB swap |
 
-A load run there drives the live service, which posts to X and spends money, so it is an owner decision
-(FR-008). What is known: the bot peaks at 149 MB of 458 MB, leaving ~212 MB before swap. The status
-service is a second process on the same box, so until its footprint is measured SC-008 stays open.
+Read 2026-10-20 from systemd on the droplet, one CPU, load 0.07. A load run there drives the live service,
+which posts to X and spends money, so peaks come from real traffic rather than a burst (FR-008). The
+settlement worker is not on the box yet; its footprint is added when it is.
 
 ## Still UNRECONCILED, and not by omission
 
