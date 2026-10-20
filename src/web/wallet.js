@@ -29,24 +29,36 @@ const short = (addr) => `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 const nowSeconds = () => Math.floor(Date.now() / 1000);
 const utc = (seconds) => new Date(seconds * 1000).toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
 
-async function post(body) {
-  const response = await fetch(data.rpcUrl, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (!response.ok) throw new Error(`the network answered ${response.status}`); // a 429 is HTML, not JSON
-  return response.json();
-}
+// HACK(base-sepolia-rpc): OBSERVED 2026-10-20 — the public RPC answers 429 to a page load plus a wallet
+// connect. REVISIT: drop the retries and the wallet fallback if the page moves to a dedicated RPC.
+const RETRY_MS = [1000, 3000];
 
-async function rpc(method, params) {
-  const body = await post({ jsonrpc: '2.0', id: 1, method, params });
-  if (body.error) throw new Error(body.error.message);
-  return body.result;
+async function post(body) {
+  for (let attempt = 0; ; attempt++) {
+    const response = await fetch(data.rpcUrl, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (response.ok) return response.json();
+    if (response.status !== 429 || attempt >= RETRY_MS.length)
+      throw new Error(`the network answered ${response.status}`); // a 429 is HTML, not JSON
+    await new Promise((resolve) => setTimeout(resolve, RETRY_MS[attempt]));
+  }
 }
 
 // Many reads in one request (JSON-RPC batch): a page load is two requests, not one per wager.
+// With a wallet connected, a public RPC that keeps refusing is skipped: the wallet's own node reads it.
 async function readAll(calls) {
+  try {
+    return await readAllPublic(calls);
+  } catch (error) {
+    if (!account || !window.ethereum) throw error;
+    return Promise.all(calls.map(([to, callData]) => window.ethereum.request({ method: 'eth_call', params: [{ to, data: callData }, 'latest'] })));
+  }
+}
+
+async function readAllPublic(calls) {
   const body = await post(calls.map(([to, callData], id) => ({ jsonrpc: '2.0', id, method: 'eth_call', params: [{ to, data: callData }, 'latest'] })));
   if (!Array.isArray(body)) throw new Error(body.error?.message ?? 'unexpected answer from the network');
   const byId = new Map(body.map((item) => [item.id, item]));
@@ -57,17 +69,17 @@ async function readAll(calls) {
   });
 }
 
-const read = (to, callData) => rpc('eth_call', [{ to, data: callData }, 'latest']);
-
 async function loadChain() {
   const terms = ['paused', 'maxStake', 'feeBps', 'settlementWindow', 'timeout', 'offerLifetime'];
   const first = await readAll([
     ...terms.map((name) => [data.escrow, SELECTORS[name]]),
     [data.token, SELECTORS.decimals],
     ...(data.claimHash ? [[data.escrow, encodeStakesOf(data.claimHash)]] : []),
+    ...(account ? [[data.token, encodeBalanceOf(account)]] : []),
   ]);
   const [paused, maxStake, feeBps, settlementWindow, timeout, offerLifetime, decimals] = first.slice(0, 7).map(decodeUint);
   const ids = data.claimHash ? decodeUintArray(first[7]) : [];
+  const balance = account ? decodeUint(first.at(-1)) : null;
   const newest = ids.slice(-SHOWN).reverse();
   const raw = newest.length ? await readAll(newest.map((id) => [data.escrow, encodeStakeCall('stakes', id)])) : [];
   return {
@@ -79,6 +91,7 @@ async function loadChain() {
     offerLifetime: Number(offerLifetime),
     decimals: Number(decimals),
     total: ids.length,
+    balance,
     stakes: raw.map((hex, i) => ({ id: newest[i], ...decodeStake(hex) })),
   };
 }
@@ -97,7 +110,7 @@ async function refresh() {
   renderTerms();
   renderWagers();
   renderOfferForm();
-  if (account) renderBalance().catch((error) => status(`Can't read your balance: ${error.message}`));
+  if (account) $('balance').textContent = `${short(account)} · ${formatUnits(chain.balance, chain.decimals)} VTS`;
 }
 
 function renderTerms() {
@@ -179,10 +192,6 @@ function renderOfferForm() {
     $('offer-closed').textContent = chain.paused ? 'New offers are paused by the referee.' : 'Wagering is closed for new offers.';
 }
 
-async function renderBalance() {
-  const balance = decodeUint(await read(data.token, encodeBalanceOf(account)));
-  $('balance').textContent = `${short(account)} · ${formatUnits(balance, chain.decimals)} VTS`;
-}
 
 async function connect() {
   if (!window.ethereum) {
@@ -231,7 +240,8 @@ async function send(label, to, callData) {
   while (Date.now() - started < RECEIPT_WAIT_MS) {
     let receipt = null;
     try {
-      receipt = await rpc('eth_getTransactionReceipt', [hash]);
+      // The sender's own wallet node: polling the public RPC every two seconds is what earns a 429.
+      receipt = await window.ethereum.request({ method: 'eth_getTransactionReceipt', params: [hash] });
       failures = 0;
     } catch (error) {
       // One blip is retried; a network that keeps failing is said plainly, not shown as "pending".
@@ -249,7 +259,8 @@ async function send(label, to, callData) {
 
 // Approve exactly what this wager needs, and only when the allowance is short.
 async function ensureAllowance(amount) {
-  const allowed = decodeUint(await read(data.token, encodeAllowance(account, data.escrow)));
+  const [allowance] = await readAll([[data.token, encodeAllowance(account, data.escrow)]]);
+  const allowed = decodeUint(allowance);
   if (allowed < amount) await send('Approve VTS', data.token, encodeApprove(data.escrow, amount));
 }
 
