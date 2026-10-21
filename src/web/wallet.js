@@ -198,9 +198,9 @@ async function connect() {
     status('No wallet found in this browser. Install MetaMask or Coinbase Wallet, then reload.');
     return;
   }
-  [account] = await window.ethereum.request({ method: 'eth_requestAccounts' });
+  const [chosen] = await window.ethereum.request({ method: 'eth_requestAccounts' });
+  useAccount(chosen);
   await ensureNetwork();
-  $('connect').hidden = true;
   await refresh();
 }
 
@@ -309,7 +309,28 @@ async function makeOffer(event) {
   setBusy(false);
 }
 
+// A wallet that already let this site in says so without a popup (eth_accounts), so a reload stays connected.
+function useAccount(next) {
+  account = next ?? null;
+  $('connect').hidden = Boolean(account);
+  if (!account) $('balance').textContent = '';
+}
+
+async function rememberedAccount() {
+  if (!window.ethereum) return;
+  try {
+    const [known] = await window.ethereum.request({ method: 'eth_accounts' });
+    useAccount(known);
+  } catch (error) {
+    status(`Can't ask the wallet who is connected: ${error.message}`);
+  }
+  window.ethereum.on?.('accountsChanged', ([next]) => {
+    useAccount(next);
+    refresh();
+  });
+}
+
 $('connect').addEventListener('click', () => connect().catch((error) => status(error.message)));
 $('offer').addEventListener('submit', makeOffer);
 $('wallet-panel').hidden = false;
-refresh();
+rememberedAccount().then(refresh);
