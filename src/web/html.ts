@@ -244,6 +244,9 @@ export function layout(
             border-radius: 8px;
             font-weight: 600;
             letter-spacing: 0.04em;
+            color: var(
+              --muted
+            ); /* neutral until picked: .hit and .miss colour the label */
             cursor: pointer;
           }
           .pick.hit input:checked + span {
