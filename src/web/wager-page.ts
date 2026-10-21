@@ -13,7 +13,7 @@ export type WagerConfig = {
   token: string;
   chainId: number;
   chainName: string;
-  rpcUrl: string;
+  rpcUrls: string[];
   explorer: string;
 };
 
@@ -217,7 +217,7 @@ export async function wagerPage(
       token: config.token,
       chainId: config.chainId,
       chainName: config.chainName,
-      rpcUrl: config.rpcUrl,
+      rpcUrls: config.rpcUrls,
       explorer: config.explorer,
       claimHash: outbox?.claimHash ?? null,
       // The claim's own deadline column, the number the worker signed with (settle/worker.py).

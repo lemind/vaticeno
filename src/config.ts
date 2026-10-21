@@ -139,10 +139,21 @@ const CoreEnvSchema = z
         .optional(),
     ),
     ESCROW_CHAIN_ID: z.coerce.number().int().default(84532),
-    // What the browser reads the chain through, with no wallet connected (003 plan).
-    PUBLIC_RPC_URL: z.preprocess(
+    // The nodes the browser reads the chain through, tried in order: free ones rate-limit (003 plan).
+    PUBLIC_RPC_URLS: z.preprocess(
       blankIsUnset,
-      z.url().default('https://sepolia.base.org'),
+      z
+        .string()
+        .default(
+          'https://base-sepolia-rpc.publicnode.com,https://base-sepolia.drpc.org,https://base-sepolia.gateway.tenderly.co,https://sepolia.base.org',
+        )
+        .transform((raw) =>
+          raw
+            .split(',')
+            .map((url) => url.trim())
+            .filter(Boolean),
+        )
+        .pipe(z.array(z.url()).min(1)),
     ),
   })
   .superRefine((env, ctx) => {

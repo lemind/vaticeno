@@ -29,44 +29,44 @@ const short = (addr) => `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 const nowSeconds = () => Math.floor(Date.now() / 1000);
 const utc = (seconds) => new Date(seconds * 1000).toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
 
-// HACK(base-sepolia-rpc): OBSERVED 2026-10-20 — the public RPC answers 429 to a page load plus a wallet
-// connect. REVISIT: drop the retries and the wallet fallback if the page moves to a dedicated RPC.
-const RETRY_MS = [1000, 3000];
-
-async function post(body) {
-  for (let attempt = 0; ; attempt++) {
-    const response = await fetch(data.rpcUrl, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    if (response.ok) return response.json();
-    if (response.status !== 429 || attempt >= RETRY_MS.length)
-      throw new Error(`the network answered ${response.status}`); // a 429 is HTML, not JSON
-    await new Promise((resolve) => setTimeout(resolve, RETRY_MS[attempt]));
-  }
-}
-
-// Many reads in one request (JSON-RPC batch): a page load is two requests, not one per wager.
-// With a wallet connected, a public RPC that keeps refusing is skipped: the wallet's own node reads it.
+// HACK(base-sepolia-rpc): OBSERVED 2026-10-20/21 — free nodes rate-limit, as HTTP 429 or as a JSON error
+// ("Request is being rate limited"). So reads try each configured node in turn, then the visitor's wallet
+// if it is on this network. REVISIT: if the page moves to one dedicated RPC.
 async function readAll(calls) {
-  try {
-    return await readAllPublic(calls);
-  } catch (error) {
-    if (!account || !window.ethereum) throw error;
-    return Promise.all(calls.map(([to, callData]) => window.ethereum.request({ method: 'eth_call', params: [{ to, data: callData }, 'latest'] })));
+  const batch = calls.map(([to, callData], id) => ({ jsonrpc: '2.0', id, method: 'eth_call', params: [{ to, data: callData }, 'latest'] }));
+  let last;
+  for (const url of data.rpcUrls) {
+    try {
+      return await readBatch(url, batch);
+    } catch (error) {
+      last = error; // the next node; one refusing says nothing about the chain
+    }
   }
+  if (window.ethereum && (await walletOnThisChain()))
+    return Promise.all(batch.map(({ params }) => window.ethereum.request({ method: 'eth_call', params })));
+  throw last;
 }
 
-async function readAllPublic(calls) {
-  const body = await post(calls.map(([to, callData], id) => ({ jsonrpc: '2.0', id, method: 'eth_call', params: [{ to, data: callData }, 'latest'] })));
+async function readBatch(url, batch) {
+  const response = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(batch) });
+  if (!response.ok) throw new Error(`the network answered ${response.status}`); // a 429 is HTML, not JSON
+  const body = await response.json();
   if (!Array.isArray(body)) throw new Error(body.error?.message ?? 'unexpected answer from the network');
   const byId = new Map(body.map((item) => [item.id, item]));
-  return calls.map((_, id) => {
+  return batch.map(({ id }) => {
     const item = byId.get(id);
     if (!item || item.error) throw new Error(item?.error?.message ?? 'a read went missing');
     return item.result;
   });
+}
+
+// eth_chainId needs no permission, so this is safe before the visitor has connected anything.
+async function walletOnThisChain() {
+  try {
+    return (await window.ethereum.request({ method: 'eth_chainId' })) === '0x' + data.chainId.toString(16);
+  } catch {
+    return false; // no usable wallet: the public nodes' error stands
+  }
 }
 
 async function loadChain() {
@@ -213,7 +213,7 @@ async function ensureNetwork() {
     if (error.code !== 4902) throw error; // 4902: the wallet does not know this network yet
     await window.ethereum.request({
       method: 'wallet_addEthereumChain',
-      params: [{ chainId: want, chainName: data.chainName, rpcUrls: [data.rpcUrl], nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 }, blockExplorerUrls: [data.explorer] }],
+      params: [{ chainId: want, chainName: data.chainName, rpcUrls: data.rpcUrls, nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 }, blockExplorerUrls: [data.explorer] }],
     });
   }
 }

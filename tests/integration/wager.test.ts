@@ -241,7 +241,7 @@ describe('the wager page', () => {
     token: '0x5C2cfb7a6a87cbD0D927EDe2ea01BFc8C816c2d7',
     chainId: 84532,
     chainName: 'Base Sepolia',
-    rpcUrl: 'https://sepolia.base.org',
+    rpcUrls: ['https://base-sepolia-rpc.publicnode.com', 'https://sepolia.base.org'],
     explorer: 'https://sepolia.basescan.org',
   };
   const app = (now = NOW) =>

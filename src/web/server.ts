@@ -36,7 +36,7 @@ export function wagerConfig(config: CoreConfig): WagerConfig | null {
     token: config.STAKE_TOKEN_ADDRESS,
     chainId: config.ESCROW_CHAIN_ID,
     chainName: 'Base Sepolia',
-    rpcUrl: config.PUBLIC_RPC_URL,
+    rpcUrls: config.PUBLIC_RPC_URLS,
     explorer: 'https://sepolia.basescan.org',
   };
 }
