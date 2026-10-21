@@ -122,5 +122,5 @@ fixed public RPC (the testnet's own, from config), so the page works with no wal
 call for the id list, then the newest 20 stakes, with the total shown. An RPC failure is shown as one, never
 as "no offers". The handful of calls it sends — approve, open, accept, expire, payout, refund — are encoded by
 hand, with their selectors and encodings tested against the ABI forge builds; a browser library is a new
-dependency and needs approval (VII). Amounts are BigInt in token units. The Node service already reads the
+dependency and needs approval (VII). Amounts are BigInt in token units. The free public RPC rate-limits (429, observed 2026-10-20), so a page load is two batched requests, a 429 is retried, and a connected wallet's own node takes over the reads and the receipt polling. The Node service already reads the
 outbox as the owner role, which bypasses RLS, so no grant changes.
