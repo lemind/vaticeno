@@ -65,6 +65,9 @@ export function layout(
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>${title} · Vaticeno</title>
+        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+        <link rel="icon" href="/favicon.ico" sizes="32x32" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         ${opts.script ? html`<script type="module" src="${opts.script}"></script>` : ''}
         <style>
           :root {
@@ -164,6 +167,17 @@ export function layout(
           }
           a {
             color: inherit;
+          }
+          .site {
+            margin-bottom: 24px;
+          }
+          .site a {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            letter-spacing: 0.02em;
           }
           .scroll {
             overflow-x: auto;
@@ -298,7 +312,16 @@ export function layout(
         </style>
       </head>
       <body>
-        <main>${body}</main>
+        <main>
+          <header class="site">
+            <a href="/"
+              ><img src="/favicon.svg" alt="" width="28" height="28" /><span
+                >Vaticeno</span
+              ></a
+            >
+          </header>
+          ${body}
+        </main>
       </body>
     </html>`.value;
 }

@@ -29,6 +29,17 @@ const SCRIPTS = {
   ),
 };
 
+// The owner's logo and icons (src/web/assets/). The tab icon is mark.svg, the favicon with a light seal
+// in dark mode; /favicon.ico is a PNG, which every browser accepts at that path.
+const asset = (name: string) =>
+  readFileSync(new URL(`./assets/${name}`, import.meta.url));
+const IMAGES: Record<string, [Buffer, string]> = {
+  '/favicon.svg': [asset('mark.svg'), 'image/svg+xml'],
+  '/favicon.ico': [asset('favicon-32.png'), 'image/png'],
+  '/apple-touch-icon.png': [asset('apple-touch-icon.png'), 'image/png'],
+  '/assets/logo.png': [asset('logo.png'), 'image/png'],
+};
+
 export function wagerConfig(config: CoreConfig): WagerConfig | null {
   if (!config.ESCROW_ADDRESS || !config.STAKE_TOKEN_ADDRESS) return null;
   return {
@@ -94,6 +105,12 @@ export function buildServer(deps: {
         .header('cache-control', 'public, max-age=300')
         .type('text/javascript; charset=utf-8')
         .send(file),
+    );
+  }
+
+  for (const [path, [file, type]] of Object.entries(IMAGES)) {
+    app.get(path, async (_request, reply) =>
+      reply.header('cache-control', 'public, max-age=86400').type(type).send(file),
     );
   }
 
