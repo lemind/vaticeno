@@ -34,7 +34,7 @@ can stake equal amounts on opposite sides of a price prediction, and the verdict
 escrow contract on Base Sepolia. Reply `wager` to the bot's post under a price prediction and it answers
 once with the claim's wager page, where your own wallet makes or takes an offer. The token (VTS) is worth
 nothing; real money is a separate decision (FR-031h). Live: the contract, the bot command and the page.
-Not yet: the settlement worker on the server, so no new claim can be wagered on until it runs.
+The settlement worker runs on the server since 2026-10-21; a claim locked before then has no settlement row and can't be wagered.
 
 | Done | Next |
 |---|---|
@@ -45,7 +45,7 @@ Not yet: the settlement worker on the server, so no new claim can be wagered on 
 | Verdicts after the deadline: Coinbase daily close, or AI reading web pages behind code gates; human review | |
 | Own feed (spec 002): 2 pool posts a day (repost, or a quote post with our own line), 1 owner-written post a day from a queue; caps and "never twice" enforced by Postgres; off until `ENABLE_FEED=true` | Switch the feed on the server; a weekly stats post |
 | Claim and author pages, public at `/claim/<slug>` (old `/c/` links forward) | |
-| Testnet wagers (spec 003): escrow contract on Base Sepolia, source verified; the worker that signs and settles; `wager` on X → one link per claim → a page where your own wallet offers, accepts, pays out or refunds | The worker on the server; a live run with two browser wallets; wallet links |
+| Testnet wagers (spec 003): escrow contract on Base Sepolia, source verified; the worker that signs and settles; `wager` on X → one link per claim → a page where your own wallet offers, accepts, pays out or refunds | A live run with two browser wallets; wallet links |
 | Verdicts decide on the right event (spec 004): a page must name the event the contract does before it counts, a site speaks through its best page rather than its first, silence proves nothing, and no verdict contradicts its own evidence | |
 | A verdict that was wrong is corrected (spec 004): the original is never edited, the correction is a separate record posted once in the claim's thread, and a match nobody can place in time is refused rather than recorded | |
 | Error tracking, logs and alerts (Sentry, production only); tests on every pull request | |

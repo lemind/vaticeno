@@ -13,7 +13,7 @@ status page — healthy, dead job, no database. Nothing else; ~55% coverage is a
 | | |
 |---|---|
 | Stage 1 | **done** 2026-10-20: the front page and `/status` behind its password are live; memory measured on the droplet (T323) |
-| Stage 2 | contract, settlement path and the wager page live (page and `wager` command deployed 2026-10-20); end to end passed 2026-10-19 from the command line. Open: the worker on the server (T375), the browser run (T373), wallet links. Testnet only, no real value, no fee, price-feed claims only (FR-031h) |
+| Stage 2 | contract, settlement path and the wager page live (page and `wager` command deployed 2026-10-20); end to end passed 2026-10-19 from the command line. Worker on the server since 2026-10-21 (T375). Open: the browser run (T373), wallet links. Testnet only, no real value, no fee, price-feed claims only (FR-031h) |
 | Escrow v1 | T326a answers FR-031f before anything is deployed |
 | Stage 3 | not started; may end at T344 |
 | `docs/decisions/` | 001 second runtime (done); 002 escrow v1 is T326a |
@@ -146,7 +146,7 @@ timeout refund from the page with the worker stopped (SC-020).
 - [x] T372 [US5] Test the command and the reply: a burst of `wager` on one claim posts one link; a crash between the insert and the post never posts a second; a price claim before lock refuses without using it up; a model-judged claim is told "not a price claim" even before lock; a closed claim refuses once; a post whose parent is not the claim's posts nothing (SC-021) **Done**: `tests/integration/wager.test.ts`, the page included (authorization only while open, escaping, the redirect).
 - [ ] T373 [US5] End to end on a short-window testnet deployment with two browser wallets, the four wagers above, plus a pending and a reverted transaction never shown as done, and a verdict on X not yet on the chain shown as pending (SC-020, SC-022)
 - [ ] T374 [US5] **Owner's, blocks nothing here**: the network for real value, Arbitrum One or Base, decided with FR-031h; if it is not Base, a redeploy and the end-to-end runs on its testnet come before any real value (FR-036a)
-- [ ] T375 [US4] Put the settlement worker on the server: its own user, `/etc/vaticeno-settle/` with the env file and the oracle key (mode 600), `settle_rw` given a login, the unit enabled (FR-028, FR-028a). **Half done 2026-10-21**: `settle_rw` can log in; the key copy is the owner's to run, since it moves a private key. Until it runs, no new price claim is signed, so none can be wagered
+- [x] T375 [US4] Put the settlement worker on the server: its own user, `/etc/vaticeno-settle/` with the env file and the oracle key (mode 600), `settle_rw` given a login, the unit enabled (FR-028, FR-028a). **Done 2026-10-21**: `vaticeno-settle` active, the key and env file mode 600 under its own user, heartbeat `ok` every minute; the owner ran the key copy.
 
 ### Linking a wallet, optional
 
