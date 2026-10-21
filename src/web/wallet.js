@@ -135,16 +135,26 @@ function renderWagers() {
   for (const stake of chain.stakes) {
     const row = document.createElement('tr');
     const makerSide = stake.makerSaysHit ? 'HIT' : 'MISS';
+    const empty = stake.taker === '0x0000000000000000000000000000000000000000';
+    // Every party links to its own page on the explorer, so either side can check the other (and itself).
     const cells = [
-      `#${stake.id}`,
-      `${formatUnits(stake.amount, chain.decimals)} VTS each`,
-      `${short(stake.maker)} on ${makerSide}`,
-      stake.taker === '0x0000000000000000000000000000000000000000' ? '—' : `${short(stake.taker)} on ${stake.makerSaysHit ? 'MISS' : 'HIT'}`,
-      describe(stake),
+      [`#${stake.id}`, `${data.explorer}/address/${data.escrow}#readContract`],
+      [`${formatUnits(stake.amount, chain.decimals)} VTS each`],
+      [`${short(stake.maker)} on ${makerSide}`, `${data.explorer}/address/${stake.maker}`],
+      empty ? ['—'] : [`${short(stake.taker)} on ${stake.makerSaysHit ? 'MISS' : 'HIT'}`, `${data.explorer}/address/${stake.taker}`],
+      [describe(stake)],
     ];
-    for (const text of cells) {
+    for (const [text, href] of cells) {
       const cell = document.createElement('td');
-      cell.textContent = text;
+      if (href) {
+        const link = document.createElement('a');
+        link.href = href;
+        link.rel = 'noopener';
+        link.target = '_blank';
+        link.textContent = text;
+        if (text.startsWith('#')) link.title = `On the contract: Read Contract → stakes(${stake.id})`;
+        cell.append(link);
+      } else cell.textContent = text;
       row.append(cell);
     }
     const buttons = document.createElement('td');

@@ -110,6 +110,25 @@ export async function wagerPage(
       <dd>${contract.criterion}</dd>
       <dt>MISS means</dt>
       <dd>${contract.negative_condition}</dd>
+      <dt>Contract</dt>
+      <dd>
+        <a
+          href="${config.explorer}/address/${config.escrow}#code"
+          rel="noopener"
+          target="_blank"
+          >the escrow on Basescan</a
+        >, source code verified ·
+        <a
+          href="${config.explorer}/token/${config.token}"
+          rel="noopener"
+          target="_blank"
+          >the VTS token</a
+        >
+        <br /><span class="muted"
+          >Check any wager there: Read Contract → <code>stakes(number)</code>.
+          Addresses in the table link to their own pages.</span
+        >
+      </dd>
       <dt>Decided by</dt>
       <dd>${contract.source.name}, daily UTC close</dd>
       <dt>Deadline</dt>
