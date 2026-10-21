@@ -185,26 +185,41 @@ export async function wagerPage(
     <div id="wallet-panel" hidden>
       <h2>Your wallet</h2>
       <p>
-        <button type="button" id="connect">Connect wallet</button>
+        <button type="button" id="connect" class="primary">Connect wallet</button>
         <span id="balance" class="muted"></span>
       </p>
       <p class="muted">
         Your own wallet signs every step and pays its network fee. Base Sepolia test
         ETH comes from a faucet; VTS from the operator.
       </p>
-      <form id="offer" hidden>
-        <p>
-          <label><input type="radio" name="side" value="hit" checked /> HIT</label>
-          <label><input type="radio" name="side" value="miss" /> MISS</label>
-        </p>
-        <p>
-          <label
-            >Amount (VTS)
-            <input id="amount" name="amount" inputmode="decimal" required
-          /></label>
-          <button type="submit">Make an offer</button>
-        </p>
-        <p class="muted">
+      <form id="offer" class="offer" hidden>
+        <fieldset class="side">
+          <legend>Your side</legend>
+          <label class="pick hit"
+            ><input type="radio" name="side" value="hit" checked /><span
+              >HIT</span
+            ></label
+          >
+          <label class="pick miss"
+            ><input type="radio" name="side" value="miss" /><span>MISS</span></label
+          >
+        </fieldset>
+        <label class="field" for="amount">
+          <span>Stake</span>
+          <span class="amount">
+            <input
+              id="amount"
+              name="amount"
+              inputmode="decimal"
+              placeholder="10"
+              autocomplete="off"
+              required
+            />
+            <span class="unit">VTS</span>
+          </span>
+        </label>
+        <button type="submit" class="primary">Make an offer</button>
+        <p class="muted hint">
           Your wallet asks first to approve exactly this amount, if needed, then to
           open the offer.
         </p>

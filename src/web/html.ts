@@ -175,8 +175,122 @@ export function layout(
           }
           button {
             font: inherit;
-            padding: 4px 10px;
-            margin: 2px 4px 2px 0;
+            font-size: 0.92rem;
+            padding: 6px 14px;
+            margin: 2px 6px 2px 0;
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            background: transparent;
+            color: var(--fg);
+            cursor: pointer;
+          }
+          button:hover:not(:disabled) {
+            border-color: var(--fg);
+          }
+          button:focus-visible,
+          input:focus-visible {
+            outline: 2px solid var(--fg);
+            outline-offset: 2px;
+          }
+          button:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+          }
+          button.primary {
+            background: var(--fg);
+            color: var(--bg);
+            border-color: var(--fg);
+            font-weight: 600;
+          }
+          .busy {
+            cursor: progress;
+          }
+          .offer {
+            display: grid;
+            gap: 14px;
+            max-width: 380px;
+            margin: 16px 0;
+            padding: 16px;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+          }
+          .offer .hint {
+            margin: 0;
+            font-size: 0.85rem;
+          }
+          .side {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            border: 0;
+            margin: 0;
+            padding: 0;
+          }
+          .side legend,
+          .field > span:first-child {
+            color: var(--muted);
+            font-size: 0.85rem;
+            margin-bottom: 6px;
+          }
+          .pick input {
+            position: absolute;
+            opacity: 0;
+          }
+          .pick span {
+            display: block;
+            text-align: center;
+            padding: 8px 0;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+            cursor: pointer;
+          }
+          .pick.hit input:checked + span {
+            border-color: var(--hit);
+            color: var(--hit);
+            box-shadow: inset 0 0 0 1px var(--hit);
+          }
+          .pick.miss input:checked + span {
+            border-color: var(--miss);
+            color: var(--miss);
+            box-shadow: inset 0 0 0 1px var(--miss);
+          }
+          .pick input:focus-visible + span {
+            outline: 2px solid var(--fg);
+            outline-offset: 2px;
+          }
+          .field {
+            display: grid;
+          }
+          .amount {
+            display: flex;
+            align-items: center;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 0 12px;
+          }
+          .amount:focus-within {
+            border-color: var(--fg);
+          }
+          .amount input {
+            flex: 1;
+            min-width: 0;
+            font: inherit;
+            font-size: 1.1rem;
+            font-variant-numeric: tabular-nums;
+            padding: 8px 0;
+            border: 0;
+            background: transparent;
+            color: var(--fg);
+            outline: none;
+          }
+          .amount .unit {
+            color: var(--muted);
+            font-size: 0.9rem;
+          }
+          #tx-status:empty {
+            display: none;
           }
         </style>
       </head>

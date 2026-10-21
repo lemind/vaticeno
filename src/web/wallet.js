@@ -264,7 +264,16 @@ async function ensureAllowance(amount) {
   if (allowed < amount) await send('Approve VTS', data.token, encodeApprove(data.escrow, amount));
 }
 
+// One transaction at a time: every control is locked from the first click until the chain has answered,
+// so a second click can never open a second offer or approve twice.
+function setBusy(on) {
+  for (const el of document.querySelectorAll('#wallet-panel button, #wallet-panel input, #wagers button'))
+    el.disabled = on;
+  $('wallet-panel').classList.toggle('busy', on);
+}
+
 async function act(name, stake) {
+  setBusy(true);
   try {
     if (!account) await connect();
     if (name === 'accept') {
@@ -278,10 +287,12 @@ async function act(name, stake) {
     status(error.message);
   }
   await refresh();
+  setBusy(false);
 }
 
 async function makeOffer(event) {
   event.preventDefault();
+  setBusy(true);
   try {
     if (!chain) throw new Error("the chain hasn't been read yet; try again in a moment");
     if (!account) await connect();
@@ -290,10 +301,12 @@ async function makeOffer(event) {
     const makerSaysHit = new FormData(event.target).get('side') === 'hit';
     await ensureAllowance(amount);
     await send('Open offer', data.escrow, encodeOpen({ claimHash: data.claimHash, deadline: data.deadline, validUntil: data.validUntil, signature: data.authorization, makerSaysHit, amount }));
+    $('amount').value = ''; // done: the next offer starts empty
   } catch (error) {
     status(error.message);
   }
   await refresh();
+  setBusy(false);
 }
 
 $('connect').addEventListener('click', () => connect().catch((error) => status(error.message)));
