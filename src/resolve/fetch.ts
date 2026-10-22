@@ -8,6 +8,8 @@ import { simhash } from './similarity.js';
 const TIMEOUT_MS = 15_000;
 const MAX_BYTES = 3_000_000;
 export const MAX_TEXT_CHARS = 40_000; // what the judge reads; keeps a judge call around a cent
+// Names visibleText's rules: a recorded hash is reproducible only by the extractor that made it (003 FR-019a).
+export const EXTRACTOR_VERSION = 'visible-text.v1';
 
 // transient = network error, timeout, 429 or 5xx: retry later. Otherwise the page answered but can't be
 // read (404, 403, not HTML, empty) — a real "nothing here", not an outage.
