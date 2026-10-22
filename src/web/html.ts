@@ -219,6 +219,10 @@ export function layout(
           .busy {
             cursor: progress;
           }
+          /* A display rule like .offer's would otherwise show an element the script hid. */
+          [hidden] {
+            display: none !important;
+          }
           .offer {
             display: grid;
             gap: 14px;
