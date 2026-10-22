@@ -93,7 +93,9 @@ No stage waits for another. They meet in two places: the status page, which is o
 a later stage adds rows without a rewrite, and the rule that a verdict decided by the local verifier alone
 never settles a stake. Stage 3 is last because it is the only one that may legitimately end in "not worth
 shipping", and the only one whose cost depends on a measurement Stage 1 produces. Stage 2 stays on a testnet:
-no real value and no fee until the contract has been reviewed by someone else.
+no real value and no fee until the contract has been reviewed by someone else. The real-value contract is a
+second version, not this one redeployed: withdrawals by pull and native USDC only (FR-036b, FR-036c), built
+after the network is chosen (T374, T376).
 
 ## Complexity Tracking
 
