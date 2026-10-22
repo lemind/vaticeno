@@ -1,8 +1,10 @@
-// Public, read-only web server (contracts/http.md): claim pages, author pages, health. No admin routes.
+// Public, read-only web server (contracts/http.md): claim pages, the wager page, author pages, health. No
+// admin routes, and nothing that moves money: the wager page's script talks to the visitor's own wallet.
 // `npm run dev` starts it; tests build it with `buildServer` and use `inject`.
+import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import Fastify, { type FastifyReply } from 'fastify';
-import { loadCoreConfig } from '../config.js';
+import { type CoreConfig, loadCoreConfig } from '../config.js';
 import { buildContentDeps } from '../content/wire.js';
 import { buildBotDeps } from '../bot/wire.js';
 import { buildDeps } from '../deps.js';
@@ -16,8 +18,46 @@ import { homePage } from './home-page.js';
 import { authorPage } from './author-page.js';
 import { claimPage } from './claim-page.js';
 import { html, layout } from './html.js';
+import { type WagerConfig, wagerPage } from './wager-page.js';
 
-export function buildServer(deps: { db: Db; now?: () => Date; botHandle?: string }) {
+// The wager page's one script and the encoder it imports, read once at start (003 FR-045).
+const SCRIPTS = {
+  '/assets/wallet.js': readFileSync(new URL('./wallet.js', import.meta.url), 'utf8'),
+  '/assets/wallet-abi.js': readFileSync(
+    new URL('./wallet-abi.js', import.meta.url),
+    'utf8',
+  ),
+};
+
+// The owner's logo and icons (src/web/assets/). The tab icon is mark.svg, the favicon with a light seal
+// in dark mode; /favicon.ico is a PNG, which every browser accepts at that path.
+const asset = (name: string) =>
+  readFileSync(new URL(`./assets/${name}`, import.meta.url));
+const IMAGES: Record<string, [Buffer, string]> = {
+  '/favicon.svg': [asset('mark.svg'), 'image/svg+xml'],
+  '/favicon.ico': [asset('favicon-32.png'), 'image/png'],
+  '/apple-touch-icon.png': [asset('apple-touch-icon.png'), 'image/png'],
+  '/assets/logo.png': [asset('logo.png'), 'image/png'],
+};
+
+export function wagerConfig(config: CoreConfig): WagerConfig | null {
+  if (!config.ESCROW_ADDRESS || !config.STAKE_TOKEN_ADDRESS) return null;
+  return {
+    escrow: config.ESCROW_ADDRESS,
+    token: config.STAKE_TOKEN_ADDRESS,
+    chainId: config.ESCROW_CHAIN_ID,
+    chainName: 'Base Sepolia',
+    rpcUrls: config.PUBLIC_RPC_URLS,
+    explorer: 'https://sepolia.basescan.org',
+  };
+}
+
+export function buildServer(deps: {
+  db: Db;
+  now?: () => Date;
+  botHandle?: string;
+  wager?: WagerConfig | null;
+}) {
   const now = deps.now ?? (() => new Date());
   const app = Fastify({ logger: false });
 
@@ -28,12 +68,51 @@ export function buildServer(deps: { db: Db; now?: () => Date; botHandle?: string
       .send(await homePage(deps.db, now(), deps.botHandle)),
   );
 
-  app.get<{ Params: { slug: string } }>('/c/:slug', async (request, reply) => {
+  app.get<{ Params: { slug: string } }>('/claim/:slug', async (request, reply) => {
     const page = await claimPage(deps.db, request.params.slug, now());
     return page
       ? reply.type('text/html; charset=utf-8').send(page)
       : notFound(reply);
   });
+
+  // No caching: the page carries the claim's open authorization only while acceptance is open (003 FR-046).
+  app.get<{ Params: { slug: string } }>(
+    '/claim/:slug/wager',
+    async (request, reply) => {
+      const page = await wagerPage(
+        deps.db,
+        request.params.slug,
+        now(),
+        deps.wager ?? null,
+      );
+      return page
+        ? reply
+            .header('cache-control', 'no-store')
+            .type('text/html; charset=utf-8')
+            .send(page)
+        : notFound(reply);
+    },
+  );
+
+  // Links to /c/ are already published: they move for good (003 FR-040).
+  app.get<{ Params: { slug: string } }>('/c/:slug', async (request, reply) =>
+    reply.redirect(`/claim/${encodeURIComponent(request.params.slug)}`, 308),
+  );
+
+  for (const [path, file] of Object.entries(SCRIPTS)) {
+    app.get(path, async (_request, reply) =>
+      reply
+        .header('cache-control', 'public, max-age=300')
+        .type('text/javascript; charset=utf-8')
+        .send(file),
+    );
+  }
+
+  for (const [path, [file, type]] of Object.entries(IMAGES)) {
+    app.get(path, async (_request, reply) =>
+      reply.header('cache-control', 'public, max-age=86400').type(type).send(file),
+    );
+  }
 
   app.get<{ Params: { id: string } }>('/u/:id', async (request, reply) => {
     const page = /^\d{1,20}$/.test(request.params.id)
@@ -95,7 +174,11 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     (error) => void die(error, 'process.uncaught_exception'),
   );
 
-  const app = buildServer({ db: getDb(), botHandle: config.X_BOT_HANDLE });
+  const app = buildServer({
+    db: getDb(),
+    botHandle: config.X_BOT_HANDLE,
+    wager: wagerConfig(config),
+  });
   // Caddy in front terminates HTTPS; the app is never reachable directly from outside.
   await app.listen({ port: config.PORT, host: '127.0.0.1' });
   const deps = buildDeps(config);

@@ -28,6 +28,14 @@ and reposts its latest post, or quotes it with a line of its own (1 in 10); one 
 from a queue. The feed never republishes a verdict: a hit or a miss is told once, in its author's thread.
 `FEED_DRY_RUN=true` (the default) records the picks and posts nothing.
 
+**Wagers on a testnet (spec 003, Stage 2):** [spec](specs/003-python-platform/spec.md),
+[tasks](specs/003-python-platform/tasks.md), [settlement policy](docs/settlement-policy.md). Two people
+can stake equal amounts on opposite sides of a price prediction, and the verdict pays the winner through an
+escrow contract on Base Sepolia. Reply `wager` to the bot's post under a price prediction and it answers
+once with the claim's wager page, where your own wallet makes or takes an offer. The token (VTS) is worth
+nothing; real money is a separate decision (FR-031h). Live: the contract, the bot command and the page.
+The settlement worker runs on the server since 2026-10-21; a claim locked before then has no settlement row and can't be wagered.
+
 | Done | Next |
 |---|---|
 | X: mentions → one reply each; fixes by replying under the bot's answer; STOP; help; verdict replies carrying the result; questions answered from the conversation, or from the web when nothing in the thread can settle them | Per-claim AI budget in the live resolver |
@@ -36,7 +44,8 @@ from a queue. The feed never republishes a verdict: a hit or a miss is told once
 | Database: lock and verdict rules enforced by Postgres, locally and on Supabase | Nightly backups (scripts in `deploy/`, not installed) |
 | Verdicts after the deadline: Coinbase daily close, or AI reading web pages behind code gates; human review | |
 | Own feed (spec 002): 2 pool posts a day (repost, or a quote post with our own line), 1 owner-written post a day from a queue; caps and "never twice" enforced by Postgres; off until `ENABLE_FEED=true` | Switch the feed on the server; a weekly stats post |
-| Claim and author pages (localhost on the server) | |
+| Claim and author pages, public at `/claim/<slug>` (old `/c/` links forward) | |
+| Testnet wagers (spec 003): escrow contract on Base Sepolia, source verified; the worker that signs and settles; `wager` on X → one link per claim → a page where your own wallet offers, accepts, pays out or refunds | A live run with two browser wallets; wallet links |
 | Verdicts decide on the right event (spec 004): a page must name the event the contract does before it counts, a site speaks through its best page rather than its first, silence proves nothing, and no verdict contradicts its own evidence | |
 | A verdict that was wrong is corrected (spec 004): the original is never edited, the correction is a separate record posted once in the claim's thread, and a match nobody can place in time is refused rather than recorded | |
 | Error tracking, logs and alerts (Sentry, production only); tests on every pull request | |
@@ -54,6 +63,7 @@ from a queue. The feed never republishes a verdict: a hit or a miss is told once
 | `@vaticeno selfpromo` (or promote, show off, flex, brag, who are you…) | a motto + a joke |
 | `@vaticeno STOP` | stops replying to you until you tag it again |
 | `@vaticeno ping` | `pong` |
+| `@vaticeno wager`, replying to the bot's post under a price prediction | once per claim: a link to its wager page (testnet, no real money); otherwise why not |
 
 Bare commands and typos (`quote`, `qoute 2`) are matched instantly, with no AI call. Anything else unclear
 ("quote me something nice", "so?" under a quote, a question) is read by the AI.
@@ -98,7 +108,7 @@ the lite model that parses predictions; everything else stays on the lite model.
 | `npm run poc:poll` | old proof-of-concept poller (ping only); do not run next to the service |
 | `npm run poc:parse -- "<text>"` | see how a mention is parsed, offline |
 | `npm run poc:whoami` / `poc:auth` | bot user ID / one-time browser login for posting |
-| `npm run dev` | public pages on `PORT` (default 3000): `/c/<slug>`, `/u/<x_user_id>`, `/healthz` |
+| `npm run dev` | public pages on `PORT` (default 3000): `/claim/<slug>`, `/claim/<slug>/wager`, `/u/<x_user_id>`, `/healthz` |
 | `npm run db:migrate` | apply database migrations (uses `DATABASE_URL`) |
 | `npm run content:tick -- pool|original` | run one feed job by hand (needs `ENABLE_FEED=true`) |
 | `npm run content:queue -- add "…" / load-starters / list / remove <id>` | the owner's queue of own posts |
@@ -127,7 +137,13 @@ Runs as systemd service `vaticeno` (`src/web/server.ts` with `ENABLE_JOBS=true E
 `SENTRY_DSN` and `NODE_ENV=production` in the server's `.env`. Production database: Supabase (Frankfurt),
 connection string in the gitignored `.env.production`; apply migrations there with
 `set -a; . ./.env.production; set +a; npm run db:migrate` before deploying code that needs them.
-Claim pages listen on localhost only: `ssh -L 3000:127.0.0.1:3000 root@HOST`, then `http://localhost:3000/c/<slug>`.
+Claim pages are public through Caddy: `https://vaticeno.n30sk.cc/claim/<slug>` and its `/wager` page, which
+needs `ESCROW_ADDRESS` and `STAKE_TOKEN_ADDRESS` in the server's `.env`.
+
+The settlement worker is a separate service, `vaticeno-settle`, with its own system user. Its env file and
+the oracle key live in `/etc/vaticeno-settle/` (owner `vaticeno-settle`, mode 600), copied by hand and
+never synced; it connects as `settle_rw`, whose password is set by hand like `status_ro`'s. Unit:
+[deploy/vaticeno-settle.service](deploy/vaticeno-settle.service).
 
 ### Hosting and capacity
 
@@ -194,7 +210,8 @@ src/
   replies/    reply texts
   feeds/      Coinbase
   db/         tables, connection, cost records
-  web/        claim and author pages
+  web/        claim, author and wager pages; wallet.js, the one browser script
+  wager/      when a claim can be wagered: one rule for the bot and the page
   x/          X API client and login
   cli/        command-line entry points
   commands/ ingest/ poc/   the first proof-of-concept bot (not run)

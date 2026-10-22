@@ -28,6 +28,14 @@ const EnvSchema = z.object({
   // Self-imposed rate caps, INIT_SPEC §6.1.
   REPLY_MAX_PER_AUTHOR_PER_HOUR: z.coerce.number().int().min(0).default(3),
   REPLY_MAX_PER_DAY: z.coerce.number().int().min(0).default(300),
+  // Wager link replies per UTC day: a post with a URL is priced well above a plain one (003 FR-038).
+  // PROVISIONAL: the number is the owner's to set; the price is UNRECONCILED until a real reply is billed.
+  WAGER_LINKS_PER_DAY: z.coerce.number().int().min(0).default(10),
+  // The host the wager link names, written as plain text in the reply (003 FR-039).
+  PUBLIC_HOST: z
+    .string()
+    .regex(/^[a-z0-9.-]+$/)
+    .default('vaticeno.n30sk.cc'),
 });
 
 export type Config = z.infer<typeof EnvSchema>;
@@ -114,6 +122,38 @@ const CoreEnvSchema = z
     FEED_DAILY_USD_CAP: z.preprocess(
       blankIsUnset,
       z.coerce.number().min(0.01).default(0.15),
+    ),
+    // The wager page (003 Story 5). Public addresses only; without them the page says wagering is off.
+    ESCROW_ADDRESS: z.preprocess(
+      blankIsUnset,
+      z
+        .string()
+        .regex(/^0x[0-9a-fA-F]{40}$/)
+        .optional(),
+    ),
+    STAKE_TOKEN_ADDRESS: z.preprocess(
+      blankIsUnset,
+      z
+        .string()
+        .regex(/^0x[0-9a-fA-F]{40}$/)
+        .optional(),
+    ),
+    ESCROW_CHAIN_ID: z.coerce.number().int().default(84532),
+    // The nodes the browser reads the chain through, tried in order: free ones rate-limit (003 plan).
+    PUBLIC_RPC_URLS: z.preprocess(
+      blankIsUnset,
+      z
+        .string()
+        .default(
+          'https://base-sepolia-rpc.publicnode.com,https://base-sepolia.drpc.org,https://base-sepolia.gateway.tenderly.co,https://sepolia.base.org',
+        )
+        .transform((raw) =>
+          raw
+            .split(',')
+            .map((url) => url.trim())
+            .filter(Boolean),
+        )
+        .pipe(z.array(z.url()).min(1)),
     ),
   })
   .superRefine((env, ctx) => {

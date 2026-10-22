@@ -20,6 +20,7 @@ import { recordCosts } from '../db/costs.js';
 import { type ExtrasDeps, quoteReply, selfpromoReply } from './extras.js';
 import { logTopic, resolveQuoteTopic } from './quote-topic.js';
 import { loadInstruction } from '../llm/instructions.js';
+import { type WagerDeps, wagerReply } from './wager.js';
 import { alert, captureError } from '../observe.js';
 import {
   HELP_REPLY,
@@ -32,16 +33,17 @@ import {
 import { type Mention, PostNotSent, XApiError, type XClient } from '../x/client.js';
 import { X_POST_READ_USD } from '../x/prices.js';
 
-export type BotDeps = ExtrasDeps & {
-  x: XClient;
-  reader: SourceReader;
-  botUserId: string;
-  botHandle: string;
-  postReply: (inReplyToTweetId: string, text: string) => Promise<{ id: string }>;
-  allowAuthor: (authorId: string) => boolean; // pre-launch gate: REPLY_ALLOWLIST_USER_IDS ('*' = anyone)
-  caps: { perAuthorPerHour: number; perDay: number };
-  statePath?: string;
-};
+export type BotDeps = ExtrasDeps &
+  WagerDeps & {
+    x: XClient;
+    reader: SourceReader;
+    botUserId: string;
+    botHandle: string;
+    postReply: (inReplyToTweetId: string, text: string) => Promise<{ id: string }>;
+    allowAuthor: (authorId: string) => boolean; // pre-launch gate: REPLY_ALLOWLIST_USER_IDS ('*' = anyone)
+    caps: { perAuthorPerHour: number; perDay: number };
+    statePath?: string;
+  };
 
 // slug: the claim this mention belongs to. quoteTopic: the page a deferred quote should try first, so a
 // retry never pays the topic cascade again.
@@ -55,6 +57,7 @@ type Routed = {
   discloses?: boolean;
   deferQuote?: boolean;
   quoteTopic?: string;
+  onNotSent?: () => Promise<void>; // undoes what routing recorded, when the reply provably never left
 };
 
 const HOUR_MS = 3_600_000;
@@ -317,6 +320,16 @@ async function runCommand(
   if (command === 'help') return { action: 'help', reply: HELP_REPLY };
   if (command === 'selfpromo')
     return { action: 'selfpromo', reply: await selfpromoReply(deps) };
+  if (command === 'wager') {
+    // The claim is the direct parent's, the same lookup a fix uses; anywhere else, no reply (003 FR-037).
+    const repliedTo = mention.referenced_tweets?.find(
+      (ref) => ref.type === 'replied_to',
+    )?.id;
+    const claim = await claimInThread(deps, mention, repliedTo);
+    return claim
+      ? wagerReply(deps, claim.slug, mention.id, now)
+      : { action: 'wager_no_claim', reply: null };
+  }
   if (command === 'quote') {
     const repliedTo = mention.referenced_tweets?.find(
       (ref) => ref.type === 'replied_to',
@@ -917,7 +930,7 @@ export async function pollMentions(
         });
       }
       const replyId = routed.reply
-        ? await sendReply(deps, state, mention, routed.reply, now)
+        ? await sendReply(deps, state, mention, routed.reply, now, routed.onNotSent)
         : null;
       if (replyId) replies++;
       if (routed.slug && replyId)
@@ -1040,6 +1053,7 @@ async function sendReply(
   mention: Mention,
   text: string,
   now: Date,
+  onNotSent?: () => Promise<void>,
 ): Promise<string | null> {
   state.replied_tweet_ids = [...state.replied_tweet_ids, mention.id].slice(
     -REPLIED_IDS_KEPT,
@@ -1064,8 +1078,10 @@ async function sendReply(
   } catch (error) {
     // The reply never left the machine (no usable token): the account is failing to post at all, so this
     // is an alert, not a log line. The claim's lock is withheld below, so nothing locks unseen.
-    if (error instanceof PostNotSent)
+    if (error instanceof PostNotSent) {
       alert('reply.not_sent', { tweet_id: mention.id });
+      await onNotSent?.();
+    }
     const detail = error instanceof XApiError ? { status: error.status } : {};
     captureError(error, { event: 'reply.failed', tweet_id: mention.id, ...detail });
     return null;

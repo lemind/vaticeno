@@ -56,6 +56,9 @@ jobs:
       - run: pytest settle
         env:
           REQUIRE_CHAIN_TESTS: '1'
+      # The wager page's hand-encoded calls against the compiled contract and `cast` (003 T371a).
+      - run: forge build --root contracts
+      - run: npm run test:abi
 
   python:
     runs-on: ubuntu-latest

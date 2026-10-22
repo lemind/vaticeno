@@ -93,7 +93,9 @@ No stage waits for another. They meet in two places: the status page, which is o
 a later stage adds rows without a rewrite, and the rule that a verdict decided by the local verifier alone
 never settles a stake. Stage 3 is last because it is the only one that may legitimately end in "not worth
 shipping", and the only one whose cost depends on a measurement Stage 1 produces. Stage 2 stays on a testnet:
-no real value and no fee until the contract has been reviewed by someone else.
+no real value and no fee until the contract has been reviewed by someone else. The real-value contract is a
+second version, not this one redeployed: withdrawals by pull and native USDC only (FR-036b, FR-036c), built
+after the network is chosen (T374, T376).
 
 ## Complexity Tracking
 
@@ -122,5 +124,5 @@ fixed public RPC (the testnet's own, from config), so the page works with no wal
 call for the id list, then the newest 20 stakes, with the total shown. An RPC failure is shown as one, never
 as "no offers". The handful of calls it sends — approve, open, accept, expire, payout, refund — are encoded by
 hand, with their selectors and encodings tested against the ABI forge builds; a browser library is a new
-dependency and needs approval (VII). Amounts are BigInt in token units. The Node service already reads the
+dependency and needs approval (VII). Amounts are BigInt in token units. The free public RPC rate-limits (429, observed 2026-10-20), so a page load is two batched requests, a 429 is retried, and a connected wallet's own node takes over the reads and the receipt polling. The Node service already reads the
 outbox as the owner role, which bypasses RLS, so no grant changes.

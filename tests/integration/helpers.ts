@@ -27,7 +27,7 @@ export async function setupTestDb(): Promise<TestDb> {
     locks,
     // TRUNCATE does not fire the row-level insert-only triggers.
     truncateAll: async () => {
-      await sql`truncate feed_posts, feed_queue, opt_outs, sources, cost_events, recheck_findings, settlement_outbox, corrections, resolutions, evidences, positions, claims`;
+      await sql`truncate feed_posts, feed_queue, opt_outs, sources, cost_events, recheck_findings, wager_replies, settlement_outbox, corrections, resolutions, evidences, positions, claims`;
     },
     close,
   };

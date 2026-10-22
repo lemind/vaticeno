@@ -205,7 +205,7 @@ returned after expiry; (d) with the worker stopped, a matched wager is refunded 
 **Acceptance Scenarios**:
 
 1. **Given** a locked price claim inside its acceptance window, **When** anyone posts `@vaticeno wager` as a
-   direct reply to the claim's post, its summon, a fix or a bot reply in it, **Then** the bot replies once in
+   reply to the bot's reply in the claim's thread, **Then** the bot replies once in
    that thread with the claim's wager link and the no-value line, and later `wager` posts for the same claim
    get no reply.
 2. **Given** a price claim that is not locked yet, **When** `wager` arrives, **Then** one short reply without
@@ -506,17 +506,32 @@ returned after expiry; (d) with the worker stopped, a matched wager is refunded 
   post in memory, hashed, and dropped (INIT_SPEC §6.9).
 - **FR-036**: One network and one stake token for the whole feature. A second chain family is a second
   verification path, a second toolchain and a second settlement worker — not a configuration value.
-- **FR-036a**: The network for real value — Arbitrum One or Base, both Ethereum layer 2s with native USDC on
-  which the contract runs unchanged — is part of the real-value decision (FR-031h), outside this feature and
-  blocking nothing in it. Whichever is chosen, its own testnet gets a redeploy and the end-to-end runs again
-  before any real value, so what is tested is what ships. This feature stays on Base Sepolia, where the
-  contract is live (002-escrow-v1).
+- **FR-036a**: The network for real value — Arbitrum One or Base, both Ethereum layer 2s with native USDC — is
+  part of the real-value decision (FR-031h), outside this feature and blocking nothing in it. The contract
+  does not ship there unchanged: it gains FR-036b and FR-036c first. Whichever network is chosen, its own
+  testnet gets the new contract and the end-to-end runs again before any real value, so what is tested is
+  what ships. This feature stays on Base Sepolia, where the current contract is live (002-escrow-v1).
+- **FR-036b**: Before real value, money leaves the escrow by **pull**, not push. Payout credits the winner and
+  the fee recipient separately; VOID, the void path and the timeout refund credit maker and taker separately;
+  an expired offer credits its maker. Each beneficiary withdraws their own balance in their own transaction,
+  so an address the token refuses to pay (USDC can block one) never freezes the other side's money. What it
+  cannot do: a blocked address's own balance stays unwithdrawable while the token blocks it — a documented
+  residual risk, not a contract bug.
+- **FR-036c**: Before real value, the stake token is exactly one address: **native USDC** on the chosen network
+  (Base `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`, Arbitrum One `0xaf88d065e77c8cC2239327C5EDb3A432268e5831`,
+  both published by Circle), never a bridged variant. USDC has 6 decimals, so the cap is set in base units
+  (100 USDC = `100_000_000`, not `100e18`), and the page converts between base units and USDC. No
+  fee-on-transfer or rebasing token is supported. USDC's own pause, blocklist and upgrade controls are an
+  external dependency, written into the real-value risk assessment (FR-031h).
 
 - **FR-037**: `wager` is a command, recognised before any claim parsing like `link` and `unlink` (FR-035a),
   from anyone in the thread of a recorded claim — not only its author, because the contract lets anyone
   holding the authorization open a stake. The claim is found the way the bot already finds one: the post's
   direct parent is the claim's post, its summon, a fix or a bot reply in it. Never the conversation root,
   which can be an older, unrelated post, and never the post's text. Any other `wager` post gets no reply.
+  The existing addressing rule still holds: once the bot is in a thread, a handle at the start of a reply
+  may be one X carried, so a stranger is heard when they reply **to the bot's own reply**, and the author
+  also under their own post (found while building, 2026-10-20).
 - **FR-038**: A claim gets **at most one reply carrying its wager link**, to the first `wager` that arrives
   while the claim is locked, price-feed and inside its acceptance window. Later `wager` posts for that claim
   get no reply. A refusal — not locked yet, not a price claim, wagering closed — is one short reply with no

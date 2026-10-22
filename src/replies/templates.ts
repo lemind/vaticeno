@@ -165,6 +165,31 @@ export function alreadyRecordedReply(existingSlug: string): string {
   return `ALREADY RECORDED · #${existingSlug}`;
 }
 
+// The one reply allowed a link (constitution VI 2.8.0, 003 FR-039): our own domain, plain text, once a claim.
+export function wagerLinkReply(host: string, slug: string): string {
+  return assertReplyFits(
+    `WAGER · #${slug}\nOffer a side or take one, with your own wallet:\n${host}/claim/${slug}/wager\nTestnet only: the token has no value.`,
+  );
+}
+
+// Refusals carry no link (003 FR-038).
+export function wagerNotLockedReply(
+  slug: string,
+  lockAt: Date | null,
+  now: Date,
+): string {
+  const minutes = lockAt
+    ? Math.max(1, Math.ceil((lockAt.getTime() - now.getTime()) / 60_000))
+    : null;
+  return `Wagering on #${slug} opens when it locks${minutes ? `, in about ${minutes} min` : ''}. Ask again then.`;
+}
+
+export const wagerNotPriceReply = (slug: string) =>
+  `#${slug} can't carry a wager: only claims decided by a price feed can.`;
+
+export const wagerClosedReply = (slug: string) =>
+  `Wagering on #${slug} is closed for new offers.`;
+
 // Length as X counts it: links weigh 23, everything else one per character (code point).
 // A bot reply must not tag anyone or carry links (constitution VI): model or web text that does is not posted.
 export function hasTagsOrLinks(text: string): boolean {

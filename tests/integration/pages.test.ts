@@ -40,7 +40,7 @@ async function resolvedClaim(overrides: Record<string, unknown> = {}) {
 describe('claim page', () => {
   test('shows the contract, timeline, evidence, verdict, positions and the X link — and no percentages', async () => {
     const claim = await resolvedClaim();
-    const res = await app().inject(`/c/${claim.slug}`);
+    const res = await app().inject(`/claim/${claim.slug}`);
     assert.equal(res.statusCode, 200);
     const page = res.body;
     for (const needed of [
@@ -63,7 +63,7 @@ describe('claim page', () => {
       '2027-01-01 01:00 UTC', // event date, read at
     ])
       assert.ok(page.includes(needed), `missing: ${needed}`);
-    assert.match(page, /<dt>Resolved<\/dt><dd>2027-01-02 00:00 UTC<\/dd>/);
+    assert.match(page, /<dt>Resolved<\/dt>\s*<dd>2027-01-02 00:00 UTC<\/dd>/);
     assert.match(
       page,
       /href="#e-[0-9a-f-]+">see below/,
@@ -81,7 +81,7 @@ describe('claim page', () => {
     const claim = await insertClaim(t.sql, 'locked', {
       contract: JSON.stringify(contract),
     });
-    const page = (await app().inject(`/c/${claim.slug}`)).body;
+    const page = (await app().inject(`/claim/${claim.slug}`)).body;
     assert.ok(
       page.includes(
         '&lt;script&gt;alert(1)&lt;/script&gt; &amp; &quot;quotes&quot;',
@@ -97,7 +97,7 @@ describe('claim page', () => {
       source_kind: 'web',
       source_name: 'evil.example',
     });
-    const page = (await app().inject(`/c/${claim.slug}`)).body;
+    const page = (await app().inject(`/claim/${claim.slug}`)).body;
     assert.ok(!/href="javascript:/i.test(page));
     assert.ok(page.includes('evil.example'), 'shown as plain text');
   });
@@ -105,15 +105,15 @@ describe('claim page', () => {
   test('an expired claim says it was never locked or judged', async () => {
     const claim = await insertClaim(t.sql, 'expired');
     assert.match(
-      (await app().inject(`/c/${claim.slug}`)).body,
+      (await app().inject(`/claim/${claim.slug}`)).body,
       /never locked, not judged/,
     );
   });
 
   test('no contract (needs info, rejected) or unknown slug → 404', async () => {
     const needsInfo = await insertClaim(t.sql, 'needs_info');
-    assert.equal((await app().inject(`/c/${needsInfo.slug}`)).statusCode, 404);
-    assert.equal((await app().inject('/c/zzzzz')).statusCode, 404);
+    assert.equal((await app().inject(`/claim/${needsInfo.slug}`)).statusCode, 404);
+    assert.equal((await app().inject('/claim/zzzzz')).statusCode, 404);
   });
 });
 
@@ -126,7 +126,7 @@ describe('author page', () => {
     assert.equal(res.statusCode, 200);
     assert.match(
       res.body,
-      /2 recorded · 1 resolved · <span class="hit">1 right<\/span> · <span class="miss">0 wrong<\/span> · <span class="void">0 void<\/span>/,
+      /2 recorded · 1 resolved ·\s*<span class="hit">1 right<\/span> ·\s*<span class="miss">0 wrong<\/span> ·\s*<span class="void">0 void<\/span>/,
     );
     assert.ok(!visible(res.body).includes('%'), 'no percentages');
   });
@@ -140,15 +140,15 @@ describe('author page', () => {
     await t.sql`insert into resolutions ${t.sql({ claim_id: claim.id, outcome: 'miss', decided_by: 'evidence', review_status: 'final', decided_at: NOW.toISOString(), deciding_evidence_id: evidence.id })}`;
     await t.sql`insert into corrections ${t.sql({ claim_id: claim.id, from_outcome: 'miss', to_outcome: 'hit', reason: 'an absence outranked three reports', decided_by: 'evidence' })}`;
 
-    const page = (await app().inject(`/c/${claim.slug}`)).body;
-    assert.match(page, /<dt>Outcome<\/dt><dd>HIT/);
+    const page = (await app().inject(`/claim/${claim.slug}`)).body;
+    assert.match(page, /<dt>Outcome<\/dt>\s*<dd>\s*HIT/);
     assert.match(
-      page,
-      /<dt>Corrected<\/dt><dd>[^<]*was MISS: an absence outranked three reports/,
+      page.replace(/\s+/g, ' '),
+      /<dt>Corrected<\/dt> ?<dd>[^<]*was MISS: an absence outranked three reports/,
     );
     assert.match(
       (await app().inject('/u/200')).body,
-      /<span class="hit">1 right<\/span> · <span class="miss">0 wrong<\/span>/,
+      /<span class="hit">1 right<\/span> ·\s*<span class="miss">0 wrong<\/span>/,
     );
   });
 

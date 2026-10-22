@@ -68,3 +68,18 @@ three is in this feature.
 
 - Where the guardian key lives, and who can act on it out of hours — its speed is what bounds a compromise.
 - `web3.py` for the worker (T333) and an EVM library for link signatures (T339b): approval with a reason (VII).
+
+## Before real value (added 2026-10-21)
+
+Version one stays on Base Sepolia as it is. The contract that holds real value is a second version, built
+after the network is chosen (003 T374, T376):
+
+| Change | Why |
+|---|---|
+| **Pull, not push** (003 FR-036b): every exit credits a balance, each beneficiary calls `withdraw()` | today `payout` and `_refundBoth` send to two addresses in one transaction; if the token refuses one (USDC can block an address), the call reverts and the other side's money is stuck with it |
+| **Native USDC only, one fixed address** (003 FR-036c): Base `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`, Arbitrum One `0xaf88d065e77c8cC2239327C5EDb3A432268e5831` | the escrow assumes it received exactly `amount`, which is false for a fee-on-transfer or rebasing token; bridged USDC is a different token |
+| **Cap in 6-decimal base units**: 100 USDC = `100_000_000` | the test token has 18 decimals; copying `100e18` would allow a 10¹⁴ USDC stake |
+
+**Residual risk, accepted in writing**: pull payments keep one blocked address from freezing the other, but a
+blocked address cannot withdraw its own balance while USDC blocks it. USDC's pause, blocklist and upgrade
+controls belong to Circle and go into the real-value risk assessment (003 FR-031h).
