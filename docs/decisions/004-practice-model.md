@@ -103,6 +103,12 @@ fixes nothing about data rights. The gap above is accepted as a documented risk,
 the hypotheses ever turn out not to be covered, option A applies and the weights are relicensed CC BY-SA 4.0,
 which also covers the fiction's BY-SA 3.0.
 
+**The distilled model (T344)** learns from the stock DeBERTa teacher's answers on the same OANC pairs. No SNLI or
+fiction text enters its training, but the teacher was trained on SNLI, so what it learnt there reaches the
+student through its answers. The teacher is Apache-2.0 by its publisher, which allows using its outputs; the
+distilled weights are MIT on the same accepted-risk basis, and their card names the teacher and its training
+data. SNLI test is then not a fully unseen benchmark for that model, and the report says so.
+
 On the card, each scope apart: the code under the repo's licence; the weights and int8 export under MIT; the
 base model's MIT notice kept; the datasets cited with their own licences, which MIT on the weights does not
 change; and a plain line that this follows the sources' stated terms without settling whether training makes

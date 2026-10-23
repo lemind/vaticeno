@@ -21,6 +21,11 @@ def base_dir() -> Path:
     return ROOT / "verifier" / "models" / base["id"].replace("/", "--") / base["revision"]
 
 
+def teacher_dir() -> Path:
+    teacher = DATA["teacher"]
+    return ROOT / "verifier" / "models" / teacher["id"].replace("/", "--") / "torch" / teacher["revision"]
+
+
 def dataset_file(source: dict, name: str) -> Path:
     return HERE / "data" / source["id"].replace("/", "--") / source["revision"] / name
 
@@ -31,6 +36,11 @@ def sources() -> list[tuple[str, Path, str]]:
     found = [
         (f"https://huggingface.co/{base['id']}/resolve/{base['revision']}/{name}", base_dir() / name, sha)
         for name, sha in base["files"].items()
+    ]
+    teacher = DATA["teacher"]
+    found += [
+        (f"https://huggingface.co/{teacher['id']}/resolve/{teacher['revision']}/{name}", teacher_dir() / name, sha)
+        for name, sha in teacher["files"].items()
     ]
     for source in (DATA["train"]["multi_nli"], DATA["eval"]["multi_nli"], DATA["eval"]["snli"]):
         for name, sha in source["files"].items():

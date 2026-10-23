@@ -66,6 +66,23 @@ file = "verifier/train/challenge.jsonl"
 sha256 = "1981eae05d47e3cfd3d4ae2719275128dd447ff552014e4d2033dd3d0a54c222"
 use = "diagnostic only, per group; never for tuning"
 
+# The distillation teacher (003 T344): the stock candidate, its PyTorch weights. Apache-2.0 by its publisher, trained
+# on SNLI and MultiNLI — so its answers carry what it learnt from SNLI (decision 004).
+[teacher]
+id = "cross-encoder/nli-deberta-v3-xsmall"
+revision = "a150876415327c80daeff35ca6f68f5ed8cf5c24"
+license = "apache-2.0"
+reported = "SNLI test 91.64, MNLI mismatched 87.77 (its model card)"
+
+[teacher.files]
+"model.safetensors" = "4e4fc4977f8d29d2a164255c8f69b9d6c158deeb309bb5e70445b94666ccd9e9"
+"config.json" = "8d9f07bf7ba54a6fc3b1962483056f94c39dcf188db4cf61843e1c88f94b2342"
+"tokenizer.json" = "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964"
+"tokenizer_config.json" = "f3eecd07c370ef0bf7dd3780d3cd68cf9c8b00c267e21a208ddcd8f82bfec1a6"
+"special_tokens_map.json" = "ed7c099c988dbb414b18a6980d20cb57b91b7cd119f6f6941eb364b0e892e712"
+"added_tokens.json" = "a4b6bfe668f2b3cf6f0cd535e98a0663d2d0d4a4a15f13075ad3597d33985a23"
+"spm.model" = "c679fbf93643d19aab7ee10c0b99e460bdbc02fedf34b92b05af343b4af586fd"
+
 [labels]
 # The base has no head, so the order is ours: the stock candidate's, so both read the same way (verifier/model.toml).
 order = ["contradiction", "entailment", "neutral"]

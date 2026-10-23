@@ -9,3 +9,8 @@ epochs = 3
 eval_every_steps = 2000   # on the development split; the best checkpoint is kept
 patience = 3              # evaluations without improvement before stopping early
 threads = 4               # CPU torch threads: 4 to 14 within 15%, 20 four times slower (2026-10-23)
+
+# Distillation (003 T344): the same run, with the teacher's softened answers mixed into the loss.
+[distill]
+alpha = 0.5               # weight of the labelled answer; the rest is the teacher's
+temperature = 2.0         # softens both sides before they are compared
