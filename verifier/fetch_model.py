@@ -32,11 +32,15 @@ def sha256_of(path: Path) -> str:
 
 
 def fetch(name: str, expected: str) -> None:
-    target = model_path(name)
+    download(f"https://huggingface.co/{SPEC['id']}/resolve/{SPEC['revision']}/{name}", model_path(name), expected)
+
+
+def download(url: str, target: Path, expected: str) -> None:
+    """Temporary name, checksum, then rename: a bad or interrupted download is never at `target`."""
+    name = target.name
     if target.exists() and sha256_of(target) == expected:
         return
     target.parent.mkdir(parents=True, exist_ok=True)
-    url = f"https://huggingface.co/{SPEC['id']}/resolve/{SPEC['revision']}/{name}"
     fd, tmp = tempfile.mkstemp(dir=target.parent, prefix=".part-")
     try:
         with os.fdopen(fd, "wb") as out, urllib.request.urlopen(url, timeout=60) as response:
