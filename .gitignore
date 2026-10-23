@@ -26,3 +26,6 @@ contracts/broadcast/
 verifier/eval/data/
 # Downloaded model weights, pinned by checksum in verifier/model.toml (003 FR-019)
 verifier/models/
+# Training data and environment for the practice model (003 T343)
+verifier/train/data/
+.venv-train/
