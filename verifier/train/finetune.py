@@ -115,15 +115,18 @@ def main() -> int:
     dev, train = rows[: source["development_pairs"]], rows[source["development_pairs"] :]
 
     tokenizer = AutoTokenizer.from_pretrained(base_dir(base_key))
+    # float32 explicitly: the DeBERTa checkpoint is stored in fp16, and transformers keeps a file's precision.
     model = AutoModelForSequenceClassification.from_pretrained(
         base_dir(base_key),
+        dtype=torch.float32,
         num_labels=len(LABELS),
         id2label=dict(enumerate(LABELS)),
         label2id={v: i for i, v in enumerate(LABELS)},
     ).to(DEVICE)
     teacher = teacher_tok = None
     if args.distill:
-        teacher = AutoModelForSequenceClassification.from_pretrained(teacher_dir()).eval().to(DEVICE)
+        teacher = AutoModelForSequenceClassification.from_pretrained(teacher_dir(), dtype=torch.float32)
+        teacher = teacher.eval().to(DEVICE)
         teacher_tok = AutoTokenizer.from_pretrained(teacher_dir())
         if [teacher.config.id2label[i].lower() for i in range(len(LABELS))] != LABELS:
             raise SystemExit(f"teacher labels {teacher.config.id2label} are not {LABELS}")
