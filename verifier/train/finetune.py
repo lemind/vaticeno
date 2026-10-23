@@ -21,7 +21,6 @@ import torch
 from transformers import (
     AutoModelForSequenceClassification,
     AutoTokenizer,
-    BertTokenizerFast,
     get_linear_schedule_with_warmup,
 )
 
@@ -33,6 +32,7 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 CONFIG = tomllib.loads((HERE / "config.toml").read_text())
 OUT = ROOT / "verifier" / "models" / "practice"
 DISTILLED = ROOT / "verifier" / "models" / "practice-distilled"
+DEBERTA = ROOT / "verifier" / "models" / "practice-deberta"
 LABELS = DATA["labels"]["order"]
 # Dataset label number → our class index.
 TO_OURS = {int(k): LABELS.index(v) for k, v in DATA["labels"]["from_dataset"].items()}
@@ -94,8 +94,11 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--max-steps", type=int, help="stop after this many steps: the timing run")
     parser.add_argument("--distill", action="store_true", help="mix the teacher's answers into the loss (T344)")
+    parser.add_argument("--base", choices=["minilm", "deberta"], default="minilm")
     args = parser.parse_args()
-    out = DISTILLED if args.distill else OUT
+    base_key = "base_deberta" if args.base == "deberta" else "base"
+    out = DEBERTA if args.base == "deberta" else DISTILLED if args.distill else OUT
+    learning_rate = DATA[base_key].get("learning_rate", CONFIG["learning_rate"])
 
     source = DATA["train"]["multi_nli"]
     seed = DATA["seed"]
@@ -111,9 +114,9 @@ def main() -> int:
     random.Random(seed).shuffle(rows)
     dev, train = rows[: source["development_pairs"]], rows[source["development_pairs"] :]
 
-    tokenizer = BertTokenizerFast.from_pretrained(base_dir())
+    tokenizer = AutoTokenizer.from_pretrained(base_dir(base_key))
     model = AutoModelForSequenceClassification.from_pretrained(
-        base_dir(),
+        base_dir(base_key),
         num_labels=len(LABELS),
         id2label=dict(enumerate(LABELS)),
         label2id={v: i for i, v in enumerate(LABELS)},
@@ -126,13 +129,17 @@ def main() -> int:
             raise SystemExit(f"teacher labels {teacher.config.id2label} are not {LABELS}")
     steps_per_epoch = -(-len(train) // CONFIG["batch_size"])
     total = args.max_steps or steps_per_epoch * CONFIG["epochs"]
-    optimizer = torch.optim.AdamW(model.parameters(), lr=CONFIG["learning_rate"], weight_decay=CONFIG["weight_decay"])
+    optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=CONFIG["weight_decay"])
     schedule = get_linear_schedule_with_warmup(optimizer, int(total * CONFIG["warmup_share"]), total)
 
+    # fp16 autocast for the DeBERTa run on a GPU only: about twice as fast; the MiniLM runs stayed fp32.
+    amp = args.base == "deberta" and DEVICE.type == "cuda"
+    scaler = torch.amp.GradScaler("cuda", enabled=amp)
     record = {
         "train_pairs": len(train), "development_pairs": len(dev), "dropped_from_file": len(table["label"]) - len(rows),
         "train_fingerprint": fingerprint(train), "development_fingerprint": fingerprint(dev),
-        "config": CONFIG, "seed": seed, "torch": torch.__version__, "evaluations": [],
+        "base": DATA[base_key]["id"], "learning_rate": learning_rate, "config": CONFIG, "seed": seed,
+        "torch": torch.__version__, "evaluations": [], "mixed_precision": amp,
         "device": torch.cuda.get_device_name(0) if DEVICE.type == "cuda" else "cpu",
         "distill": {"teacher": DATA["teacher"]["id"], **CONFIG["distill"]} if args.distill else None,
     }
@@ -142,7 +149,8 @@ def main() -> int:
     done = False
     for epoch in range(CONFIG["epochs"]):
         for encoded, labels, chunk in batches(train, tokenizer, CONFIG["batch_size"], shuffle):
-            output = model(**encoded, labels=labels)
+            with torch.autocast("cuda", dtype=torch.float16, enabled=amp):
+                output = model(**encoded, labels=labels)
             loss = output.loss
             if teacher is not None:
                 with torch.no_grad():
@@ -152,9 +160,11 @@ def main() -> int:
                     torch.log_softmax(output.logits / t, -1), torch.softmax(taught / t, -1), reduction="batchmean"
                 )
                 loss = alpha * loss + (1 - alpha) * t * t * soft
-            loss.backward()
+            scaler.scale(loss).backward()
+            scaler.unscale_(optimizer)
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-            optimizer.step()
+            scaler.step(optimizer)
+            scaler.update()
             schedule.step()
             optimizer.zero_grad()
             step += 1

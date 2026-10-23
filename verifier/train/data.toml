@@ -19,6 +19,22 @@ citation = "Wang et al., MiniLM: Deep Self-Attention Distillation for Task-Agnos
 "tokenizer_config.json" = "004a73627dc426fe8178103267521ac79b8e9cb7442416a88996eafa52d51716"
 "special_tokens_map.json" = "303df45a03609e4ead04bc3dc1536d0ab19b5358db685b6f3da123d05ec200e3"
 
+# The second student (003 T343a, owner 2026-10-23): the untrained DeBERTa-v3 base, not the stock NLI model.
+# Its authors report MNLI-m/mm 88.1/88.3 on all of MultiNLI with lr 4.5e-5, length 256, 8 GPUs.
+[base_deberta]
+id = "microsoft/deberta-v3-xsmall"
+revision = "4b419818330868dff6a60ad3e6b1c730f8b8c0c6"
+license = "mit"
+note = "22M backbone parameters plus a 128k-token embedding table: 70.8M in all"
+learning_rate = 4.5e-5  # its authors' MNLI setting; the rest of config.toml is unchanged
+citation = "He, Gao and Chen, DeBERTaV3: Improving DeBERTa using ELECTRA-Style Pre-Training with Gradient-Disentangled Embedding Sharing, ICLR 2023"
+
+[base_deberta.files]
+"pytorch_model.bin" = "e96369113d0ea430d5827a651182f3079438ef1191b608a312b893ce98052c0a"
+"config.json" = "dec93c511390776d961b33e560ccbb8505f8bb11e04fc0428eac55f562231c04"
+"spm.model" = "c679fbf93643d19aab7ee10c0b99e460bdbc02fedf34b92b05af343b4af586fd"
+"tokenizer_config.json" = "3f3978e0c036f2c2588cac34a6047cbb0af0b0dc1814254e291028529805496d"
+
 # Trained on. The fiction genre is dropped: it holds the only ShareAlike text in MultiNLI (Seven Swords,
 # CC BY-SA 3.0). Every other genre is the Open American National Corpus, "unrestricted ... including commercial use".
 [train.multi_nli]

@@ -16,8 +16,8 @@ ROOT = HERE.parents[1]
 DATA = tomllib.loads((HERE / "data.toml").read_text())
 
 
-def base_dir() -> Path:
-    base = DATA["base"]
+def base_dir(key: str = "base") -> Path:
+    base = DATA[key]
     return ROOT / "verifier" / "models" / base["id"].replace("/", "--") / base["revision"]
 
 
@@ -32,10 +32,10 @@ def dataset_file(source: dict, name: str) -> Path:
 
 def sources() -> list[tuple[str, Path, str]]:
     """(url, local path, sha256) for every pinned file."""
-    base = DATA["base"]
     found = [
-        (f"https://huggingface.co/{base['id']}/resolve/{base['revision']}/{name}", base_dir() / name, sha)
-        for name, sha in base["files"].items()
+        (f"https://huggingface.co/{DATA[key]['id']}/resolve/{DATA[key]['revision']}/{name}", base_dir(key) / name, sha)
+        for key in ("base", "base_deberta")
+        for name, sha in DATA[key]["files"].items()
     ]
     teacher = DATA["teacher"]
     found += [

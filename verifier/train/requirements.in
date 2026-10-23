@@ -9,3 +9,5 @@ onnxruntime
 tokenizers
 numpy
 pytest
+sentencepiece
+protobuf

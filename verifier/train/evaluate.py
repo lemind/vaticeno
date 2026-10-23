@@ -26,15 +26,19 @@ from transformers import AutoModelForSequenceClassification
 
 from verifier.fetch_model import sha256_of
 from verifier.train.fetch_data import DATA, ROOT, dataset_file
-from verifier.train.finetune import CONFIG, DISTILLED, LABELS, OUT, TO_OURS, fingerprint, training_rows
+from verifier.train.finetune import CONFIG, DEBERTA, DISTILLED, LABELS, OUT, TO_OURS, fingerprint, training_rows
 
-# `--distilled` measures the T344 run instead; every path follows the run directory.
-RUN = DISTILLED if "--distilled" in sys.argv else OUT
+# `--distilled` or `--deberta` measures that run instead; every path follows the run directory.
+RUN = DISTILLED if "--distilled" in sys.argv else DEBERTA if "--deberta" in sys.argv else OUT
 BEST = RUN / "best"
 FP32 = RUN / "model_fp32.onnx"
 INT8 = RUN / "model_quint8_avx2.onnx"
-REPORT = ROOT / "verifier" / "train" / ("report-distilled.json" if RUN == DISTILLED else "report.json")
-INPUTS = ["input_ids", "attention_mask", "token_type_ids"]
+REPORT = ROOT / "verifier" / "train" / {OUT: "report.json", DISTILLED: "report-distilled.json"}.get(
+    RUN, "report-deberta.json"
+)
+# DeBERTa-v3 has no segment embeddings (type_vocab_size 0), so it takes no token_type_ids.
+_TYPES = json.loads((BEST / "config.json").read_text()).get("type_vocab_size", 0) if BEST.exists() else 0
+INPUTS = ["input_ids", "attention_mask", "token_type_ids"] if _TYPES else ["input_ids", "attention_mask"]
 BINS = 15
 
 
@@ -72,6 +76,7 @@ def logits_for(sess, tok, pairs: list[tuple[str, str]]) -> np.ndarray:
             "attention_mask": np.array([e.attention_mask for e in enc], dtype=np.int64),
             "token_type_ids": np.array([e.type_ids for e in enc], dtype=np.int64),
         }
+        feed = {k: v for k, v in feed.items() if k in INPUTS}
         out.append(sess.run(None, feed)[0])
     return np.concatenate(out)
 
@@ -174,6 +179,7 @@ load = time.monotonic() - t
 lat = {{}}
 for n in (128, 512):
     x = np.ones((1, n), dtype=np.int64); feed = {{"input_ids": x, "attention_mask": x, "token_type_ids": 0 * x}}
+    feed = {{k: v for k, v in feed.items() if k in {INPUTS!r}}}
     s.run(None, feed); t = time.monotonic()
     for _ in range(20): s.run(None, feed)
     lat[n] = (time.monotonic() - t) / 20
