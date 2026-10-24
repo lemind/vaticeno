@@ -204,7 +204,8 @@ def smoke(sess, tok) -> None:
 
 
 def main() -> int:
-    export()
+    if not (FP32.exists() and INT8.exists()):
+        export()
     tok = tokenizer()
     dev_pairs, dev_labels = development_split()
     mnli, snli = DATA["eval"]["multi_nli"], DATA["eval"]["snli"]
@@ -217,10 +218,17 @@ def main() -> int:
         "snli_test": benchmark(snli, next(iter(snli["files"]))),
     }
     challenge = [json.loads(line) for line in (ROOT / DATA["challenge"]["file"]).read_text().splitlines()]
-    report = {"model": {"base": DATA["base"]["id"], "run": json.loads((RUN / "run.json").read_text())},
-              "artefacts": {}}
+    run = json.loads((RUN / "run.json").read_text())
+    report = {"model": {"base": run.get("base", DATA["base"]["id"]), "run": run}, "artefacts": {}}
+    # Saved after each artefact and resumed from: a DeBERTa pass takes the better part of an hour on a CPU.
+    if REPORT.exists():
+        earlier = json.loads(REPORT.read_text())
+        if earlier["model"]["run"].get("train_fingerprint") == run["train_fingerprint"]:
+            report["artefacts"] = earlier["artefacts"]
     for name, path in (("fp32", FP32), ("int8", INT8)):
-        sess = session(path, threads=8)
+        if name in report["artefacts"]:
+            continue
+        sess = session(path, threads=14)
         smoke(sess, tok)
         temperature = fit_temperature(logits_for(sess, tok, dev_pairs), dev_labels)
         entry = {"temperature_fitted_on": "development split", "temperature": temperature, "sets": {}}
@@ -241,7 +249,7 @@ def main() -> int:
         report["artefacts"][name] = entry
         print(name, json.dumps({k: v["raw"]["accuracy"] for k, v in entry["sets"].items()}), entry["challenge"],
               flush=True)
-    REPORT.write_text(json.dumps(report, indent=1) + "\n")
+        REPORT.write_text(json.dumps(report, indent=1) + "\n")
     return 0
 
 
