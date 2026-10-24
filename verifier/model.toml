@@ -1,0 +1,15 @@
+# The one stock candidate (003 T342, FR-019). Every file is pinned by commit and checksum; weights never in git.
+# The droplet and the laptop both have AVX2 and no AVX-512 (read 2026-10-22), so both run the same artefact.
+id = "cross-encoder/nli-deberta-v3-xsmall"
+license = "apache-2.0"
+revision = "a150876415327c80daeff35ca6f68f5ed8cf5c24"
+max_tokens = 512
+
+# Softmax over the logits, in the model card's order. Thresholds apply to these probabilities, never to logits.
+labels = ["contradiction", "entailment", "neutral"]
+inputs = ["input_ids", "attention_mask"]
+output = "logits"
+
+[files]
+"onnx/model_quint8_avx2.onnx" = "21b14751a95520953bfcc607ceeb617de7cbeaeb6d60f4c8966716c743985337"
+"tokenizer.json" = "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964"

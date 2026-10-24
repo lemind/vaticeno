@@ -22,3 +22,10 @@ docs/private/
 contracts/out/
 contracts/cache/
 contracts/broadcast/
+# The verifier's offline manifest: links and hashes only, but built from live data (003 FR-019a)
+verifier/eval/data/
+# Downloaded model weights, pinned by checksum in verifier/model.toml (003 FR-019)
+verifier/models/
+# Training data and environment for the practice model (003 T343)
+verifier/train/data/
+.venv-train/

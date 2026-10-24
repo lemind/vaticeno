@@ -109,8 +109,9 @@ only ever agree with evidence that has already passed the existing code gates.
 **Why this priority**: it is the one change that lowers the per-claim cost rather than capping it, and it is
 useless before there is a way to measure its mistakes — which Story 1 and the existing cost records provide.
 
-**Independent Test**: on a held-out set of real claims with known verdicts, the fast path auto-finalises
-**zero** of them wrongly, and the share of resolutions that avoided a paid call is reported.
+**Independent Test**: offline, on seeded claims and real verdicts, one candidate is chosen and frozen; in
+shadow, it would have auto-finalised **zero** claims wrongly among the count SC-005 sets, and the share of
+resolutions that avoided a paid call is reported.
 
 **Acceptance Scenarios**:
 
@@ -259,8 +260,10 @@ returned after expiry; (d) with the worker stopped, a matched wager is refunded 
 - **A verifier upgrade changes past answers**: the model version is recorded per resolution, so a change is
   visible rather than silently rewriting history. Locked verdicts never change (constitution I).
 - **The verifier is confidently wrong**: this is the failure that matters. The threshold is tuned for zero
-  wrong verdicts on the held-out set, not for the highest savings, and a single wrong auto-verdict in
-  production is grounds for turning the fast path off.
+  wrong verdicts, not for the highest savings, on data kept apart from the set that later judges it
+  (SC-005); a single wrong auto-verdict in production is grounds for turning the fast path off. A finite
+  sample bounds the error rate; it never proves it zero, which is why a fast-path verdict never settles a
+  stake (FR-031).
 - **Two runtimes drift**: the two sides integrate only through a database table, or — for the verifier
   alone — one bounded call on localhost whose every failure means "no answer". No shared files, no shared
   memory, no imported code, and nothing from Python upstream of a verdict.
@@ -366,12 +369,26 @@ returned after expiry; (d) with the worker stopped, a matched wager is refunded 
   agreement rate against the paid model in shadow. A fast-path resolution can be **marked as contradicted**
   during the existing human review, and that count is shown — this feature adds the mark and the counter,
   not a new review process.
-- **FR-019**: Two candidates are evaluated against each other on the same held-out set: an off-the-shelf
-  entailment model with a threshold, and a small encoder fine-tuned on public fact-verification data. Both
-  are deliverables — the comparison is the point, and the baseline winning is a valid result worth having
-  measured. Selection is by precision, coverage at zero wrong auto-finalisations, inference latency and
-  memory, in that order. No live traffic is used to train or evaluate, and no post text is stored to do it
-  (INIT_SPEC §6.9).
+- **FR-019**: One stock candidate first: an off-the-shelf entailment model with a threshold, run as the exact
+  pinned artefact the server would run. A small encoder fine-tuned on public fact-verification data is
+  **deferred** (owner, 2026-10-22) until there are enough person-confirmed claims to tell two candidates
+  apart; the offline set's labels are mostly our own resolver's and cannot. Selection is by precision,
+  coverage at zero wrong auto-finalisations, inference latency and memory, in that order. Nothing is trained
+  on live traffic, and no post text is stored to evaluate (INIT_SPEC §6.9). The offline set picks the
+  candidate and nothing more; whether it may decide is SC-005's, on shadow claims.
+- **FR-019a**: The offline set stores **no source text** (constitution V): a manifest of the claim, its
+  window and known outcome, and per passed evidence item its URL, recorded content hash, extractor version
+  and the judge's answer. At evaluation the page is fetched again and held in memory only, and it counts
+  only if its hash is **exactly** the recorded one — the page that was judged. Changed or gone pages are
+  counted and left out; a near match (simhash, a quoted span still present) is a diagnostic, never a case.
+  Reports carry numbers, never page text. The judge's answer per item is a weak label; the claim's known
+  outcome is the label that decides. Development, threshold choice and the final offline score use
+  separate claims.
+- **FR-019b**: A small model is trained **for practice and publication** (owner, 2026-10-22,
+  docs/decisions/004-practice-model.md): a supervised baseline first, distillation optional, published on a
+  public model hub with a model card and pinned there by commit and checksum. It decides nothing; reaching
+  production would need SC-005's count like any candidate. Its training uses public research corpora only,
+  never evidence the resolver fetched (constitution V), and its weights' licence is settled before upload.
 - **FR-020**: The new service layer is Python, deployed as its own process with its own dependencies, and
   shares nothing with the Node service but the database. A second runtime is a departure from
   constitution VII ("Boring by Design", microservices deliberately absent) and needs an owner decision
@@ -611,9 +628,16 @@ returned after expiry; (d) with the worker stopped, a matched wager is refunded 
   rows are named as unmeasured rather than filled in from the laptop's.
 - **SC-004**: A synthetic mention burst at ten times the live rate is answered exactly once per mention, with
   no duplicate reply and no mention lost, and the backlog drains without intervention.
-- **SC-005**: **Zero wrongly auto-finalised claims on the held-out set.** This is the gate that sets the
-  threshold, and it is a statement about that set — not a proof that the fast path cannot err in production,
-  which is why shadow mode and the contradiction counter exist.
+- **SC-005**: The fast path stays off until the **frozen** candidate and threshold would have auto-finalised
+  **zero** claims wrongly among at least **1,000** eligible shadow claims — the one-sided 95% exact binomial
+  upper bound on the claim error rate then being at most 0.30% (owner decision 2026-10-22). Eligible: the
+  frozen gate would have finalised it without the paid model; its outcome was confirmed by a person, not
+  only by our own resolver; claims about one underlying event count once. Counted per claim, never per
+  page. The shadow claims never select the candidate or the threshold, and any change to the model, the
+  threshold, the agreement rule or the resolver logic it relies on starts the count again. Too few claims,
+  any error, or outcomes nobody confirmed keep it off. At today's volume (23 model-judged verdicts in three
+  weeks, T341) the count takes years: Stage 3 then delivers the measurement, not the savings, and lowering the
+  number is a separate decision taken with real volume.
 - **SC-006**: The share of resolutions that avoid a paid call is measured and written down, whatever it is.
   An honest 5% is a valid result and a reason to keep the fast path simple; it is not a reason to lower
   SC-005. UNRECONCILED until measured.
@@ -659,14 +683,14 @@ returned after expiry; (d) with the worker stopped, a matched wager is refunded 
   rejected: a plan that needs editing is more honest than a progress bar computed from checkboxes.
 - Load testing runs locally against a Docker database. Measurements from a laptop and from the VPS are
   recorded separately, because only the second answers "will the droplet hold".
-- Both a thresholded off-the-shelf entailment model and a small fine-tuned encoder get built and measured on
-  the same held-out set. Neither is assumed to win: the trained model may fail to beat a stock model with a
-  well-chosen threshold, and knowing that costs one training run and settles the question. Whichever wins on
-  the stated criteria is what runs. The paid model stays the arbiter either way; this is a filter in front of
-  it, not a replacement.
-- The held-out evaluation set is the existing seeded claims plus real verdicts already produced. If it is
-  too small to trust a measurement, the fast path stays off — a small set is a reason to wait, not a reason
-  to lower the bar.
+- One stock entailment model is measured offline first (FR-019); a fine-tuned one waits until confirmed
+  claims can tell two apart. The model trained for practice (FR-019b) decides nothing. Whatever candidate is
+  frozen still needs SC-005's count before it may decide, and the paid model stays the arbiter either way:
+  this is a filter in front of it, not a replacement.
+- The offline set is the existing seeded claims plus real verdicts already produced, as a manifest of links
+  and hashes (FR-019a). Live pages change, so only part of it can be fetched back exactly; a small set is a
+  reason to wait, not a reason to loosen the hash check or lower the bar. The evidence that decides comes
+  from shadow mode, where the model reads the exact text the resolver fetched at the time.
 - A second runtime is accepted for the service layer only. The bot, the resolver and anything that posts to
   X stay in TypeScript. This feature changes them only where Story 5 says: the `wager` command, its reply
   and the claim routes; Story 4's lock writing the outbox row and the confirm step before the resolver.

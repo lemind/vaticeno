@@ -15,7 +15,7 @@ status page — healthy, dead job, no database. Nothing else; ~55% coverage is a
 | Stage 1 | **done** 2026-10-20: the front page and `/status` behind its password are live; memory measured on the droplet (T323) |
 | Stage 2 | contract, settlement path and the wager page live (page and `wager` command deployed 2026-10-20); end to end passed 2026-10-19 from the command line. Worker on the server since 2026-10-21 (T375). Open: the browser run (T373), wallet links. Testnet only, no real value, no fee, price-feed claims only (FR-031h) |
 | Escrow v1 | T326a answers FR-031f before anything is deployed |
-| Stage 3 | not started; may end at T344 |
+| Stage 3 | T341–T342 done 2026-10-22; shadow paused (memory, T346); the practice model (T343–T344a) next |
 | `docs/decisions/` | 001 second runtime (done); 002 escrow v1 is T326a |
 
 ## Format: `[ID] [P?] [Story] Description`
@@ -171,30 +171,46 @@ independent reading of the contract, and a written incident policy.
 
 ## Phase 6: US3 — the local verifier (P2)
 
-**Independent test**: zero wrongly auto-finalised claims on the held-out set, with the avoided-call share reported.
+**Independent test**: offline picks and freezes one candidate; shadow counts it against SC-005 (1,000 eligible confirmed claims, zero wrong), with the avoided-call share reported.
 
 ### Offline
 
-- [ ] T341 [US3] `verifier/eval/dataset.py`: held-out set from seeded claims and real verdicts, written to gitignored `verifier/eval/data/`
-- [ ] T342 [US3] `verifier/eval/baseline.py`: stock model under one threshold rule, reporting both the model level and the fast-path level. Adds the `verifier` dependency group
-- [ ] T343 [US3] `verifier/train/finetune.py` + `config.toml` + `train/report.md`: fixed seed, named dataset, weights fetched by checksum and never committed (FR-019)
-- [ ] T344 [US3] `verifier/eval/compare.py` → `eval/report.md`: both candidates, winner chosen on the fast-path numbers (FR-019, SC-005, SC-006)
+- [x] T341 [US3] `verifier/eval/dataset.py`: a manifest, no text (FR-019a) — seeded claims (run in replay) and real verdicts: claim, window, known outcome; per passed item URL, recorded sha256, extractor version, the judge's answer as a weak label; each claim assigned to development, threshold or final. Written to gitignored `verifier/eval/data/`. `EXTRACTOR_VERSION` in `src/resolve/fetch.ts`, stamped on every item when the manifest is built — the evidences table keeps no version, so a rebuilt manifest after an extractor change would mislabel old hashes; every hash to date is v1 (`visibleText` unchanged since 2026-09-30) **Done 2026-10-22**: 23 real verdicts, 54 page items (hit 10, miss 13; splits 15/1/7). Seeds skipped (owner, 2026-10-22): the local recordings cannot replay them and a re-record is paid (001 T061); re-recorded only if T342 cannot tell the candidates apart
+- [x] T342 [US3] `verifier/eval/baseline.py`: re-fetch each page in memory, admit only an exact hash match, count changed and gone ones (near matches reported apart where a simhash was recorded — none is for database evidence); stock model under one threshold rule, chosen on the threshold claims and scored once on the final ones; reports the model level (against the weak label) and the fast-path level (against the known outcome), numbers only, never page text. Adds the `verifier` dependency group **Done 2026-10-22**: `cross-encoder/nli-deberta-v3-xsmall`, `onnx/model_quint8_avx2.onnx` pinned by commit and sha256 (`verifier/model.toml`, both machines AVX2); onnxruntime + tokenizers, no torch. Only **8–9 of 54** pages still hash the same (two runs; 45 changed), and **no claim kept every page**, so no claim is fast-path eligible at any threshold: a claim missing a page is never scored, since the missing one may be the page that argues back. The offline set measures the pipe, not the model. 1.3 s a page (median). Memory: **530 MiB** with the model loaded and warm in the harness (`eval/report-baseline.json`); in a bare process 465 MiB, and 271 with graph optimisation and prepacking off (one-off measurements, settings not in code) — the droplet has about 128 free
 
-**Checkpoint**: one report, one decision, nothing in production. The feature may stop here.
+**Checkpoint**: one report, one decision, nothing in production. The feature may stop here. A choice between candidates for shadow waits until person-confirmed claims can tell them apart (FR-019).
+
+### Practice model (FR-019b, decision 004)
+
+A trained model for practice and publication; it decides nothing. Runs on the laptop, published on the Hugging Face Hub.
+
+- [x] T343 [US3] **Licence, data and environment first** (FR-019b, decision 004): `verifier/train/data.toml` — base model, tokenizer and dataset revisions as commit IDs, licences and citations, the MultiNLI portions or filters used; the `train` group's lockfile and Python version; `training_data_license_assessment` and `weights_license` written in decision 004 (option A, B or C) — T343d blocks on both **Done 2026-10-23**: every source pinned by commit and sha256; `requirements.lock` with hashes (torch 2.14.1+cpu, transformers 5.20.2, Python 3.12). MultiNLI's only ShareAlike text is its fiction genre, so training on the other genres (OANC, unrestricted) and keeping SNLI for evaluation lets the weights be MIT. `weights_license`: **MIT** (owner, 2026-10-23); that the crowd-written hypotheses share the OANC terms is not stated by the sources and is accepted as a documented risk
+- [x] T343c [US3] **Before any training** (**frozen 2026-10-23**, sha256 in `data.toml`; 60 pairs revised after an outside review: two labels fixed, ambiguous wording pinned, every group 4 entailment / 4 contradiction / 4 neutral. Reported as a diagnostic, not a sample of real claims: one pair moves a group by 8 points. A page-level set — long text, corrections, wrong entity, partial outcomes, hedges — is a later, separate set): a challenge set of 50–100 original pairs, written and labelled by hand and then frozen — grouped by phenomenon (dates, negation, planned vs happened, numbers, attribution and quoted claims) with counts, no near-copies of one template; committed as `verifier/train/challenge.jsonl` (our own text, decision 004). Never used to tune; if it ever is, it is marked development and a fresh one written
+- [x] T343a [US3] Supervised baseline: `verifier/train/finetune.py` + `config.toml` — MiniLM-L6-H384 on the data `data.toml` names — MultiNLI train with fiction dropped by its `genre` field and **asserted absent** (one test), label −1 dropped and counted, 10,000 pairs carved off by seed as the development split for checkpoint, early stopping and temperature; max length 128 with the pair truncation recorded, batch 32 with dynamic padding, AdamW 2e-5, 5–10% warmup, 2–3 epochs with early stopping on validation, fixed seed; the first 500–1,000 steps timed before the full run; a fingerprint of each processed split. Laptop only; weights to gitignored `verifier/models/` **Done 2026-10-23**: 305,354 training pairs (fiction 77,348 dropped, asserted), 3 epochs, 44 minutes on a Colab T4 — the laptop CPU measured 2.2 s a step, about 17 hours, so training ran on a free GPU with Colab's torch 2.11 (recorded in `run.json`); development accuracy 69.9% → 79.5%
+- [x] T343b [US3] Export and measure: ONNX and int8 by the same pipeline as T342; `verifier/train/evaluate.py` → `train/report.md` — MNLI matched (whole, and its fiction and non-fiction parts apart) and mismatched validation, SNLI test — scored once, after every choice is made; accuracy, macro-F1, confusion matrix, per-class precision and recall, reliability diagram, ECE, Brier, error-versus-coverage; raw and then calibrated, a temperature fitted on each artefact's own development-split logits (fp32 and int8 apart) and named with its split; fp32 against int8 on every metric plus file size, latency per window and peak RSS, cold start apart; the challenge set by phenomenon, apart; an ONNX smoke test on the exported int8 file (shape, class order, finite scores); `verifier/train/reproduce.sh` runs T343a–T343b in one command, checksums of every artefact **Done 2026-10-23** (`train/report.md`): fp32 / int8 — MNLI matched 79.6 / 79.1% (fiction, untrained, 77.1 / 76.0), mismatched 80.6 / 80.3%, SNLI test 71.8 / 70.7%; temperature 1.25 / 1.23 cuts ECE about threefold; error among the 25% most confident 2.4% on mismatched, 7.2% on SNLI; challenge 39/60 and 35/60, int8 losing three on numbers. int8 file 22 MiB, peak 161 MiB in a bare process (fp32 305) — the stock candidate needed 271–530
+- [ ] T343d [US3] Publish on the Hugging Face Hub (licence settled in T343): weights, int8 ONNX, tokenizer, model card (identity and revisions, data and licences with attribution, each licence scope apart as decision 004 lists them, no dataset pair reproduced, training setup and command, metrics by split name, calibration, memory and speed, limitations, "a research artefact, not used by Vaticeno to decide outcomes"); its commit and checksums become a second entry `verifier/model.toml` can pin
+- [x] T343e [US3] A second student, **DeBERTa-v3-xsmall** (owner, 2026-10-23): the untrained MIT base, the same clean data, split and evaluation; its authors' learning rate 4.5e-5, fp16 on the GPU; `finetune --base deberta`, `evaluate --deberta`. The published model is whichever wins on the development split **Done 2026-10-24, the winner** (`train/report-deberta.md`): development 87.3% (MiniLM 79.5%), 68 minutes on a T4; fp32 / int8 — MNLI matched 87.7 / 87.1% (fiction, untrained, 86.6 / 85.8), mismatched 88.0 / 87.4%, SNLI test 82.8 / 82.4%, within half a point of its authors' 88.1 / 88.3% on all of MultiNLI; error among the 25% most confident 1.3% (mismatched); challenge 49/60 and 46/60. int8 83 MiB, peak 320 MiB, 90 ms a 128-token pair
+- [x] T344 [US3] **Done 2026-10-23, before T343d (owner)**: distillation from the stock DeBERTa-v3-xsmall teacher — same data, split and student — compared with T343a on every T343b metric **Result** (`train/report-distilled.md`): development 79.9% against 79.5%, MNLI a tie (matched 79.8 / mismatched 80.6% fp32), SNLI +0.3 fp32 and +1.3 int8 — the teacher saw SNLI; 82 minutes on a T4. Not worth its licence caveat: the plain model stays the candidate
+- [ ] T344a [US3] **Optional, after T343d**: a Hugging Face Space — premise and hypothesis in, three probabilities out, no URL fetching, no link to the bot, a research-demo and privacy notice
 
 ### Shadow
 
-- [ ] T345 [US3] Migration `drizzle/0023_verifier.sql` + `src/db/schema.ts` per data-model.md (FR-015, FR-016)
-- [ ] T346 [US3] `verifier/serve/app.py`: one endpoint, no database, `127.0.0.1:3002`; `deploy/vaticeno-verifier.service` + its install line (FR-020)
+**Paused (owner, 2026-10-22)**: the candidate does not fit the droplet (T342) and the saving is cents a month; resumed when volume or a hosting decision changes that.
+
+- [ ] T345 [US3] Migration `drizzle/0023_verifier.sql` + `src/db/schema.ts` per data-model.md, `outcome_confirmations` included (FR-015, FR-016, SC-005)
+- [ ] T346 [US3] `verifier/serve/app.py`: one endpoint, no database, `127.0.0.1:3002`; `deploy/vaticeno-verifier.service` + its install line (FR-020). **Gated on memory**: the candidate needs 271–530 MiB (T342) against about 128 free on the droplet, so where it runs — a larger droplet, another machine, or not yet — is the owner's call before this is built
 - [ ] T347 [US3] `src/resolve/verifier.ts`: one localhost call, hard timeout, Zod-parsed; any failure means no opinion and the paid path (FR-012, FR-012a)
 - [ ] T348 [US3] Shadow mode in `src/resolve/resolver.ts`: ask, **ignore**, record one row per attempt, failures included. `VERIFIER_URL` and `VERIFIER_MODE` in `src/config.ts` (FR-020a)
 - [ ] T349 [US3] Test `tests/integration/verifier-shadow.test.ts`: the resolution row is byte-identical, exactly one shadow row, UPDATE and DELETE rejected
+- [ ] T349a [US3] The SC-005 count: a person confirms a shadow claim's outcome and names its underlying event in the existing review commands (`outcome_confirmations`, data-model); one query counts eligible claims per frozen model, one per event, and its wrong ones, shown on the status page
 
 **Checkpoint**: shadow rows accumulate; no verdict has changed.
 
 **🚀 Stage 3 deploys here, first of two — shadow, deciding nothing.**
 
 ### Live
+
+**Gated on SC-005**: T350–T351 may be built and tested any time; T352 switches nothing on until the count is met.
 
 - [ ] T350 [US3] `src/resolve/fast-path.ts`: the gate as FR-013 and FR-014 define it; anything else escalates, absence stays VOID
 - [ ] T351 [US3] Test `src/resolve/fast-path.test.ts`: **exhaustive** on every gate condition, and the gate must agree with T342's harness on the same fixtures
@@ -204,7 +220,7 @@ independent reading of the contract, and a written incident policy.
 - [ ] T355 [US3] Record the avoided-call share and per-claim spend against the baseline in `eval/report.md` (SC-006, SC-007)
 - [ ] T356 [US3] Re-measure memory with all three processes live and update `capacity.md` (SC-008)
 
-**Checkpoint**: switched on, off, and on again, with SC-005 holding.
+**Checkpoint**: switched on only once T349a's count meets SC-005; off and on again with no migration.
 
 **🚀 Stage 3 deploys here, second of two — the switch on.**
 
@@ -225,7 +241,7 @@ T301 ─ blocks all Python work
   └─ Phase 2 (T305–T310) → US1 (T311–T318) → 🚀 Stage 1
                               US2 (T319–T326) ┘
 US4 contract (T327–T330) → settlement path (T331–T337) → US5 wager page (T366–T373) → links, optional (T338–T340) 🚀 Stage 2
-US3 offline (T341–T344) → shadow (T345–T349) 🚀 → live (T350–T356) 🚀
+US3 offline (T341–T342) → practice model (T343–T344a, decision 004) → shadow (T345–T349a, **paused**: memory, T346) 🚀 → live (T350–T356), switched on only when SC-005 is met 🚀
 ```
 
 US1 and US2 are both P1 and independently shippable; US2 needs only Phase 2. **US3's offline evaluation runs
@@ -234,9 +250,9 @@ on a laptop** — T323's VPS measurement gates *deploying* the verifier, not eva
 ## Parallel opportunities
 
 T302–T304 · T310 beside T308 and T309 · T316 and T318 once T313 exists · T326 beside the measuring tasks ·
-T343 while T342's numbers are read · T357 beside T356.
+T343c beside T343 · T357 beside T356.
 
 ## Implementation strategy
 
 MVP is US1 alone: useful the day it ships, and what makes everything after it measurable. US2 turns estimates
-into numbers. US3 may not ship at all, which is why its first checkpoint comes after four tasks.
+into numbers. US3 may not ship at all, which is why its first checkpoint comes after two tasks (T341–T342).

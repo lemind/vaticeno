@@ -14,8 +14,10 @@ prove are easy, keeping the paid model for everything else.
 **Language/Version**: TypeScript on Node 22 (unchanged) · Python 3.12 (new) · Solidity for the escrow contract
 
 **Primary Dependencies**: existing — Fastify, Drizzle, postgres.js, Zod, node-cron, Gemini, Sentry. New —
-fastapi, uvicorn, jinja2, psycopg3 (status service), locust (load), pytest. The verifier's model runtime is
-chosen in Stage 3, against the memory headroom Stage 1 measures. Stage 2 adds a contract toolchain and web3.py
+fastapi, uvicorn, jinja2, psycopg3 (status service), locust (load), pytest. The verifier runs on
+onnxruntime + tokenizers, no torch (owner, 2026-10-22): the pinned int8 candidate needs 271–530 MiB, more
+than the droplet's measured headroom, so where it runs is decided before T346. Training (FR-019b) adds a laptop-only `train` group — torch,
+transformers, datasets, ONNX export — that no server installs (docs/decisions/004-practice-model.md). Stage 2 adds a contract toolchain and web3.py
 for the settlement worker. Each needs owner approval with a stated reason (constitution VII).
 
 **Storage**: PostgreSQL (Supabase) — see [data-model.md](data-model.md). No new store.
@@ -91,7 +93,8 @@ localhost that Node treats as optional (FR-012a).
 
 No stage waits for another. They meet in two places: the status page, which is one query function per block so
 a later stage adds rows without a rewrite, and the rule that a verdict decided by the local verifier alone
-never settles a stake. Stage 3 is last because it is the only one that may legitimately end in "not worth
+never settles a stake. Stage 3's offline step only picks a candidate; switching it on is decided by shadow
+data against SC-005's count, which at today's volume takes years. Stage 3 is last because it is the only one that may legitimately end in "not worth
 shipping", and the only one whose cost depends on a measurement Stage 1 produces. Stage 2 stays on a testnet:
 no real value and no fee until the contract has been reviewed by someone else. The real-value contract is a
 second version, not this one redeployed: withdrawals by pull and native USDC only (FR-036b, FR-036c), built

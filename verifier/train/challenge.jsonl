@@ -1,0 +1,60 @@
+{"id": "dates-01", "group": "dates", "premise": "The final was played on 14 March 2026 and Riverton won it 2-0.", "hypothesis": "Riverton won the final in March 2026.", "label": "entailment"}
+{"id": "dates-02", "group": "dates", "premise": "The final was played on 14 March 2026 and Riverton won it 2-0.", "hypothesis": "Riverton won the final in April 2026.", "label": "contradiction"}
+{"id": "dates-03", "group": "dates", "premise": "The bridge opened to traffic on 2 June 2025.", "hypothesis": "The bridge opened before the end of 2025.", "label": "entailment"}
+{"id": "dates-04", "group": "dates", "premise": "The bridge opened to traffic in 2025.", "hypothesis": "The bridge opened before July 2025.", "label": "neutral"}
+{"id": "dates-05", "group": "dates", "premise": "The company reported its results on Tuesday.", "hypothesis": "The company reported its results in the third quarter.", "label": "neutral"}
+{"id": "dates-06", "group": "dates", "premise": "Applications closed at 23:59 UTC on 30 September.", "hypothesis": "Applications were still open on 1 October.", "label": "contradiction"}
+{"id": "dates-07", "group": "dates", "premise": "The vote, held last week, passed by a wide margin.", "hypothesis": "The vote took place before this week.", "label": "entailment"}
+{"id": "dates-08", "group": "dates", "premise": "The launch slipped from May to August 2026.", "hypothesis": "The launch happened in May 2026.", "label": "contradiction"}
+{"id": "dates-09", "group": "dates", "premise": "The museum reopened in the spring after two years of repairs.", "hypothesis": "The museum reopened in 2026.", "label": "neutral"}
+{"id": "dates-10", "group": "dates", "premise": "By the end of 2025 the line carried its millionth passenger.", "hypothesis": "The line had carried a million passengers by 31 December 2025.", "label": "entailment"}
+{"id": "dates-11", "group": "dates", "premise": "The bill passed on 1 April 2026.", "hypothesis": "The bill passed by 31 March 2026.", "label": "contradiction"}
+{"id": "dates-12", "group": "dates", "premise": "The festival is usually held in August.", "hypothesis": "The festival was held in August 2025.", "label": "neutral"}
+{"id": "negation-01", "group": "negation", "premise": "The regulator did not approve the merger.", "hypothesis": "The merger was blocked by a court.", "label": "neutral"}
+{"id": "negation-02", "group": "negation", "premise": "The regulator did not approve the merger.", "hypothesis": "The merger was not approved by the regulator.", "label": "entailment"}
+{"id": "negation-03", "group": "negation", "premise": "No team scored in the first half.", "hypothesis": "A goal was scored before half-time.", "label": "contradiction"}
+{"id": "negation-04", "group": "negation", "premise": "At the press conference, the minister denied that the tax would rise.", "hypothesis": "At the press conference, the minister said the tax would rise.", "label": "contradiction"}
+{"id": "negation-05", "group": "negation", "premise": "The minister denied that the tax would rise.", "hypothesis": "The tax will rise.", "label": "neutral"}
+{"id": "negation-06", "group": "negation", "premise": "Not a single scheduled flight was cancelled.", "hypothesis": "Every scheduled flight operated.", "label": "neutral"}
+{"id": "negation-07", "group": "negation", "premise": "The drug failed to beat the placebo in the trial.", "hypothesis": "The drug will be approved.", "label": "neutral"}
+{"id": "negation-08", "group": "negation", "premise": "Only two analysts expected the cut.", "hypothesis": "At least one analyst expected the cut.", "label": "entailment"}
+{"id": "negation-09", "group": "negation", "premise": "The band never released a second album.", "hypothesis": "The band released two albums.", "label": "contradiction"}
+{"id": "negation-10", "group": "negation", "premise": "Hardly anyone attended the opening.", "hypothesis": "The opening was not well attended.", "label": "entailment"}
+{"id": "negation-11", "group": "negation", "premise": "The court refused to hear the appeal.", "hypothesis": "The appeal was heard by the court.", "label": "contradiction"}
+{"id": "negation-12", "group": "negation", "premise": "The court refused to hear the appeal.", "hypothesis": "Someone appealed to the court.", "label": "entailment"}
+{"id": "planned_vs_happened-01", "group": "planned_vs_happened", "premise": "The agency plans to launch the probe next year.", "hypothesis": "The agency launched the probe.", "label": "neutral"}
+{"id": "planned_vs_happened-02", "group": "planned_vs_happened", "premise": "The agency launched the probe on Monday.", "hypothesis": "The agency launched the probe.", "label": "entailment"}
+{"id": "planned_vs_happened-03", "group": "planned_vs_happened", "premise": "The city announced it will build a new stadium by 2028.", "hypothesis": "The city has built a new stadium.", "label": "neutral"}
+{"id": "planned_vs_happened-04", "group": "planned_vs_happened", "premise": "The stadium, completed in 2024, hosted its first match that summer.", "hypothesis": "The stadium has been built.", "label": "entailment"}
+{"id": "planned_vs_happened-05", "group": "planned_vs_happened", "premise": "The board is expected to approve the deal on Friday.", "hypothesis": "The board approved the deal.", "label": "neutral"}
+{"id": "planned_vs_happened-06", "group": "planned_vs_happened", "premise": "At Friday's meeting the board approved the deal.", "hypothesis": "At Friday's meeting the board rejected the deal.", "label": "contradiction"}
+{"id": "planned_vs_happened-07", "group": "planned_vs_happened", "premise": "The concert, which took place last night, drew a full house.", "hypothesis": "The concert has taken place.", "label": "entailment"}
+{"id": "planned_vs_happened-08", "group": "planned_vs_happened", "premise": "The strike was called off hours before it was due to begin.", "hypothesis": "The strike went ahead.", "label": "contradiction"}
+{"id": "planned_vs_happened-09", "group": "planned_vs_happened", "premise": "The tunnel opening was postponed until next year.", "hypothesis": "The tunnel opened this year.", "label": "contradiction"}
+{"id": "planned_vs_happened-10", "group": "planned_vs_happened", "premise": "The film premiered at the festival last night.", "hypothesis": "The film has premiered.", "label": "entailment"}
+{"id": "planned_vs_happened-11", "group": "planned_vs_happened", "premise": "The company announced it would cut 500 jobs, but reversed the plan before any jobs were cut.", "hypothesis": "The company cut 500 jobs.", "label": "contradiction"}
+{"id": "planned_vs_happened-12", "group": "planned_vs_happened", "premise": "The minister intends to resign.", "hypothesis": "The minister has resigned.", "label": "neutral"}
+{"id": "numbers-01", "group": "numbers", "premise": "Bitcoin closed the day at $91,200.", "hypothesis": "Bitcoin closed above $90,000.", "label": "entailment"}
+{"id": "numbers-02", "group": "numbers", "premise": "Bitcoin closed the day at $91,200.", "hypothesis": "Bitcoin closed below $90,000.", "label": "contradiction"}
+{"id": "numbers-03", "group": "numbers", "premise": "Turnout was 61 percent.", "hypothesis": "More than half of eligible voters turned out.", "label": "entailment"}
+{"id": "numbers-04", "group": "numbers", "premise": "Turnout was 61 percent.", "hypothesis": "Turnout was under 60 percent.", "label": "contradiction"}
+{"id": "numbers-05", "group": "numbers", "premise": "The football team won the match 3-1.", "hypothesis": "The team scored three goals in the match.", "label": "entailment"}
+{"id": "numbers-06", "group": "numbers", "premise": "The football team won the match 3-1.", "hypothesis": "The match ended 2-1.", "label": "contradiction"}
+{"id": "numbers-07", "group": "numbers", "premise": "Turnout was about 61 percent, according to early estimates.", "hypothesis": "Final turnout was exactly 61 percent.", "label": "neutral"}
+{"id": "numbers-08", "group": "numbers", "premise": "Sales rose 4 percent from last year.", "hypothesis": "Profits rose 4 percent from last year.", "label": "neutral"}
+{"id": "numbers-09", "group": "numbers", "premise": "The stock fell from $120 to $95.", "hypothesis": "The company reported a loss.", "label": "neutral"}
+{"id": "numbers-10", "group": "numbers", "premise": "September inflation eased to 2.4 percent.", "hypothesis": "September inflation was 3 percent.", "label": "contradiction"}
+{"id": "numbers-11", "group": "numbers", "premise": "About 40,000 fans attended the match.", "hypothesis": "The match sold out.", "label": "neutral"}
+{"id": "numbers-12", "group": "numbers", "premise": "The rocket reached 120 km, above the 100 km line commonly used as the edge of space.", "hypothesis": "The rocket passed the 100 km line.", "label": "entailment"}
+{"id": "attribution-01", "group": "attribution", "premise": "\"We will win the title,\" the coach said.", "hypothesis": "The team won the title.", "label": "neutral"}
+{"id": "attribution-02", "group": "attribution", "premise": "The team won the title, the league confirmed.", "hypothesis": "The team won the title.", "label": "entailment"}
+{"id": "attribution-03", "group": "attribution", "premise": "Rumours say the singer will retire this year.", "hypothesis": "The singer has retired.", "label": "neutral"}
+{"id": "attribution-04", "group": "attribution", "premise": "A spokesperson confirmed the singer has retired.", "hypothesis": "The singer has retired.", "label": "entailment"}
+{"id": "attribution-05", "group": "attribution", "premise": "Critics claimed the bridge was unsafe; inspectors declared it safe.", "hypothesis": "Inspectors found the bridge unsafe.", "label": "contradiction"}
+{"id": "attribution-06", "group": "attribution", "premise": "The fan forum predicts a 2-0 win.", "hypothesis": "The match ended 2-0.", "label": "neutral"}
+{"id": "attribution-07", "group": "attribution", "premise": "Official results from the election commission show the incumbent lost.", "hypothesis": "The incumbent won.", "label": "contradiction"}
+{"id": "attribution-08", "group": "attribution", "premise": "Exchange data shows the price passed $100,000 on Monday.", "hypothesis": "The price passed $100,000.", "label": "entailment"}
+{"id": "attribution-09", "group": "attribution", "premise": "The company's filing states revenue was $2 billion.", "hypothesis": "Revenue was $2 billion.", "label": "neutral"}
+{"id": "attribution-10", "group": "attribution", "premise": "The airline confirmed the launch of the new route was delayed.", "hypothesis": "The launch of the new route was delayed.", "label": "entailment"}
+{"id": "attribution-11", "group": "attribution", "premise": "The referee said the goal was offside and disallowed it.", "hypothesis": "The goal counted.", "label": "contradiction"}
+{"id": "attribution-12", "group": "attribution", "premise": "The parliament's record shows the treaty was ratified.", "hypothesis": "The treaty was rejected.", "label": "contradiction"}

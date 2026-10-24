@@ -1,0 +1,151 @@
+{
+ "written_at": "2026-10-22T09:42:46+00:00",
+ "model": {
+  "id": "cross-encoder/nli-deberta-v3-xsmall",
+  "revision": "a150876415327c80daeff35ca6f68f5ed8cf5c24",
+  "file": "onnx/model_quint8_avx2.onnx"
+ },
+ "note": "labels are the recorded outcomes, mostly our own resolver's: counts are disagreements, not errors",
+ "claims": 23,
+ "pages": {
+  "items": 54,
+  "exact": 9,
+  "changed": 45,
+  "gone": 0,
+  "other_extractor": 0
+ },
+ "claims_with_every_page_exact": 0,
+ "near_matches": "not measurable: no recorded simhash for database evidence",
+ "threshold_sweep": {
+  "0.5": {
+   "development": {
+    "claims": 0,
+    "would_finalise": 0,
+    "disagreements": 0
+   },
+   "threshold": {
+    "claims": 0,
+    "would_finalise": 0,
+    "disagreements": 0
+   }
+  },
+  "0.6": {
+   "development": {
+    "claims": 0,
+    "would_finalise": 0,
+    "disagreements": 0
+   },
+   "threshold": {
+    "claims": 0,
+    "would_finalise": 0,
+    "disagreements": 0
+   }
+  },
+  "0.7": {
+   "development": {
+    "claims": 0,
+    "would_finalise": 0,
+    "disagreements": 0
+   },
+   "threshold": {
+    "claims": 0,
+    "would_finalise": 0,
+    "disagreements": 0
+   }
+  },
+  "0.8": {
+   "development": {
+    "claims": 0,
+    "would_finalise": 0,
+    "disagreements": 0
+   },
+   "threshold": {
+    "claims": 0,
+    "would_finalise": 0,
+    "disagreements": 0
+   }
+  },
+  "0.9": {
+   "development": {
+    "claims": 0,
+    "would_finalise": 0,
+    "disagreements": 0
+   },
+   "threshold": {
+    "claims": 0,
+    "would_finalise": 0,
+    "disagreements": 0
+   }
+  },
+  "0.95": {
+   "development": {
+    "claims": 0,
+    "would_finalise": 0,
+    "disagreements": 0
+   },
+   "threshold": {
+    "claims": 0,
+    "would_finalise": 0,
+    "disagreements": 0
+   }
+  },
+  "0.98": {
+   "development": {
+    "claims": 0,
+    "would_finalise": 0,
+    "disagreements": 0
+   },
+   "threshold": {
+    "claims": 0,
+    "would_finalise": 0,
+    "disagreements": 0
+   }
+  },
+  "0.99": {
+   "development": {
+    "claims": 0,
+    "would_finalise": 0,
+    "disagreements": 0
+   },
+   "threshold": {
+    "claims": 0,
+    "would_finalise": 0,
+    "disagreements": 0
+   }
+  }
+ },
+ "threshold_chosen": null,
+ "final_at_chosen": null,
+ "page_answer_vs_judge_at_0.9": {
+  "hit": {
+   "neither": 6,
+   "miss": 2
+  },
+  "miss": {
+   "miss": 1
+  }
+ },
+ "decided_pages_by_window_count_at_0.9": {
+  "1-5": {
+   "pages": 8,
+   "decided": 2
+  },
+  "6-20": {
+   "pages": 0,
+   "decided": 0
+  },
+  "21+": {
+   "pages": 1,
+   "decided": 1
+  }
+ },
+ "seconds": {
+  "fetch_all": 78.2,
+  "score_per_page_median": 1.41,
+  "score_per_page_max": 18.17
+ },
+ "peak_rss_mib": {
+  "model_loaded_and_warm": 529.9,
+  "whole_run": 531.5
+ }
+}
