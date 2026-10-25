@@ -28,6 +28,7 @@
     "content:pool-ids": "tsx --env-file-if-exists=.env src/cli/pool-ids.ts",
     "review:list": "tsx --env-file-if-exists=.env src/cli/review-list.ts",
     "resolve:manual": "tsx --env-file-if-exists=.env src/cli/resolve-manual.ts",
+    "review:confirm": "tsx --env-file-if-exists=.env src/cli/review-confirm.ts",
     "poc:whoami": "tsx --env-file=.env src/poc/whoami.ts",
     "poc:poll": "tsx --env-file=.env src/poc/poll.ts",
     "poc:parse": "tsx src/poc/parse-cli.ts",

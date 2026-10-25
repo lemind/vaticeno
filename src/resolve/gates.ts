@@ -32,6 +32,10 @@ export type GateName =
 export type Gates = Record<GateName, boolean | null>; // null = not applicable
 
 // Every contract change sets lock_at 15 min later (LOCK_DELAY_MS), so the last change is lock_at − 15 min.
+// Bump when a change alters which pages pass: the local verifier reads only passed pages, so its go-live
+// count (003 SC-005) starts again for the new version (src/resolve/shadow.ts).
+export const GATES_VERSION = 'gates.v1';
+
 const CONTRACT_SET_BEFORE_LOCK_MS = 15 * 60 * 1000;
 
 // `absenceAdmissible` is the code-held list of complete records (exhaustive.ts); injectable so a test can

@@ -18,7 +18,7 @@ from status import auth
 from status.app import Snapshot, as_json
 from status.build_info import Build
 from status.progress import Progress
-from status.queries import Backlog, Finding, Job, Spend
+from status.queries import Backlog, Finding, Job, ShadowCount, Spend
 
 NOW = datetime.now(UTC)
 
@@ -158,6 +158,18 @@ def test_the_settlement_queue_shows_what_needs_a_person(client):
     body = client(state).get("/status.json").json()
     assert body["settlement"] == {"pending": 2, "held": 1}
     assert body["escrow"] == {"address": "0xEsc", "chain_id": "84532"}
+
+
+def test_the_verifier_count_shows_how_far_from_go_live_and_any_wrong_event(client):
+    count = ShadowCount(
+        model="m@5f0820a gate.v1-t0.90", shadow_claims=40, failed=2, would_finalise=12, to_confirm=3,
+        eligible_events=9, wrong_events=1,
+    )
+    page = client(replace(snapshot(HEALTHY), shadow=[count])).get("/").text
+    assert "Verifier · shadow" in page and "m@5f0820a gate.v1-t0.90" in page
+    # One wrong event keeps the fast path off for this candidate (SC-005), so it is shown as a fault.
+    assert '<td class="r FAILING">9 / 1000 · 1 wrong</td>' in page
+    assert client(replace(snapshot(HEALTHY), shadow=[count])).get("/status.json").json()["shadow"][0]["to_confirm"] == 3
 
 
 def test_an_undeployed_escrow_says_so(client):

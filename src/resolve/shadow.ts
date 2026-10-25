@@ -4,6 +4,8 @@ import { eq } from 'drizzle-orm';
 import type { Contract } from '../contract/schema.js';
 import type { Db } from '../db/client.js';
 import { resolutions, verifierShadow } from '../db/schema.js';
+import { EXTRACTOR_VERSION } from './fetch.js';
+import { GATES_VERSION } from './gates.js';
 import type { ScoreEvidence, VerifierResult } from './verifier.js';
 import type { GatheredItem } from './web-evidence.js';
 
@@ -11,6 +13,18 @@ import type { GatheredItem } from './web-evidence.js';
 // be re-applied to these rows. FR-013 needs two agreeing items, each past it.
 export const SHADOW_THRESHOLD = 0.9;
 const MIN_AGREEING_ITEMS = 2;
+// Bump on any change to wouldConclude or the two constants above.
+export const SHADOW_GATE = 'gate.v1-t0.90';
+// The frozen model, as the service names it (verifier/serve/model.toml). An answer from any other is refused.
+export const VERIFIER_MODEL = 'Leminds/deberta-v3-xsmall-nli-oanc@5f0820a';
+// The frozen candidate SC-005 counts for: the model, this gate, and the resolver logic it relies on (which
+// pages pass, how their text is read). A change to any part is a new candidate and its count starts again.
+export const SHADOW_CANDIDATE = [
+  VERIFIER_MODEL,
+  SHADOW_GATE,
+  GATES_VERSION,
+  EXTRACTOR_VERSION,
+].join(' ');
 
 export type ShadowRow = Omit<
   typeof verifierShadow.$inferInsert,
@@ -20,15 +34,16 @@ export type ShadowRow = Omit<
 // The fast path's answer for the whole claim, from one verifier answer per passed page.
 export function wouldConclude(answers: readonly VerifierResult[]): ShadowRow {
   const latencyMs = Math.max(0, ...answers.map((a) => a.latencyMs));
+  const model = SHADOW_CANDIDATE; // every row, failures included, so the latest attempt is always the one counted
   const failure = answers.find((a) => !a.ok);
-  const model = answers.find((a) => a.ok)?.model ?? 'unreachable';
-  if (failure && !failure.ok) {
-    // One page unread is one page that might argue back: never a finalising answer.
+  const stranger = answers.some((a) => a.ok && a.model !== VERIFIER_MODEL);
+  if ((failure && !failure.ok) || stranger) {
+    // One page unread is one page that might argue back; another model's answer is not this candidate's.
     return {
       model,
       wouldFinalise: false,
       minConfidence: null,
-      errorTag: failure.error,
+      errorTag: failure && !failure.ok ? failure.error : 'model_mismatch',
       latencyMs,
     };
   }

@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { wouldConclude } from './shadow.js';
+import { VERIFIER_MODEL, wouldConclude } from './shadow.js';
 import type { VerifierResult } from './verifier.js';
 
 const read = (entail: number, contradict: number): VerifierResult => ({
   ok: true,
-  model: 'm@1',
+  model: VERIFIER_MODEL,
   entail,
   contradict,
   windows: 1,
@@ -44,4 +44,12 @@ test('one unread page means no finalising answer, and the row keeps the error', 
     [row.wouldFinalise, row.errorTag, row.latencyMs],
     [false, 'timeout', 20_000],
   );
+});
+
+test('an answer from any model but the frozen one is refused, never counted', () => {
+  const row = wouldConclude([
+    read(0.99, 0.0),
+    { ...read(0.99, 0.0), model: 'other@1' } as VerifierResult,
+  ]);
+  assert.deepEqual([row.wouldFinalise, row.errorTag], [false, 'model_mismatch']);
 });

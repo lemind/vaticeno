@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from pathlib import Path
 
 from psycopg import Connection
 from psycopg.rows import dict_row
@@ -173,6 +174,28 @@ def open_findings(conn: Connection) -> list[Finding]:
         """,
     )
     return [Finding(**row) for row in rows]
+
+
+SHADOW_COUNT_SQL = (Path(__file__).parent / "shadow_count.sql").read_text()
+# SC-005: the fast path stays off below this many eligible events with no wrong one (owner, 2026-10-22).
+GO_LIVE_EVENTS = 1000
+
+
+@dataclass(frozen=True)
+class ShadowCount:
+    model: str  # the local model and the gate version: a change to either starts the count again
+    shadow_claims: int
+    failed: int
+    would_finalise: int
+    to_confirm: int
+    eligible_events: int
+    wrong_events: int
+    go_live_events: int = GO_LIVE_EVENTS
+
+
+def shadow_count(conn: Connection) -> list[ShadowCount]:
+    """The local verifier's go-live count, per frozen candidate (003 SC-005, T349a)."""
+    return [ShadowCount(**row) for row in _rows(conn, SHADOW_COUNT_SQL)]
 
 
 def _rows(conn: Connection, sql: str, params: tuple = ()) -> list[dict]:

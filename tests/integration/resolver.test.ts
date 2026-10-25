@@ -8,9 +8,16 @@ import {
 } from '../../src/feeds/coinbase.js';
 import { type LlmClient, LlmSchemaError } from '../../src/llm/client.js';
 import { SourceUnavailable } from '../../src/resolve/fetch.js';
-import { decideByHuman, listNeedsHuman } from '../../src/resolve/manual.js';
+import {
+  confirmOutcome,
+  decideByHuman,
+  listNeedsHuman,
+  listToConfirm,
+} from '../../src/resolve/manual.js';
 import { type ResolverDeps, resolveDueClaims } from '../../src/resolve/resolver.js';
 import type { ScoreEvidence } from '../../src/resolve/verifier.js';
+import { SHADOW_CANDIDATE, VERIFIER_MODEL } from '../../src/resolve/shadow.js';
+import { readFileSync } from 'node:fs';
 import {
   recheckClaim,
   recheckRecent,
@@ -1154,7 +1161,7 @@ describe('shadow mode: the local verifier is asked, recorded and ignored (003 FR
   };
   const agrees: ScoreEvidence = async () => ({
     ok: true,
-    model: 'stub@1',
+    model: VERIFIER_MODEL,
     entail: 0.95,
     contradict: 0.02,
     windows: 1,
@@ -1187,7 +1194,7 @@ describe('shadow mode: the local verifier is asked, recorded and ignored (003 FR
       [true, 'hit', 'hit'],
     );
     assert.equal(rows[0]!.resolution_id, resolution!.id);
-    assert.equal(rows[0]!.model, 'stub@1');
+    assert.equal(rows[0]!.model, SHADOW_CANDIDATE);
   });
 
   test('a verifier that cannot be reached leaves a row with its error, and the verdict stands', async () => {
@@ -1224,6 +1231,70 @@ describe('shadow mode: the local verifier is asked, recorded and ignored (003 FR
     );
     await assert.rejects(
       t.sql`delete from verifier_shadow where claim_id = ${claim.id}`,
+    );
+  });
+
+  test('confirmed outcomes make the go-live count: one per event, and a wrong one is counted (SC-005)', async () => {
+    const d = { ...deps({ search: [reuters], pages }).deps, verifier: agrees };
+    const [a, b, c] = [
+      await lockedClaim(WEB_CONTRACT),
+      await lockedClaim(WEB_CONTRACT),
+      await lockedClaim(WEB_CONTRACT),
+    ];
+    await resolveDueClaims(d, AFTER);
+    const waiting = await listToConfirm(t.db);
+    assert.equal(waiting.length, 3);
+    assert.ok(
+      !('would_outcome' in waiting[0]!),
+      'the person checks the outcome, not the model',
+    );
+
+    const unshadowed = await lockedClaim();
+    await assert.rejects(
+      confirmOutcome(t.db, { slug: unshadowed.slug, outcome: 'hit', eventKey: 'x' }),
+      /no shadow answer/,
+    );
+    await confirmOutcome(t.db, {
+      slug: a.slug,
+      outcome: 'hit',
+      eventKey: 'fda-x-2026',
+    });
+    // A different case and spacing is still the same event.
+    await confirmOutcome(t.db, {
+      slug: b.slug,
+      outcome: 'hit',
+      eventKey: '  FDA-X-2026 ',
+    });
+    await confirmOutcome(t.db, {
+      slug: c.slug,
+      outcome: 'miss',
+      eventKey: 'other-event',
+    });
+    await assert.rejects(
+      confirmOutcome(t.db, {
+        slug: a.slug,
+        outcome: 'miss',
+        eventKey: 'fda-x-2026',
+      }),
+      /already confirmed/,
+    );
+
+    const count = await t.sql.unsafe(
+      readFileSync('status/shadow_count.sql', 'utf8'),
+    );
+    assert.deepEqual(
+      count.map((r) => ({ ...r })),
+      [
+        {
+          model: SHADOW_CANDIDATE,
+          shadow_claims: 3,
+          failed: 0,
+          would_finalise: 3,
+          to_confirm: 0,
+          eligible_events: 2,
+          wrong_events: 1,
+        },
+      ],
     );
   });
 });

@@ -69,7 +69,7 @@ measured against the paid model.
 | id | uuid PK | |
 | claim_id | uuid NOT NULL → claims | |
 | resolution_id | uuid null → resolutions | set when the attempt produced a resolution; an attempt that ended waiting has none |
-| model | text NOT NULL | name and version of the local model |
+| model | text NOT NULL | the frozen candidate SC-005 counts for, pinned in code: the local model's name and version, the gate's version (threshold and agreement rule), the gates version (which pages pass) and the extractor version; failures are filed under it too, and an answer from another model is refused (`model_mismatch`) |
 | would_finalise | boolean NOT NULL | whether the gate would have taken it |
 | would_outcome | text null | CHECK `hit \| miss`; null when it would have escalated |
 | min_confidence | real null | CHECK between 0 and 1 — the weakest item the gate relied on; null when the call failed |
@@ -90,7 +90,9 @@ removes the experiment and changes no verdict.
 ## `outcome_confirmations`
 
 A person's check of a shadow claim's outcome, so SC-005 counts outcomes our resolver did not only
-assert. Written through the existing review commands; never read by the resolver.
+assert. Written through the review commands (`review:confirm`); never read by the resolver. The count itself is
+one query, `status/shadow_count.sql`: per candidate, each claim by its latest attempt, each event once, and
+an event is wrong if any of its claims is.
 
 | Column | Type | Notes |
 |---|---|---|
