@@ -32,7 +32,8 @@ export type VerifierError =
   | 'network'
   | 'auth' // Google refused the identity token or our key (401/403), or no token could be minted
   | 'http' // any other non-2xx
-  | 'malformed'; // an answer that does not parse
+  | 'malformed' // an answer that does not parse
+  | 'no_text'; // a passed page with no text to send (set by the caller, never by the service)
 
 export type VerifierResult =
   | {

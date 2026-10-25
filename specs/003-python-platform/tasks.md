@@ -213,15 +213,17 @@ A trained model for practice and publication; it decides nothing. Runs on the la
 
 **Gated on SC-005**: T350–T351 may be built and tested any time; T352 switches nothing on until the count is met.
 
-- [ ] T350 [US3] `src/resolve/fast-path.ts`: the gate as FR-013 and FR-014 define it; anything else escalates, absence stays VOID
-- [ ] T351 [US3] Test `src/resolve/fast-path.test.ts`: **exhaustive** on every gate condition, and the gate must agree with T342's harness on the same fixtures
-- [ ] T352 [US3] `VERIFIER_MODE=live`: the fast path finalises and records who decided; `off` returns to today with no migration (FR-017, SC-009)
-- [ ] T353 [US3] A fast-path verdict can be marked contradicted in the existing review commands (FR-018)
-- [ ] T354 [US3] Verifier block on the status page: fast-path count, escalations, agreement, contradictions as incidents (FR-018)
-- [ ] T355 [US3] Record the avoided-call share and per-claim spend against the baseline in `eval/report.md` (SC-006, SC-007)
+**T352–T355 parked (owner, 2026-10-25)**: a live fast path would avoid no paid call. Search and the per-page judge are paid before the code gates run, and the gates need the judge's quote, date and event; the verifier may read only gated evidence (FR-012), and wherever the fast-path gate finalises, the rule table already finalises the same verdict for free. Measured 2026-10-25, last 30 days: search $1.84, judge $0.24, the rest X reads and posts — so replacing the judge, the only call the model could stand in for, saves at most $0.24 a month and would cost the gates their checks. Shadow mode keeps measuring; savings would need a new design, in a new spec.
+
+- [x] T350 [US3] `src/resolve/fast-path.ts`: the gate as FR-013 and FR-014 define it; anything else escalates, absence stays VOID **Done 2026-10-25**: pure; finalises only when two or more passed pages all rest on a record, all say the same hit or miss, each has its quote, date and event positively checked and no fact against it, and the frozen model reads every one that way past 0.9 with the other side under 0.1; a primary page saying pending or entity gone holds it as it holds the rule table; ten named escalation reasons otherwise. Shadow mode now runs this same gate (`gate.v3`), so the count measures what would go live
+- [x] T351 [US3] Test `src/resolve/fast-path.test.ts`: **exhaustive** on every gate condition, and the gate must agree with T342's harness on the same fixtures **Done 2026-10-25**: every escalation reason, both outcomes, the threshold edges, page order, unpassed pages; `verifier/eval/gate-fixtures.json` is read by this test and by `verifier/tests/test_gate_fixtures.py` (the harness). The live gate is the stricter: wherever it finalises, the harness reaches the same outcome
+- [ ] T352 [US3] `VERIFIER_MODE=live`: the fast path finalises and records who decided; `off` returns to today with no migration (FR-017, SC-009) **Parked 2026-10-25**
+- [ ] T353 [US3] A fast-path verdict can be marked contradicted in the existing review commands (FR-018) **Parked 2026-10-25**
+- [ ] T354 [US3] Verifier block on the status page: fast-path count, escalations, agreement, contradictions as incidents (FR-018) **Parked 2026-10-25**
+- [ ] T355 [US3] Record the avoided-call share and per-claim spend against the baseline in `eval/report.md` (SC-006, SC-007) **Parked 2026-10-25**
 - [ ] T356 [US3] Re-measure memory with all three processes live and update `capacity.md` (SC-008)
 
-**Checkpoint**: switched on only once T349a's count meets SC-005; off and on again with no migration.
+**Checkpoint**: the gate is built and tested (T350–T351); going live is parked (T352–T355, SC-006) and, if a new design revives it, waits for T349a's count to meet SC-005.
 
 **🚀 Stage 3 deploys here, second of two — the switch on.**
 
@@ -242,7 +244,7 @@ T301 ─ blocks all Python work
   └─ Phase 2 (T305–T310) → US1 (T311–T318) → 🚀 Stage 1
                               US2 (T319–T326) ┘
 US4 contract (T327–T330) → settlement path (T331–T337) → US5 wager page (T366–T373) → links, optional (T338–T340) 🚀 Stage 2
-US3 offline (T341–T342) → practice model (T343–T344a, decision 004) → shadow (T345–T349a, **live since 2026-10-25** on Cloud Run, decision 005) 🚀 → live (T350–T356), switched on only when SC-005 is met 🚀
+US3 offline (T341–T342) → practice model (T343–T344a, decision 004) → shadow (T345–T349a, **live since 2026-10-25** on Cloud Run, decision 005) 🚀 → the fast-path gate (T350–T351) → live (T352–T355) **parked**, avoids no paid call (SC-006) → memory (T356)
 ```
 
 US1 and US2 are both P1 and independently shippable; US2 needs only Phase 2. **US3's offline evaluation runs

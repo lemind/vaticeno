@@ -16,7 +16,8 @@ import {
 } from '../../src/resolve/manual.js';
 import { type ResolverDeps, resolveDueClaims } from '../../src/resolve/resolver.js';
 import type { ScoreEvidence } from '../../src/resolve/verifier.js';
-import { SHADOW_CANDIDATE, VERIFIER_MODEL } from '../../src/resolve/shadow.js';
+import { VERIFIER_MODEL } from '../../src/resolve/fast-path.js';
+import { SHADOW_CANDIDATE } from '../../src/resolve/shadow.js';
 import { readFileSync } from 'node:fs';
 import {
   recheckClaim,

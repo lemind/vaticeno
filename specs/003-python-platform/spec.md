@@ -110,8 +110,8 @@ only ever agree with evidence that has already passed the existing code gates.
 useless before there is a way to measure its mistakes — which Story 1 and the existing cost records provide.
 
 **Independent Test**: offline, on seeded claims and real verdicts, one candidate is chosen and frozen; in
-shadow, it would have auto-finalised **zero** claims wrongly among the count SC-005 sets, and the share of
-resolutions that avoided a paid call is reported.
+shadow, it would have auto-finalised **zero** claims wrongly among the count SC-005 sets. The share of
+resolutions that avoid a paid call is zero by design, so going live is parked (SC-006).
 
 **Acceptance Scenarios**:
 
@@ -648,10 +648,13 @@ returned after expiry; (d) with the worker stopped, a matched wager is refunded 
   weeks, T341) the count takes years: Stage 3 then delivers the measurement, not the savings, and lowering the
   number is a separate decision taken with real volume.
 - **SC-006**: The share of resolutions that avoid a paid call is measured and written down, whatever it is.
-  An honest 5% is a valid result and a reason to keep the fast path simple; it is not a reason to lower
-  SC-005. UNRECONCILED until measured.
+  Measured by design, 2026-10-25: **zero** — every paid call (search, the per-page judge) happens before the
+  gates the verifier must run after (FR-012), so the fast path is parked (owner; tasks T352–T355). Savings
+  would need a design where the verifier stands in for a paid call, in a new spec; whatever share that
+  reaches is not a reason to lower SC-005.
 - **SC-007**: Average model spend per claim falls measurably against the recorded baseline, and stays below
-  the $0.30 per-claim ceiling without relying on the cap to stop it.
+  the $0.30 per-claim ceiling without relying on the cap to stop it. The fall is parked with the fast path
+  (SC-006); the ceiling still holds.
 - **SC-008**: All processes together fit the VPS with stated headroom, measured, not assumed.
 - **SC-009**: Turning the fast path off returns the system to today's behaviour exactly, with no migration
   and no deploy.
