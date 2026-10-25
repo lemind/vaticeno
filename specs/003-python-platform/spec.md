@@ -265,7 +265,7 @@ returned after expiry; (d) with the worker stopped, a matched wager is refunded 
   sample bounds the error rate; it never proves it zero, which is why a fast-path verdict never settles a
   stake (FR-031).
 - **Two runtimes drift**: the two sides integrate only through a database table, or — for the verifier
-  alone — one bounded call to our own private Space whose every failure means "no answer". No shared files, no shared
+  alone — one bounded call to our own private service whose every failure means "no answer". No shared files, no shared
   memory, no imported code, and nothing from Python upstream of a verdict.
 - **The settlement worker dies for good**: the timeout refund is the answer and it needs nobody from our side.
   Without it, a dead worker would mean funds locked forever — it is the single most important behaviour in
@@ -346,8 +346,8 @@ returned after expiry; (d) with the worker stopped, a matched wager is refunded 
   with the measurement date (project rule: a documented number is not a verified one).
 - **FR-012**: The local verifier runs only on evidence that has already passed the existing code gates. It
   produces no evidence, reads no sources, and cannot change what evidence says.
-- **FR-012a**: The verifier is reached by one HTTPS call to our own private Hugging Face Space, with a bearer
-  token and a hard timeout (owner, 2026-10-25, docs/decisions/005-verifier-on-hf-space.md); it holds no
+- **FR-012a**: The verifier is reached by one HTTPS call to our own private Cloud Run service, with a Google
+  identity token, our own key and a hard timeout (owner, 2026-10-25, docs/decisions/005-verifier-on-cloud-run.md); it holds no
   database connection, stores no request and logs no request text. A timeout, a refusal, a malformed answer or nothing listening all mean the same
   thing — no opinion — and the resolution continues on the paid path. The call is an optimisation, never a
   step the pipeline depends on.
@@ -522,13 +522,21 @@ returned after expiry; (d) with the worker stopped, a matched wager is refunded 
   deletion revokes it, and suspension hides it while suspended — both reversible on X, so neither erases it.
 - **FR-035h**: No code and no post text reaches a log, an error report or a fixture: the code is read from the
   post in memory, hashed, and dropped (INIT_SPEC §6.9).
-- **FR-036**: One network and one stake token for the whole feature. A second chain family is a second
-  verification path, a second toolchain and a second settlement worker — not a configuration value.
-- **FR-036a**: The network for real value — Arbitrum One or Base, both Ethereum layer 2s with native USDC — is
-  part of the real-value decision (FR-031h), outside this feature and blocking nothing in it. The contract
+- **FR-036**: One chain family (EVM) and one stake token per network. A second chain *family* is a second
+  verification path, a second toolchain and a second settlement worker — not a configuration value. A second
+  EVM network is not: the same contract and the same worker serve each one, configured per network
+  (FR-036d).
+- **FR-036a**: Real value runs on **both Arbitrum One and Base** (owner, 2026-10-25), Ethereum layer 2s with
+  native USDC; going live at all is still the real-value decision (FR-031h), outside this feature and
+  blocking nothing in it. The contract
   does not ship there unchanged: it gains FR-036b and FR-036c first. Whichever network is chosen, its own
   testnet gets the new contract and the end-to-end runs again before any real value, so what is tested is
   what ships. This feature stays on Base Sepolia, where the current contract is live (002-escrow-v1).
+- **FR-036d**: Each network is its own market. An offer opened on Base is matched on Base and one on Arbitrum
+  on Arbitrum; a claim may carry stakes on both, and every stake settles on the network it was opened on, with
+  the same verdict. The oracle signs an authorization per network (the signature is bound to the chain and the
+  contract), the outbox and the worker track settlement per network, and the wager page lets the visitor pick
+  one and shows each network's offers apart.
 - **FR-036b**: Before real value, money leaves the escrow by **pull**, not push. Payout credits the winner and
   the fee recipient separately; VOID, the void path and the timeout refund credit maker and taker separately;
   an expired offer credits its maker. Each beneficiary withdraws their own balance in their own transaction,

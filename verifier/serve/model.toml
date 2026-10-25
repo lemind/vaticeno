@@ -1,0 +1,15 @@
+# The model the Space serves (003 T346, decision 005): the published one, pinned by commit and sha256.
+id = "Leminds/deberta-v3-xsmall-nli-oanc"
+license = "mit"
+revision = "5f0820a36d64a87c4a4cceb8574ac28db79ab30a"
+max_tokens = 512
+# Its own fitted temperature (train/report-deberta.md); divides the logits, changes no prediction.
+temperature = 1.5969
+
+labels = ["contradiction", "entailment", "neutral"]
+inputs = ["input_ids", "attention_mask"]
+output = "logits"
+
+[files]
+"onnx/model_quint8_avx2.onnx" = "3b2ed0906648776b4457a51ae7678950fa4a9147398e36410af9485e771f03ae"
+"tokenizer.json" = "68e83b60c658f52c146e7ee46801922495af28a2977b4a63961fcbbf0ad66884"
