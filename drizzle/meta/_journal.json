@@ -155,6 +155,13 @@
       "when": 1791866400000,
       "tag": "0021_wager_replies",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1791952800000,
+      "tag": "0022_verifier",
+      "breakpoints": true
     }
   ]
 }
