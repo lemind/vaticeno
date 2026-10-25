@@ -265,7 +265,7 @@ returned after expiry; (d) with the worker stopped, a matched wager is refunded 
   sample bounds the error rate; it never proves it zero, which is why a fast-path verdict never settles a
   stake (FR-031).
 - **Two runtimes drift**: the two sides integrate only through a database table, or — for the verifier
-  alone — one bounded call on localhost whose every failure means "no answer". No shared files, no shared
+  alone — one bounded call to our own private Space whose every failure means "no answer". No shared files, no shared
   memory, no imported code, and nothing from Python upstream of a verdict.
 - **The settlement worker dies for good**: the timeout refund is the answer and it needs nobody from our side.
   Without it, a dead worker would mean funds locked forever — it is the single most important behaviour in
@@ -346,8 +346,9 @@ returned after expiry; (d) with the worker stopped, a matched wager is refunded 
   with the measurement date (project rule: a documented number is not a verified one).
 - **FR-012**: The local verifier runs only on evidence that has already passed the existing code gates. It
   produces no evidence, reads no sources, and cannot change what evidence says.
-- **FR-012a**: The verifier is reached by one call on localhost with a hard timeout, and it holds no
-  database connection. A timeout, a refusal, a malformed answer or nothing listening all mean the same
+- **FR-012a**: The verifier is reached by one HTTPS call to our own private Hugging Face Space, with a bearer
+  token and a hard timeout (owner, 2026-10-25, docs/decisions/005-verifier-on-hf-space.md); it holds no
+  database connection, stores no request and logs no request text. A timeout, a refusal, a malformed answer or nothing listening all mean the same
   thing — no opinion — and the resolution continues on the paid path. The call is an optimisation, never a
   step the pipeline depends on.
 - **FR-013**: The fast path may finalise a verdict only when all of these hold: confidence above the

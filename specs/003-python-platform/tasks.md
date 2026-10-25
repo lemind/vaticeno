@@ -151,7 +151,7 @@ timeout refund from the page with the worker stopped (SC-020).
 
 ### Linking a wallet, optional
 
-- [ ] T338 [US4] Migration `drizzle/0022_wallet_links.sql` + `src/db/schema.ts` per data-model.md: both wallet tables, no read policy on either (FR-032)
+- [ ] T338 [US4] Migration `drizzle/0023_wallet_links.sql` + `src/db/schema.ts` per data-model.md: both wallet tables, no read policy on either (FR-032)
 - [ ] T339 [US4] The link flow: the page resolves the named account, issues the code, shows what is public; the post binds it; confirmation, then the private signature, through the script the wager page shares (FR-033–035c, FR-045)
 - [ ] T339a [US4] `link` and `unlink` as commands, routed before claim parsing, one capped reply each, no address in it (FR-035a, FR-035d)
 - [ ] T339b [US4] Before building: decide what an X compliance event does to a link (FR-035g, owner's), and approve the EVM library for signature checks (constitution VII)
@@ -195,12 +195,12 @@ A trained model for practice and publication; it decides nothing. Runs on the la
 
 ### Shadow
 
-**Paused (owner, 2026-10-22)**: the candidate does not fit the droplet (T342) and the saving is cents a month; resumed when volume or a hosting decision changes that.
+**Paused (owner, 2026-10-22)**: the candidate does not fit the droplet (T342) and the saving is cents a month. **Resumed 2026-10-25 (owner)**: the published model runs on our own private Hugging Face Space (decision 005), so the droplet's memory no longer matters.
 
-- [ ] T345 [US3] Migration `drizzle/0023_verifier.sql` + `src/db/schema.ts` per data-model.md, `outcome_confirmations` included (FR-015, FR-016, SC-005)
-- [ ] T346 [US3] `verifier/serve/app.py`: one endpoint, no database, `127.0.0.1:3002`; `deploy/vaticeno-verifier.service` + its install line (FR-020). **Gated on memory**: the candidate needs 271–530 MiB (T342) against about 128 free on the droplet, so where it runs — a larger droplet, another machine, or not yet — is the owner's call before this is built
-- [ ] T347 [US3] `src/resolve/verifier.ts`: one localhost call, hard timeout, Zod-parsed; any failure means no opinion and the paid path (FR-012, FR-012a)
-- [ ] T348 [US3] Shadow mode in `src/resolve/resolver.ts`: ask, **ignore**, record one row per attempt, failures included. `VERIFIER_URL` and `VERIFIER_MODE` in `src/config.ts` (FR-020a)
+- [x] T345 [US3] Migration `drizzle/0022_verifier.sql` + `src/db/schema.ts` per data-model.md, `outcome_confirmations` included (FR-015, FR-016, SC-005) **Done 2026-10-25**: applied to the live database (owner); both tables, the insert-only trigger and the two empty `resolutions` columns checked there
+- [ ] T346 [US3] `verifier/serve/`: a FastAPI app with one bearer-guarded endpoint, no database, nothing logged from a request body, and a Dockerfile that fetches the published int8 model by commit and sha256; deployed as the private Space `Leminds/vaticeno-verifier` (FR-020, decision 005; replaces the localhost systemd unit)
+- [ ] T347 [US3] `src/resolve/verifier.ts`: one HTTPS call to the Space with its token, hard timeout, Zod-parsed; any failure means no opinion and the paid path (FR-012, FR-012a)
+- [ ] T348 [US3] Shadow mode in `src/resolve/resolver.ts`: ask, **ignore**, record one row per attempt, failures included. `VERIFIER_URL`, `VERIFIER_TOKEN` and `VERIFIER_MODE` in `src/config.ts` (FR-020a)
 - [ ] T349 [US3] Test `tests/integration/verifier-shadow.test.ts`: the resolution row is byte-identical, exactly one shadow row, UPDATE and DELETE rejected
 - [ ] T349a [US3] The SC-005 count: a person confirms a shadow claim's outcome and names its underlying event in the existing review commands (`outcome_confirmations`, data-model); one query counts eligible claims per frozen model, one per event, and its wrong ones, shown on the status page
 

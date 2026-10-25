@@ -64,7 +64,7 @@ specs/003-python-platform/
 ```text
 status/      FastAPI + Jinja2, read-only role, localhost:3001
 load/         locust for the pages, a burst harness for the job path
-verifier/    eval and train (offline), serve (localhost:3002), weights never in git
+verifier/    eval and train (offline), serve (a private HF Space, decision 005), weights never in git
 contracts/   the escrow contract and its tests
 settle/      the settlement worker: reads the outbox, signs, sends — and does nothing else
 src/jobs/scheduler.ts      runJob writes job state
@@ -80,8 +80,8 @@ docs/progress.md           hand-edited, rendered with its own modification time
 The three processes share no mutable runtime state, no memory and no in-process calls. Each integrates one
 way only: the status service reads the database through a read-only role (plus two files the deploy and the
 owner write — build info and the progress note — and it writes nothing); the settlement worker reads and
-marks the outbox table; the verifier holds no database connection at all and is reached by one call on
-localhost that Node treats as optional (FR-012a).
+marks the outbox table; the verifier holds no database connection at all and is reached by one HTTPS call
+to our own private Hugging Face Space that Node treats as optional (FR-012a, decision 005).
 
 ## Deploy stages
 

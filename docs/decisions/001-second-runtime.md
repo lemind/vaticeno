@@ -56,7 +56,7 @@ database" would be wrong about the verifier:
 | Status page | the database, through a read-only role | reads only; never contacts Node |
 | Settlement worker | the outbox table | reads rows, writes results; never contacts Node |
 | Load harness | the public HTTP surface of a local copy | never touches production |
-| Local verifier | one HTTP call on localhost, from Node | holds no database connection at all |
+| Local verifier | one HTTPS call to our own private HF Space, from Node (decision 005; was localhost) | holds no database connection at all |
 
 The verifier is the only synchronous dependency, and it is deliberately the weakest one. Node calls it
 with a hard timeout, in front of the paid model; a timeout, a refusal, a malformed answer or a closed port

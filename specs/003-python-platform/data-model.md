@@ -252,8 +252,9 @@ authenticated roles stay with no policy at all, so the public API still sees not
 | `drizzle/0019_status_policies.sql` | SELECT policies for `status_ro` on the existing tables the page reads |
 | `drizzle/0020_settlement.sql` | `settlement_outbox` (one row per locked price claim), the `settle_rw` role's policies, its unique key |
 | `drizzle/0021_wager_replies.sql` | `wager_replies` with its unique key and CHECK, RLS on with no policy |
-| `drizzle/0022_wallet_links.sql` | `wallet_links` and `wallet_link_challenges`, the partial unique index on an active address |
-| `drizzle/0023_verifier.sql` | `verifier_shadow` with its append-only trigger and policy, `outcome_confirmations` with RLS and its `status_ro` policy, the two `resolutions` columns |
+| `drizzle/0022_verifier.sql` | `verifier_shadow` with its append-only trigger and policy, `outcome_confirmations` with RLS and its `status_ro` policy, the two `resolutions` columns |
+| `drizzle/0023_wallet_links.sql` | `wallet_links` and `wallet_link_challenges`, the partial unique index on an active address |
 
 Numbered in deploy order, not in the order the tables were designed: Stage 2 ships before Stage 3, so the
-settlement migrations come first and the verifier's cannot be dragged in by a Stage 2 deployment.
+settlement migrations come first and the verifier's cannot be dragged in by a Stage 2 deployment. The
+verifier's took 0022 when it shipped before the optional wallet links (2026-10-25).
