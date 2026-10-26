@@ -82,3 +82,27 @@ test('a missing service account file is an auth failure at call time, never a cr
   const result = await score('page', 'claim');
   assert.ok(!result.ok && result.error === 'auth');
 });
+
+test('after a timeout or a dropped call the service is left alone for a while, then asked again', async () => {
+  let clock = 1_000_000;
+  let calls = 0;
+  const fetchImpl = (async (input: string | URL | Request) => {
+    if (String(input) === TOKEN_URI) return Response.json({ id_token: 'id-token' });
+    calls++;
+    if (calls === 1) throw new TypeError('fetch failed');
+    return Response.json(answer);
+  }) as typeof fetch;
+  const score = createVerifier({
+    url: URL,
+    key: 'k',
+    serviceAccountFile: accountFile,
+    fetchImpl,
+    now: () => clock,
+  });
+  assert.ok(!(await score('p', 'c')).ok);
+  const paused = await score('p', 'c');
+  assert.ok(!paused.ok && paused.error === 'paused');
+  assert.equal(calls, 1, 'a paused verifier is not called');
+  clock += 11 * 60_000;
+  assert.ok((await score('p', 'c')).ok);
+});

@@ -29,6 +29,8 @@ MAX_CHARS = 40_000
 MAX_WINDOWS = 32
 
 log = logging.getLogger("vaticeno.verifier")
+# Uvicorn configures only its own loggers: without this the one line per request below is never written.
+logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s")
 
 
 def fetch() -> None:

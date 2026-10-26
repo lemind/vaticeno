@@ -4,8 +4,11 @@ import { createSign } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { z } from 'zod';
 
-// Measured 2026-10-25: a cold start answered in 7.6 s, a warm call in 0.36 s (decision 005).
-const TIMEOUT_MS = 20_000;
+// Measured 2026-10-26: a cold start takes 7.6 s, a full 40,000-character page alone about 12 s (decision 005).
+const TIMEOUT_MS = 30_000;
+// After a timeout or a dropped connection the service is left alone this long, so a hung service costs the
+// resolver one wait, not one per page.
+const PAUSE_AFTER_FAILURE_MS = 10 * 60_000;
 const TOKEN_LIFETIME_SEC = 3600;
 const TOKEN_REFRESH_MARGIN_SEC = 300;
 
@@ -33,7 +36,8 @@ export type VerifierError =
   | 'auth' // Google refused the identity token or our key (401/403), or no token could be minted
   | 'http' // any other non-2xx
   | 'malformed' // an answer that does not parse
-  | 'no_text'; // a passed page with no text to send (set by the caller, never by the service)
+  | 'no_text' // a passed page with no text to send (set by the caller, never by the service)
+  | 'paused'; // not asked: the service timed out or dropped a call in the last few minutes
 
 export type VerifierResult =
   | {
@@ -59,6 +63,7 @@ export function createVerifier(options: {
   const now = options.now ?? Date.now;
   // Shared by concurrent calls, so one claim's pages mint one token; dropped on any failure or refusal.
   let token: Promise<{ value: string; expiresAt: number }> | undefined;
+  let pausedUntil = 0;
 
   // A Google identity token for the service, minted from the service account (RS256 JWT → token_uri).
   // The key file is read here, not at startup: a missing file is an 'auth' failure, never a crashed bot.
@@ -132,6 +137,7 @@ export function createVerifier(options: {
       error,
       latencyMs: now() - started,
     });
+    if (now() < pausedUntil) return failed('paused');
     const signal = AbortSignal.timeout(TIMEOUT_MS);
     try {
       const bearer = await identityToken(signal);
@@ -161,10 +167,11 @@ export function createVerifier(options: {
       return { ok: true, ...answer, latencyMs: now() - started };
     } catch (error) {
       if (error instanceof VerifierAuthError) return failed('auth');
+      if (error instanceof SyntaxError) return failed('malformed');
+      pausedUntil = now() + PAUSE_AFTER_FAILURE_MS;
       if (error instanceof DOMException && error.name === 'TimeoutError') {
         return failed('timeout');
       }
-      if (error instanceof SyntaxError) return failed('malformed');
       return failed('network');
     }
   };
