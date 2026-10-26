@@ -1,4 +1,4 @@
-# The model the Space serves (003 T346, decision 005): the published one, pinned by commit and sha256.
+# The model the verifier service serves (003 T346, decision 005): the published one, pinned by commit and sha256.
 id = "Leminds/deberta-v3-xsmall-nli-oanc"
 license = "mit"
 revision = "5f0820a36d64a87c4a4cceb8574ac28db79ab30a"

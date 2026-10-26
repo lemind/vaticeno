@@ -4,7 +4,8 @@ safety claim: the labels are mostly our own resolver's, so a difference is a dis
     .venv/bin/python -m verifier.eval.baseline
 
 Pages come back through `src/cli/page-text.ts` (the resolver's own extractor) over a pipe, are used only if
-their hash is exactly the recorded one, and are dropped once scored. The report holds numbers only.
+their hash is exactly the recorded one, and are held in memory only, never written, until the run is scored.
+The report holds numbers only.
 """
 
 from __future__ import annotations

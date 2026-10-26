@@ -33,6 +33,8 @@ RUN = DISTILLED if "--distilled" in sys.argv else DEBERTA if "--deberta" in sys.
 BEST = RUN / "best"
 FP32 = RUN / "model_fp32.onnx"
 INT8 = RUN / "model_quint8_avx2.onnx"
+# Which trained weights the two ONNX files were exported from: a retrain must never be scored as the old model.
+EXPORTED_FROM = RUN / "exported-from.sha256"
 REPORT = ROOT / "verifier" / "train" / {OUT: "report.json", DISTILLED: "report-distilled.json"}.get(
     RUN, "report-deberta.json"
 )
@@ -204,8 +206,11 @@ def smoke(sess, tok) -> None:
 
 
 def main() -> int:
-    if not (FP32.exists() and INT8.exists()):
+    weights = sha256_of(BEST / "model.safetensors")
+    exported = EXPORTED_FROM.read_text().strip() if EXPORTED_FROM.exists() else None
+    if not (FP32.exists() and INT8.exists()) or exported != weights:
         export()
+        EXPORTED_FROM.write_text(weights + "\n")
     tok = tokenizer()
     dev_pairs, dev_labels = development_split()
     mnli, snli = DATA["eval"]["multi_nli"], DATA["eval"]["snli"]
@@ -219,11 +224,15 @@ def main() -> int:
     }
     challenge = [json.loads(line) for line in (ROOT / DATA["challenge"]["file"]).read_text().splitlines()]
     run = json.loads((RUN / "run.json").read_text())
-    report = {"model": {"base": run.get("base", DATA["base"]["id"]), "run": run}, "artefacts": {}}
+    report = {
+        "model": {"base": run.get("base", DATA["base"]["id"]), "run": run, "weights_sha256": weights},
+        "artefacts": {},
+    }
     # Saved after each artefact and resumed from: a DeBERTa pass takes the better part of an hour on a CPU.
     if REPORT.exists():
         earlier = json.loads(REPORT.read_text())
-        if earlier["model"]["run"].get("train_fingerprint") == run["train_fingerprint"]:
+        # Same data is not enough: the weights must be the same, or a retrain resumes the old model's numbers.
+        if earlier["model"].get("weights_sha256") == weights:
             report["artefacts"] = earlier["artefacts"]
     for name, path in (("fp32", FP32), ("int8", INT8)):
         if name in report["artefacts"]:

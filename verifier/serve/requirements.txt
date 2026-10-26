@@ -1,4 +1,4 @@
-# The Space's runtime (003 T346): inference only, no torch. Versions as measured on the laptop (2026-10-25).
+# The verifier service's runtime (003 T346): inference only, no torch. Versions as measured on the laptop (2026-10-25).
 onnxruntime==1.31.0
 tokenizers==0.23.3
 numpy==2.5.4

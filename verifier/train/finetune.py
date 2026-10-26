@@ -1,6 +1,6 @@
-"""Fine-tune the practice model (003 T343a, docs/decisions/004-practice-model.md): MiniLM on MultiNLI without its
-fiction genre. Checkpoint and early stopping use the development split carved from the training pairs; no
-evaluation set is read here.
+"""Fine-tune the practice model (003 T343a, docs/decisions/004-practice-model.md): MiniLM, or DeBERTa-v3 with
+`--base deberta`, on MultiNLI without its fiction genre. Checkpoint and early stopping use the development split
+carved from the training pairs; no evaluation set is read here.
 
     .venv-train/bin/python -m verifier.train.finetune [--max-steps N]
 """
