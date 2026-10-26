@@ -12,6 +12,10 @@ import type { GatheredItem } from './web-evidence.js';
 
 // The frozen candidate SC-005 counts for: the model, the gate, and the resolver logic it relies on (which
 // pages pass, how their text is read). A change to any part is a new candidate and its count starts again.
+// The service takes this many requests at once on its one instance (verifier/serve/deploy.sh --concurrency):
+// more would queue there and time out, recorded as failures that are not the model's.
+const VERIFIER_CONCURRENCY = 4;
+
 export const SHADOW_CANDIDATE = [
   VERIFIER_MODEL,
   FAST_PATH_VERSION,
@@ -31,17 +35,23 @@ export async function recordShadow(
   const passed = items.filter((item) => item.passed);
   // Nothing passed with text: the fast path had nothing to read, so there is no answer to compare.
   if (!passed.some((item) => item.pageText.length > 0)) return;
-  // Every page of the run goes to the gate; only the passed ones are read.
-  const reads = await Promise.all(
-    items.map(async (item) => ({
-      item,
-      answer: !item.passed
-        ? undefined
-        : item.pageText.length > 0
-          ? await scoreEvidence(item.pageText, hypothesis)
-          : ({ ok: false, error: 'no_text', latencyMs: 0 } as VerifierResult),
-    })),
-  );
+  // Every page of the run goes to the gate; only the passed ones are read, a batch at a time.
+  const reads: { item: GatheredItem; answer?: VerifierResult }[] = [];
+  for (let i = 0; i < items.length; i += VERIFIER_CONCURRENCY) {
+    const batch = items.slice(i, i + VERIFIER_CONCURRENCY);
+    reads.push(
+      ...(await Promise.all(
+        batch.map(async (item) => ({
+          item,
+          answer: !item.passed
+            ? undefined
+            : item.pageText.length > 0
+              ? await scoreEvidence(item.pageText, hypothesis)
+              : ({ ok: false, error: 'no_text', latencyMs: 0 } as VerifierResult),
+        })),
+      )),
+    );
+  }
   // The same gate a live fast path would run, so the count measures exactly what would go live.
   const decision = fastPathDecision(contract, reads);
   const failure = reads.find((r) => r.answer && !r.answer.ok)?.answer;
