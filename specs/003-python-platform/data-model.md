@@ -113,6 +113,7 @@ model only confirmed it was unambiguous. No new value, no widened constraint. A 
 a home for the arbiter (`arbiter_model_id`), so nothing is duplicated here.
 
 Null in both means today's behaviour, which is what lets the fast path be switched off with no migration.
+With the fast path parked (spec SC-006) both stay null; they are kept so a later design needs no migration.
 
 ## `settlement_outbox`
 

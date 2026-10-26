@@ -221,7 +221,7 @@ A trained model for practice and publication; it decides nothing. Runs on the la
 - [ ] T353 [US3] A fast-path verdict can be marked contradicted in the existing review commands (FR-018) **Parked 2026-10-25**
 - [ ] T354 [US3] Verifier block on the status page: fast-path count, escalations, agreement, contradictions as incidents (FR-018) **Parked 2026-10-25**
 - [ ] T355 [US3] Record the avoided-call share and per-claim spend against the baseline in `eval/report.md` (SC-006, SC-007) **Parked 2026-10-25**
-- [ ] T356 [US3] Re-measure memory with all three processes live and update `capacity.md` (SC-008)
+- [x] T356 [US3] Re-measure memory with all three processes live and update `capacity.md` (SC-008) **Done 2026-10-25**: bot 148, status 56, settlement worker 72 MiB peaks; the verifier is off the box; 196 MiB available, about 108 MiB if all three peak together, before swap (`capacity.md`)
 
 **Checkpoint**: the gate is built and tested (T350–T351); going live is parked (T352–T355, SC-006) and, if a new design revives it, waits for T349a's count to meet SC-005.
 
@@ -231,9 +231,9 @@ A trained model for practice and publication; it decides nothing. Runs on the la
 
 ## Phase 7: Polish
 
-- [ ] T357 [P] `README.md`: the new services, and the Done/Next table for what shipped
-- [ ] T358 [P] Mark tasks `[x]` with a one-line result; sync plan.md and data-model.md where the build diverged
-- [ ] T359 Run the whole suite — node tests, integration, typecheck, ruff, pytest
+- [x] T357 [P] `README.md`: the new services, and the Done/Next table for what shipped **Done 2026-10-26**: the verifier in Status, the Done/Next table, scripts (`review:confirm`), deploy (Cloud Run and the bot's env), capacity (three processes), the status page, layout and stack
+- [x] T358 [P] Mark tasks `[x]` with a one-line result; sync plan.md and data-model.md where the build diverged **Done 2026-10-26**: plan.md (where the verifier runs, Stage 3's row, the cost claim measured false) and data-model.md (the two `resolutions` columns stay null while parked)
+- [x] T359 Run the whole suite — node tests, integration, typecheck, ruff, pytest **Done 2026-10-26**: typecheck, node 185, integration 210, pytest 61, the training tests 2 in `.venv-train` (the main venv has no training stack, by design), ruff and Prettier clean
 
 ---
 

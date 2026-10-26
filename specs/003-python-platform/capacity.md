@@ -51,13 +51,16 @@ rate drains in a second, inside the one-minute poll window. Caps shape a flood, 
 |---|---|
 | Request rate and p95 on the droplet | **not measured** — needs a load run against the server |
 | Peak RSS under synthetic load on the droplet | **not measured, on purpose**: no load run against production (FR-008) |
-| Bot (`vaticeno`), systemd `MemoryPeak` | **147 MiB** over two days of live traffic (since 2026-10-18), 107 MiB at the read |
-| Status service (`vaticeno-status`), systemd `MemoryPeak` | **60 MiB** since its restart that morning, 20 MiB at the read |
-| Headroom with all processes running (SC-008) | **208 MiB available** of 458 with both running; **about 128 MiB** if both hit their peaks together, before the 1 GB swap |
+| Bot (`vaticeno`), systemd `MemoryPeak` | **148 MiB**, 126 MiB at the read (2026-10-25, minutes after a deploy restart, so the peak is its start-up; 147 MiB over two days of traffic on 2026-10-20) |
+| Status service (`vaticeno-status`), systemd `MemoryPeak` | **56 MiB**, 53 at the read (also just restarted; 60 MiB peak on 2026-10-20) |
+| Settlement worker (`vaticeno-settle`), systemd `MemoryPeak` | **72 MiB** over two days running (since 2026-10-23), 8 MiB at the read: it wakes, works and sleeps |
+| Local verifier | **0 on the droplet**: it runs on Cloud Run (decision 005); the bot's client adds no measurable memory |
+| Headroom with all three running (SC-008) | **196 MiB available** of 458; **about 108 MiB** if all three hit their peaks together (148 + 56 + 72 = 276 MiB, beside about 74 MiB the system holds), before the 1 GB swap, of which 124 MiB was in use |
 
-Read 2026-10-20 from systemd on the droplet, one CPU, load 0.07. A load run there drives the live service,
-which posts to X and spends money, so peaks come from real traffic rather than a burst (FR-008). The
-settlement worker is not on the box yet; its footprint is added when it is.
+Read 2026-10-25 from systemd on the droplet, one CPU. A load run there drives the live service, which posts
+to X and spends money, so peaks come from real traffic rather than a burst (FR-008). The peaks are each
+process's own and need not coincide; the sum is the worst case. Previous read: 2026-10-20, two processes,
+about 128 MiB of worst-case headroom.
 
 ## Still UNRECONCILED, and not by omission
 
@@ -67,4 +70,4 @@ them (INIT_SPEC §9):
 
 - X read, post and repost prices, and which category a summoned reply bills under
 - Model and search prices in `src/llm/prices.ts`
-- The share of resolutions that avoid a paid call (SC-006), which needs the verifier in Stage 3
+- ~~The share of resolutions that avoid a paid call (SC-006)~~: zero by design, the fast path is parked (spec SC-006)
