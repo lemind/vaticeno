@@ -19,12 +19,12 @@ nothing at our volume.
 
 | Item | Choice |
 |---|---|
-| Where | a **private** Cloud Run service, `vaticeno-verifier`, us-central1, in the project that already holds the Gemini key; 1 vCPU, 1 GiB, scales to zero, at most one instance |
+| Where | a **private** Cloud Run service, `vaticeno-verifier`, us-central1, in the project that already holds the Gemini key; 1 vCPU, 1 GiB, scales to zero, one instance, one request at a time |
 | The model | the published int8 ONNX file and tokenizer, fetched at build time by commit and sha256 |
 | Who may call | Google refuses any call without an identity token for an account with `run.invoker`; the service then checks our own key (`X-Verifier-Key`, in Secret Manager) |
-| The call | one HTTPS POST per evidence page from Node, hard timeout; any failure, refusal, malformed answer or a slow cold start means **no opinion** and today's paid path, unchanged |
+| The call | one HTTPS POST per passed page from Node, one page after another, 30 s timeout, and no calls for 10 minutes after a timeout or a dropped connection; any failure, refusal, malformed answer or a slow cold start means **no opinion** and today's paid path, unchanged |
 | What it holds | no database connection, no stored request, no log line with request text; it answers and forgets |
-| What it decides | nothing until SC-005's count is met: shadow rows only (FR-016) |
+| What it decides | nothing: shadow rows only (FR-016); going live is parked, it would avoid no paid call (spec SC-006) |
 | Cost guard | a $1 budget alert on Cloud Run in that project |
 
 ## Constitution V
@@ -41,6 +41,8 @@ inputs would not meet them.
 - Scaling to zero means a cold start: the first call after an idle spell waits for the container and the
   model to load. A call that misses the timeout is recorded as an error, never as an answer. Shadow mode can
   afford that; a live fast path would count it in its availability.
-- Measured 2026-10-25: warm calls answer in about 0.35 s from the owner's machine, 45 ms of it inference.
+- Measured 2026-10-25/26 from the owner's machine: a short pair answers in about 0.35 s warm (45 ms of it
+  inference), a full 40,000-character page (16 windows) in about 12 s, a cold start adds 7.6 s. Four full pages at
+  once on one CPU failed three of them, hence one request at a time.
 - A billing account is attached. The free tier covers our volume; the budget alert says when it would not.
 - Google can change free-tier terms. The service is a container: it moves to any host with the same image.

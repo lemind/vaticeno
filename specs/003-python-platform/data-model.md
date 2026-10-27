@@ -72,9 +72,9 @@ measured against the paid model.
 | model | text NOT NULL | the frozen candidate SC-005 counts for, pinned in code: the local model's name and version, the gate's version (threshold and agreement rule), the gates version (which pages pass) and the extractor version; failures are filed under it too, and an answer from another model is refused (`model_mismatch`) |
 | would_finalise | boolean NOT NULL | whether the gate would have taken it |
 | would_outcome | text null | CHECK `hit \| miss`; null when it would have escalated |
-| min_confidence | real null | CHECK between 0 and 1 — the weakest item the gate relied on; null when the call failed |
+| min_confidence | real null | CHECK between 0 and 1 — the weakest item the gate relied on; null when a call failed, a page came back unscored, or the gate escalated before reading any page |
 | paid_outcome | text null | CHECK `hit \| miss \| void`; what the paid model concluded |
-| error_tag | text null | set when the call timed out or came back malformed; the row still exists, so a silent failure cannot read as a quiet success |
+| error_tag | text null | the first failed call's tag (`timeout`, `network`, `auth`, `http`, `malformed`, `no_text`, `paused`) or `model_mismatch`; the row still exists, so a silent failure cannot read as a quiet success |
 | latency_ms | int null | how long the call took, the other half of whether the fast path is worth having |
 | created_at | timestamptz NOT NULL DEFAULT now() | |
 

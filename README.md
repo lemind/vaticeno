@@ -157,7 +157,8 @@ never synced; it connects as `settle_rw`, whose password is set by hand like `st
 [deploy/vaticeno-settle.service](deploy/vaticeno-settle.service).
 
 The local verifier is not on the droplet: it is the private Cloud Run service `vaticeno-verifier`
-(us-central1, scales to zero, one instance at most). `PROJECT=<id> verifier/serve/deploy.sh` builds the
+(us-central1, scales to zero, one instance taking one request at a time; the bot reads pages one after
+another and leaves it alone for 10 minutes after a timeout). `PROJECT=<id> verifier/serve/deploy.sh` builds the
 image and deploys it; its key lives in Secret Manager. The bot calls it as the `vaticeno-bot` service
 account, whose JSON key sits in `/opt/vaticeno/.state/`, and needs `VERIFIER_MODE`, `VERIFIER_URL`,
 `VERIFIER_KEY` and `VERIFIER_SA_KEY_FILE` in the server's `.env`. `VERIFIER_MODE=off` stops it with a restart.

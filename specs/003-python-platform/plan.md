@@ -105,7 +105,7 @@ after the network is chosen (T374, T376).
 | Violation | Why needed | Simpler alternative rejected because |
 |---|---|---|
 | A second runtime and two more processes (VII) | The service layer is Python by owner decision 2026-10-08; the verifier must hold a model in memory without it living in the process that handles untrusted text | Doing it in TypeScript keeps one runtime but puts model weights and inference in the same process as the X client and the claim pipeline, and gives up the owner's stated reason for the choice |
-| A local model in the resolution path (II, III) | Model calls are the largest variable cost and most decide easy cases. Measured 2026-10-25: they are not — search and X are; the judge the model could stand in for is $0.24 a month, so it stays in shadow and decides nothing (SC-006) | Raising the per-claim budget caps the cost instead of lowering it; dropping evidence checks would lower it by weakening the product |
+| A local model in the resolution path (II, III) | Model calls are the largest variable cost and most decide easy cases. Estimated from the cost ledger on 2026-10-25, at prices still UNRECONCILED: the judge call the model could stand in for is $0.24 a month, against $1.84 for search and more for X, so it stays in shadow and decides nothing (SC-006) | Raising the per-claim budget caps the cost instead of lowering it; dropping evidence checks would lower it by weakening the product |
 
 | A process holding a signing key (VII) | Settlement must be able to move funds; the process that handles untrusted text from strangers must not hold the key that can | Signing inside the Node service keeps one runtime but puts a funds-moving key in the process that parses posts from the public |
 
