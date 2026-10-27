@@ -1,7 +1,7 @@
 # Data Model: Visibility, settlement and cost
 
 Three changes to the Stage 0 model (`specs/001-stage0-contract-core/data-model.md`): one new table for job
-health, one for the verifier's shadow answers, one for the settlement queue, and two columns on `resolutions`. All timestamps
+health, one for the verifier's shadow answers, one for a person's confirmation of their outcomes, one for the settlement queue, and two columns on `resolutions`. All timestamps
 `timestamptz`, stored UTC. Every enum column carries a CHECK constraint. RLS stays enabled everywhere — see
 Access, which is where the read-only role needs more than a grant.
 
@@ -9,6 +9,7 @@ Access, which is where the read-only role needs more than a grant.
 |---|---|---|
 | `job_state` (new) | one row per scheduled job: when it last ran, whether it worked, when it was last late | job health lives in a Node variable today, where no other process can read it |
 | `verifier_shadow` (new) | what the fast path would have concluded, next to what the paid model did | shadow answers must never be readable as the decision that was taken |
+| `outcome_confirmations` (new) | a person's check of a shadow claim's outcome and its underlying event | the go-live count (SC-005) must rest on outcomes our resolver did not only assert |
 | `settlement_outbox` (new) | one row per verdict that has a stake waiting on it | the only interface between the resolver and the process holding the signing key |
 | `wallet_links` (new) | which address a person proved they control, and for how long that held | attributing a stake to the author of a claim, without the contract knowing anything about X |
 | `resolutions` (+2 columns) | which verifier confirmed a fast-path verdict, and how confident it was | a verdict the paid model reached says so, even when the local model had an opinion |
@@ -68,12 +69,12 @@ measured against the paid model.
 | id | uuid PK | |
 | claim_id | uuid NOT NULL → claims | |
 | resolution_id | uuid null → resolutions | set when the attempt produced a resolution; an attempt that ended waiting has none |
-| model | text NOT NULL | name and version of the local model |
+| model | text NOT NULL | the frozen candidate SC-005 counts for, pinned in code: the local model's name and version, the gate's version (threshold and agreement rule), the gates version (which pages pass) and the extractor version; failures are filed under it too, and an answer from another model is refused (`model_mismatch`) |
 | would_finalise | boolean NOT NULL | whether the gate would have taken it |
 | would_outcome | text null | CHECK `hit \| miss`; null when it would have escalated |
-| min_confidence | real null | CHECK between 0 and 1 — the weakest item the gate relied on; null when the call failed |
+| min_confidence | real null | CHECK between 0 and 1 — the weakest item the gate relied on; null when a call failed, a page came back unscored, or the gate escalated before reading any page |
 | paid_outcome | text null | CHECK `hit \| miss \| void`; what the paid model concluded |
-| error_tag | text null | set when the call timed out or came back malformed; the row still exists, so a silent failure cannot read as a quiet success |
+| error_tag | text null | the first failed call's tag (`timeout`, `network`, `auth`, `http`, `malformed`, `no_text`, `paused`) or `model_mismatch`; the row still exists, so a silent failure cannot read as a quiet success |
 | latency_ms | int null | how long the call took, the other half of whether the fast path is worth having |
 | created_at | timestamptz NOT NULL DEFAULT now() | |
 
@@ -85,6 +86,20 @@ than it is. A disagreement inside it is the signal the shadow deploy exists to p
 **Append-only, enforced**: a trigger rejects UPDATE and DELETE, the same way the lock and verdict rules are
 enforced in Postgres rather than in code. Deliberately **not** part of `resolutions`: dropping this table
 removes the experiment and changes no verdict.
+
+## `outcome_confirmations`
+
+A person's check of a shadow claim's outcome, so SC-005 counts outcomes our resolver did not only
+assert. Written through the review commands (`review:confirm`); never read by the resolver. The count itself is
+one query, `status/shadow_count.sql`: per candidate, each claim by its latest attempt, each event once, and
+an event is wrong if any of its claims is.
+
+| Column | Type | Notes |
+|---|---|---|
+| claim_id | uuid PK → claims | one confirmation per claim |
+| outcome | text NOT NULL | CHECK `hit \| miss \| void`; what the person found |
+| event_key | text NOT NULL | the underlying event, owner-written, so claims about one event count once |
+| confirmed_at | timestamptz NOT NULL DEFAULT now() | |
 
 ## `resolutions` additions
 
@@ -98,6 +113,7 @@ model only confirmed it was unambiguous. No new value, no widened constraint. A 
 a home for the arbiter (`arbiter_model_id`), so nothing is duplicated here.
 
 Null in both means today's behaviour, which is what lets the fast path be switched off with no migration.
+With the fast path parked (spec SC-006) both stay null; they are kept so a later design needs no migration.
 
 ## `settlement_outbox`
 
@@ -227,7 +243,7 @@ that is what keeps Supabase's public API from seeing anything. The owner role by
 not, so without a policy it reads zero rows from every table and the page renders empty. Each table the page
 reads therefore gets one policy — `FOR SELECT TO status_ro USING (true)` — alongside the grant: `job_state`,
 `recheck_findings`, `claims`, `resolutions`, `cost_events`, `feed_posts` and `settlement_outbox` from Stage 2 — never
-`wallet_links` or `wallet_link_challenges` — and `verifier_shadow` from Stage 3. The anon and
+`wallet_links` or `wallet_link_challenges` — and `verifier_shadow` and `outcome_confirmations` from Stage 3. The anon and
 authenticated roles stay with no policy at all, so the public API still sees nothing.
 
 ## Migrations
@@ -239,8 +255,9 @@ authenticated roles stay with no policy at all, so the public API still sees not
 | `drizzle/0019_status_policies.sql` | SELECT policies for `status_ro` on the existing tables the page reads |
 | `drizzle/0020_settlement.sql` | `settlement_outbox` (one row per locked price claim), the `settle_rw` role's policies, its unique key |
 | `drizzle/0021_wager_replies.sql` | `wager_replies` with its unique key and CHECK, RLS on with no policy |
-| `drizzle/0022_wallet_links.sql` | `wallet_links` and `wallet_link_challenges`, the partial unique index on an active address |
-| `drizzle/0023_verifier.sql` | `verifier_shadow` with its append-only trigger and policy, the two `resolutions` columns |
+| `drizzle/0022_verifier.sql` | `verifier_shadow` with its append-only trigger and policy, `outcome_confirmations` with RLS and its `status_ro` policy, the two `resolutions` columns |
+| `drizzle/0023_wallet_links.sql` | `wallet_links` and `wallet_link_challenges`, the partial unique index on an active address |
 
 Numbered in deploy order, not in the order the tables were designed: Stage 2 ships before Stage 3, so the
-settlement migrations come first and the verifier's cannot be dragged in by a Stage 2 deployment.
+settlement migrations come first and the verifier's cannot be dragged in by a Stage 2 deployment. The
+verifier's took 0022 when it shipped before the optional wallet links (2026-10-25).

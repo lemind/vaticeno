@@ -25,6 +25,8 @@ import { alert, captureError } from '../observe.js';
 import { decideResolution, type Decision } from './decide.js';
 import { type PageFetcher, SourceUnavailable } from './fetch.js';
 import { runGates } from './gates.js';
+import { recordShadow } from './shadow.js';
+import type { ScoreEvidence } from './verifier.js';
 import type { UserLookup } from '../contract/x-profile.js';
 import { type FollowerReader, gatherFollowerEvidence } from './follower-evidence.js';
 import { gatherPriceEvidence } from './price-evidence.js';
@@ -41,9 +43,12 @@ export type ResolverDeps = {
   arbiterModel: string;
   judgeVersion?: string; // default JUDGE_VERSION; the seeds replay with SEEDS_JUDGE_VERSION
   // Follower-count claims (004 T420); absent → they wait as an outage. A re-judge also names the account from the post.
-  x?: Partial<FollowerReader & UserLookup & { getTweet(id: string): Promise<{ text: string }> }>;
+  x?: Partial<
+    FollowerReader & UserLookup & { getTweet(id: string): Promise<{ text: string }> }
+  >;
   botHandle?: string;
   normalizerModel?: string; // a re-judge re-runs the fixture check for a contract locked without a kickoff (004 T421)
+  verifier?: ScoreEvidence; // VERIFIER_MODE=shadow: asked after the decision, recorded, ignored (003 FR-016)
 };
 
 export type ClaimRunOutcome =
@@ -335,6 +340,14 @@ export async function resolveClaim(
     byId,
     now,
   );
+  if (deps.verifier && outcome !== 'outage' && isWebContract(contract)) {
+    try {
+      await recordShadow(db, deps.verifier, claim.id, contract, items);
+    } catch (error) {
+      // The verdict is already written; a lost shadow row is a gap in the experiment, never a retry.
+      captureError(error, { event: 'resolver.shadow_failed', claim_id: claim.id });
+    }
+  }
   await checkBudget(db, claim);
   return outcome;
 }
@@ -565,6 +578,9 @@ export function isOutage(error: unknown): boolean {
     error instanceof LlmSchemaError
   );
 }
+
+const isWebContract = (contract: Contract) =>
+  contract.resolution_method === 'model' && !contract.followers;
 
 const withClaim = (costs: CallCost[], claimId: string) =>
   costs.map((cost) => ({ ...cost, claimId }));

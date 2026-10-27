@@ -235,6 +235,9 @@ export const resolutions = pgTable(
     decidingEvidenceId: uuid('deciding_evidence_id').references(() => evidences.id),
     arbiterModelId: text('arbiter_model_id'),
     arbiterNotes: text('arbiter_notes'),
+    // Set only when the fast path finalised it (003 FR-015); null in both is today's behaviour.
+    verifier: text('verifier'),
+    verifierConfidence: real('verifier_confidence'),
     humanNotes: text('human_notes'),
     decidedAt: utc('decided_at'),
     createdAt: utc('created_at').notNull().defaultNow(),
@@ -256,6 +259,10 @@ export const resolutions = pgTable(
     check(
       'resolutions_final_complete_check',
       sql`${t.reviewStatus} <> 'final' or (${t.outcome} is not null and ${t.decidedBy} is not null and ${t.decidedAt} is not null)`,
+    ),
+    check(
+      'resolutions_verifier_confidence_check',
+      sql`${t.verifierConfidence} is null or ${t.verifierConfidence} between 0 and 1`,
     ),
   ],
 );
@@ -511,4 +518,57 @@ export const wagerReplies = pgTable(
     unique('wager_replies_claim_kind_unique').on(t.claimId, t.kind),
     check('wager_replies_kind_check', oneOf(t.kind, WAGER_REPLY_KINDS)),
   ],
+);
+
+// What the local verifier would have concluded, next to what the paid model did (003 FR-016). Insert-only.
+export const verifierShadow = pgTable(
+  'verifier_shadow',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    claimId: uuid('claim_id')
+      .notNull()
+      .references(() => claims.id),
+    resolutionId: uuid('resolution_id').references(() => resolutions.id),
+    model: text('model').notNull(),
+    wouldFinalise: boolean('would_finalise').notNull(),
+    wouldOutcome: text('would_outcome', { enum: ['hit', 'miss'] }),
+    minConfidence: real('min_confidence'),
+    paidOutcome: text('paid_outcome', { enum: OUTCOMES }),
+    errorTag: text('error_tag'),
+    latencyMs: integer('latency_ms'),
+    createdAt: utc('created_at').notNull().defaultNow(),
+  },
+  (t) => [
+    check(
+      'verifier_shadow_would_outcome_check',
+      sql`${t.wouldOutcome} is null or ${t.wouldOutcome} in ('hit', 'miss')`,
+    ),
+    check(
+      'verifier_shadow_paid_outcome_check',
+      sql`${t.paidOutcome} is null or ${oneOf(t.paidOutcome, OUTCOMES)}`,
+    ),
+    check(
+      'verifier_shadow_min_confidence_check',
+      sql`${t.minConfidence} is null or ${t.minConfidence} between 0 and 1`,
+    ),
+    check(
+      'verifier_shadow_outcome_when_finalising_check',
+      sql`${t.wouldFinalise} = (${t.wouldOutcome} is not null)`,
+    ),
+    index('verifier_shadow_claim_idx').on(t.claimId, t.createdAt),
+  ],
+);
+
+// A person's check of a shadow claim's outcome, so the go-live count rests on more than our resolver (SC-005).
+export const outcomeConfirmations = pgTable(
+  'outcome_confirmations',
+  {
+    claimId: uuid('claim_id')
+      .primaryKey()
+      .references(() => claims.id),
+    outcome: text('outcome', { enum: OUTCOMES }).notNull(),
+    eventKey: text('event_key').notNull(),
+    confirmedAt: utc('confirmed_at').notNull().defaultNow(),
+  },
+  (t) => [check('outcome_confirmations_outcome_check', oneOf(t.outcome, OUTCOMES))],
 );

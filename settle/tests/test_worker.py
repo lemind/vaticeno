@@ -133,7 +133,8 @@ def db():
     except psycopg.Error:
         _require("the local database is not running")
     owner.execute("""truncate feed_posts, feed_queue, opt_outs, sources, cost_events, recheck_findings, wager_replies,
-        settlement_outbox, corrections, resolutions, evidences, positions, claims""")
+        verifier_shadow, outcome_confirmations, settlement_outbox, corrections, resolutions, evidences, positions,
+        claims""")
     owner.execute("insert into job_state (job, stale_after_seconds) values ('settle', 180) on conflict do nothing")
     worker = psycopg.connect(url, autocommit=True, connect_timeout=3)
     worker.execute("set role settle_rw")  # the worker's own rights, nothing more

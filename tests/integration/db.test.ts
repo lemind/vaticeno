@@ -225,7 +225,7 @@ describe('row level security', () => {
   test('RLS is enabled on every table', async () => {
     const rows = await t.sql<{ tablename: string; rowsecurity: boolean }[]>`
       select tablename, rowsecurity from pg_tables where schemaname = 'public' and tablename not like '__drizzle%'`;
-    assert.equal(rows.length, 14); // + feed_posts, feed_queue (002), corrections (001 FR-035), job_state, recheck_findings, settlement_outbox, wager_replies (003)
+    assert.equal(rows.length, 16); // + feed_posts, feed_queue (002), corrections (001 FR-035), job_state, recheck_findings, settlement_outbox, wager_replies, verifier_shadow, outcome_confirmations (003)
     for (const row of rows)
       assert.equal(row.rowsecurity, true, `${row.tablename} has RLS off`);
   });

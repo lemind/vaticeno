@@ -131,6 +131,20 @@
     </table>
   </div>
 
+  {#- The local verifier in shadow: it decides nothing until SC-005's count is met with no wrong event. -#}
+  <div class="panel">
+    <h2>Verifier · shadow</h2>
+    <table>
+      {% for v in s.shadow %}
+      <tr><td class="k" colspan="2">{{ v.model }}</td></tr>
+      <tr><td class="k">claims read</td><td class="r">{{ v.shadow_claims }}{% if v.failed %} · <span class="FAILING">{{ v.failed }} failed</span>{% endif %}</td></tr>
+      <tr><td class="k">would finalise</td><td class="r">{{ v.would_finalise }}{% if v.to_confirm %} · {{ v.to_confirm }} to confirm{% endif %}</td></tr>
+      <tr><td class="k">confirmed events</td><td class="r{% if v.wrong_events %} FAILING{% endif %}">{{ v.eligible_events }} / {{ v.go_live_events }} · {{ v.wrong_events }} wrong</td></tr>
+      {% endfor %}
+      {% if not s.shadow %}<tr><td class="note">no claim read yet</td></tr>{% endif %}
+    </table>
+  </div>
+
   {#- Verdicts known to be wrong and not yet corrected. They outlive the recheck's window (FR-007a). -#}
   <div class="panel">
     <h2>Verdicts to correct</h2>

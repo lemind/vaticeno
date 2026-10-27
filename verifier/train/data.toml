@@ -1,0 +1,106 @@
+# What the practice model is built from (003 T343, docs/decisions/004-practice-model.md). Every source pinned by
+# commit and sha256; read 2026-10-23. Downloaded to gitignored verifier/models/ and verifier/train/data/, never committed.
+python = "3.12"
+lockfile = "verifier/train/requirements.lock"
+seed = 20261023
+
+[base]
+id = "nreimers/MiniLM-L6-H384-uncased"
+revision = "3276f0fac9d818781d7a1327b3ff818fc4e643c0"
+license = "mit"
+# 6 layers kept from microsoft/MiniLM-L12-H384-uncased (MIT): a BERT encoder, no NLI head yet.
+note = "base encoder only; 22.7M parameters"
+citation = "Wang et al., MiniLM: Deep Self-Attention Distillation for Task-Agnostic Compression of Pre-Trained Transformers, NeurIPS 2020"
+
+[base.files]
+"pytorch_model.bin" = "ab5048f3effe06bccb318ee923df90cba4e918b309a0ac6b00c654ede0768b87"
+"config.json" = "cef11b3fb3c8f8e213025b03ffa238375381c153c5f6d09c3b69e7941cc1b8a9"
+"vocab.txt" = "07eced375cec144d27c900241f3e339478dec958f92fddbc551f295c992038a3"
+"tokenizer_config.json" = "004a73627dc426fe8178103267521ac79b8e9cb7442416a88996eafa52d51716"
+"special_tokens_map.json" = "303df45a03609e4ead04bc3dc1536d0ab19b5358db685b6f3da123d05ec200e3"
+
+# The second student (003 T343a, owner 2026-10-23): the untrained DeBERTa-v3 base, not the stock NLI model.
+# Its authors report MNLI-m/mm 88.1/88.3 on all of MultiNLI with lr 4.5e-5, length 256, 8 GPUs.
+[base_deberta]
+id = "microsoft/deberta-v3-xsmall"
+revision = "4b419818330868dff6a60ad3e6b1c730f8b8c0c6"
+license = "mit"
+note = "22M backbone parameters plus a 128k-token embedding table: 70.8M in all"
+learning_rate = 4.5e-5  # its authors' MNLI setting; the rest of config.toml is unchanged
+citation = "He, Gao and Chen, DeBERTaV3: Improving DeBERTa using ELECTRA-Style Pre-Training with Gradient-Disentangled Embedding Sharing, ICLR 2023"
+
+[base_deberta.files]
+"pytorch_model.bin" = "e96369113d0ea430d5827a651182f3079438ef1191b608a312b893ce98052c0a"
+"config.json" = "dec93c511390776d961b33e560ccbb8505f8bb11e04fc0428eac55f562231c04"
+"spm.model" = "c679fbf93643d19aab7ee10c0b99e460bdbc02fedf34b92b05af343b4af586fd"
+"tokenizer_config.json" = "3f3978e0c036f2c2588cac34a6047cbb0af0b0dc1814254e291028529805496d"
+
+# Trained on. The fiction genre is dropped: it holds the only ShareAlike text in MultiNLI (Seven Swords,
+# CC BY-SA 3.0). Every other genre is the Open American National Corpus, "unrestricted ... including commercial use".
+[train.multi_nli]
+id = "nyu-mll/multi_nli"
+revision = "da70db2af9d09693783c3320c4249840212ee221"
+license = "OANC (unrestricted) for the genres used"
+split = "train"
+genres_dropped = ["fiction"]
+labels_dropped = [-1]  # no gold label
+# Development split, carved from the pairs above by seed: checkpoint, early stopping and temperature use it only.
+development_pairs = 10000
+citation = "Williams, Nangia and Bowman, A Broad-Coverage Challenge Corpus for Sentence Understanding through Inference, NAACL 2018"
+
+[train.multi_nli.files]
+"data/train-00000-of-00001.parquet" = "1c1de03640b168e410aabfca19e7cc2f3dfcd7f0e126e935674e56fb102c4529"
+
+# Evaluated on only, never trained on: scoring a model does not put a dataset's text into its weights.
+[eval.multi_nli]
+id = "nyu-mll/multi_nli"
+revision = "da70db2af9d09693783c3320c4249840212ee221"
+splits = ["validation_matched", "validation_mismatched"]  # validation, reported as such
+# Scored once, after every choice is made. Matched holds the fiction genre, out of domain here: reported whole,
+# and as its fiction and non-fiction parts apart.
+use = "locked reporting only"
+
+[eval.multi_nli.files]
+"data/validation_matched-00000-of-00001.parquet" = "350c26950b55f460b50d36c76aef87d64b49c78812d7abf7bf97e5fede10f186"
+"data/validation_mismatched-00000-of-00001.parquet" = "6b0e1231cebedd255000a7d1732af37ad0500902239db625e231ed77c0c8f2f8"
+
+[eval.snli]
+id = "stanfordnlp/snli"
+revision = "cdb5c3d5eed6ead6e5a341c8e56e669bb666725b"
+license = "cc-by-sa-4.0"
+splits = ["test"]
+use = "locked reporting only"
+labels_dropped = [-1]
+citation = "Bowman et al., A large annotated corpus for learning natural language inference, EMNLP 2015"
+
+[eval.snli.files]
+"plain_text/test-00000-of-00001.parquet" = "4696deda851c4d2385f26b58f2e13f9ed9f08ea7b42a3f4c2b97a9d08448878c"
+
+# Ours, frozen 2026-10-23 before any training (003 T343c): any change makes it development data.
+[challenge]
+file = "verifier/train/challenge.jsonl"
+sha256 = "1981eae05d47e3cfd3d4ae2719275128dd447ff552014e4d2033dd3d0a54c222"
+use = "diagnostic only, per group; never for tuning"
+
+# The distillation teacher (003 T344): the stock candidate, its PyTorch weights. Apache-2.0 by its publisher, trained
+# on SNLI and MultiNLI — so its answers carry what it learnt from SNLI (decision 004).
+[teacher]
+id = "cross-encoder/nli-deberta-v3-xsmall"
+revision = "a150876415327c80daeff35ca6f68f5ed8cf5c24"
+license = "apache-2.0"
+reported = "SNLI test 91.64, MNLI mismatched 87.77 (its model card)"
+
+[teacher.files]
+"model.safetensors" = "4e4fc4977f8d29d2a164255c8f69b9d6c158deeb309bb5e70445b94666ccd9e9"
+"config.json" = "8d9f07bf7ba54a6fc3b1962483056f94c39dcf188db4cf61843e1c88f94b2342"
+"tokenizer.json" = "5124ef2ead1a10a717703bc436de7f353da76d6340e4587719b42b1693707964"
+"tokenizer_config.json" = "f3eecd07c370ef0bf7dd3780d3cd68cf9c8b00c267e21a208ddcd8f82bfec1a6"
+"special_tokens_map.json" = "ed7c099c988dbb414b18a6980d20cb57b91b7cd119f6f6941eb364b0e892e712"
+"added_tokens.json" = "a4b6bfe668f2b3cf6f0cd535e98a0663d2d0d4a4a15f13075ad3597d33985a23"
+"spm.model" = "c679fbf93643d19aab7ee10c0b99e460bdbc02fedf34b92b05af343b4af586fd"
+
+[labels]
+# The base has no head, so the order is ours: the stock candidate's, so both read the same way (verifier/model.toml).
+order = ["contradiction", "entailment", "neutral"]
+# MultiNLI and SNLI number them entailment 0, neutral 1, contradiction 2.
+from_dataset = { 0 = "entailment", 1 = "neutral", 2 = "contradiction" }

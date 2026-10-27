@@ -51,6 +51,7 @@ class Snapshot:
     db_error: str | None
     version: str = ""
     settlement: dict[str, int] = field(default_factory=dict)
+    shadow: list[queries.ShadowCount] = field(default_factory=list)
     # Public addresses, not credentials: the page still holds nothing but its database connection (FR-003).
     escrow_address: str = ""
     escrow_chain_id: str = ""
@@ -98,6 +99,7 @@ def take_snapshot() -> Snapshot:
                 backlog=queries.review_backlog(conn),
                 findings=queries.open_findings(conn),
                 settlement=queries.settlement_queue(conn),
+                shadow=queries.shadow_count(conn),
                 db_error=None,
             )
     except psycopg.Error as error:
@@ -233,6 +235,7 @@ def as_json(snapshot: Snapshot) -> dict:
         "spend": _plain(asdict(snapshot.spend)) if snapshot.spend else None,
         "feed": snapshot.feed,
         "settlement": snapshot.settlement,
+        "shadow": [asdict(count) for count in snapshot.shadow],
         "escrow": {"address": snapshot.escrow_address, "chain_id": snapshot.escrow_chain_id},
         "backlog": (
             {**_plain(asdict(snapshot.backlog)), "oldest_age_hours": snapshot.backlog.oldest_age_hours}

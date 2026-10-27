@@ -15,7 +15,7 @@ status page — healthy, dead job, no database. Nothing else; ~55% coverage is a
 | Stage 1 | **done** 2026-10-20: the front page and `/status` behind its password are live; memory measured on the droplet (T323) |
 | Stage 2 | contract, settlement path and the wager page live (page and `wager` command deployed 2026-10-20); end to end passed 2026-10-19 from the command line. Worker on the server since 2026-10-21 (T375). Open: the browser run (T373), wallet links. Testnet only, no real value, no fee, price-feed claims only (FR-031h) |
 | Escrow v1 | T326a answers FR-031f before anything is deployed |
-| Stage 3 | not started; may end at T344 |
+| Stage 3 | T341–T342 done 2026-10-22; shadow paused (memory, T346); the practice model (T343–T344a) next |
 | `docs/decisions/` | 001 second runtime (done); 002 escrow v1 is T326a |
 
 ## Format: `[ID] [P?] [Story] Description`
@@ -145,13 +145,14 @@ timeout refund from the page with the worker stopped (SC-020).
 - [x] T371a [US5] Test the hand-encoded calls and decoders against forge's ABI for the deployed contract and token: selectors, calldata, decoded stakes, the max-stake boundary in token units **Done**: `tests/abi/` — every selector from forge's output, `open` and the rest against `cast`; a CI step after Foundry.
 - [x] T372 [US5] Test the command and the reply: a burst of `wager` on one claim posts one link; a crash between the insert and the post never posts a second; a price claim before lock refuses without using it up; a model-judged claim is told "not a price claim" even before lock; a closed claim refuses once; a post whose parent is not the claim's posts nothing (SC-021) **Done**: `tests/integration/wager.test.ts`, the page included (authorization only while open, escaping, the redirect).
 - [ ] T373 [US5] End to end on a short-window testnet deployment with two browser wallets, the four wagers above, plus a pending and a reverted transaction never shown as done, and a verdict on X not yet on the chain shown as pending (SC-020, SC-022)
-- [ ] T374 [US5] **Owner's, blocks nothing here**: the network for real value, Arbitrum One or Base, decided with FR-031h, and with it the token address (native USDC on that network, FR-036c) and the acceptance criteria for T376; the new contract and the end-to-end runs on that network's testnet come before any real value (FR-036a)
+- [x] T374 [US5] **Owner's, blocks nothing here**: the network for real value, Arbitrum One or Base, decided with FR-031h, and with it the token address (native USDC on that network, FR-036c) and the acceptance criteria for T376; the new contract and the end-to-end runs on that network's testnet come before any real value (FR-036a) **Decided 2026-10-25 (owner): both Arbitrum One and Base**, each its own market (FR-036d); token addresses per FR-036c
 - [x] T375 [US4] Put the settlement worker on the server: its own user, `/etc/vaticeno-settle/` with the env file and the oracle key (mode 600), `settle_rw` given a login, the unit enabled (FR-028, FR-028a). **Done 2026-10-21**: `vaticeno-settle` active, the key and env file mode 600 under its own user, heartbeat `ok` every minute; the owner ran the key copy.
-- [ ] T376 [US4] **Gated on T374, before any real value**: escrow v2 in `contracts/src/Escrow.sol` — payout, void, refund and expiry credit balances, `withdraw()` per beneficiary (FR-036b); the token fixed to the T374 address, the cap in USDC base units (FR-036c); tests in `contracts/test/` with a token that blocks one address, proving the other side still withdraws; `wallet.js` and the worker follow (withdraw action, 6 decimals)
+- [ ] T376 [US4] **T374 decided, before any real value**: escrow v2 in `contracts/src/Escrow.sol` — payout, void, refund and expiry credit balances, `withdraw()` per beneficiary (FR-036b); the token fixed to the T374 address, the cap in USDC base units (FR-036c); tests in `contracts/test/` with a token that blocks one address, proving the other side still withdraws; `wallet.js` and the worker follow (withdraw action, 6 decimals)
+- [ ] T377 [US4] **Before any real value, after T376**: two networks (FR-036d) — a network column on `settlement_outbox` (one row per claim per network) and its migration, one authorization per network, the worker settling each network it is configured for, the wager page's network picker with each network's offers apart; the end-to-end runs on both testnets (Base Sepolia, Arbitrum Sepolia)
 
 ### Linking a wallet, optional
 
-- [ ] T338 [US4] Migration `drizzle/0022_wallet_links.sql` + `src/db/schema.ts` per data-model.md: both wallet tables, no read policy on either (FR-032)
+- [ ] T338 [US4] Migration `drizzle/0023_wallet_links.sql` + `src/db/schema.ts` per data-model.md: both wallet tables, no read policy on either (FR-032)
 - [ ] T339 [US4] The link flow: the page resolves the named account, issues the code, shows what is public; the post binds it; confirmation, then the private signature, through the script the wager page shares (FR-033–035c, FR-045)
 - [ ] T339a [US4] `link` and `unlink` as commands, routed before claim parsing, one capped reply each, no address in it (FR-035a, FR-035d)
 - [ ] T339b [US4] Before building: decide what an X compliance event does to a link (FR-035g, owner's), and approve the EVM library for signature checks (constitution VII)
@@ -171,24 +172,38 @@ independent reading of the contract, and a written incident policy.
 
 ## Phase 6: US3 — the local verifier (P2)
 
-**Independent test**: zero wrongly auto-finalised claims on the held-out set, with the avoided-call share reported.
+**Independent test**: offline picks and freezes one candidate; shadow counts it against SC-005 (1,000 eligible confirmed claims, zero wrong), with the avoided-call share reported.
 
 ### Offline
 
-- [ ] T341 [US3] `verifier/eval/dataset.py`: held-out set from seeded claims and real verdicts, written to gitignored `verifier/eval/data/`
-- [ ] T342 [US3] `verifier/eval/baseline.py`: stock model under one threshold rule, reporting both the model level and the fast-path level. Adds the `verifier` dependency group
-- [ ] T343 [US3] `verifier/train/finetune.py` + `config.toml` + `train/report.md`: fixed seed, named dataset, weights fetched by checksum and never committed (FR-019)
-- [ ] T344 [US3] `verifier/eval/compare.py` → `eval/report.md`: both candidates, winner chosen on the fast-path numbers (FR-019, SC-005, SC-006)
+- [x] T341 [US3] `verifier/eval/dataset.py`: a manifest, no text (FR-019a) — seeded claims (run in replay) and real verdicts: claim, window, known outcome; per passed item URL, recorded sha256, extractor version, the judge's answer as a weak label; each claim assigned to development, threshold or final. Written to gitignored `verifier/eval/data/`. `EXTRACTOR_VERSION` in `src/resolve/fetch.ts`, stamped on every item when the manifest is built — the evidences table keeps no version, so a rebuilt manifest after an extractor change would mislabel old hashes; every hash to date is v1 (`visibleText` unchanged since 2026-09-30) **Done 2026-10-22**: 23 real verdicts, 54 page items (hit 10, miss 13; splits 15/1/7). Seeds skipped (owner, 2026-10-22): the local recordings cannot replay them and a re-record is paid (001 T061); re-recorded only if T342 cannot tell the candidates apart
+- [x] T342 [US3] `verifier/eval/baseline.py`: re-fetch each page in memory, admit only an exact hash match, count changed and gone ones (near matches reported apart where a simhash was recorded — none is for database evidence); stock model under one threshold rule, chosen on the threshold claims and scored once on the final ones; reports the model level (against the weak label) and the fast-path level (against the known outcome), numbers only, never page text. Adds the `verifier` dependency group **Done 2026-10-22**: `cross-encoder/nli-deberta-v3-xsmall`, `onnx/model_quint8_avx2.onnx` pinned by commit and sha256 (`verifier/model.toml`, both machines AVX2); onnxruntime + tokenizers, no torch. Only **8–9 of 54** pages still hash the same (two runs; 45 changed), and **no claim kept every page**, so no claim is fast-path eligible at any threshold: a claim missing a page is never scored, since the missing one may be the page that argues back. The offline set measures the pipe, not the model. 1.3 s a page (median). Memory: **530 MiB** with the model loaded and warm in the harness (`eval/report-baseline.json`); in a bare process 465 MiB, and 271 with graph optimisation and prepacking off (one-off measurements, settings not in code) — the droplet has about 128 free
 
-**Checkpoint**: one report, one decision, nothing in production. The feature may stop here.
+**Checkpoint**: one report, one decision, nothing in production. The feature may stop here. A choice between candidates for shadow waits until person-confirmed claims can tell them apart (FR-019).
+
+### Practice model (FR-019b, decision 004)
+
+A trained model for practice and publication; it decides nothing. Runs on the laptop, published on the Hugging Face Hub.
+
+- [x] T343 [US3] **Licence, data and environment first** (FR-019b, decision 004): `verifier/train/data.toml` — base model, tokenizer and dataset revisions as commit IDs, licences and citations, the MultiNLI portions or filters used; the `train` group's lockfile and Python version; `training_data_license_assessment` and `weights_license` written in decision 004 (option A, B or C) — T343d blocks on both **Done 2026-10-23**: every source pinned by commit and sha256; `requirements.lock` with hashes (torch 2.14.1+cpu, transformers 5.20.2, Python 3.12). MultiNLI's only ShareAlike text is its fiction genre, so training on the other genres (OANC, unrestricted) and keeping SNLI for evaluation lets the weights be MIT. `weights_license`: **MIT** (owner, 2026-10-23); that the crowd-written hypotheses share the OANC terms is not stated by the sources and is accepted as a documented risk
+- [x] T343c [US3] **Before any training** (**frozen 2026-10-23**, sha256 in `data.toml`; 60 pairs revised after an outside review: two labels fixed, ambiguous wording pinned, every group 4 entailment / 4 contradiction / 4 neutral. Reported as a diagnostic, not a sample of real claims: one pair moves a group by 8 points. A page-level set — long text, corrections, wrong entity, partial outcomes, hedges — is a later, separate set): a challenge set of 50–100 original pairs, written and labelled by hand and then frozen — grouped by phenomenon (dates, negation, planned vs happened, numbers, attribution and quoted claims) with counts, no near-copies of one template; committed as `verifier/train/challenge.jsonl` (our own text, decision 004). Never used to tune; if it ever is, it is marked development and a fresh one written
+- [x] T343a [US3] Supervised baseline: `verifier/train/finetune.py` + `config.toml` — MiniLM-L6-H384 on the data `data.toml` names — MultiNLI train with fiction dropped by its `genre` field and **asserted absent** (one test), label −1 dropped and counted, 10,000 pairs carved off by seed as the development split for checkpoint, early stopping and temperature; max length 128 with the pair truncation recorded, batch 32 with dynamic padding, AdamW 2e-5, 5–10% warmup, 2–3 epochs with early stopping on validation, fixed seed; the first 500–1,000 steps timed before the full run; a fingerprint of each processed split. Laptop only; weights to gitignored `verifier/models/` **Done 2026-10-23**: 305,354 training pairs (fiction 77,348 dropped, asserted), 3 epochs, 44 minutes on a Colab T4 — the laptop CPU measured 2.2 s a step, about 17 hours, so training ran on a free GPU with Colab's torch 2.11 (recorded in `run.json`); development accuracy 69.9% → 79.5%
+- [x] T343b [US3] Export and measure: ONNX and int8 by the same pipeline as T342; `verifier/train/evaluate.py` → `train/report.md` — MNLI matched (whole, and its fiction and non-fiction parts apart) and mismatched validation, SNLI test — scored once, after every choice is made; accuracy, macro-F1, confusion matrix, per-class precision and recall, reliability diagram, ECE, Brier, error-versus-coverage; raw and then calibrated, a temperature fitted on each artefact's own development-split logits (fp32 and int8 apart) and named with its split; fp32 against int8 on every metric plus file size, latency per window and peak RSS, cold start apart; the challenge set by phenomenon, apart; an ONNX smoke test on the exported int8 file (shape, class order, finite scores); `verifier/train/reproduce.sh` runs T343a–T343b in one command, checksums of every artefact **Done 2026-10-23** (`train/report.md`): fp32 / int8 — MNLI matched 79.6 / 79.1% (fiction, untrained, 77.1 / 76.0), mismatched 80.6 / 80.3%, SNLI test 71.8 / 70.7%; temperature 1.25 / 1.23 cuts ECE about threefold; error among the 25% most confident 2.4% on mismatched, 7.2% on SNLI; challenge 39/60 and 35/60, int8 losing three on numbers. int8 file 22 MiB, peak 161 MiB in a bare process (fp32 305) — the stock candidate needed 271–530
+- [x] T343d [US3] Publish on the Hugging Face Hub (licence settled in T343): weights, int8 ONNX, tokenizer, model card (identity and revisions, data and licences with attribution, each licence scope apart as decision 004 lists them, no dataset pair reproduced, training setup and command, metrics by split name, calibration, memory and speed, limitations, "a research artefact, not used by Vaticeno to decide outcomes"); its commit and checksums become a second entry `verifier/model.toml` can pin **Done 2026-10-25**: the DeBERTa winner, public at `Leminds/deberta-v3-xsmall-nli-oanc`, commit `5f0820a36d64a87c4a4cceb8574ac28db79ab30a`; weights and int8 checksums on the Hub match the card, and a load from the Hub reproduces the card's example. Card and LICENSE in `verifier/train/model-card/`
+- [x] T343e [US3] A second student, **DeBERTa-v3-xsmall** (owner, 2026-10-23): the untrained MIT base, the same clean data, split and evaluation; its authors' learning rate 4.5e-5, fp16 on the GPU; `finetune --base deberta`, `evaluate --deberta`. The published model is whichever wins on the development split **Done 2026-10-24, the winner** (`train/report-deberta.md`): development 87.3% (MiniLM 79.5%), 68 minutes on a T4; fp32 / int8 — MNLI matched 87.7 / 87.1% (fiction, untrained, 86.6 / 85.8), mismatched 88.0 / 87.4%, SNLI test 82.8 / 82.4%, within half a point of its authors' 88.1 / 88.3% on all of MultiNLI; error among the 25% most confident 1.3% (mismatched); challenge 49/60 and 46/60. int8 83 MiB, peak 320 MiB, 90 ms a 128-token pair
+- [x] T344 [US3] **Done 2026-10-23, before T343d (owner)**: distillation from the stock DeBERTa-v3-xsmall teacher — same data, split and student — compared with T343a on every T343b metric **Result** (`train/report-distilled.md`): development 79.9% against 79.5%, MNLI a tie (matched 79.8 / mismatched 80.6% fp32), SNLI +0.3 fp32 and +1.3 int8 — the teacher saw SNLI; 82 minutes on a T4. Not worth its licence caveat: the plain model stays the candidate
+- [ ] T344a [US3] **Optional, after T343d**: a Hugging Face Space — premise and hypothesis in, three probabilities out, no URL fetching, no link to the bot, a research-demo and privacy notice
 
 ### Shadow
 
-- [ ] T345 [US3] Migration `drizzle/0023_verifier.sql` + `src/db/schema.ts` per data-model.md (FR-015, FR-016)
-- [ ] T346 [US3] `verifier/serve/app.py`: one endpoint, no database, `127.0.0.1:3002`; `deploy/vaticeno-verifier.service` + its install line (FR-020)
-- [ ] T347 [US3] `src/resolve/verifier.ts`: one localhost call, hard timeout, Zod-parsed; any failure means no opinion and the paid path (FR-012, FR-012a)
-- [ ] T348 [US3] Shadow mode in `src/resolve/resolver.ts`: ask, **ignore**, record one row per attempt, failures included. `VERIFIER_URL` and `VERIFIER_MODE` in `src/config.ts` (FR-020a)
-- [ ] T349 [US3] Test `tests/integration/verifier-shadow.test.ts`: the resolution row is byte-identical, exactly one shadow row, UPDATE and DELETE rejected
+**Paused (owner, 2026-10-22)**: the candidate does not fit the droplet (T342) and the saving is cents a month. **Resumed 2026-10-25 (owner)**: the published model runs on our own private Cloud Run service (decision 005; free Docker Spaces now need HF PRO), so the droplet's memory no longer matters.
+
+- [x] T345 [US3] Migration `drizzle/0022_verifier.sql` + `src/db/schema.ts` per data-model.md, `outcome_confirmations` included (FR-015, FR-016, SC-005) **Done 2026-10-25**: applied to the live database (owner); both tables, the insert-only trigger and the two empty `resolutions` columns checked there
+- [x] T346 [US3] `verifier/serve/`: a FastAPI app with one key-guarded endpoint, no database, nothing logged from a request body, and a Dockerfile that fetches the published int8 model by commit and sha256; deployed as the private Cloud Run service `vaticeno-verifier` (FR-020, decision 005; replaces the localhost systemd unit) **Done 2026-10-25**: us-central1, 1 GiB, scales to zero, one instance at most, IAM-only plus the key; health, both refusals and a scored pair checked live (0.87 entail, 45 ms warm), a $1 budget alert
+- [x] T347 [US3] `src/resolve/verifier.ts`: one HTTPS call to the service with a Google identity token (a run.invoker service account) and the key, hard timeout, Zod-parsed; any failure means no opinion and the paid path (FR-012, FR-012a) **Done 2026-10-25**: never throws, failures tagged timeout/network/auth/http/malformed; the identity token is minted from the `vaticeno-bot` key with node:crypto, no new dependency; config added here, `VERIFIER_MODE` off by default; live: cold 7.6 s, warm 0.36 s, a wrong key → auth
+- [x] T348 [US3] Shadow mode in `src/resolve/resolver.ts`: ask, **ignore**, record one row per attempt, failures included. `VERIFIER_MODE` from `src/config.ts` (FR-020a) **Done 2026-10-25**: `src/resolve/shadow.ts`, after the decision is written, web contracts only (a feed or a profile has no page); every passed page is read against subject + criterion; would finalise only when two or more pages all pass one side at a PROVISIONAL 0.9 (no threshold tuned yet; `min_confidence` lets a later one be re-applied), and one unread page means no finalising answer; a shadow failure is logged and never touches the verdict. On only when `VERIFIER_MODE=shadow` and pages are live; **2026-10-26**: passed pages are read one after another (the service takes one request at a time), with a 30 s timeout and a 10-minute pause after a timeout or a dropped call
+- [x] T349 [US3] Test: the resolution row is byte-identical, exactly one shadow row, UPDATE and DELETE rejected **Done 2026-10-25**: in `tests/integration/resolver.test.ts` (it reuses that file's search, judge and fetch stubs), four tests: the same verdict with and without the verifier, an unreachable one leaves an error row, a price claim leaves none, the row is insert-only
+- [x] T349a [US3] The SC-005 count: a person confirms a shadow claim's outcome and names its underlying event in the existing review commands (`outcome_confirmations`, data-model); one query counts eligible claims per frozen model, one per event, and its wrong ones, shown on the status page **Done 2026-10-25**: `npm run review:confirm` lists would-finalise claims nobody has checked (the verifier's answer left out, so the person checks the outcome) and records one confirmation per claim with its event; the count is `status/shadow_count.sql`, run by the status page's Verifier panel and by the resolver's integration test, so the rule lives once. The candidate is pinned in code as model + gate + gates version + extractor version and every row, failures included, is filed under it, so a change to any part restarts the count; event keys are lower-cased and their spacing collapsed
 
 **Checkpoint**: shadow rows accumulate; no verdict has changed.
 
@@ -196,15 +211,19 @@ independent reading of the contract, and a written incident policy.
 
 ### Live
 
-- [ ] T350 [US3] `src/resolve/fast-path.ts`: the gate as FR-013 and FR-014 define it; anything else escalates, absence stays VOID
-- [ ] T351 [US3] Test `src/resolve/fast-path.test.ts`: **exhaustive** on every gate condition, and the gate must agree with T342's harness on the same fixtures
-- [ ] T352 [US3] `VERIFIER_MODE=live`: the fast path finalises and records who decided; `off` returns to today with no migration (FR-017, SC-009)
-- [ ] T353 [US3] A fast-path verdict can be marked contradicted in the existing review commands (FR-018)
-- [ ] T354 [US3] Verifier block on the status page: fast-path count, escalations, agreement, contradictions as incidents (FR-018)
-- [ ] T355 [US3] Record the avoided-call share and per-claim spend against the baseline in `eval/report.md` (SC-006, SC-007)
-- [ ] T356 [US3] Re-measure memory with all three processes live and update `capacity.md` (SC-008)
+**Gated on SC-005**: T350–T351 may be built and tested any time; T352 switches nothing on until the count is met.
 
-**Checkpoint**: switched on, off, and on again, with SC-005 holding.
+**T352–T355 parked (owner, 2026-10-25)**: a live fast path would avoid no paid call. Search and the per-page judge are paid before the code gates run, and the gates need the judge's quote, date and event; the verifier may read only gated evidence (FR-012), and wherever the fast-path gate finalises, the rule table already finalises the same verdict for free. Estimated from the cost ledger at prices still UNRECONCILED (`src/llm/prices.ts`), last 30 days to 2026-10-25: search $1.84, the per-page judge $0.24, the rest X reads and posts — so replacing the judge, the only call the model could stand in for, saves at most $0.24 a month and would cost the gates their checks. Shadow mode keeps measuring; savings would need a new design, in a new spec.
+
+- [x] T350 [US3] `src/resolve/fast-path.ts`: the gate as FR-013 and FR-014 define it; anything else escalates, absence stays VOID **Done 2026-10-25**: pure; finalises only when two or more passed pages all rest on a record, all say the same hit or miss, each has its quote, date and event positively checked and no fact against it, and the frozen model reads every one that way past 0.9 with the other side under 0.1; a primary page saying pending or entity gone holds it as it holds the rule table; ten named escalation reasons otherwise. Shadow mode now runs this same gate (`gate.v3`), so the count measures what would go live
+- [x] T351 [US3] Test `src/resolve/fast-path.test.ts`: **exhaustive** on every gate condition, and the gate must agree with T342's harness on the same fixtures **Done 2026-10-25**: every escalation reason, both outcomes, the threshold edges, page order, unpassed pages; `verifier/eval/gate-fixtures.json` is read by this test and by `verifier/tests/test_gate_fixtures.py` (the harness). The live gate is the stricter: wherever it finalises, the harness reaches the same outcome
+- [ ] T352 [US3] `VERIFIER_MODE=live`: the fast path finalises and records who decided; `off` returns to today with no migration (FR-017, SC-009) **Parked 2026-10-25**
+- [ ] T353 [US3] A fast-path verdict can be marked contradicted in the existing review commands (FR-018) **Parked 2026-10-25**
+- [ ] T354 [US3] Verifier block on the status page: fast-path count, escalations, agreement, contradictions as incidents (FR-018) **Parked 2026-10-25**
+- [ ] T355 [US3] Record the avoided-call share and per-claim spend against the baseline in `eval/report.md` (SC-006, SC-007) **Parked 2026-10-25**
+- [x] T356 [US3] Re-measure memory with all three processes live and update `capacity.md` (SC-008) **Done 2026-10-25**: bot 148, status 56, settlement worker 72 MiB peaks; the verifier is off the box; 196 MiB available, about 108 MiB if all three peak together, before swap (`capacity.md`)
+
+**Checkpoint**: the gate is built and tested (T350–T351); going live is parked (T352–T355, SC-006) and, if a new design revives it, waits for T349a's count to meet SC-005.
 
 **🚀 Stage 3 deploys here, second of two — the switch on.**
 
@@ -212,9 +231,9 @@ independent reading of the contract, and a written incident policy.
 
 ## Phase 7: Polish
 
-- [ ] T357 [P] `README.md`: the new services, and the Done/Next table for what shipped
-- [ ] T358 [P] Mark tasks `[x]` with a one-line result; sync plan.md and data-model.md where the build diverged
-- [ ] T359 Run the whole suite — node tests, integration, typecheck, ruff, pytest
+- [x] T357 [P] `README.md`: the new services, and the Done/Next table for what shipped **Done 2026-10-26**: the verifier in Status, the Done/Next table, scripts (`review:confirm`), deploy (Cloud Run and the bot's env), capacity (three processes), the status page, layout and stack
+- [x] T358 [P] Mark tasks `[x]` with a one-line result; sync plan.md and data-model.md where the build diverged **Done 2026-10-26**: plan.md (where the verifier runs, Stage 3's row, the cost claim measured false) and data-model.md (the two `resolutions` columns stay null while parked)
+- [x] T359 Run the whole suite — node tests, integration, typecheck, ruff, pytest **Done 2026-10-26**: typecheck, node 185, integration 210, pytest 61, the training tests 2 in `.venv-train` (the main venv has no training stack, by design), ruff and Prettier clean
 
 ---
 
@@ -225,7 +244,7 @@ T301 ─ blocks all Python work
   └─ Phase 2 (T305–T310) → US1 (T311–T318) → 🚀 Stage 1
                               US2 (T319–T326) ┘
 US4 contract (T327–T330) → settlement path (T331–T337) → US5 wager page (T366–T373) → links, optional (T338–T340) 🚀 Stage 2
-US3 offline (T341–T344) → shadow (T345–T349) 🚀 → live (T350–T356) 🚀
+US3 offline (T341–T342) → practice model (T343–T344a, decision 004) → shadow (T345–T349a, **live since 2026-10-25** on Cloud Run, decision 005) 🚀 → the fast-path gate (T350–T351) → live (T352–T355) **parked**, avoids no paid call (SC-006) → memory (T356)
 ```
 
 US1 and US2 are both P1 and independently shippable; US2 needs only Phase 2. **US3's offline evaluation runs
@@ -234,9 +253,9 @@ on a laptop** — T323's VPS measurement gates *deploying* the verifier, not eva
 ## Parallel opportunities
 
 T302–T304 · T310 beside T308 and T309 · T316 and T318 once T313 exists · T326 beside the measuring tasks ·
-T343 while T342's numbers are read · T357 beside T356.
+T343c beside T343 · T357 beside T356.
 
 ## Implementation strategy
 
 MVP is US1 alone: useful the day it ships, and what makes everything after it measurable. US2 turns estimates
-into numbers. US3 may not ship at all, which is why its first checkpoint comes after four tasks.
+into numbers. US3 may not ship at all, which is why its first checkpoint comes after two tasks (T341–T342).

@@ -36,6 +36,14 @@ once with the claim's wager page, where your own wallet makes or takes an offer.
 nothing; real money is a separate decision (FR-031h). Live: the contract, the bot command and the page.
 The settlement worker runs on the server since 2026-10-21; a claim locked before then has no settlement row and can't be wagered.
 
+**A local verifier, in shadow (spec 003, Stage 3):** a small entailment model we trained and published,
+[Leminds/deberta-v3-xsmall-nli-oanc](https://huggingface.co/Leminds/deberta-v3-xsmall-nli-oanc), reads the
+pages behind every web-judged verdict and records what it would have concluded, beside the real verdict. It
+decides nothing. A person confirms outcomes with `review:confirm`, and the status page counts them toward
+the go-live bar (1,000 confirmed events, none wrong). Going live is parked: every paid call happens before
+the model may look, so it would save nothing (spec SC-006). It runs as a private Cloud Run service
+([decision 005](docs/decisions/005-verifier-on-cloud-run.md)), behind `VERIFIER_MODE=shadow`.
+
 | Done | Next |
 |---|---|
 | X: mentions → one reply each; fixes by replying under the bot's answer; STOP; help; verdict replies carrying the result; questions answered from the conversation, or from the web when nothing in the thread can settle them | Per-claim AI budget in the live resolver |
@@ -48,6 +56,7 @@ The settlement worker runs on the server since 2026-10-21; a claim locked before
 | Testnet wagers (spec 003): escrow contract on Base Sepolia, source verified; the worker that signs and settles; `wager` on X → one link per claim → a page where your own wallet offers, accepts, pays out or refunds | A live run with two browser wallets; wallet links |
 | Verdicts decide on the right event (spec 004): a page must name the event the contract does before it counts, a site speaks through its best page rather than its first, silence proves nothing, and no verdict contradicts its own evidence | |
 | A verdict that was wrong is corrected (spec 004): the original is never edited, the correction is a separate record posted once in the claim's thread, and a match nobody can place in time is refused rather than recorded | |
+| Local verifier (spec 003): our own model, published on Hugging Face, reads each web verdict's pages in shadow and records what it would conclude; person-confirmed outcomes counted on the status page | Parked: going live saves no paid call |
 | Error tracking, logs and alerts (Sentry, production only); tests on every pull request | |
 
 ## Commands (on X)
@@ -116,6 +125,8 @@ the lite model that parses predictions; everything else stays on the lite model.
 | `npm run verdict:recheck -- [--slug X] [--correct "why"] [--post]` | re-decide past verdicts from stored evidence (free); correcting one is deliberate |
 | `npm run verdict:recheck -- --slug X --outcome hit\|miss --correct "why" --deciding-evidence <id>` | decide a standing verdict by hand, naming the stored row it rests on |
 | `npm run verdict:recheck -- --slug X --post` | post a correction already written |
+| `npm run review:confirm -- --list` | shadow claims the verifier would have finalised and nobody has checked |
+| `npm run review:confirm -- --slug X --outcome hit\|miss\|void --event "…"` | confirm one's real outcome and name its event, for the go-live count |
 | `npm run db:generate` / `db:studio` | new migration from schema changes / browse tables |
 | `npm test` / `test:integration` | unit tests / database tests (needs Docker Postgres) |
 | `npm run test:coverage` / `typecheck` | coverage report (~55% is a cap, not a goal) / type check |
@@ -145,10 +156,19 @@ the oracle key live in `/etc/vaticeno-settle/` (owner `vaticeno-settle`, mode 60
 never synced; it connects as `settle_rw`, whose password is set by hand like `status_ro`'s. Unit:
 [deploy/vaticeno-settle.service](deploy/vaticeno-settle.service).
 
+The local verifier is not on the droplet: it is the private Cloud Run service `vaticeno-verifier`
+(us-central1, scales to zero, one instance taking one request at a time; the bot reads pages one after
+another and leaves it alone for 10 minutes after a timeout). `PROJECT=<id> verifier/serve/deploy.sh` builds the
+image and deploys it; its key lives in Secret Manager. The bot calls it as the `vaticeno-bot` service
+account, whose JSON key sits in `/opt/vaticeno/.state/`, and needs `VERIFIER_MODE`, `VERIFIER_URL`,
+`VERIFIER_KEY` and `VERIFIER_SA_KEY_FILE` in the server's `.env`. `VERIFIER_MODE=off` stops it with a restart.
+
 ### Hosting and capacity
 
 One DigitalOcean droplet (458 MB RAM, 1 GB swap) with Caddy in front, which gets the certificate itself:
-`vaticeno.n30sk.cc` is the front page, `/status` the owner's. The bot peaks at 149 MB of the 458.
+`vaticeno.n30sk.cc` is the front page, `/status` the owner's. Three processes share it: the bot (148 MiB
+peak), the status page (56) and the settlement worker (72), which leaves about 108 MiB if all three peak
+together. The verifier runs elsewhere.
 
 It serves **~430 requests a second** before it saturates, and past that requests queue rather than fail:
 latency rises, nothing is refused, and the first request after the load is served in 4 ms. The ceiling is
@@ -160,7 +180,7 @@ the database pool (5 connections), not the CPU. That was measured on a laptop �
 
 One screen answering "is it running" and "where are we": the build, every job with its own staleness
 window, claim and verdict counts, spend against the per-claim ceiling, the own feed's day, verdicts the
-weekly recheck found wrong and nobody has corrected, and the hand-edited plan in `docs/progress.md` with
+weekly recheck found wrong and nobody has corrected, the verifier's shadow count, and the hand-edited plan in `docs/progress.md` with
 its age. Read-only, and behind one password (spec 003) — at `/status`, or over a tunnel:
 
 ```bash
@@ -220,6 +240,7 @@ status/       the owner's status page (Python, FastAPI)
 load/         load-test harness, local targets only
 contracts/    the testnet escrow (Solidity, Foundry): src, tests, deploy script
 settle/       the settlement worker (Python): signs open authorizations, settles stakes
+verifier/     the local verifier (Python): eval and training (offline), serve (the Cloud Run service)
 tests/        database tests against real Postgres
 deploy/       systemd unit + VPS scripts
 specs/        what we build and why (spec, plan, tasks)
@@ -232,6 +253,7 @@ Code follows a light "pure core, I/O at the edges" structure — see
 
 Node 22 · TypeScript (strict) · Zod · PostgreSQL (Supabase) + Drizzle · Gemini · Sentry · X API v2.
 Fastify (server-rendered pages, no client JS) · node-cron (jobs in the same process).
-Python 3.12 · FastAPI + Jinja2 (the status page). Solidity + Foundry on Base Sepolia (the testnet escrow,
+Python 3.12 · FastAPI + Jinja2 (the status page) · ONNX Runtime on Cloud Run (the verifier; trained
+with PyTorch and Transformers on Colab). Solidity + Foundry on Base Sepolia (the testnet escrow,
 [settlement policy](docs/settlement-policy.md)). Planned, not in yet: Redis and RabbitMQ, each when its
 trigger is measured ([decision 003](docs/decisions/003-redis-and-rabbitmq.md)).

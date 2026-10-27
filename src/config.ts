@@ -155,8 +155,27 @@ const CoreEnvSchema = z
         )
         .pipe(z.array(z.url()).min(1)),
     ),
+    // The local verifier (003 Stage 3, decision 005). off: never called. shadow: asked, recorded, ignored.
+    VERIFIER_MODE: z.preprocess(
+      blankIsUnset,
+      z.enum(['off', 'shadow']).default('off'),
+    ),
+    VERIFIER_URL: z.preprocess(blankIsUnset, z.url().optional()),
+    VERIFIER_KEY: optionalText,
+    // Path to the vaticeno-bot service account's JSON key, kept outside the repo.
+    VERIFIER_SA_KEY_FILE: optionalText,
   })
   .superRefine((env, ctx) => {
+    if (
+      env.VERIFIER_MODE !== 'off' &&
+      !(env.VERIFIER_URL && env.VERIFIER_KEY && env.VERIFIER_SA_KEY_FILE)
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['VERIFIER_MODE'],
+        message: `VERIFIER_MODE=${env.VERIFIER_MODE} needs VERIFIER_URL, VERIFIER_KEY and VERIFIER_SA_KEY_FILE`,
+      });
+    }
     if (env.LLM_MODE !== 'replay' && !env.GEMINI_API_KEY) {
       ctx.addIssue({
         code: 'custom',

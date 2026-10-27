@@ -8,8 +8,17 @@ import {
 } from '../../src/feeds/coinbase.js';
 import { type LlmClient, LlmSchemaError } from '../../src/llm/client.js';
 import { SourceUnavailable } from '../../src/resolve/fetch.js';
-import { decideByHuman, listNeedsHuman } from '../../src/resolve/manual.js';
+import {
+  confirmOutcome,
+  decideByHuman,
+  listNeedsHuman,
+  listToConfirm,
+} from '../../src/resolve/manual.js';
 import { type ResolverDeps, resolveDueClaims } from '../../src/resolve/resolver.js';
+import type { ScoreEvidence } from '../../src/resolve/verifier.js';
+import { VERIFIER_MODEL } from '../../src/resolve/fast-path.js';
+import { SHADOW_CANDIDATE } from '../../src/resolve/shadow.js';
+import { readFileSync } from 'node:fs';
 import {
   recheckClaim,
   recheckRecent,
@@ -672,18 +681,42 @@ describe('rechecking a verdict already given (001 FR-035)', () => {
   test('the owner corrects a standing verdict by hand, from the evidence already stored', async () => {
     // e9vtp: the fixed rules reach HIT, but re-judging would pass the claim's budget (004 T424).
     const { claim, guardian } = await wrongMiss();
-    assert.equal(await correctByHand(t.db, claim.slug, 'hit', guardian, 'every report shows the subject won'), true);
-    const [correction] = await t.sql`select from_outcome, to_outcome, decided_by, posted_tweet_id from corrections where claim_id = ${claim.id}`;
+    assert.equal(
+      await correctByHand(
+        t.db,
+        claim.slug,
+        'hit',
+        guardian,
+        'every report shows the subject won',
+      ),
+      true,
+    );
+    const [correction] =
+      await t.sql`select from_outcome, to_outcome, decided_by, posted_tweet_id from corrections where claim_id = ${claim.id}`;
     assert.deepEqual(
-      [correction!.from_outcome, correction!.to_outcome, correction!.decided_by, correction!.posted_tweet_id],
+      [
+        correction!.from_outcome,
+        correction!.to_outcome,
+        correction!.decided_by,
+        correction!.posted_tweet_id,
+      ],
       ['miss', 'hit', 'human', null],
     );
     // The published resolution is frozen, as with any correction (001 FR-035).
     assert.equal((await resolutionRow(claim.id))!.outcome, 'miss');
 
-    await assert.rejects(correctByHand(t.db, claim.slug, 'miss', guardian, 'same as it stands'), /already stands at miss/);
-    await assert.rejects(correctByHand(t.db, claim.slug, 'hit', randomUUID(), 'not our row'), /evidence row of this claim/);
-    await assert.rejects(correctByHand(t.db, claim.slug, 'hit', guardian, '  '), /reason is required/);
+    await assert.rejects(
+      correctByHand(t.db, claim.slug, 'miss', guardian, 'same as it stands'),
+      /already stands at miss/,
+    );
+    await assert.rejects(
+      correctByHand(t.db, claim.slug, 'hit', randomUUID(), 'not our row'),
+      /evidence row of this claim/,
+    );
+    await assert.rejects(
+      correctByHand(t.db, claim.slug, 'hit', guardian, '  '),
+      /reason is required/,
+    );
   });
 
   test('the weekly sweep reports and never writes, and skips what it already corrected', async () => {
@@ -1105,5 +1138,164 @@ describe("a page must be about the contract's own event (004 FR-002, FR-003)", (
       "nothing to compare: the judge's own answer stands",
     );
     assert.equal(row!.passed, true);
+  });
+});
+
+describe('shadow mode: the local verifier is asked, recorded and ignored (003 FR-016)', () => {
+  const fda = 'https://www.fda.gov/approvals';
+  const reuters = 'https://www.reuters.com/fda-approves-x';
+  const quote = 'FDA approved drug X for condition Y';
+  const pages = {
+    [fda]: {
+      says: 'hit',
+      quote,
+      event_date: '2026-10-03',
+      text: `Today the ${quote}.`,
+    },
+    [reuters]: {
+      says: 'hit',
+      quote,
+      event_date: '2026-10-03',
+      text: `Reuters: ${quote} on Saturday.`,
+      trust: 'established' as const,
+    },
+  };
+  const agrees: ScoreEvidence = async () => ({
+    ok: true,
+    model: VERIFIER_MODEL,
+    entail: 0.95,
+    contradict: 0.02,
+    windows: 1,
+    truncated: false,
+    latencyMs: 5,
+  });
+  const verdict = async (id: string) =>
+    (
+      await t.sql`select outcome, decided_by, review_status, decided_at, void_reason, arbiter_model_id,
+        verifier, verifier_confidence from resolutions where claim_id = ${id}`
+    )[0];
+  const shadowRows = (id: string) =>
+    t.sql`select * from verifier_shadow where claim_id = ${id}`;
+
+  test('the verdict is the one the paid path reaches alone, and one row records what the fast path would say', async () => {
+    const alone = await lockedClaim(WEB_CONTRACT);
+    await resolveDueClaims(deps({ search: [reuters], pages }).deps, AFTER);
+    const shadowed = await lockedClaim(WEB_CONTRACT);
+    const d = deps({ search: [reuters], pages }).deps;
+    await resolveDueClaims({ ...d, verifier: agrees }, AFTER);
+
+    assert.deepEqual(await verdict(shadowed.id), await verdict(alone.id));
+    assert.equal((await verdict(shadowed.id))!.verifier, null);
+    assert.equal((await shadowRows(alone.id)).length, 0);
+    const rows = await shadowRows(shadowed.id);
+    assert.equal(rows.length, 1);
+    const resolution = await resolutionRow(shadowed.id);
+    assert.deepEqual(
+      [rows[0]!.would_finalise, rows[0]!.would_outcome, rows[0]!.paid_outcome],
+      [true, 'hit', 'hit'],
+    );
+    assert.equal(rows[0]!.resolution_id, resolution!.id);
+    assert.equal(rows[0]!.model, SHADOW_CANDIDATE);
+  });
+
+  test('a verifier that cannot be reached leaves a row with its error, and the verdict stands', async () => {
+    const claim = await lockedClaim(WEB_CONTRACT);
+    const down: ScoreEvidence = async () => ({
+      ok: false,
+      error: 'timeout',
+      latencyMs: 20_000,
+    });
+    const d = deps({ search: [reuters], pages }).deps;
+    assert.equal((await resolveDueClaims({ ...d, verifier: down }, AFTER)).final, 1);
+    const [row] = await shadowRows(claim.id);
+    assert.deepEqual(
+      [row!.would_finalise, row!.error_tag, row!.min_confidence, row!.paid_outcome],
+      [false, 'timeout', null, 'hit'],
+    );
+  });
+
+  test('a price claim has no page to read and no shadow row', async () => {
+    const claim = await lockedClaim();
+    const d = deps({
+      candles: days('2026-10-01', 5, (i) => (i === 3 ? 150_001 : 100_000)),
+    });
+    await resolveDueClaims({ ...d.deps, verifier: agrees }, AFTER);
+    assert.equal((await shadowRows(claim.id)).length, 0);
+  });
+
+  test('a shadow row is never rewritten or removed', async () => {
+    const claim = await lockedClaim(WEB_CONTRACT);
+    const d = deps({ search: [reuters], pages }).deps;
+    await resolveDueClaims({ ...d, verifier: agrees }, AFTER);
+    await assert.rejects(
+      t.sql`update verifier_shadow set would_outcome = 'miss' where claim_id = ${claim.id}`,
+    );
+    await assert.rejects(
+      t.sql`delete from verifier_shadow where claim_id = ${claim.id}`,
+    );
+  });
+
+  test('confirmed outcomes make the go-live count: one per event, and a wrong one is counted (SC-005)', async () => {
+    const d = { ...deps({ search: [reuters], pages }).deps, verifier: agrees };
+    const [a, b, c] = [
+      await lockedClaim(WEB_CONTRACT),
+      await lockedClaim(WEB_CONTRACT),
+      await lockedClaim(WEB_CONTRACT),
+    ];
+    await resolveDueClaims(d, AFTER);
+    const waiting = await listToConfirm(t.db);
+    assert.equal(waiting.length, 3);
+    assert.ok(
+      !('would_outcome' in waiting[0]!),
+      'the person checks the outcome, not the model',
+    );
+
+    const unshadowed = await lockedClaim();
+    await assert.rejects(
+      confirmOutcome(t.db, { slug: unshadowed.slug, outcome: 'hit', eventKey: 'x' }),
+      /no shadow answer/,
+    );
+    await confirmOutcome(t.db, {
+      slug: a.slug,
+      outcome: 'hit',
+      eventKey: 'fda-x-2026',
+    });
+    // A different case and spacing is still the same event.
+    await confirmOutcome(t.db, {
+      slug: b.slug,
+      outcome: 'hit',
+      eventKey: '  FDA-X-2026 ',
+    });
+    await confirmOutcome(t.db, {
+      slug: c.slug,
+      outcome: 'miss',
+      eventKey: 'other-event',
+    });
+    await assert.rejects(
+      confirmOutcome(t.db, {
+        slug: a.slug,
+        outcome: 'miss',
+        eventKey: 'fda-x-2026',
+      }),
+      /already confirmed/,
+    );
+
+    const count = await t.sql.unsafe(
+      readFileSync('status/shadow_count.sql', 'utf8'),
+    );
+    assert.deepEqual(
+      count.map((r) => ({ ...r })),
+      [
+        {
+          model: SHADOW_CANDIDATE,
+          shadow_claims: 3,
+          failed: 0,
+          would_finalise: 3,
+          to_confirm: 0,
+          eligible_events: 2,
+          wrong_events: 1,
+        },
+      ],
+    );
   });
 });

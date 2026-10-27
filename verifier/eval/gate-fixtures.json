@@ -1,0 +1,84 @@
+{
+  "note": "003 T351: the live fast-path gate (src/resolve/fast-path.ts) against T342's offline rule (verifier/eval/baseline.py) on the same pages. Every page here passed the code gates, on its own site, with the judge's answer in `says`. The live gate is the stricter: wherever it finalises, the offline rule reaches the same outcome. Threshold 0.9.",
+  "cases": [
+    {
+      "name": "two sites clearly entail",
+      "pages": [
+        { "url": "https://www.fda.gov/a", "says": "hit", "entail": 0.97, "contradict": 0.01 },
+        { "url": "https://www.reuters.com/b", "says": "hit", "entail": 0.95, "contradict": 0.02 }
+      ],
+      "gate": "hit",
+      "harness": "hit"
+    },
+    {
+      "name": "two sites clearly contradict",
+      "pages": [
+        { "url": "https://www.fda.gov/a", "says": "miss", "entail": 0.02, "contradict": 0.96 },
+        { "url": "https://apnews.com/b", "says": "miss", "entail": 0.01, "contradict": 0.93 }
+      ],
+      "gate": "miss",
+      "harness": "miss"
+    },
+    {
+      "name": "one site alone",
+      "pages": [{ "url": "https://www.fda.gov/a", "says": "hit", "entail": 0.99, "contradict": 0.0 }],
+      "gate": null,
+      "harness": null
+    },
+    {
+      "name": "a third page the model reads as neither: offline lets it pass, live escalates",
+      "pages": [
+        { "url": "https://www.fda.gov/a", "says": "hit", "entail": 0.97, "contradict": 0.01 },
+        { "url": "https://www.reuters.com/b", "says": "hit", "entail": 0.95, "contradict": 0.02 },
+        { "url": "https://apnews.com/c", "says": "hit", "entail": 0.3, "contradict": 0.1 }
+      ],
+      "gate": null,
+      "harness": "hit"
+    },
+    {
+      "name": "one page entails and contradicts past the bar",
+      "pages": [
+        { "url": "https://www.fda.gov/a", "says": "hit", "entail": 0.95, "contradict": 0.93 },
+        { "url": "https://www.reuters.com/b", "says": "hit", "entail": 0.96, "contradict": 0.01 }
+      ],
+      "gate": null,
+      "harness": null
+    },
+    {
+      "name": "the model reads one page the other way from its evidence",
+      "pages": [
+        { "url": "https://www.fda.gov/a", "says": "hit", "entail": 0.97, "contradict": 0.01 },
+        { "url": "https://www.reuters.com/b", "says": "hit", "entail": 0.02, "contradict": 0.96 }
+      ],
+      "gate": null,
+      "harness": null
+    },
+    {
+      "name": "exactly at the threshold finalises",
+      "pages": [
+        { "url": "https://www.fda.gov/a", "says": "hit", "entail": 0.9, "contradict": 0.05 },
+        { "url": "https://www.reuters.com/b", "says": "hit", "entail": 0.9, "contradict": 0.05 }
+      ],
+      "gate": "hit",
+      "harness": "hit"
+    },
+    {
+      "name": "the other side at 1 - threshold: offline finalises, live escalates",
+      "pages": [
+        { "url": "https://www.fda.gov/a", "says": "hit", "entail": 0.95, "contradict": 0.1 },
+        { "url": "https://www.reuters.com/b", "says": "hit", "entail": 0.95, "contradict": 0.02 }
+      ],
+      "gate": null,
+      "harness": "hit"
+    },
+    {
+      "name": "just under the threshold",
+      "pages": [
+        { "url": "https://www.fda.gov/a", "says": "miss", "entail": 0.01, "contradict": 0.89 },
+        { "url": "https://apnews.com/b", "says": "miss", "entail": 0.01, "contradict": 0.97 }
+      ],
+      "gate": null,
+      "harness": null
+    }
+  ]
+}

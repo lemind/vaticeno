@@ -14,8 +14,10 @@ prove are easy, keeping the paid model for everything else.
 **Language/Version**: TypeScript on Node 22 (unchanged) · Python 3.12 (new) · Solidity for the escrow contract
 
 **Primary Dependencies**: existing — Fastify, Drizzle, postgres.js, Zod, node-cron, Gemini, Sentry. New —
-fastapi, uvicorn, jinja2, psycopg3 (status service), locust (load), pytest. The verifier's model runtime is
-chosen in Stage 3, against the memory headroom Stage 1 measures. Stage 2 adds a contract toolchain and web3.py
+fastapi, uvicorn, jinja2, psycopg3 (status service), locust (load), pytest. The verifier runs on
+onnxruntime + tokenizers, no torch (owner, 2026-10-22): the pinned int8 candidate needs 271–530 MiB, more
+than the droplet's measured headroom, so it runs off the droplet, as a private Cloud Run service (decision 005). Training (FR-019b) adds a laptop-only `train` group — torch,
+transformers, datasets, ONNX export — that no server installs (docs/decisions/004-practice-model.md). Stage 2 adds a contract toolchain and web3.py
 for the settlement worker. Each needs owner approval with a stated reason (constitution VII).
 
 **Storage**: PostgreSQL (Supabase) — see [data-model.md](data-model.md). No new store.
@@ -62,7 +64,7 @@ specs/003-python-platform/
 ```text
 status/      FastAPI + Jinja2, read-only role, localhost:3001
 load/         locust for the pages, a burst harness for the job path
-verifier/    eval and train (offline), serve (localhost:3002), weights never in git
+verifier/    eval and train (offline), serve (a private Cloud Run service, decision 005), weights never in git
 contracts/   the escrow contract and its tests
 settle/      the settlement worker: reads the outbox, signs, sends — and does nothing else
 src/jobs/scheduler.ts      runJob writes job state
@@ -78,8 +80,8 @@ docs/progress.md           hand-edited, rendered with its own modification time
 The three processes share no mutable runtime state, no memory and no in-process calls. Each integrates one
 way only: the status service reads the database through a read-only role (plus two files the deploy and the
 owner write — build info and the progress note — and it writes nothing); the settlement worker reads and
-marks the outbox table; the verifier holds no database connection at all and is reached by one call on
-localhost that Node treats as optional (FR-012a).
+marks the outbox table; the verifier holds no database connection at all and is reached by one HTTPS call
+to our own private Cloud Run service that Node treats as optional (FR-012a, decision 005).
 
 ## Deploy stages
 
@@ -87,11 +89,12 @@ localhost that Node treats as optional (FR-012a).
 |---|---|---|
 | **1** | job state, build info, the status service, the capacity table | [tasks.md](tasks.md) Phases 1–4 |
 | **2** | the escrow contract, its settlement worker, the wager page and the `wager` command, and optional wallet links, testnet only | [tasks.md](tasks.md) Phase 5 |
-| **3** | the verifier — shadow first, then behind a switch | [tasks.md](tasks.md) Phase 6 |
+| **3** | the verifier — in shadow since 2026-10-25; going live parked, it avoids no paid call (SC-006) | [tasks.md](tasks.md) Phase 6 |
 
 No stage waits for another. They meet in two places: the status page, which is one query function per block so
 a later stage adds rows without a rewrite, and the rule that a verdict decided by the local verifier alone
-never settles a stake. Stage 3 is last because it is the only one that may legitimately end in "not worth
+never settles a stake. Stage 3's offline step only picks a candidate; switching it on is decided by shadow
+data against SC-005's count, which at today's volume takes years. Stage 3 is last because it is the only one that may legitimately end in "not worth
 shipping", and the only one whose cost depends on a measurement Stage 1 produces. Stage 2 stays on a testnet:
 no real value and no fee until the contract has been reviewed by someone else. The real-value contract is a
 second version, not this one redeployed: withdrawals by pull and native USDC only (FR-036b, FR-036c), built
@@ -102,7 +105,7 @@ after the network is chosen (T374, T376).
 | Violation | Why needed | Simpler alternative rejected because |
 |---|---|---|
 | A second runtime and two more processes (VII) | The service layer is Python by owner decision 2026-10-08; the verifier must hold a model in memory without it living in the process that handles untrusted text | Doing it in TypeScript keeps one runtime but puts model weights and inference in the same process as the X client and the claim pipeline, and gives up the owner's stated reason for the choice |
-| A local model in the resolution path (II, III) | Model calls are the largest variable cost and most decide easy cases | Raising the per-claim budget caps the cost instead of lowering it; dropping evidence checks would lower it by weakening the product |
+| A local model in the resolution path (II, III) | Model calls are the largest variable cost and most decide easy cases. Estimated from the cost ledger on 2026-10-25, at prices still UNRECONCILED: the judge call the model could stand in for is $0.24 a month, against $1.84 for search and more for X, so it stays in shadow and decides nothing (SC-006) | Raising the per-claim budget caps the cost instead of lowering it; dropping evidence checks would lower it by weakening the product |
 
 | A process holding a signing key (VII) | Settlement must be able to move funds; the process that handles untrusted text from strangers must not hold the key that can | Signing inside the Node service keeps one runtime but puts a funds-moving key in the process that parses posts from the public |
 
