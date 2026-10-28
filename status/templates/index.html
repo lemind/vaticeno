@@ -121,13 +121,14 @@
     </table>
   </div>
 
-  {#- The testnet escrow's queue (FR-029). Its heartbeat is the `settle` row in the jobs table (FR-020a). -#}
+  {#- The escrows' queue (FR-029). Each network's heartbeat is its `settle-<chain id>` row in the jobs table (FR-020a). -#}
   <div class="panel">
-    <h2>Settlement · testnet</h2>
+    <h2>Settlement</h2>
     <table>
       {% for state, n in s.settlement | dictsort %}<tr><td class="k">{{ state }}</td><td class="r{% if state in ('held', 'failed') %} FAILING{% endif %}">{{ n }}</td></tr>{% endfor %}
       {% if not s.settlement %}<tr><td class="note">no price claim locked since it began</td></tr>{% endif %}
-      <tr><td class="k">contract</td><td class="r note">{{ s.escrow_address or 'not deployed' }}{% if s.escrow_chain_id %} · chain {{ s.escrow_chain_id }}{% endif %}</td></tr>
+      {#- The Stage 2 settings name one contract; with WAGER_NETWORKS the Networks panel names each chain. -#}
+      {% if s.escrow_address or not s.networks %}<tr><td class="k">contract</td><td class="r note">{{ s.escrow_address or 'not deployed' }}{% if s.escrow_chain_id %} · chain {{ s.escrow_chain_id }}{% endif %}</td></tr>{% endif %}
     </table>
   </div>
 

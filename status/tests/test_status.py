@@ -152,7 +152,7 @@ def test_the_settlement_queue_shows_what_needs_a_person(client):
     state = snapshot(HEALTHY)
     state = replace(state, settlement={"pending": 2, "held": 1}, escrow_address="0xEsc", escrow_chain_id="84532")
     page = client(state).get("/").text
-    assert "Settlement · testnet" in page and "0xEsc · chain 84532" in page
+    assert "<h2>Settlement</h2>" in page and "0xEsc · chain 84532" in page
     # A held claim is a second read that disagreed: nothing settles it, and somebody should know.
     assert '<td class="r FAILING">1</td>' in page
     body = client(state).get("/status.json").json()
@@ -171,7 +171,11 @@ def test_a_network_short_of_what_it_owes_or_unread_degrades_the_page(client):
     unread = replace(healthy, network="42161", read_at=NOW - timedelta(minutes=6))
     body = client(replace(snapshot(HEALTHY), networks=[short, unread])).get("/status.json").json()
     assert body["state"] == "DEGRADED"
-    assert body["failing_networks"] == ["8453", "42161"]
+    # Short of what it owes degrades; unread is shown, and left to the worker's own heartbeat to degrade.
+    assert body["failing_networks"] == ["8453"]
+    assert [n["unread"] for n in body["networks"]] == [False, True]
+    retired = client(replace(snapshot(HEALTHY), networks=[unread])).get("/status.json").json()
+    assert retired["state"] == "OK"
 
 
 def test_the_verifier_count_shows_how_far_from_go_live_and_any_wrong_event(client):

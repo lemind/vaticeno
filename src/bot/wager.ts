@@ -1,7 +1,7 @@
 // `@vaticeno wager` (003 Story 5): one link reply per claim, one plain refusal per reason, nothing anywhere
 // else. The row is written before the reply goes, so a crash mid-post loses the link rather than send two;
 // only a post that provably never left gives it back.
-import { and, asc, count, eq, gte } from 'drizzle-orm';
+import { and, count, eq, gte } from 'drizzle-orm';
 import {
   claims,
   settlementOutbox,
@@ -19,10 +19,12 @@ import {
 } from '../replies/templates.js';
 import { wagerKind } from '../wager/terms.js';
 
+// A switched-on network, as far as the reply needs it (src/wager/networks.ts).
+type ReplyNetwork = { chainId: number; name: string; testnet: boolean };
+
 export type WagerDeps = {
   db: Db;
-  // realMoney: the names of the switched-on networks that are not testnets; empty while all are.
-  wager?: { host: string; linksPerDay: number; realMoney?: readonly string[] };
+  wager?: { host: string; linksPerDay: number; networks: readonly ReplyNetwork[] };
 };
 
 export async function wagerReply(
@@ -44,14 +46,9 @@ export async function wagerReply(
       deadlineAt: claims.deadlineAt,
       lockAt: claims.lockAt,
       contract: claims.contract,
-      outboxId: settlementOutbox.id,
-      authorizedUntil: settlementOutbox.authorizedUntil,
     })
     .from(claims)
-    .leftJoin(settlementOutbox, eq(settlementOutbox.claimId, claims.id))
     .where(eq(claims.slug, slug))
-    // One row per network, all written at lock and signed for the same close: any one answers (FR-036d).
-    .orderBy(asc(settlementOutbox.network))
     .limit(1);
   // A claim still asking for its prediction has nothing to wager on yet, and nothing to say about it.
   if (!claim?.contract) return { action: 'wager_no_contract', reply: null };
@@ -60,8 +57,27 @@ export async function wagerReply(
     return { action: 'wager_not_configured', reply: null };
   }
 
-  const outbox = claim.outboxId ? { authorizedUntil: claim.authorizedUntil } : null;
-  const kind = wagerKind({ ...claim, outbox }, now);
+  // Each network the claim has a row on and that is switched on now answers for itself (FR-036d): the
+  // link goes out if any of them can still take an offer, and names only those.
+  const rows = await deps.db
+    .select({
+      network: settlementOutbox.network,
+      authorizedUntil: settlementOutbox.authorizedUntil,
+    })
+    .from(settlementOutbox)
+    .where(eq(settlementOutbox.claimId, claim.id));
+  const answers = deps.wager.networks.flatMap((network) => {
+    const row = rows.find((r) => r.network === String(network.chainId));
+    return row ? [{ network, kind: wagerKind({ ...claim, outbox: row }, now) }] : [];
+  });
+  const open = answers.filter((a) => a.kind === 'link');
+  // No row on any switched-on network is a claim no worker will sign: the same answer as no row (terms.ts).
+  const kind = open.length
+    ? 'link'
+    : (answers[0]?.kind ?? wagerKind({ ...claim, outbox: null }, now));
+  const realMoney = open
+    .filter((a) => !a.network.testnet)
+    .map((a) => a.network.name);
   if (
     kind === 'link' &&
     (await linksToday(deps.db, now)) >= deps.wager.linksPerDay
@@ -86,7 +102,7 @@ export async function wagerReply(
   const [row] = spent;
   return {
     action: `wager_${kind}`,
-    reply: replyFor(kind, deps.wager, slug, claim.lockAt, now),
+    reply: replyFor(kind, deps.wager.host, realMoney, slug, claim.lockAt, now),
     slug,
     // A post that provably never left (PostNotSent) gives the link back; an uncertain one never does (§6.7).
     onNotSent: async () => {
@@ -97,7 +113,8 @@ export async function wagerReply(
 
 function replyFor(
   kind: WagerReplyKind,
-  { host, realMoney = [] }: { host: string; realMoney?: readonly string[] },
+  host: string,
+  realMoney: readonly string[],
   slug: string,
   lockAt: Date | null,
   now: Date,

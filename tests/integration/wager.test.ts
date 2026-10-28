@@ -48,7 +48,7 @@ async function bot(
     linksPerDay?: number;
     failPosts?: number;
     notSent?: number;
-    realMoney?: string[];
+    networks?: Array<{ chainId: number; name: string; testnet: boolean }>;
   } = {},
 ) {
   const replies: Array<{ to: string; text: string }> = [];
@@ -84,7 +84,9 @@ async function bot(
     wager: {
       host: HOST,
       linksPerDay: opts.linksPerDay ?? 10,
-      realMoney: opts.realMoney ?? [],
+      networks: opts.networks ?? [
+        { chainId: 84532, name: 'Base Sepolia', testnet: true },
+      ],
     },
     statePath: join(await mkdtemp(join(tmpdir(), 'vaticeno-wager-')), 'ingest.json'),
   };
@@ -115,12 +117,24 @@ async function lockedPriceClaim(overrides: Record<string, unknown> = {}) {
   return claim;
 }
 
+const MAINNETS = [
+  { chainId: 8453, name: 'Base', testnet: false },
+  { chainId: 42161, name: 'Arbitrum One', testnet: false },
+];
+
 describe('the wager command', () => {
+  test('a claim with no row on any network switched on is closed, never a real-money link', async () => {
+    await lockedPriceClaim(); // locked under Stage 2: a Base Sepolia row only
+    const { deps, replies } = await bot([[wager('10')]], { networks: MAINNETS });
+    await pollMentions(deps, NOW);
+    assert.doesNotMatch(replies[0]!.text, /Real money|\/wager/);
+  });
+
   test('with real money on, the link names the networks and USDC, and still carries one link only', async () => {
     const claim = await lockedPriceClaim();
-    const { deps, replies } = await bot([[wager('10')]], {
-      realMoney: ['Base', 'Arbitrum One'],
-    });
+    for (const network of ['8453', '42161'])
+      await t.sql`insert into settlement_outbox (claim_id, network) values (${claim.id}, ${network})`;
+    const { deps, replies } = await bot([[wager('10')]], { networks: MAINNETS });
     await pollMentions(deps, NOW);
     assert.match(replies[0]!.text, /Real money, in USDC, on Base or Arbitrum One\./);
     assert.doesNotMatch(replies[0]!.text, /Testnet|no value/);
@@ -328,6 +342,23 @@ describe('the wager page', () => {
       null,
       "Base Sepolia's signature is never served for Arbitrum",
     );
+  });
+
+  test('a network switched on after the claim locked is never offered for it', async () => {
+    const claim = await withAuthorization(); // a Base Sepolia row only
+    const later = [
+      network(421614, '0x' + '22'.repeat(20), '0x' + '33'.repeat(20)),
+      ...config,
+    ];
+    const res = await buildServer({ db: t.db, now: () => NOW, wager: later }).inject(
+      `/claim/${claim.slug}/wager`,
+    );
+    assert.equal(
+      pageData(res.body).chainId,
+      84532,
+      'the plain link opens where the claim has a market',
+    );
+    assert.doesNotMatch(res.body, /network=421614|Arbitrum Sepolia/);
   });
 
   test('on a real-money network the page says so: no testnet wording, USDC, and the risks it cannot remove', async () => {

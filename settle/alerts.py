@@ -58,8 +58,8 @@ class Alerts:
         try:
             with urllib.request.urlopen(request, timeout=SEND_TIMEOUT_SECONDS):
                 pass
-        except OSError as error:
-            # Never stops a settlement: the alert is in the log either way, and the status page shows the row.
+        except Exception as error:  # noqa: BLE001 — http.client errors are not all OSError, and none may stop a settlement
+            # The alert is in the log either way, and the status page shows the row.
             log.error("settle.alert_not_sent event=%s error=%s", event, error)
 
 

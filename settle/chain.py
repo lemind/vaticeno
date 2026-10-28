@@ -106,6 +106,9 @@ class Escrow:
         self.version = version
         if self._typed(b"\0" * 32, 0, 0).header != bytes(self.contract.functions.domainSeparator().call()):
             raise ChainMismatch(f"the contract at {self.address} is not escrow version {version} on chain {chain_id}")
+        # The outbox's and the health row's name for this network: the chain id as text (data-model).
+        self.network = str(chain_id)
+        self._token: Contract | None = None  # v2's token, immutable: read once, on the first health pass
         self.acceptance_closes: int = self.contract.functions.acceptanceCloses().call()
         self.timeout: int = self.contract.functions.timeout().call()
         self._next_nonce = 0
@@ -179,10 +182,11 @@ class Escrow:
 
     def holdings(self) -> Holdings:
         """v2: the oracle's gas, the escrow's token balance, and what it owes (live stakes plus unwithdrawn credits)."""
-        token = self.w3.eth.contract(address=self.contract.functions.token().call(), abi=BALANCE_OF_ABI)
+        if self._token is None:
+            self._token = self.w3.eth.contract(address=self.contract.functions.token().call(), abi=BALANCE_OF_ABI)
         return Holdings(
             oracle_gas_wei=self.w3.eth.get_balance(self.account.address),
-            escrow_usdc=token.functions.balanceOf(self.address).call(),
+            escrow_usdc=self._token.functions.balanceOf(self.address).call(),
             owed_usdc=self.contract.functions.lockedTotal().call() + self.contract.functions.creditTotal().call(),
         )
 

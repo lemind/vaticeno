@@ -61,15 +61,14 @@ def _tool(name: str) -> str | None:
     return shutil.which(name) or (str(p) if (p := Path.home() / ".foundry/bin" / name).exists() else None)
 
 
-@pytest.fixture(scope="module")
-def w3():
+def _anvil(chain_id: int):
     anvil = _tool("anvil")
     if not anvil:
         _require("anvil is not installed")
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         port = s.getsockname()[1]
-    proc = subprocess.Popen([anvil, "--port", str(port), "--chain-id", str(CHAIN_ID), "--silent"])
+    proc = subprocess.Popen([anvil, "--port", str(port), "--chain-id", str(chain_id), "--silent"])
     web3 = Web3(Web3.HTTPProvider(f"http://127.0.0.1:{port}"))
     for _ in range(100):
         if web3.is_connected():
@@ -77,6 +76,17 @@ def w3():
         time.sleep(0.1)
     yield web3
     proc.terminate()
+
+
+@pytest.fixture(scope="module")
+def w3():
+    yield from _anvil(CHAIN_ID)
+
+
+@pytest.fixture(scope="module")
+def w3_other():
+    """A second local chain with Arbitrum Sepolia's chain id."""
+    yield from _anvil(OTHER_CHAIN_ID)
 
 
 @pytest.fixture(scope="module")
@@ -95,7 +105,7 @@ def _send(w3: Web3, account, call) -> dict:
     tx = call.build_transaction({
         "from": account.address,
         "nonce": w3.eth.get_transaction_count(account.address),
-        "chainId": CHAIN_ID,
+        "chainId": w3.eth.chain_id,
     })
     receipt = w3.eth.wait_for_transaction_receipt(
         w3.eth.send_raw_transaction(account.sign_transaction(tx).raw_transaction))
@@ -127,9 +137,8 @@ def chain(w3, artifacts):
 USDC = 10**6
 
 
-@pytest.fixture
-def chain_v2(w3, artifacts):
-    """v2 with 007's numbers, in a 6-decimal token that can block an address."""
+def _deploy_v2(w3: Web3, artifacts) -> dict:
+    """v2 with 007's numbers, in a 6-decimal token that can block an address, on whichever chain `w3` is."""
     token = _deploy(w3, artifacts["TestUsdc"])
     escrow = _deploy(w3, artifacts["EscrowV2"], (
         token.address, ORACLE.address, GUARDIAN.address, DEPLOYER.address,
@@ -139,7 +148,12 @@ def chain_v2(w3, artifacts):
         _send(w3, DEPLOYER, token.functions.mint(who.address, 5_000 * USDC))
         _send(w3, who, token.functions.approve(escrow.address, 2**256 - 1))
     return {"w3": w3, "token": token, "escrow": escrow,
-            "client": Escrow(w3, escrow.address, CHAIN_ID, ORACLE, version=2)}
+            "client": Escrow(w3, escrow.address, w3.eth.chain_id, ORACLE, version=2)}
+
+
+@pytest.fixture
+def chain_v2(w3, artifacts):
+    return _deploy_v2(w3, artifacts)
 
 
 @pytest.fixture
@@ -434,53 +448,8 @@ def test_v2_a_v1_signature_would_be_refused_so_the_wrong_version_stops_the_worke
 # ---- two networks (FR-036d) ----
 
 
-@pytest.fixture(scope="module")
-def w3_other():
-    """A second local chain with Arbitrum Sepolia's chain id."""
-    anvil = _tool("anvil")
-    if not anvil:
-        _require("anvil is not installed")
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        port = s.getsockname()[1]
-    proc = subprocess.Popen([anvil, "--port", str(port), "--chain-id", str(OTHER_CHAIN_ID), "--silent"])
-    web3 = Web3(Web3.HTTPProvider(f"http://127.0.0.1:{port}"))
-    for _ in range(100):
-        if web3.is_connected():
-            break
-        time.sleep(0.1)
-    yield web3
-    proc.terminate()
-
-
-def _v2_on(w3: Web3, artifacts, chain_id: int) -> dict:
-    tx = lambda acct, call: _send_on(w3, chain_id, acct, call)  # noqa: E731
-    def deploy(name, *args):
-        art = artifacts[name]
-        receipt = tx(DEPLOYER, w3.eth.contract(abi=art["abi"], bytecode=art["bytecode"]).constructor(*args))
-        return w3.eth.contract(address=receipt["contractAddress"], abi=art["abi"])
-    token = deploy("TestUsdc")
-    escrow = deploy("EscrowV2", (
-        token.address, ORACLE.address, GUARDIAN.address, DEPLOYER.address,
-        0, 72 * 3600, 14 * DAY, DAY, 7 * DAY, 1 * USDC, 1_000 * USDC, 10_000 * USDC, 50_000 * USDC,
-    ))
-    tx(DEPLOYER, token.functions.mint(MAKER.address, 5_000 * USDC))
-    tx(MAKER, token.functions.approve(escrow.address, 2**256 - 1))
-    return {"w3": w3, "escrow": escrow, "client": Escrow(w3, escrow.address, chain_id, ORACLE, version=2),
-            "send": tx}
-
-
-def _send_on(w3: Web3, chain_id: int, account, call) -> dict:
-    built = call.build_transaction({
-        "from": account.address, "nonce": w3.eth.get_transaction_count(account.address), "chainId": chain_id})
-    receipt = w3.eth.wait_for_transaction_receipt(
-        w3.eth.send_raw_transaction(account.sign_transaction(built).raw_transaction))
-    assert receipt["status"] == 1, "transaction reverted"
-    return receipt
-
-
 def test_an_authorization_signed_for_one_network_is_refused_on_the_other(chain_v2, w3_other, artifacts, db):
-    other = _v2_on(w3_other, artifacts, OTHER_CHAIN_ID)
+    other = _deploy_v2(w3_other, artifacts)
     deadline = max(_chain_now(chain_v2["w3"]), _chain_now(w3_other)) + 3 * DAY
     claim = _locked_claim(db["owner"], deadline, networks=(str(CHAIN_ID), str(OTHER_CHAIN_ID)))
     run_once(db["worker"], chain_v2["client"], _now(chain_v2["w3"]))
@@ -492,11 +461,11 @@ def test_an_authorization_signed_for_one_network_is_refused_on_the_other(chain_v
         bytes.fromhex(row["open_authorization"][2:]), True, 10 * USDC)
     with pytest.raises(ContractLogicError):
         open_with(here).call({"from": MAKER.address})  # Base Sepolia's signature, on the other chain
-    other["send"](MAKER, open_with(there))  # its own signature opens
+    _send(w3_other, MAKER, open_with(there))  # its own signature opens
 
 
 def test_a_dead_network_never_holds_up_the_other(chain, w3_other, artifacts, db, monkeypatch):
-    other = _v2_on(w3_other, artifacts, OTHER_CHAIN_ID)
+    other = _deploy_v2(w3_other, artifacts)
     w3 = chain["w3"]
     claim = _locked_claim(db["owner"], _chain_now(w3) + 3 * DAY, networks=(str(CHAIN_ID), str(OTHER_CHAIN_ID)))
     run_once(db["worker"], chain["client"], _now(w3))

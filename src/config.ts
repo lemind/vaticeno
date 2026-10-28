@@ -151,21 +151,20 @@ const CoreEnvSchema = z
     // Stage 4: every network wagering is on, `chainId:version:escrow:token,…` (src/wager/networks.ts). Replaces
     // ESCROW_ADDRESS, STAKE_TOKEN_ADDRESS, ESCROW_CHAIN_ID and ESCROW_VERSION, which name one network.
     WAGER_NETWORKS: optionalText,
-    // The nodes the browser reads the chain through, tried in order: free ones rate-limit (003 plan).
+    // The nodes the browser reads the one Stage 2 network through, tried in order: free ones rate-limit (003
+    // plan). Unset: that network's list in src/wager/networks.ts, which is also where WAGER_NETWORKS' come from.
     PUBLIC_RPC_URLS: z.preprocess(
       blankIsUnset,
       z
         .string()
-        .default(
-          'https://base-sepolia-rpc.publicnode.com,https://base-sepolia.drpc.org,https://base-sepolia.gateway.tenderly.co,https://sepolia.base.org',
-        )
+        .optional()
         .transform((raw) =>
           raw
-            .split(',')
+            ?.split(',')
             .map((url) => url.trim())
             .filter(Boolean),
         )
-        .pipe(z.array(z.url()).min(1)),
+        .pipe(z.array(z.url()).min(1).optional()),
     ),
     // The local verifier (003 Stage 3, decision 005). off: never called. shadow: asked, recorded, ignored.
     VERIFIER_MODE: z.preprocess(
@@ -202,6 +201,14 @@ const CoreEnvSchema = z
           path: ['WAGER_NETWORKS'],
           message:
             'WAGER_NETWORKS replaces ESCROW_ADDRESS and STAKE_TOKEN_ADDRESS: set one or the other',
+        });
+      // Never ignored in silence: with several networks, each one's nodes are listed in src/wager/networks.ts.
+      if (env.PUBLIC_RPC_URLS)
+        ctx.addIssue({
+          code: 'custom',
+          path: ['PUBLIC_RPC_URLS'],
+          message:
+            "PUBLIC_RPC_URLS names one network's nodes; with WAGER_NETWORKS, list them in src/wager/networks.ts",
         });
       try {
         parseWagerNetworks(env.WAGER_NETWORKS);

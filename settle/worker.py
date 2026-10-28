@@ -45,11 +45,6 @@ class Run:
     tx_references: list[str] = field(default_factory=list)
 
 
-def network_of(escrow: Escrow) -> str:
-    """The outbox's name for this worker's network: the chain id as text (data-model → settlement_outbox)."""
-    return str(escrow.chain_id)
-
-
 def run_once(conn: psycopg.Connection, escrow: Escrow, now: datetime) -> Run:
     run = Run()
     sign_authorizations(conn, escrow, now, run)
@@ -63,7 +58,7 @@ def sign_authorizations(conn: psycopg.Connection, escrow: Escrow, now: datetime,
         select o.id, c.slug, c.deadline_at, c.resolution_method
         from settlement_outbox o join claims c on c.id = o.claim_id
         where o.network = %s and o.state = 'open' and o.open_authorization is null
-    """, (network_of(escrow),))
+    """, (escrow.network,))
     for row in rows:
         # The third refusal of a model-judged claim, after the lock and the contract (FR-031a, T336a).
         if row["resolution_method"] != "price_feed" or row["deadline_at"] is None:
@@ -94,7 +89,7 @@ def settle_confirmed(conn: psycopg.Connection, escrow: Escrow, now: datetime, ru
         join claims c on c.id = o.claim_id
         left join resolutions r on r.claim_id = o.claim_id
         where o.network = %s and o.state = 'pending'
-    """, (network_of(escrow),))
+    """, (escrow.network,))
     for row in rows:
         # A row is not an instruction: an outcome that is not the final verdict stops here (FR-028a).
         if row["review_status"] != "final" or row["verdict"] != row["outcome"]:
@@ -166,7 +161,7 @@ STALE_AFTER_SECONDS = 180
 
 
 def job_name(escrow: Escrow) -> str:
-    return f"settle-{network_of(escrow)}"
+    return f"settle-{escrow.network}"
 
 
 def register(conn: psycopg.Connection, escrow: Escrow) -> None:
@@ -208,7 +203,7 @@ def main() -> None:
     escrow = Escrow(w3, os.environ["ESCROW_ADDRESS"], int(os.environ["ESCROW_CHAIN_ID"]), account,
                     int(os.environ.get("ESCROW_VERSION", "1")))
     log.info("settle.started network=%s oracle=%s escrow=%s version=%s",
-             network_of(escrow), account.address, escrow.address, escrow.version)
+             escrow.network, account.address, escrow.address, escrow.version)
     alerts = Alerts(os.environ.get("SENTRY_DSN"))
     registered = False
     while True:

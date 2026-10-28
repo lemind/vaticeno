@@ -64,8 +64,10 @@ class Snapshot:
 
     @property
     def failing_networks(self) -> list[str]:
-        """A network whose escrow holds less than it owes, or whose worker has stopped reading it (FR-022c)."""
-        return [n.network for n in self.networks if n.underfunded or n.unread(self.at)]
+        """A network whose escrow holds less than it owes (FR-022c). A worker that stopped reading is its
+        `settle-<chain id>` heartbeat going late, which already degrades the page; an unread row is only shown,
+        so a network retired on purpose never holds the page down."""
+        return [n.network for n in self.networks if n.underfunded]
 
     @property
     def waiting_jobs(self) -> list[queries.Job]:

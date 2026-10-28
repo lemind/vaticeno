@@ -1,6 +1,6 @@
 // GET /claim/:slug/wager (003 Story 5): the claim, the escrow's terms and the verdict's settlement, rendered
 // here; the wagers themselves are read from the chain in the browser, since Node makes no chain calls (FR-027).
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { renderStatement } from '../contract/render.js';
 import { ContractSchema } from '../contract/schema.js';
 import type { Db } from '../db/client.js';
@@ -23,7 +23,8 @@ const SETTLEMENT_WORDS: Record<string, string> = {
 };
 
 // `chainId` picks the network (FR-036d): each has its own row, its own escrow and its own offers, and the page
-// shows one at a time. An unknown or absent one shows the first switched on.
+// shows one at a time. Only networks the claim has a row on are offered (rows are written at lock, so one
+// switched on later has none); an unknown or absent `chainId` shows the first of them.
 export async function wagerPage(
   db: Db,
   slug: string,
@@ -31,7 +32,6 @@ export async function wagerPage(
   networks: WagerNetwork[],
   chainId?: number,
 ): Promise<string | null> {
-  const config = networks.find((n) => n.chainId === chainId) ?? networks[0] ?? null;
   const [claim] = await db
     .select()
     .from(claims)
@@ -39,20 +39,17 @@ export async function wagerPage(
     .limit(1);
   if (!claim?.contract) return null;
   const contract = ContractSchema.parse(claim.contract);
-  const [[outbox], [resolution], [correction]] = await Promise.all([
-    db
-      .select()
-      .from(settlementOutbox)
-      .where(
-        and(
-          eq(settlementOutbox.claimId, claim.id),
-          eq(settlementOutbox.network, String(config?.chainId ?? '')),
-        ),
-      )
-      .limit(1),
+  const [rows, [resolution], [correction]] = await Promise.all([
+    db.select().from(settlementOutbox).where(eq(settlementOutbox.claimId, claim.id)),
     db.select().from(resolutions).where(eq(resolutions.claimId, claim.id)).limit(1),
     db.select().from(corrections).where(eq(corrections.claimId, claim.id)).limit(1),
   ]);
+  const withRow = networks.filter((n) =>
+    rows.some((row) => row.network === String(n.chainId)),
+  );
+  const shown = withRow.length ? withRow : networks;
+  const config = shown.find((n) => n.chainId === chainId) ?? shown[0] ?? null;
+  const outbox = rows.find((row) => row.network === String(config?.chainId));
   const deadline = new Date(contract.deadline_at);
   // The same rule the bot answers by (src/wager/terms.ts).
   const kind = wagerKind({ ...claim, outbox: outbox ?? null }, now);
@@ -111,10 +108,10 @@ export async function wagerPage(
 
   // Each network is its own market: a link per network, the one shown marked (FR-036d).
   const picker =
-    networks.length > 1
+    shown.length > 1
       ? html`<p class="networks">
           Network:
-          ${networks.map((n) =>
+          ${shown.map((n) =>
             n.chainId === config.chainId
               ? html` <strong aria-current="page">${n.name}</strong>`
               : html` <a
@@ -279,7 +276,7 @@ export async function wagerPage(
               autocomplete="off"
               required
             />
-            <span class="unit">USDC</span>
+            <span class="unit">${config.usdc ? 'USDC' : 'tokens'}</span>
           </span>
         </label>
         <button type="submit" class="primary">Make an offer</button>

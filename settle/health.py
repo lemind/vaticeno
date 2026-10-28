@@ -25,7 +25,7 @@ def record_health(conn: psycopg.Connection, escrow: Escrow, now: datetime, alert
     leaves behind ages, so the status page shows the network unread rather than healthy."""
     if escrow.version != 2:
         return
-    network = str(escrow.chain_id)
+    network = escrow.network
     queue = _queue(conn, network)
     try:
         held = escrow.holdings()

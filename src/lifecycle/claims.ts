@@ -1,4 +1,5 @@
 // Claim services: take their dependencies and `now` as arguments (plan.md "Architecture").
+import type { WagerNetwork } from '../wager/networks.js';
 import { and, eq, gt } from 'drizzle-orm';
 import { type RejectReason, runChecks } from '../contract/checks.js';
 import type { Proposal, UnclearItem } from '../contract/proposal.js';
@@ -46,8 +47,11 @@ export type ClaimDeps = {
   answerModel: string;
   x?: UserLookup;
   botHandle?: string;
-  // Chain ids a locked price claim gets a settlement row on, one each (003 FR-036d). Unset: Base Sepolia only.
+  // Chain ids a locked price claim gets a settlement row on, one each (003 FR-036d). Unset, as while wagering
+  // is off: Base Sepolia's, as Stage 2 always wrote, so a claim locked then can still be staked on later.
   settlementNetworks?: readonly string[];
+  // The networks switched on, parsed once from config (src/wager/networks.ts).
+  wagerNetworks?: readonly WagerNetwork[];
 };
 
 export type SubmitInput = {

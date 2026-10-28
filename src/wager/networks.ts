@@ -70,7 +70,7 @@ export function wagerNetworks(config: {
   STAKE_TOKEN_ADDRESS?: string | undefined;
   ESCROW_CHAIN_ID: number;
   ESCROW_VERSION: 1 | 2;
-  PUBLIC_RPC_URLS: string[];
+  PUBLIC_RPC_URLS?: string[] | undefined;
 }): WagerNetwork[] {
   if (config.WAGER_NETWORKS) return parseWagerNetworks(config.WAGER_NETWORKS);
   if (!config.ESCROW_ADDRESS || !config.STAKE_TOKEN_ADDRESS) return [];
@@ -79,7 +79,7 @@ export function wagerNetworks(config: {
   return [
     {
       ...known,
-      rpcUrls: config.PUBLIC_RPC_URLS,
+      rpcUrls: config.PUBLIC_RPC_URLS ?? known.rpcUrls,
       chainId: config.ESCROW_CHAIN_ID,
       version: config.ESCROW_VERSION,
       escrow: config.ESCROW_ADDRESS,
