@@ -259,7 +259,7 @@ network: Base first, Arbitrum One on its own checklist after. Nothing reaches a 
 
 ### C. Both testnets, end to end
 
-- [ ] T379 [US6] Deploy v2 on Base Sepolia and Arbitrum Sepolia with a test token that blocks one address; source verified on both explorers; the server's env names both (FR-036a)
+- [ ] T379 [US6] Deploy v2 on Base Sepolia and Arbitrum Sepolia with a test token that blocks one address; source verified on both explorers; the server's env names both (FR-036a) **Prepared 2026-10-28**: `contracts/script/DeployV2.s.sol` (testnets only, 007's numbers; `runEndToEnd` in minutes for T373) and `scripts/deploy-v2-testnet.sh <chain id>`, keys from `~/.vaticeno-keys/<chain id>/`, printing the `WAGER_NETWORKS` entry; tried on a local chain. **Open, owner**: the per-network keys and testnet ETH on both, then the run
 - [ ] T373 [US6] **Moved from Phase 5 and widened to v2, 2026-10-27**: end to end on both v2 testnets, short-window, with two browser wallets: the four wagers of SC-020 (paid out, VOID, offer returned, timeout refund), a withdraw on each side, the blocked address leaving the other side free (SC-025), plus a pending and a reverted transaction never shown as done, and a verdict on X not yet on the chain shown as pending (SC-020, SC-022)
 
 ### D. The real-value gate (owner's)
