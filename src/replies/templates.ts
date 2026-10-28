@@ -166,9 +166,17 @@ export function alreadyRecordedReply(existingSlug: string): string {
 }
 
 // The one reply allowed a link (constitution VI 2.8.0, 003 FR-039): our own domain, plain text, once a claim.
-export function wagerLinkReply(host: string, slug: string): string {
+// `networks`: their names when real money is on; none means every network is a testnet (Story 6 scenario 5).
+export function wagerLinkReply(
+  host: string,
+  slug: string,
+  networks: readonly string[] = [],
+): string {
+  const terms = networks.length
+    ? `Real money, in USDC, on ${networks.join(' or ')}. The rules and risks are on the page.`
+    : 'Testnet only: the token has no value.';
   return assertReplyFits(
-    `WAGER · #${slug}\nOffer a side or take one, with your own wallet:\n${host}/claim/${slug}/wager\nTestnet only: the token has no value.`,
+    `WAGER · #${slug}\nOffer a side or take one, with your own wallet:\n${host}/claim/${slug}/wager\n${terms}`,
   );
 }
 

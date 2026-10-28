@@ -1,5 +1,6 @@
 // Builds the X side of the bot from the X env (src/config.ts loadConfig): client, post reader, reply poster.
-import { loadConfig } from '../config.js';
+import { wagerNetworks } from '../wager/networks.js';
+import { loadConfig, loadCoreConfig } from '../config.js';
 import type { ExtrasDeps } from './extras.js';
 import { log } from '../log.js';
 import { createXClient, PostNotSent, postReply, XApiError } from '../x/client.js';
@@ -33,7 +34,13 @@ export function buildBotDeps(claimDeps: ExtrasDeps): BotDeps {
       perAuthorPerHour: config.REPLY_MAX_PER_AUTHOR_PER_HOUR,
       perDay: config.REPLY_MAX_PER_DAY,
     },
-    wager: { host: config.PUBLIC_HOST, linksPerDay: config.WAGER_LINKS_PER_DAY },
+    wager: {
+      host: config.PUBLIC_HOST,
+      linksPerDay: config.WAGER_LINKS_PER_DAY,
+      realMoney: wagerNetworks(loadCoreConfig())
+        .filter((n) => !n.testnet)
+        .map((n) => n.name),
+    },
     // HACK(x): SPECULATIVE — a 401 can mean a stale stored expiry: refresh once and retry (the token rotates). See src/x/oauth.ts.
     // REVISIT: if 401s after a refresh show up in Sentry, the stored token is broken, not stale.
     postReply: async (inReplyTo, replyText) => {

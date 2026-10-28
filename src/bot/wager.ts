@@ -21,7 +21,8 @@ import { wagerKind } from '../wager/terms.js';
 
 export type WagerDeps = {
   db: Db;
-  wager?: { host: string; linksPerDay: number };
+  // realMoney: the names of the switched-on networks that are not testnets; empty while all are.
+  wager?: { host: string; linksPerDay: number; realMoney?: readonly string[] };
 };
 
 export async function wagerReply(
@@ -85,7 +86,7 @@ export async function wagerReply(
   const [row] = spent;
   return {
     action: `wager_${kind}`,
-    reply: replyFor(kind, deps.wager.host, slug, claim.lockAt, now),
+    reply: replyFor(kind, deps.wager, slug, claim.lockAt, now),
     slug,
     // A post that provably never left (PostNotSent) gives the link back; an uncertain one never does (§6.7).
     onNotSent: async () => {
@@ -96,14 +97,14 @@ export async function wagerReply(
 
 function replyFor(
   kind: WagerReplyKind,
-  host: string,
+  { host, realMoney = [] }: { host: string; realMoney?: readonly string[] },
   slug: string,
   lockAt: Date | null,
   now: Date,
 ): string {
   switch (kind) {
     case 'link':
-      return wagerLinkReply(host, slug);
+      return wagerLinkReply(host, slug, realMoney);
     case 'not_locked':
       return wagerNotLockedReply(slug, lockAt, now);
     case 'not_price':

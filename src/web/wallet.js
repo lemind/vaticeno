@@ -174,7 +174,7 @@ function renderWagers() {
   const list = $('wagers');
   list.replaceChildren();
   $('wager-count').textContent =
-    chain.total === 0 ? 'No wagers yet.' : `Showing ${chain.stakes.length} of ${chain.total}, newest first.`;
+    chain.total === 0 ? `No wagers yet on ${data.chainName}.` : `Showing ${chain.stakes.length} of ${chain.total} on ${data.chainName}, newest first.`;
   for (const stake of chain.stakes) {
     const row = document.createElement('tr');
     const makerSide = stake.makerSaysHit ? 'HIT' : 'MISS';
@@ -182,7 +182,7 @@ function renderWagers() {
     // Every party links to its own page on the explorer, so either side can check the other (and itself).
     const cells = [
       [`#${stake.id}`, `${data.explorer}/address/${data.escrow}#readContract`],
-      [`${units(stake.amount)} each`],
+      [`${units(stake.amount)} each, on ${data.chainName}`],
       [`${short(stake.maker)} on ${makerSide}`, `${data.explorer}/address/${stake.maker}`],
       empty ? ['—'] : [`${short(stake.taker)} on ${stake.makerSaysHit ? 'MISS' : 'HIT'}`, `${data.explorer}/address/${stake.taker}`],
       [describe(stake)],

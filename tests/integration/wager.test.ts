@@ -44,7 +44,12 @@ const llm = new Proxy(
 
 async function bot(
   mentionsByPoll: Mention[][],
-  opts: { linksPerDay?: number; failPosts?: number; notSent?: number } = {},
+  opts: {
+    linksPerDay?: number;
+    failPosts?: number;
+    notSent?: number;
+    realMoney?: string[];
+  } = {},
 ) {
   const replies: Array<{ to: string; text: string }> = [];
   let poll = 0;
@@ -76,7 +81,11 @@ async function bot(
     },
     allowAuthor: () => true,
     caps: { perAuthorPerHour: 30, perDay: 300 },
-    wager: { host: HOST, linksPerDay: opts.linksPerDay ?? 10 },
+    wager: {
+      host: HOST,
+      linksPerDay: opts.linksPerDay ?? 10,
+      realMoney: opts.realMoney ?? [],
+    },
     statePath: join(await mkdtemp(join(tmpdir(), 'vaticeno-wager-')), 'ingest.json'),
   };
   return { deps, replies };
@@ -107,6 +116,18 @@ async function lockedPriceClaim(overrides: Record<string, unknown> = {}) {
 }
 
 describe('the wager command', () => {
+  test('with real money on, the link names the networks and USDC, and still carries one link only', async () => {
+    const claim = await lockedPriceClaim();
+    const { deps, replies } = await bot([[wager('10')]], {
+      realMoney: ['Base', 'Arbitrum One'],
+    });
+    await pollMentions(deps, NOW);
+    assert.match(replies[0]!.text, /Real money, in USDC, on Base or Arbitrum One\./);
+    assert.doesNotMatch(replies[0]!.text, /Testnet|no value/);
+    assert.equal(replies[0]!.text.match(/https?:\/\/|vaticeno\.test/g)!.length, 1);
+    assert.ok(replies[0]!.text.includes(`${HOST}/claim/${claim.slug}/wager`));
+  });
+
   test('a burst on one claim posts one link, from anyone in the thread, and never again', async () => {
     const claim = await lockedPriceClaim();
     const { deps, replies } = await bot([
@@ -307,6 +328,31 @@ describe('the wager page', () => {
       null,
       "Base Sepolia's signature is never served for Arbitrum",
     );
+  });
+
+  test('on a real-money network the page says so: no testnet wording, USDC, and the risks it cannot remove', async () => {
+    const claim = await withAuthorization();
+    await t.sql`insert into settlement_outbox (claim_id, network) values (${claim.id}, '8453')`;
+    const base = {
+      ...network(8453, '0x' + '22'.repeat(20), KNOWN_NETWORKS[8453]!.usdc!),
+      version: 2 as const,
+    };
+    const res = await buildServer({
+      db: t.db,
+      now: () => NOW,
+      wager: [base],
+    }).inject(`/claim/${claim.slug}/wager`);
+    assert.doesNotMatch(
+      res.body,
+      /Testnet|test token|faucet|no value|worth nothing/i,
+    );
+    assert.match(res.body, /cannot remove/);
+    assert.match(
+      res.body.replace(/\s+/g, ' '),
+      /freezes the escrow itself or pauses USDC, nobody can withdraw/,
+    );
+    assert.match(res.body, /the escrow on Basescan/);
+    assert.match(res.body, /<span class="unit">USDC<\/span>/);
   });
 
   test('after acceptance closes the authorization is no longer served', async () => {

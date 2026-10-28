@@ -178,6 +178,23 @@ export async function wagerPage(
         After it anyone can pay out.
         <a href="${POLICY_URL}" rel="noopener">Settlement policy</a>
       </dd>
+      ${
+        config.version === 2
+          ? html`<dt>How money comes back</dt>
+              <dd>
+                credited in the contract; you take your own with Withdraw below,
+                whenever you like, and nobody can take anyone else's
+              </dd>
+              <dt>Risks we cannot remove</dt>
+              <dd>
+                USDC's issuer can freeze an address: a frozen one cannot withdraw
+                while it lasts, and the other side is unaffected. If it freezes the
+                escrow itself or pauses USDC, nobody can withdraw until that lifts.
+                If ${config.name} halts, nothing moves until it restarts.
+                <a href="${POLICY_URL}" rel="noopener">Settlement policy</a>
+              </dd>`
+          : ''
+      }
       <dt>No settlement</dt>
       <dd>
         if no verdict reaches the chain within
