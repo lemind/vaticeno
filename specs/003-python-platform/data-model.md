@@ -119,7 +119,7 @@ With the fast path parked (spec SC-006) both stay null; they are kept so a later
 ## `settlement_outbox`
 
 The entire interface between TypeScript and the settlement worker: **one row per locked price-feed claim per
-network** (Stage 2: Base Sepolia only; Stage 4 adds Base and Arbitrum One, 0024),
+network** (Stage 2: Base Sepolia only; Stage 4 adds Base and Arbitrum One, 0023),
 carrying the claim from authorization to settlement. Node writes the row when the claim locks and sets the
 outcome when its verdict is final; the worker signs, settles and writes the results back. Nothing else
 touches it.
@@ -128,7 +128,7 @@ touches it.
 |---|---|---|
 | id | uuid PK | |
 | claim_id | uuid NOT NULL → claims | UNIQUE (claim_id, network): one row per claim per network; the unique key is what stops a replay creating a second one |
-| network | text NOT NULL | chain id as text, e.g. `84532` (Base Sepolia), `8453` (Base), `42161` (Arbitrum One); added by 0024 with Base Sepolia as the existing rows' value |
+| network | text NOT NULL | chain id as text, e.g. `84532` (Base Sepolia), `8453` (Base), `42161` (Arbitrum One); added by 0023 with Base Sepolia as the existing rows' value |
 | claim_hash | text null | keccak-256 of the slug, written by the worker — the one place it is computed |
 | open_authorization | text null | the oracle's EIP-712 signature letting anyone open a stake on this claim; set once by the worker |
 | authorized_until | timestamptz null | when acceptance closes, 24 hours before the deadline; the signature holds until then |
@@ -280,8 +280,8 @@ authenticated roles stay with no policy at all, so the public API still sees not
 | `drizzle/0020_settlement.sql` | `settlement_outbox` (one row per locked price claim), the `settle_rw` role's policies, its unique key |
 | `drizzle/0021_wager_replies.sql` | `wager_replies` with its unique key and CHECK, RLS on with no policy |
 | `drizzle/0022_verifier.sql` | `verifier_shadow` with its append-only trigger and policy, `outcome_confirmations` with RLS and its `status_ro` policy, the two `resolutions` columns |
-| `drizzle/0023_wallet_links.sql` | `wallet_links` and `wallet_link_challenges`, the partial unique index on an active address |
-| `drizzle/0024_networks.sql` | Stage 4: `settlement_outbox.network` with the unique key widened to (claim_id, network); `network_health` with RLS and its `settle_rw` and `status_ro` policies |
+| `drizzle/0023_networks.sql` | Stage 4: `settlement_outbox.network` with the unique key widened to (claim_id, network); `network_health` with RLS and its `settle_rw` and `status_ro` policies |
+| `drizzle/0024_wallet_links.sql` | `wallet_links` and `wallet_link_challenges`, the partial unique index on an active address |
 
 Numbered in deploy order, not in the order the tables were designed: Stage 2 ships before Stage 3, so the
 settlement migrations come first and the verifier's cannot be dragged in by a Stage 2 deployment. The

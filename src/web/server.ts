@@ -18,7 +18,8 @@ import { homePage } from './home-page.js';
 import { authorPage } from './author-page.js';
 import { claimPage } from './claim-page.js';
 import { html, layout } from './html.js';
-import { type WagerConfig, wagerPage } from './wager-page.js';
+import { type WagerNetwork, wagerNetworks } from '../wager/networks.js';
+import { wagerPage } from './wager-page.js';
 
 // The wager page's one script and the encoder it imports, read once at start (003 FR-045).
 const SCRIPTS = {
@@ -40,24 +41,11 @@ const IMAGES: Record<string, [Buffer, string]> = {
   '/assets/logo.png': [asset('logo.png'), 'image/png'],
 };
 
-export function wagerConfig(config: CoreConfig): WagerConfig | null {
-  if (!config.ESCROW_ADDRESS || !config.STAKE_TOKEN_ADDRESS) return null;
-  return {
-    escrow: config.ESCROW_ADDRESS,
-    token: config.STAKE_TOKEN_ADDRESS,
-    chainId: config.ESCROW_CHAIN_ID,
-    version: config.ESCROW_VERSION,
-    chainName: 'Base Sepolia',
-    rpcUrls: config.PUBLIC_RPC_URLS,
-    explorer: 'https://sepolia.basescan.org',
-  };
-}
-
 export function buildServer(deps: {
   db: Db;
   now?: () => Date;
   botHandle?: string;
-  wager?: WagerConfig | null;
+  wager?: WagerNetwork[];
 }) {
   const now = deps.now ?? (() => new Date());
   const app = Fastify({ logger: false });
@@ -77,14 +65,15 @@ export function buildServer(deps: {
   });
 
   // No caching: the page carries the claim's open authorization only while acceptance is open (003 FR-046).
-  app.get<{ Params: { slug: string } }>(
+  app.get<{ Params: { slug: string }; Querystring: { network?: string } }>(
     '/claim/:slug/wager',
     async (request, reply) => {
       const page = await wagerPage(
         deps.db,
         request.params.slug,
         now(),
-        deps.wager ?? null,
+        deps.wager ?? [],
+        Number(request.query.network) || undefined,
       );
       return page
         ? reply
@@ -178,7 +167,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const app = buildServer({
     db: getDb(),
     botHandle: config.X_BOT_HANDLE,
-    wager: wagerConfig(config),
+    wager: wagerNetworks(config),
   });
   // Caddy in front terminates HTTPS; the app is never reachable directly from outside.
   await app.listen({ port: config.PORT, host: '127.0.0.1' });

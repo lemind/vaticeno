@@ -124,9 +124,17 @@ async function lockDraft(
           ),
         )
         .returning({ id: claims.id });
-      // Only a price-feed claim can carry a stake, so only it gets a settlement row (003 FR-027, FR-031a).
-      if (locked.length > 0 && claim.resolutionMethod === 'price_feed') {
-        await tx.insert(settlementOutbox).values({ claimId: claim.id });
+      // Only a price-feed claim can carry a stake, so only it gets settlement rows, one per network
+      // (003 FR-027, FR-031a, FR-036d).
+      const networks = deps.settlementNetworks ?? ['84532'];
+      if (
+        locked.length > 0 &&
+        claim.resolutionMethod === 'price_feed' &&
+        networks.length
+      ) {
+        await tx
+          .insert(settlementOutbox)
+          .values(networks.map((network) => ({ claimId: claim.id, network })));
       }
       return locked;
     });

@@ -6,6 +6,7 @@ import { createLlmClient } from './llm/client.js';
 import { createReplayStore } from './llm/replay.js';
 import { createPageFetcher } from './resolve/fetch.js';
 import { createVerifier } from './resolve/verifier.js';
+import { wagerNetworks } from './wager/networks.js';
 
 export function buildDeps(config: CoreConfig) {
   const store = createReplayStore();
@@ -19,6 +20,7 @@ export function buildDeps(config: CoreConfig) {
     coinbase: createCoinbase({ mode: config.LLM_MODE, store }),
     normalizerModel: config.NORMALIZER_MODEL,
     answerModel: config.ANSWER_MODEL,
+    settlementNetworks: wagerNetworks(config).map((n) => String(n.chainId)),
     fetchPage: createPageFetcher({ mode: config.LLM_MODE, store }),
     judgeModelA: config.JUDGE_MODEL_A,
     judgeModelB: config.JUDGE_MODEL_B,

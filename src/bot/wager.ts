@@ -1,7 +1,7 @@
 // `@vaticeno wager` (003 Story 5): one link reply per claim, one plain refusal per reason, nothing anywhere
 // else. The row is written before the reply goes, so a crash mid-post loses the link rather than send two;
 // only a post that provably never left gives it back.
-import { and, count, eq, gte } from 'drizzle-orm';
+import { and, asc, count, eq, gte } from 'drizzle-orm';
 import {
   claims,
   settlementOutbox,
@@ -49,6 +49,8 @@ export async function wagerReply(
     .from(claims)
     .leftJoin(settlementOutbox, eq(settlementOutbox.claimId, claims.id))
     .where(eq(claims.slug, slug))
+    // One row per network, all written at lock and signed for the same close: any one answers (FR-036d).
+    .orderBy(asc(settlementOutbox.network))
     .limit(1);
   // A claim still asking for its prediction has nothing to wager on yet, and nothing to say about it.
   if (!claim?.contract) return { action: 'wager_no_contract', reply: null };

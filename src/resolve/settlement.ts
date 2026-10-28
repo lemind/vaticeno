@@ -39,7 +39,9 @@ export async function confirmStakedVerdicts(
     );
 
   const result: Confirmed = { confirmed: 0, held: 0, skipped: 0 };
-  for (const row of due) {
+  // One second read per claim, however many networks it is on: the update below moves all its rows (FR-036d).
+  const claimsDue = [...new Map(due.map((row) => [row.claimId, row])).values()];
+  for (const row of claimsDue) {
     if (!row.outcome || !row.decidedBy || !SETTLES.has(row.decidedBy)) {
       result.skipped++;
       continue;

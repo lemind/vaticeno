@@ -110,7 +110,7 @@ async function lockedWithRow() {
     lock_at: LOCK,
     next_check_at: DEADLINE,
   });
-  await t.sql`insert into settlement_outbox ${t.sql({ claim_id: claim.id })}`;
+  await t.sql`insert into settlement_outbox ${t.sql({ claim_id: claim.id, network: '84532' })}`;
   return claim;
 }
 
@@ -136,11 +136,26 @@ describe('which claims get a row (T331a)', () => {
     assert.equal(await outbox(claim.id), undefined);
   });
 
-  test('a claim has one row at most', async () => {
+  test('a claim has one row per network at most', async () => {
     const claim = await lockedWithRow();
     await assert.rejects(
-      t.sql`insert into settlement_outbox ${t.sql({ claim_id: claim.id })}`,
-      /settlement_outbox_claim_id_unique/,
+      t.sql`insert into settlement_outbox ${t.sql({ claim_id: claim.id, network: '84532' })}`,
+      /settlement_outbox_claim_network_unique/,
+    );
+    await t.sql`insert into settlement_outbox ${t.sql({ claim_id: claim.id, network: '421614' })}`;
+  });
+
+  test('a claim locks with one row on each network switched on (FR-036d)', async () => {
+    const { claim, deps } = await dueDraft('price_feed');
+    await lockDueDrafts(
+      { ...deps, settlementNetworks: ['84532', '421614'] },
+      new Date(LOCK),
+    );
+    const rows = await t.sql`select network from settlement_outbox
+      where claim_id = ${claim.id} order by network`;
+    assert.deepEqual(
+      rows.map((r) => r.network),
+      ['421614', '84532'],
     );
   });
 });
@@ -249,7 +264,7 @@ describe('when a verdict may move a stake (T332, T332a, T336)', () => {
       deadline_at: DEADLINE,
       lock_at: LOCK,
     });
-    await t.sql`insert into settlement_outbox ${t.sql({ claim_id: broken.id })}`;
+    await t.sql`insert into settlement_outbox ${t.sql({ claim_id: broken.id, network: '84532' })}`;
     await t.sql`insert into resolutions ${t.sql({
       claim_id: broken.id,
       outcome: 'void',
@@ -348,11 +363,11 @@ describe("the worker's role (settle_rw, FR-028a)", () => {
 
   test('it beats its own heartbeat and no other job, and cannot move its own window (FR-020a)', async () => {
     // Other suites clear job_state, so the row the migration seeds is put back first.
-    await t.sql`insert into job_state (job, stale_after_seconds) values ('settle', 180) on conflict do nothing`;
+    await t.sql`insert into job_state (job, stale_after_seconds) values ('settle-84532', 180) on conflict do nothing`;
     await t.sql`insert into job_state (job, stale_after_seconds) values ('resolve', 7260) on conflict do nothing`;
     const own = await asWorker(
       (sql) =>
-        sql`update job_state set last_ok_at = now(), last_outcome = 'ok' where job = 'settle' returning job`,
+        sql`update job_state set last_ok_at = now(), last_outcome = 'ok' where job = 'settle-84532' returning job`,
     );
     assert.equal((own as unknown[]).length, 1);
     const other = await asWorker(
@@ -364,10 +379,23 @@ describe("the worker's role (settle_rw, FR-028a)", () => {
       0,
       'row-level security hides every other job',
     );
+    // A new network's worker registers its own heartbeat, and nothing but a `settle-` one.
+    const registered = await asWorker(
+      (sql) =>
+        sql`insert into job_state (job, stale_after_seconds) values ('settle-421614', 180) returning job`,
+    );
+    assert.equal((registered as unknown[]).length, 1);
     await assert.rejects(
       asWorker(
         (sql) =>
-          sql`update job_state set stale_after_seconds = 1 where job = 'settle'`,
+          sql`insert into job_state (job, stale_after_seconds) values ('resolve-2', 180)`,
+      ),
+      /row-level security/,
+    );
+    await assert.rejects(
+      asWorker(
+        (sql) =>
+          sql`update job_state set stale_after_seconds = 1 where job = 'settle-84532'`,
       ),
       /permission denied/,
     );
@@ -378,7 +406,8 @@ describe("the worker's role (settle_rw, FR-028a)", () => {
     await t.sql`delete from settlement_outbox where claim_id = ${claim.id}`;
     await assert.rejects(
       asWorker(
-        (sql) => sql`insert into settlement_outbox ${sql({ claim_id: claim.id })}`,
+        (sql) =>
+          sql`insert into settlement_outbox ${sql({ claim_id: claim.id, network: '84532' })}`,
       ),
       /permission denied/,
     );

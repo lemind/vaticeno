@@ -46,6 +46,8 @@ export type ClaimDeps = {
   answerModel: string;
   x?: UserLookup;
   botHandle?: string;
+  // Chain ids a locked price claim gets a settlement row on, one each (003 FR-036d). Unset: Base Sepolia only.
+  settlementNetworks?: readonly string[];
 };
 
 export type SubmitInput = {

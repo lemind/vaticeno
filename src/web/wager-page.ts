@@ -1,22 +1,13 @@
 // GET /claim/:slug/wager (003 Story 5): the claim, the escrow's terms and the verdict's settlement, rendered
 // here; the wagers themselves are read from the chain in the browser, since Node makes no chain calls (FR-027).
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { renderStatement } from '../contract/render.js';
 import { ContractSchema } from '../contract/schema.js';
 import type { Db } from '../db/client.js';
 import { claims, corrections, resolutions, settlementOutbox } from '../db/schema.js';
+import type { WagerNetwork } from '../wager/networks.js';
 import { wagerKind } from '../wager/terms.js';
 import { html, jsonData, layout, utc } from './html.js';
-
-export type WagerConfig = {
-  escrow: string;
-  token: string;
-  chainId: number;
-  version: 1 | 2;
-  chainName: string;
-  rpcUrls: string[];
-  explorer: string;
-};
 
 const POLICY_URL =
   'https://github.com/lemind/vaticeno/blob/main/docs/settlement-policy.md';
@@ -31,12 +22,16 @@ const SETTLEMENT_WORDS: Record<string, string> = {
   failed: 'not settled by the referee: matched wagers refund at the timeout',
 };
 
+// `chainId` picks the network (FR-036d): each has its own row, its own escrow and its own offers, and the page
+// shows one at a time. An unknown or absent one shows the first switched on.
 export async function wagerPage(
   db: Db,
   slug: string,
   now: Date,
-  config: WagerConfig | null,
+  networks: WagerNetwork[],
+  chainId?: number,
 ): Promise<string | null> {
+  const config = networks.find((n) => n.chainId === chainId) ?? networks[0] ?? null;
   const [claim] = await db
     .select()
     .from(claims)
@@ -48,7 +43,12 @@ export async function wagerPage(
     db
       .select()
       .from(settlementOutbox)
-      .where(eq(settlementOutbox.claimId, claim.id))
+      .where(
+        and(
+          eq(settlementOutbox.claimId, claim.id),
+          eq(settlementOutbox.network, String(config?.chainId ?? '')),
+        ),
+      )
       .limit(1),
     db.select().from(resolutions).where(eq(resolutions.claimId, claim.id)).limit(1),
     db.select().from(corrections).where(eq(corrections.claimId, claim.id)).limit(1),
@@ -63,10 +63,15 @@ export async function wagerPage(
       <a href="/claim/${claim.slug}">#${claim.slug}</a> · wager
     </p>
     <h1>${statement}</h1>
-    <p class="notice">
-      <strong>Testnet only.</strong> Wagers use VTS, a test token with no value, on
-      the Base Sepolia test network. Nothing here is real money.
-    </p>`;
+    ${
+      !config || config.testnet
+        ? html`<p class="notice">
+            <strong>Testnet only.</strong> Wagers use a test token with no value, on
+            ${config ? `the ${config.name} test network` : 'a test network'}. Nothing
+            here is real money.
+          </p>`
+        : ''
+    }`;
 
   if (kind === 'not_price')
     return layout(
@@ -104,7 +109,27 @@ export async function wagerPage(
           : html`Wagering opens shortly: the referee is signing this claim's
             permission.`;
 
-  const body = html`${head}
+  // Each network is its own market: a link per network, the one shown marked (FR-036d).
+  const picker =
+    networks.length > 1
+      ? html`<p class="networks">
+          Network:
+          ${networks.map((n) =>
+            n.chainId === config.chainId
+              ? html` <strong aria-current="page">${n.name}</strong>`
+              : html` <a
+                  href="/claim/${claim.slug}/wager?network=${String(n.chainId)}"
+                  >${n.name}</a
+                >`,
+          )}
+          <br /><span class="muted"
+            >Offers on one network are matched and settled on that network
+            only.</span
+          >
+        </p>`
+      : '';
+
+  const body = html`${head} ${picker}
     <h2>Terms</h2>
     <dl>
       <dt>HIT means</dt>
@@ -117,14 +142,15 @@ export async function wagerPage(
           href="${config.explorer}/address/${config.escrow}#code"
           rel="noopener"
           target="_blank"
-          >the escrow on Basescan</a
+          >the escrow on ${config.explorerName}</a
         >, source code verified ·
         <a
           href="${config.explorer}/token/${config.token}"
           rel="noopener"
           target="_blank"
-          >the VTS token</a
+          >the token</a
         >
+        on ${config.name}
         <br /><span class="muted"
           >Check any wager there: Read Contract → <code>stakes(number)</code>.
           Addresses in the table link to their own pages.</span
@@ -210,8 +236,8 @@ export async function wagerPage(
         <button type="button" id="withdraw" hidden>Withdraw</button>
       </p>
       <p class="muted">
-        Your own wallet signs every step and pays its network fee. Base Sepolia test
-        ETH comes from a faucet; VTS from the operator.
+        Your own wallet signs every step and pays its network fee in ${config.name}
+        ETH.${config.testnet ? ' Test ETH comes from a faucet; the test token from the operator.' : ''}
       </p>
       <form id="offer" class="offer" hidden>
         <fieldset class="side">
@@ -236,7 +262,7 @@ export async function wagerPage(
               autocomplete="off"
               required
             />
-            <span class="unit">VTS</span>
+            <span class="unit">USDC</span>
           </span>
         </label>
         <button type="submit" class="primary">Make an offer</button>
@@ -253,7 +279,7 @@ export async function wagerPage(
       token: config.token,
       chainId: config.chainId,
       version: config.version,
-      chainName: config.chainName,
+      chainName: config.name,
       rpcUrls: config.rpcUrls,
       explorer: config.explorer,
       claimHash: outbox?.claimHash ?? null,

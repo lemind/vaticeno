@@ -149,12 +149,16 @@ Runs as systemd service `vaticeno` (`src/web/server.ts` with `ENABLE_JOBS=true E
 connection string in the gitignored `.env.production`; apply migrations there with
 `set -a; . ./.env.production; set +a; npm run db:migrate` before deploying code that needs them.
 Claim pages are public through Caddy: `https://vaticeno.n30sk.cc/claim/<slug>` and its `/wager` page, which
-needs `ESCROW_ADDRESS` and `STAKE_TOKEN_ADDRESS` in the server's `.env`.
+needs `ESCROW_ADDRESS` and `STAKE_TOKEN_ADDRESS` in the server's `.env`, or, from Stage 4, `WAGER_NETWORKS`
+naming every network (`?network=<chain id>` picks one).
 
 The settlement worker is a separate service, `vaticeno-settle`, with its own system user. Its env file and
 the oracle key live in `/etc/vaticeno-settle/` (owner `vaticeno-settle`, mode 600), copied by hand and
 never synced; it connects as `settle_rw`, whose password is set by hand like `status_ro`'s. Unit:
-[deploy/vaticeno-settle.service](deploy/vaticeno-settle.service).
+[deploy/vaticeno-settle.service](deploy/vaticeno-settle.service). Stage 4 runs one more per network,
+[deploy/vaticeno-settle@.service](deploy/vaticeno-settle@.service) as `vaticeno-settle@<chain id>`, each with its
+own env file and oracle key under `/etc/vaticeno-settle/<chain id>/`; each registers its own `settle-<chain id>`
+heartbeat.
 
 The local verifier is not on the droplet: it is the private Cloud Run service `vaticeno-verifier`
 (us-central1, scales to zero, one instance taking one request at a time; the bot reads pages one after
