@@ -20,8 +20,10 @@ STATES = ["None", "Open", "Matched", "Settled", "Paid", "Voided", "Refunded", "E
 # A stake in one of these has had its verdict already, or never needed one.
 SETTLED_STATES = {"Settled", "Paid", "Voided", "Refunded"}
 
-# Only the functions the worker calls (contracts/src/Escrow.sol).
+# Only the functions the worker calls, the same in v1 and v2 (contracts/src/Escrow.sol, EscrowV2.sol).
 ESCROW_ABI = [
+    {"type": "function", "name": "domainSeparator", "stateMutability": "view", "inputs": [],
+     "outputs": [{"name": "", "type": "bytes32"}]},
     {"type": "function", "name": "oracle", "stateMutability": "view", "inputs": [],
      "outputs": [{"name": "", "type": "address"}]},
     {"type": "function", "name": "acceptanceCloses", "stateMutability": "view", "inputs": [],
@@ -68,7 +70,7 @@ class Stake:
 
 
 class Escrow:
-    def __init__(self, w3: Web3, address: str, chain_id: int, account: LocalAccount):
+    def __init__(self, w3: Web3, address: str, chain_id: int, account: LocalAccount, version: int = 1):
         # Checked once at start, then before every send: a wrong chain or a wrong key stops the worker.
         if w3.eth.chain_id != chain_id:
             raise ChainMismatch(f"connected to chain {w3.eth.chain_id}, configured for {chain_id}")
@@ -80,13 +82,21 @@ class Escrow:
         oracle = self.contract.functions.oracle().call()
         if oracle != account.address:
             raise ChainMismatch(f"the contract's oracle is {oracle}, this key is {account.address}")
+        # v2 signs as version "2" (007-escrow-v2): a wrong version would sign authorizations the contract refuses.
+        self.version = version
+        if self._typed(b"\0" * 32, 0, 0).header != bytes(self.contract.functions.domainSeparator().call()):
+            raise ChainMismatch(f"the contract at {self.address} is not escrow version {version} on chain {chain_id}")
         self.acceptance_closes: int = self.contract.functions.acceptanceCloses().call()
         self.timeout: int = self.contract.functions.timeout().call()
         self._next_nonce = 0
 
     def sign_open(self, hash_: bytes, deadline: int, valid_until: int) -> str:
         """The EIP-712 authorization `Escrow.open` checks (FR-031a), bound to this contract and chain."""
-        message = encode_typed_data(full_message={
+        message = self._typed(hash_, deadline, valid_until)
+        return "0x" + Account.sign_message(message, self.account.key).signature.hex().removeprefix("0x")
+
+    def _typed(self, hash_: bytes, deadline: int, valid_until: int):
+        return encode_typed_data(full_message={
             "types": {
                 "EIP712Domain": [
                     {"name": "name", "type": "string"},
@@ -102,12 +112,11 @@ class Escrow:
             },
             "primaryType": "OpenAuthorization",
             "domain": {
-                "name": "Vaticeno Escrow", "version": "1",
+                "name": "Vaticeno Escrow", "version": str(self.version),
                 "chainId": self.chain_id, "verifyingContract": self.address,
             },
             "message": {"claimHash": hash_, "deadline": deadline, "validUntil": valid_until},
         })
-        return "0x" + Account.sign_message(message, self.account.key).signature.hex().removeprefix("0x")
 
     def stakes_of(self, hash_: bytes) -> list[Stake]:
         return [self.stake(int(i)) for i in self.contract.functions.stakesOf(hash_).call()]

@@ -87,7 +87,7 @@ def artifacts():
     def load(name: str) -> dict:
         data = json.loads((CONTRACTS / f"out/{name}.sol/{name}.json").read_text())
         return {"abi": data["abi"], "bytecode": data["bytecode"]["object"]}
-    return {"Escrow": load("Escrow"), "TestToken": load("TestToken")}
+    return {name: load(name) for name in ("Escrow", "TestToken", "EscrowV2", "TestUsdc")}
 
 
 def _send(w3: Web3, account, call) -> dict:
@@ -121,6 +121,24 @@ def chain(w3, artifacts):
         _send(w3, who, token.functions.approve(escrow.address, 2**256 - 1))
     return {"w3": w3, "token": token, "escrow": escrow,
             "client": Escrow(w3, escrow.address, CHAIN_ID, ORACLE)}
+
+
+USDC = 10**6
+
+
+@pytest.fixture
+def chain_v2(w3, artifacts):
+    """v2 with 007's numbers, in a 6-decimal token that can block an address."""
+    token = _deploy(w3, artifacts["TestUsdc"])
+    escrow = _deploy(w3, artifacts["EscrowV2"], (
+        token.address, ORACLE.address, GUARDIAN.address, DEPLOYER.address,
+        0, 72 * 3600, 14 * DAY, DAY, 7 * DAY, 1 * USDC, 1_000 * USDC, 10_000 * USDC, 50_000 * USDC,
+    ))
+    for who in (MAKER, TAKER):
+        _send(w3, DEPLOYER, token.functions.mint(who.address, 5_000 * USDC))
+        _send(w3, who, token.functions.approve(escrow.address, 2**256 - 1))
+    return {"w3": w3, "token": token, "escrow": escrow,
+            "client": Escrow(w3, escrow.address, CHAIN_ID, ORACLE, version=2)}
 
 
 @pytest.fixture
@@ -373,3 +391,37 @@ def test_the_heartbeat_is_written_and_says_when_a_run_failed(db):
     failed = db["owner"].execute(
         "select last_outcome, last_error_tag, consecutive_failures from job_state where job = 'settle'")
     assert failed.fetchone() == ("failed", "RuntimeError", 1)
+
+
+# ---- escrow v2 (007-escrow-v2) ----
+
+
+def test_v2_the_worker_signs_version_2_and_the_winner_withdraws_the_pot(chain_v2, db):
+    w3, escrow, token = chain_v2["w3"], chain_v2["escrow"], chain_v2["token"]
+    claim = _locked_claim(db["owner"], _chain_now(w3) + 3 * DAY)
+    assert run_once(db["worker"], chain_v2["client"], _now(w3)).signed == 1
+    row = _row(db["owner"], claim)
+    stake = 250 * USDC
+    _send(w3, MAKER, escrow.functions.open(
+        claim_hash(claim["slug"]), claim["deadline"], int(row["authorized_until"].timestamp()),
+        bytes.fromhex(row["open_authorization"][2:]), True, stake))
+    _send(w3, TAKER, escrow.functions.accept(1))
+
+    _warp_to(w3, claim["deadline"] + 3600)
+    _final_verdict(db["owner"], claim, "hit")
+    assert run_once(db["worker"], chain_v2["client"], _now(w3)).sent == 1
+    assert _stake_state(escrow, 1) == 3  # Settled
+
+    _warp_to(w3, claim["deadline"] + 3600 + 72 * 3600)
+    _send(w3, TAKER, escrow.functions.payout(1))  # anyone may; the winner is credited, not sent
+    assert escrow.functions.creditOf(MAKER.address).call() == 2 * stake
+    before = token.functions.balanceOf(MAKER.address).call()
+    _send(w3, MAKER, escrow.functions.withdraw())
+    assert token.functions.balanceOf(MAKER.address).call() == before + 2 * stake
+
+
+def test_v2_a_v1_signature_would_be_refused_so_the_wrong_version_stops_the_worker(chain_v2, chain):
+    with pytest.raises(ChainMismatch, match="version 1"):
+        Escrow(chain_v2["w3"], chain_v2["escrow"].address, CHAIN_ID, ORACLE, version=1)
+    with pytest.raises(ChainMismatch, match="version 2"):
+        Escrow(chain["w3"], chain["escrow"].address, CHAIN_ID, ORACLE, version=2)

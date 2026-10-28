@@ -12,6 +12,7 @@ export type WagerConfig = {
   escrow: string;
   token: string;
   chainId: number;
+  version: 1 | 2;
   chainName: string;
   rpcUrls: string[];
   explorer: string;
@@ -206,6 +207,7 @@ export async function wagerPage(
       <p>
         <button type="button" id="connect" class="primary">Connect wallet</button>
         <span id="balance" class="muted"></span>
+        <button type="button" id="withdraw" hidden>Withdraw</button>
       </p>
       <p class="muted">
         Your own wallet signs every step and pays its network fee. Base Sepolia test
@@ -250,6 +252,7 @@ export async function wagerPage(
       escrow: config.escrow,
       token: config.token,
       chainId: config.chainId,
+      version: config.version,
       chainName: config.chainName,
       rpcUrls: config.rpcUrls,
       explorer: config.explorer,

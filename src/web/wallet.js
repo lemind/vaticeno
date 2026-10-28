@@ -2,12 +2,16 @@
 // wallet, and sends what the person's own wallet signs and pays for. Holds no key, sends nothing for anyone.
 import {
   actionsFor,
+  capRefusal,
   decodeStake,
+  decodeString,
   decodeUint,
   decodeUintArray,
   encodeAllowance,
   encodeApprove,
   encodeBalanceOf,
+  encodeCreditOf,
+  encodeLockedOnClaim,
   encodeOpen,
   encodeStakeCall,
   encodeStakesOf,
@@ -69,19 +73,41 @@ async function walletOnThisChain() {
   }
 }
 
+const v2 = data.version === 2; // v2 credits every exit and caps what is at stake (007-escrow-v2)
+
 async function loadChain() {
   const terms = ['paused', 'maxStake', 'feeBps', 'settlementWindow', 'timeout', 'offerLifetime'];
-  const first = await readAll([
-    ...terms.map((name) => [data.escrow, SELECTORS[name]]),
-    [data.token, SELECTORS.decimals],
-    ...(data.claimHash ? [[data.escrow, encodeStakesOf(data.claimHash)]] : []),
-    ...(account ? [[data.token, encodeBalanceOf(account)]] : []),
-  ]);
-  const [paused, maxStake, feeBps, settlementWindow, timeout, offerLifetime, decimals] = first.slice(0, 7).map(decodeUint);
-  const ids = data.claimHash ? decodeUintArray(first[7]) : [];
-  const balance = account ? decodeUint(first.at(-1)) : null;
+  // Each read is named, so v2's extra ones never shift v1's positions.
+  const named = [
+    ...terms.map((name) => [name, data.escrow, SELECTORS[name]]),
+    ['decimals', data.token, SELECTORS.decimals],
+    ['symbol', data.token, SELECTORS.symbol],
+    ...(data.claimHash ? [['ids', data.escrow, encodeStakesOf(data.claimHash)]] : []),
+    ...(account ? [['balance', data.token, encodeBalanceOf(account)]] : []),
+    ...(v2
+      ? [
+          ['minStake', data.escrow, SELECTORS.minStake],
+          ['maxPerClaim', data.escrow, SELECTORS.maxPerClaim],
+          ['maxTotal', data.escrow, SELECTORS.maxTotal],
+          ['lockedTotal', data.escrow, SELECTORS.lockedTotal],
+          ...(data.claimHash ? [['lockedOnClaim', data.escrow, encodeLockedOnClaim(data.claimHash)]] : []),
+          ...(account ? [['credit', data.escrow, encodeCreditOf(account)]] : []),
+        ]
+      : []),
+  ];
+  const answers = await readAll(named.map(([, to, callData]) => [to, callData]));
+  const read = Object.fromEntries(named.map(([name], i) => [name, answers[i]]));
+  const n = (name) => (read[name] === undefined ? null : decodeUint(read[name]));
+  const ids = read.ids ? decodeUintArray(read.ids) : [];
+  const decimals = Number(n('decimals'));
+  const symbol = decodeString(read.symbol);
   const newest = ids.slice(-SHOWN).reverse();
   const raw = newest.length ? await readAll(newest.map((id) => [data.escrow, encodeStakeCall('stakes', id)])) : [];
+  const [paused, maxStake, feeBps, settlementWindow, timeout, offerLifetime] = terms.map(n);
+  const balance = n('balance');
+  const caps = v2
+    ? { minStake: n('minStake'), maxStake, lockedOnClaim: n('lockedOnClaim') ?? 0n, maxPerClaim: n('maxPerClaim'), lockedTotal: n('lockedTotal'), maxTotal: n('maxTotal'), decimals, symbol }
+    : null;
   return {
     paused: paused === 1n,
     maxStake,
@@ -89,9 +115,12 @@ async function loadChain() {
     settlementWindow: Number(settlementWindow),
     timeout: Number(timeout),
     offerLifetime: Number(offerLifetime),
-    decimals: Number(decimals),
+    decimals,
+    symbol,
     total: ids.length,
     balance,
+    caps,
+    credit: n('credit'),
     stakes: raw.map((hex, i) => ({ id: newest[i], ...decodeStake(hex) })),
   };
 }
@@ -110,11 +139,25 @@ async function refresh() {
   renderTerms();
   renderWagers();
   renderOfferForm();
-  if (account) $('balance').textContent = `${short(account)} · ${formatUnits(chain.balance, chain.decimals)} VTS`;
+  if (account) $('balance').textContent = `${short(account)} · ${units(chain.balance)}`;
+  renderWithdraw();
+  if (busy) setBusy(true); // a redraw mid-action draws fresh buttons: they stay locked too
+}
+
+const units = (value) => `${formatUnits(value, chain.decimals)} ${chain.symbol}`;
+
+// v2: what the contract owes this wallet, from every stake it has left (FR-036b). Only its owner can take it.
+function renderWithdraw() {
+  const owed = account && chain.credit ? chain.credit : 0n;
+  $('withdraw').hidden = owed === 0n;
+  $('withdraw').textContent = `Withdraw ${owed ? units(owed) : ''}`;
 }
 
 function renderTerms() {
-  $('max-stake').textContent = `${formatUnits(chain.maxStake, chain.decimals)} VTS`;
+  for (const el of document.querySelectorAll('.unit')) el.textContent = chain.symbol;
+  $('max-stake').textContent = chain.caps
+    ? `${units(chain.maxStake)} per side, at least ${units(chain.caps.minStake)}; ${units(chain.caps.maxPerClaim)} per claim and ${units(chain.caps.maxTotal)} in the contract, at stake at once (${units(chain.caps.lockedOnClaim)} on this claim now)`
+    : units(chain.maxStake);
   $('payout-rule').textContent =
     chain.feeBps === 0
       ? 'twice the stake, no fee'
@@ -139,7 +182,7 @@ function renderWagers() {
     // Every party links to its own page on the explorer, so either side can check the other (and itself).
     const cells = [
       [`#${stake.id}`, `${data.explorer}/address/${data.escrow}#readContract`],
-      [`${formatUnits(stake.amount, chain.decimals)} VTS each`],
+      [`${units(stake.amount)} each`],
       [`${short(stake.maker)} on ${makerSide}`, `${data.explorer}/address/${stake.maker}`],
       empty ? ['—'] : [`${short(stake.taker)} on ${stake.makerSaysHit ? 'MISS' : 'HIT'}`, `${data.explorer}/address/${stake.taker}`],
       [describe(stake)],
@@ -158,10 +201,10 @@ function renderWagers() {
       row.append(cell);
     }
     const buttons = document.createElement('td');
-    for (const action of actionsFor(stake, { now: nowSeconds(), account, paused: chain.paused, settlementWindow: chain.settlementWindow, timeout: chain.timeout })) {
+    for (const action of actionsFor(stake, { now: nowSeconds(), account, paused: chain.paused, settlementWindow: chain.settlementWindow, timeout: chain.timeout, caps: chain.caps })) {
       const button = document.createElement('button');
       button.type = 'button';
-      button.textContent = action.live ? action.label : `${action.label} after ${utc(action.opensAt)}`;
+      button.textContent = action.live ? action.label : action.refused ? `${action.label}: ${action.refused}` : `${action.label} after ${utc(action.opensAt)}`;
       button.disabled = !action.live;
       button.addEventListener('click', () => act(action.name, stake));
       buttons.append(button);
@@ -172,7 +215,10 @@ function renderWagers() {
 }
 
 // The chain's state in words; a verdict on X that is not on the chain yet is the server's line above.
+// v2 credits instead of sending: the money waits in the contract until its owner withdraws it.
 function describe(stake) {
+  const paid = v2 ? 'credited' : 'paid out';
+  const back = v2 ? 'both credited back' : 'both refunded';
   switch (stake.state) {
     case 'Open':
       return nowSeconds() >= stake.offerExpiry ? 'offer expired' : `open until ${utc(stake.offerExpiry)}`;
@@ -181,13 +227,13 @@ function describe(stake) {
     case 'Settled':
       return `${stake.outcome.toUpperCase()} on the chain, payout hold until ${utc(stake.settledAt + chain.settlementWindow)}`;
     case 'Paid':
-      return `${stake.outcome.toUpperCase()}: paid out`;
+      return `${stake.outcome.toUpperCase()}: ${paid} to the winner`;
     case 'Voided':
-      return 'voided by the referee: both refunded';
+      return `voided by the referee: ${back}`;
     case 'Refunded':
-      return stake.outcome === 'Void' ? 'VOID: both refunded' : 'no verdict by the timeout: both refunded';
+      return stake.outcome === 'Void' ? `VOID: ${back}` : `no verdict by the timeout: ${back}`;
     case 'Expired':
-      return 'offer expired: returned to its maker';
+      return v2 ? 'offer expired: credited back to its maker' : 'offer expired: returned to its maker';
     default:
       return stake.state;
   }
@@ -271,14 +317,25 @@ async function send(label, to, callData) {
 async function ensureAllowance(amount) {
   const [allowance] = await readAll([[data.token, encodeAllowance(account, data.escrow)]]);
   const allowed = decodeUint(allowance);
-  if (allowed < amount) await send('Approve VTS', data.token, encodeApprove(data.escrow, amount));
+  if (allowed < amount) await send(`Approve ${chain.symbol}`, data.token, encodeApprove(data.escrow, amount));
 }
 
 // One transaction at a time: every control is locked from the first click until the chain has answered,
 // so a second click can never open a second offer or approve twice.
+// Releasing re-enables only what the lock disabled: a button the render disabled (a cap reached, a hold not
+// over) stays disabled, and one rendered while locked keeps its own state.
+let busy = false;
 function setBusy(on) {
-  for (const el of document.querySelectorAll('#wallet-panel button, #wallet-panel input, #wagers button'))
-    el.disabled = on;
+  busy = on;
+  for (const el of document.querySelectorAll('#wallet-panel button, #wallet-panel input, #wagers button')) {
+    if (on) {
+      if (!el.disabled) el.dataset.locked = '1';
+      el.disabled = true;
+    } else if (el.dataset.locked) {
+      el.disabled = false;
+      delete el.dataset.locked;
+    }
+  }
   $('wallet-panel').classList.toggle('busy', on);
 }
 
@@ -287,6 +344,9 @@ async function act(name, stake) {
   try {
     if (!account) await connect();
     if (name === 'accept') {
+      await refresh(); // the caps as they are now, not as the page last drew them
+      const refused = capRefusal(chain.caps, stake.amount, { opening: false });
+      if (refused) throw new Error(`Can't accept: ${refused}`);
       await ensureAllowance(stake.amount);
       await send('Accept', data.escrow, encodeStakeCall('accept', stake.id));
     } else {
@@ -307,7 +367,11 @@ async function makeOffer(event) {
     if (!chain) throw new Error("the chain hasn't been read yet; try again in a moment");
     if (!account) await connect();
     const amount = parseUnits($('amount').value, chain.decimals);
-    if (amount === 0n || amount > chain.maxStake) throw new Error(`the amount must be above 0 and at most ${formatUnits(chain.maxStake, chain.decimals)} VTS`);
+    if (amount === 0n || amount > chain.maxStake) throw new Error(`the amount must be above 0 and at most ${units(chain.maxStake)}`);
+    // Before the wallet signs anything, so a stake the contract would refuse never costs a fee (SC-026).
+    await refresh();
+    const refused = capRefusal(chain.caps, amount, { opening: true });
+    if (refused) throw new Error(`Can't open: ${refused}`);
     const makerSaysHit = new FormData(event.target).get('side') === 'hit';
     await ensureAllowance(amount);
     await send('Open offer', data.escrow, encodeOpen({ claimHash: data.claimHash, deadline: data.deadline, validUntil: data.validUntil, signature: data.authorization, makerSaysHit, amount }));
@@ -340,7 +404,19 @@ async function rememberedAccount() {
   });
 }
 
+async function withdraw() {
+  setBusy(true);
+  try {
+    await send('Withdraw', data.escrow, SELECTORS.withdraw);
+  } catch (error) {
+    status(error.message);
+  }
+  await refresh();
+  setBusy(false);
+}
+
 $('connect').addEventListener('click', () => connect().catch((error) => status(error.message)));
+$('withdraw').addEventListener('click', withdraw);
 $('offer').addEventListener('submit', makeOffer);
 $('wallet-panel').hidden = false;
 rememberedAccount().then(refresh);

@@ -139,6 +139,14 @@ const CoreEnvSchema = z
         .optional(),
     ),
     ESCROW_CHAIN_ID: z.coerce.number().int().default(84532),
+    // 1: the deployed testnet escrow (002); 2: credits, withdraw and caps (007). The worker reads the same.
+    ESCROW_VERSION: z.preprocess(
+      blankIsUnset,
+      z.coerce
+        .number()
+        .pipe(z.union([z.literal(1), z.literal(2)]))
+        .default(1),
+    ),
     // The nodes the browser reads the chain through, tried in order: free ones rate-limit (003 plan).
     PUBLIC_RPC_URLS: z.preprocess(
       blankIsUnset,

@@ -180,8 +180,9 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     account = Account.from_key(read_key(Path(os.environ["ORACLE_KEY_FILE"])))
     w3 = Web3(Web3.HTTPProvider(os.environ["BASE_SEPOLIA_RPC_URL"]))
-    escrow = Escrow(w3, os.environ["ESCROW_ADDRESS"], int(os.environ["ESCROW_CHAIN_ID"]), account)
-    log.info("settle.started oracle=%s escrow=%s", account.address, escrow.address)
+    escrow = Escrow(w3, os.environ["ESCROW_ADDRESS"], int(os.environ["ESCROW_CHAIN_ID"]), account,
+                    int(os.environ.get("ESCROW_VERSION", "1")))
+    log.info("settle.started oracle=%s escrow=%s version=%s", account.address, escrow.address, escrow.version)
     while True:
         started = datetime.now(UTC)
         try:

@@ -240,6 +240,7 @@ describe('the wager page', () => {
     escrow: '0x6281F12b4d4AB4bC3d53719A209381F81aFC0A72',
     token: '0x5C2cfb7a6a87cbD0D927EDe2ea01BFc8C816c2d7',
     chainId: 84532,
+    version: 1 as const,
     chainName: 'Base Sepolia',
     rpcUrls: ['https://base-sepolia-rpc.publicnode.com', 'https://sepolia.base.org'],
     explorer: 'https://sepolia.basescan.org',
