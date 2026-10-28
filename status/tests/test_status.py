@@ -18,7 +18,7 @@ from status import auth
 from status.app import Snapshot, as_json
 from status.build_info import Build
 from status.progress import Progress
-from status.queries import Backlog, Finding, Job, ShadowCount, Spend
+from status.queries import Backlog, Finding, Job, NetworkHealth, ShadowCount, Spend
 
 NOW = datetime.now(UTC)
 
@@ -158,6 +158,20 @@ def test_the_settlement_queue_shows_what_needs_a_person(client):
     body = client(state).get("/status.json").json()
     assert body["settlement"] == {"pending": 2, "held": 1}
     assert body["escrow"] == {"address": "0xEsc", "chain_id": "84532"}
+
+
+def test_a_network_short_of_what_it_owes_or_unread_degrades_the_page(client):
+    healthy = NetworkHealth(network="8453", oracle_gas_wei=5 * 10**15, escrow_usdc=2_000_000_000,
+                            owed_usdc=2_000_000_000, backlog=0, oldest_backlog_at=None, last_settled_at=None,
+                            read_at=NOW - timedelta(minutes=1))
+    page = client(replace(snapshot(HEALTHY), networks=[healthy])).get("/").text
+    assert "2000.00 / 2000.00 USDC" in page and "0.00500 ETH" in page
+    assert client(replace(snapshot(HEALTHY), networks=[healthy])).get("/status.json").json()["state"] == "OK"
+    short = replace(healthy, escrow_usdc=1_999_000_000)
+    unread = replace(healthy, network="42161", read_at=NOW - timedelta(minutes=6))
+    body = client(replace(snapshot(HEALTHY), networks=[short, unread])).get("/status.json").json()
+    assert body["state"] == "DEGRADED"
+    assert body["failing_networks"] == ["8453", "42161"]
 
 
 def test_the_verifier_count_shows_how_far_from_go_live_and_any_wrong_event(client):

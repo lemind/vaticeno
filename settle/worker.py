@@ -24,7 +24,9 @@ from psycopg.rows import dict_row
 from web3 import Web3
 from web3.exceptions import Web3Exception
 
+from settle.alerts import Alerts
 from settle.chain import SETTLED_STATES, ChainMismatch, Escrow, claim_hash, evidence_ref
+from settle.health import record_health
 
 POLL_SECONDS = 60
 CONNECT_TIMEOUT_SECONDS = 5
@@ -207,6 +209,7 @@ def main() -> None:
                     int(os.environ.get("ESCROW_VERSION", "1")))
     log.info("settle.started network=%s oracle=%s escrow=%s version=%s",
              network_of(escrow), account.address, escrow.address, escrow.version)
+    alerts = Alerts(os.environ.get("SENTRY_DSN"))
     registered = False
     while True:
         started = datetime.now(UTC)
@@ -222,6 +225,8 @@ def main() -> None:
                 except Exception as error:
                     heartbeat(conn, escrow, started, error)
                     log.exception("settle.run_failed")
+                # After settling, never before: a slow read here never delays a verdict reaching the chain.
+                record_health(conn, escrow, datetime.now(UTC), alerts)
         except psycopg.Error:
             log.exception("settle.database_unreachable")  # no heartbeat possible: the page shows it late
         time.sleep(POLL_SECONDS)

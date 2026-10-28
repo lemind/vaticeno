@@ -992,6 +992,8 @@ contract EscrowV2OperatorInvariant is Test {
 
     function invariant_the_escrow_holds_exactly_what_it_owes() public view {
         assertEq(handler.token().balanceOf(address(handler.escrow())), handler.live() + handler.credited());
+        // What the worker reports as owed, from the contract's own two counters (FR-022c).
+        assertEq(handler.escrow().lockedTotal() + handler.escrow().creditTotal(), handler.live() + handler.credited());
     }
 
     function invariant_the_caps_count_exactly_the_live_stakes() public view {

@@ -41,10 +41,30 @@ ESCROW_ABI = [
          {"name": "settledAt", "type": "uint64"}, {"name": "makerSaysHit", "type": "bool"},
          {"name": "state", "type": "uint8"}, {"name": "outcome", "type": "uint8"},
      ]},
+    # v2 only: the token and the two counters that add up to everything it owes (007-escrow-v2, FR-022c).
+    {"type": "function", "name": "token", "stateMutability": "view", "inputs": [],
+     "outputs": [{"name": "", "type": "address"}]},
+    {"type": "function", "name": "lockedTotal", "stateMutability": "view", "inputs": [],
+     "outputs": [{"name": "", "type": "uint256"}]},
+    {"type": "function", "name": "creditTotal", "stateMutability": "view", "inputs": [],
+     "outputs": [{"name": "", "type": "uint256"}]},
     {"type": "function", "name": "settle", "stateMutability": "nonpayable",
      "inputs": [{"name": "id", "type": "uint256"}, {"name": "outcome", "type": "uint8"},
                 {"name": "evidenceRef", "type": "bytes32"}], "outputs": []},
 ]
+
+
+BALANCE_OF_ABI = [
+    {"type": "function", "name": "balanceOf", "stateMutability": "view",
+     "inputs": [{"name": "owner", "type": "address"}], "outputs": [{"name": "", "type": "uint256"}]},
+]
+
+
+@dataclass(frozen=True)
+class Holdings:
+    oracle_gas_wei: int
+    escrow_usdc: int
+    owed_usdc: int
 
 
 class ChainMismatch(Exception):
@@ -156,6 +176,15 @@ class Escrow:
             return self.w3.eth.get_transaction(tx_hash)["blockNumber"] is None
         except TransactionNotFound:
             return False
+
+    def holdings(self) -> Holdings:
+        """v2: the oracle's gas, the escrow's token balance, and what it owes (live stakes plus unwithdrawn credits)."""
+        token = self.w3.eth.contract(address=self.contract.functions.token().call(), abi=BALANCE_OF_ABI)
+        return Holdings(
+            oracle_gas_wei=self.w3.eth.get_balance(self.account.address),
+            escrow_usdc=token.functions.balanceOf(self.address).call(),
+            owed_usdc=self.contract.functions.lockedTotal().call() + self.contract.functions.creditTotal().call(),
+        )
 
     def _nonce(self) -> int:
         # HACK(base-sepolia-rpc): OBSERVED 2026-10-19 in the end-to-end run: the public RPC is several nodes and

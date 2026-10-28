@@ -107,6 +107,8 @@ contract EscrowV2 {
     uint256 public lockedTotal;
     // What each address may withdraw: every exit lands here, never in a transfer (FR-036b).
     mapping(address => uint256) public creditOf;
+    // All credits not yet withdrawn: with lockedTotal, everything the escrow owes (003 FR-022c).
+    uint256 public creditTotal;
 
     event Opened(
         uint256 indexed id,
@@ -317,6 +319,7 @@ contract EscrowV2 {
         uint256 amount = creditOf[msg.sender];
         if (amount == 0) revert NothingToWithdraw();
         creditOf[msg.sender] = 0;
+        creditTotal -= amount;
         emit Withdrawn(msg.sender, amount);
         _push(msg.sender, amount);
     }
@@ -411,6 +414,7 @@ contract EscrowV2 {
 
     function _credit(address account, uint256 id, uint256 amount) private {
         creditOf[account] += amount;
+        creditTotal += amount;
         emit Credited(account, id, amount);
     }
 

@@ -51,6 +51,7 @@ class Snapshot:
     db_error: str | None
     version: str = ""
     settlement: dict[str, int] = field(default_factory=dict)
+    networks: list[queries.NetworkHealth] = field(default_factory=list)
     shadow: list[queries.ShadowCount] = field(default_factory=list)
     # Public addresses, not credentials: the page still holds nothing but its database connection (FR-003).
     escrow_address: str = ""
@@ -60,6 +61,11 @@ class Snapshot:
     def late_jobs(self) -> list[queries.Job]:
         """Past its own window, or its last run failed. These are the ones that make the page not ok."""
         return [job for job in self.jobs if job.state in ("STALE", "FAILING")]
+
+    @property
+    def failing_networks(self) -> list[str]:
+        """A network whose escrow holds less than it owes, or whose worker has stopped reading it (FR-022c)."""
+        return [n.network for n in self.networks if n.underfunded or n.unread(self.at)]
 
     @property
     def waiting_jobs(self) -> list[queries.Job]:
@@ -72,7 +78,7 @@ class Snapshot:
         """The page's first line. A database it cannot read, or one late job, is not "ok" (SC-002)."""
         if self.db_error:
             return "NO DATABASE"
-        return "OK" if not self.late_jobs else "DEGRADED"
+        return "OK" if not (self.late_jobs or self.failing_networks) else "DEGRADED"
 
 
 def take_snapshot() -> Snapshot:
@@ -99,6 +105,7 @@ def take_snapshot() -> Snapshot:
                 backlog=queries.review_backlog(conn),
                 findings=queries.open_findings(conn),
                 settlement=queries.settlement_queue(conn),
+                networks=queries.network_health(conn),
                 shadow=queries.shadow_count(conn),
                 db_error=None,
             )
@@ -235,6 +242,11 @@ def as_json(snapshot: Snapshot) -> dict:
         "spend": _plain(asdict(snapshot.spend)) if snapshot.spend else None,
         "feed": snapshot.feed,
         "settlement": snapshot.settlement,
+        "networks": [
+            {**_plain(asdict(n)), "underfunded": n.underfunded, "unread": n.unread(snapshot.at)}
+            for n in snapshot.networks
+        ],
+        "failing_networks": snapshot.failing_networks,
         "shadow": [asdict(count) for count in snapshot.shadow],
         "escrow": {"address": snapshot.escrow_address, "chain_id": snapshot.escrow_chain_id},
         "backlog": (

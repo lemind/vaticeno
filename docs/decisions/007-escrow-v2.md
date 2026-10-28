@@ -45,7 +45,8 @@ VOID, the guardian's void, the timeout, an expired offer — ever takes a fee.
 | **Caps** (FR-022a) | one per-stake maximum | per side, per claim and per network, as above, plus the minimum |
 | **Withdrawal** | "no withdrawal function of any kind exists" | one: `withdraw()`, which moves only the caller's own credited balance. Still no function moves anyone else's money |
 | **Events** | as 002 | adds `Credited(account, stakeId, amount)` and `Withdrawn(account, amount)`, so every balance can be audited from the chain alone |
-| **Views** | `stakesOf` | adds `creditOf(address)`, `lockedOnClaim(claimHash)`, `lockedTotal()`, for the page and the worker's health row (FR-022c) |
+| **Views** | `stakesOf` | adds `creditOf(address)`, `lockedOnClaim(claimHash)`, `lockedTotal()`, `creditTotal()` (so what it owes is
+`lockedTotal + creditTotal`), for the page and the worker's health row (FR-022c) |
 | **Signature version** | the worker signs `"1"` | the worker signs `"2"`. `ESCROW_VERSION` (1 or 2, default 1) tells the page and the worker which contract they face; the worker refuses to start when the contract's own domain is not that version |
 
 Unchanged from v1, and named because the review checks them: the EIP-712 authorization is bound to the chain

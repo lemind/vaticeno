@@ -131,6 +131,22 @@
     </table>
   </div>
 
+  {#- Each v2 network as its worker last read it (FR-022c); amounts in USDC base units, gas in wei. -#}
+  {% if s.networks %}
+  <div class="panel">
+    <h2>Networks</h2>
+    <table>
+      {% for n in s.networks %}
+      <tr><td class="k">chain {{ n.network }}</td><td class="r{% if n.unread(s.at) %} FAILING{% endif %}">read {{ n.read_at.strftime('%H:%M UTC') }}</td></tr>
+      <tr><td class="k">holds / owes</td><td class="r{% if n.underfunded %} FAILING{% endif %}">{{ '%.2f' % (n.escrow_usdc / 1e6) }} / {{ '%.2f' % (n.owed_usdc / 1e6) }} USDC</td></tr>
+      <tr><td class="k">oracle gas</td><td class="r">{{ '%.5f' % (n.oracle_gas_wei / 1e18) }} ETH</td></tr>
+      <tr><td class="k">waiting to settle</td><td class="r">{{ n.backlog }}{% if n.oldest_backlog_at %} · since {{ n.oldest_backlog_at.strftime('%m-%d %H:%M') }}{% endif %}</td></tr>
+      <tr><td class="k">last settled</td><td class="r note">{{ n.last_settled_at.strftime('%m-%d %H:%M UTC') if n.last_settled_at else 'never' }}</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% endif %}
+
   {#- The local verifier in shadow: it decides nothing until SC-005's count is met with no wrong event. -#}
   <div class="panel">
     <h2>Verifier · shadow</h2>

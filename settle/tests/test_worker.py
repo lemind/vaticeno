@@ -10,7 +10,7 @@ import socket
 import subprocess
 import time
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import psycopg
@@ -518,3 +518,47 @@ def test_a_dead_network_never_holds_up_the_other(chain, w3_other, artifacts, db,
     assert _row(db["owner"], claim)["state"] == "sent"
     stuck = _row(db["owner"], claim, str(OTHER_CHAIN_ID))
     assert (stuck["state"], stuck["attempts"]) == ("pending", 1)
+
+
+# ---- each network's health (FR-022c) ----
+
+
+def test_health_is_written_for_the_status_page_and_each_alert_is_raised_once(chain_v2, db, monkeypatch, caplog):
+    import settle.health as health
+    from settle.alerts import Alerts
+
+    w3, escrow = chain_v2["w3"], chain_v2["escrow"]
+    claim = _locked_claim(db["owner"], _chain_now(w3) + 3 * DAY)
+    run_once(db["worker"], chain_v2["client"], _now(w3))
+    row = _row(db["owner"], claim)
+    _send(w3, MAKER, escrow.functions.open(
+        claim_hash(claim["slug"]), claim["deadline"], int(row["authorized_until"].timestamp()),
+        bytes.fromhex(row["open_authorization"][2:]), True, 40 * USDC))
+
+    alerts = Alerts(None)
+    monkeypatch.setattr(health, "GAS_LOW_WEI", 10**30)  # more than any oracle holds: the alert must fire
+    health.record_health(db["worker"], chain_v2["client"], _now(w3), alerts)
+    health.record_health(db["worker"], chain_v2["client"], _now(w3), alerts)
+    got = db["owner"].execute(
+        "select escrow_usdc, owed_usdc, backlog from network_health where network = %s", (str(CHAIN_ID),)).fetchone()
+    assert tuple(int(v) for v in got) == (40 * USDC, 40 * USDC, 0)  # holds exactly what the open offer owes
+    assert alerts.active == {"gas_low"}
+    assert sum("settle.gas_low" in r.message for r in caplog.records) == 1, "raised when it starts, not every pass"
+
+    # A node that stops answering is its own alert, and the row is left to age rather than rewritten.
+    def dead():
+        raise OSError("connection refused")
+    monkeypatch.setattr(chain_v2["client"], "holdings", dead)
+    health.record_health(db["worker"], chain_v2["client"], _now(w3), alerts)
+    assert alerts.active == {"gas_low", "rpc_down"}
+
+
+def test_a_balance_short_of_what_is_owed_and_an_old_backlog_are_alerts():
+    from settle.health import BACKLOG_MAX_AGE, conditions
+
+    now = datetime.now(UTC)
+    queue = {"backlog": 2, "oldest_backlog_at": now - BACKLOG_MAX_AGE - timedelta(minutes=1), "stuck": 1,
+             "last_settled_at": None}
+    found = conditions(10**18, 99, 100, queue, now)
+    assert set(found) == {"underfunded", "backlog_old", "stuck"}
+    assert conditions(10**18, 100, 100, {**queue, "oldest_backlog_at": now, "stuck": 0}, now) == {}
