@@ -9,6 +9,7 @@ import { type BotDeps, pollMentions } from '../../src/bot/mentions.js';
 import type { Coinbase } from '../../src/feeds/coinbase.js';
 import { createMemorySourceReader } from '../../src/lifecycle/source-reader.js';
 import type { LlmClient } from '../../src/llm/client.js';
+import { KNOWN_NETWORKS } from '../../src/wager/networks.js';
 import { buildServer } from '../../src/web/server.js';
 import { type Mention, PostNotSent, type XClient } from '../../src/x/client.js';
 import {
@@ -43,7 +44,12 @@ const llm = new Proxy(
 
 async function bot(
   mentionsByPoll: Mention[][],
-  opts: { linksPerDay?: number; failPosts?: number; notSent?: number } = {},
+  opts: {
+    linksPerDay?: number;
+    failPosts?: number;
+    notSent?: number;
+    networks?: Array<{ chainId: number; name: string; testnet: boolean }>;
+  } = {},
 ) {
   const replies: Array<{ to: string; text: string }> = [];
   let poll = 0;
@@ -75,7 +81,13 @@ async function bot(
     },
     allowAuthor: () => true,
     caps: { perAuthorPerHour: 30, perDay: 300 },
-    wager: { host: HOST, linksPerDay: opts.linksPerDay ?? 10 },
+    wager: {
+      host: HOST,
+      linksPerDay: opts.linksPerDay ?? 10,
+      networks: opts.networks ?? [
+        { chainId: 84532, name: 'Base Sepolia', testnet: true },
+      ],
+    },
     statePath: join(await mkdtemp(join(tmpdir(), 'vaticeno-wager-')), 'ingest.json'),
   };
   return { deps, replies };
@@ -101,11 +113,35 @@ const THREAD = {
 // Locked since Stage 2 shipped: the lock wrote its settlement row (src/lifecycle/lock.ts).
 async function lockedPriceClaim(overrides: Record<string, unknown> = {}) {
   const claim = await insertClaim(t.sql, 'locked', { ...THREAD, ...overrides });
-  await t.sql`insert into settlement_outbox (claim_id) values (${claim.id})`;
+  await t.sql`insert into settlement_outbox (claim_id, network) values (${claim.id}, '84532')`;
   return claim;
 }
 
+const MAINNETS = [
+  { chainId: 8453, name: 'Base', testnet: false },
+  { chainId: 42161, name: 'Arbitrum One', testnet: false },
+];
+
 describe('the wager command', () => {
+  test('a claim with no row on any network switched on is closed, never a real-money link', async () => {
+    await lockedPriceClaim(); // locked under Stage 2: a Base Sepolia row only
+    const { deps, replies } = await bot([[wager('10')]], { networks: MAINNETS });
+    await pollMentions(deps, NOW);
+    assert.doesNotMatch(replies[0]!.text, /Real money|\/wager/);
+  });
+
+  test('with real money on, the link names the networks and USDC, and still carries one link only', async () => {
+    const claim = await lockedPriceClaim();
+    for (const network of ['8453', '42161'])
+      await t.sql`insert into settlement_outbox (claim_id, network) values (${claim.id}, ${network})`;
+    const { deps, replies } = await bot([[wager('10')]], { networks: MAINNETS });
+    await pollMentions(deps, NOW);
+    assert.match(replies[0]!.text, /Real money, in USDC, on Base or Arbitrum One\./);
+    assert.doesNotMatch(replies[0]!.text, /Testnet|no value/);
+    assert.equal(replies[0]!.text.match(/https?:\/\/|vaticeno\.test/g)!.length, 1);
+    assert.ok(replies[0]!.text.includes(`${HOST}/claim/${claim.slug}/wager`));
+  });
+
   test('a burst on one claim posts one link, from anyone in the thread, and never again', async () => {
     const claim = await lockedPriceClaim();
     const { deps, replies } = await bot([
@@ -153,7 +189,7 @@ describe('the wager command', () => {
     await pollMentions(deps, NOW);
     assert.equal(replies.length, 1, 'the refusal is said once per claim');
     await t.sql`update claims set status = 'locked' where id = ${claim.id}`;
-    await t.sql`insert into settlement_outbox (claim_id) values (${claim.id})`;
+    await t.sql`insert into settlement_outbox (claim_id, network) values (${claim.id}, '84532')`;
     await pollMentions(deps, NOW);
     assert.match(
       replies[1]!.text,
@@ -236,14 +272,20 @@ describe('the wager command', () => {
 });
 
 describe('the wager page', () => {
-  const config = {
-    escrow: '0x6281F12b4d4AB4bC3d53719A209381F81aFC0A72',
-    token: '0x5C2cfb7a6a87cbD0D927EDe2ea01BFc8C816c2d7',
-    chainId: 84532,
-    chainName: 'Base Sepolia',
-    rpcUrls: ['https://base-sepolia-rpc.publicnode.com', 'https://sepolia.base.org'],
-    explorer: 'https://sepolia.basescan.org',
-  };
+  const network = (chainId: number, escrow: string, token: string) => ({
+    ...KNOWN_NETWORKS[chainId]!,
+    chainId,
+    version: 1 as const,
+    escrow,
+    token,
+  });
+  const config = [
+    network(
+      84532,
+      '0x6281F12b4d4AB4bC3d53719A209381F81aFC0A72',
+      '0x5C2cfb7a6a87cbD0D927EDe2ea01BFc8C816c2d7',
+    ),
+  ];
   const app = (now = NOW) =>
     buildServer({ db: t.db, now: () => now, wager: config });
   const pageData = (body: string) =>
@@ -275,6 +317,73 @@ describe('the wager page', () => {
     assert.equal(data.deadline, Date.parse(VALID_CONTRACT.deadline_at) / 1000);
     const script = await app().inject('/assets/wallet-abi.js');
     assert.match(script.headers['content-type'] as string, /text\/javascript/);
+  });
+
+  test('each network is its own page: its own row, escrow and chain, never the other one (FR-036d)', async () => {
+    const claim = await withAuthorization(); // signed on Base Sepolia only
+    await t.sql`insert into settlement_outbox (claim_id, network) values (${claim.id}, '421614')`;
+    const both = [
+      ...config,
+      network(421614, '0x' + '22'.repeat(20), '0x' + '33'.repeat(20)),
+    ];
+    const server = buildServer({ db: t.db, now: () => NOW, wager: both });
+    const base = await server.inject(`/claim/${claim.slug}/wager`);
+    assert.match(base.body, /<strong aria-current="page">Base Sepolia<\/strong>/);
+    assert.match(base.body, /href="\/claim\/[^"]+\/wager\?network=421614"/);
+    assert.equal(pageData(base.body).chainId, 84532);
+    assert.equal(pageData(base.body).authorization, '0x' + '11'.repeat(65));
+    const arb = pageData(
+      (await server.inject(`/claim/${claim.slug}/wager?network=421614`)).body,
+    );
+    assert.equal(arb.chainId, 421614);
+    assert.equal(arb.escrow, '0x' + '22'.repeat(20));
+    assert.equal(
+      arb.authorization,
+      null,
+      "Base Sepolia's signature is never served for Arbitrum",
+    );
+  });
+
+  test('a network switched on after the claim locked is never offered for it', async () => {
+    const claim = await withAuthorization(); // a Base Sepolia row only
+    const later = [
+      network(421614, '0x' + '22'.repeat(20), '0x' + '33'.repeat(20)),
+      ...config,
+    ];
+    const res = await buildServer({ db: t.db, now: () => NOW, wager: later }).inject(
+      `/claim/${claim.slug}/wager`,
+    );
+    assert.equal(
+      pageData(res.body).chainId,
+      84532,
+      'the plain link opens where the claim has a market',
+    );
+    assert.doesNotMatch(res.body, /network=421614|Arbitrum Sepolia/);
+  });
+
+  test('on a real-money network the page says so: no testnet wording, USDC, and the risks it cannot remove', async () => {
+    const claim = await withAuthorization();
+    await t.sql`insert into settlement_outbox (claim_id, network) values (${claim.id}, '8453')`;
+    const base = {
+      ...network(8453, '0x' + '22'.repeat(20), KNOWN_NETWORKS[8453]!.usdc!),
+      version: 2 as const,
+    };
+    const res = await buildServer({
+      db: t.db,
+      now: () => NOW,
+      wager: [base],
+    }).inject(`/claim/${claim.slug}/wager`);
+    assert.doesNotMatch(
+      res.body,
+      /Testnet|test token|faucet|no value|worth nothing/i,
+    );
+    assert.match(res.body, /cannot remove/);
+    assert.match(
+      res.body.replace(/\s+/g, ' '),
+      /freezes the escrow itself or pauses USDC, nobody can withdraw/,
+    );
+    assert.match(res.body, /the escrow on Basescan/);
+    assert.match(res.body, /<span class="unit">USDC<\/span>/);
   });
 
   test('after acceptance closes the authorization is no longer served', async () => {

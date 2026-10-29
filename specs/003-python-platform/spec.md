@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-08
 
-**Status**: Draft
+**Status**: Stages 1–3 shipped (2026-10-26); Stage 4, real money, open
 
 **Input**: Owner: the service runs on a small VPS and there is no way to see whether it is healthy, what
 broke, or where the project stands without reading logs. Nothing has ever been measured under load, so
@@ -141,8 +141,8 @@ verdict decides who gets it, and the payout is carried out by a worker that read
 in the database. No real money, and nothing about how a claim is recorded or judged changes.
 
 **Why this priority**: last because everything before it is useful without it, and worth doing because it is
-the only part that turns the referee into something enforceable. Testnet is the whole scope: the proof is that
-a verdict can settle a contract, not that anyone should stake on it.
+the only part that turns the referee into something enforceable. Testnet is this story's whole scope: the proof
+is that a verdict can settle a contract, not that anyone should stake on it. Real money is Story 6.
 
 **Independent test**: two addresses stake equally on a recorded claim, the deadline passes, the resolver writes
 its verdict as it does today, and the winner's balance changes without anyone touching a wallet. Then the same
@@ -207,7 +207,7 @@ returned after expiry; (d) with the worker stopped, a matched wager is refunded 
 
 1. **Given** a locked price claim inside its acceptance window, **When** anyone posts `@vaticeno wager` as a
    reply to the bot's reply in the claim's thread, **Then** the bot replies once in
-   that thread with the claim's wager link and the no-value line, and later `wager` posts for the same claim
+   that thread with the claim's wager link and the money line (FR-039), and later `wager` posts for the same claim
    get no reply.
 2. **Given** a price claim that is not locked yet, **When** `wager` arrives, **Then** one short reply without
    a link says when wagering opens, and the claim's one link reply is still unused.
@@ -217,7 +217,7 @@ returned after expiry; (d) with the worker stopped, a matched wager is refunded 
    is posted and nothing is recorded as a claim.
 5. **Given** the wager page, **When** it opens, **Then** it shows the locked contract and its resolution rule,
    the deadline, when wagering closes, when an unmatched offer expires, the open and matched wagers read from
-   the chain, the payout rule (twice the stake, minus the fee if one is set), and the no-value line —
+   the chain, the payout rule (twice the stake, minus the fee if one is set), and the money line (FR-039) —
    before any wallet is connected.
 6. **Given** a connected wallet on the wrong network, **When** the person tries to act, **Then** the page asks
    to switch and does nothing until it has.
@@ -239,6 +239,41 @@ returned after expiry; (d) with the worker stopped, a matched wager is refunded 
     accepts are stopped and every way out still works.
 13. **Given** a wallet with no active link, **When** its wager is shown, **Then** it is shown by address; a
     handle appears only for a link that was active when that address took its side (FR-035e).
+
+---
+
+### User Story 6 - Real money (Priority: P1)
+
+The goal of Stories 4 and 5 (owner, 2026-10-27): two people stake **real USDC** on opposite sides of a price
+claim, on Base or on Arbitrum One, and the verdict pays the winner. Everything the testnet proved carries
+over; what changes is the money, so the contract is a second version built for it, and nothing real is staked
+before a lawyer, a second pair of eyes on the contract and a written incident policy say it may be.
+
+**Why this priority**: it is what the escrow work was for. The testnet stages exist to make this one safe.
+
+**Independent Test**: every path — payout, VOID, expiry and the timeout refund with our worker switched off —
+passes on both testnets against contract v2. Then, on each mainnet as it goes live, a small owner-run stake is
+opened, matched, settled from a real verdict and withdrawn. No real money is left locked just to watch a
+timeout: that path is proved on testnet and in the contract's tests.
+
+**Acceptance Scenarios**:
+
+1. **Given** contract v2 on Base and on Arbitrum One, **When** a stake is opened on one, **Then** it is matched,
+   settled and withdrawn on that network only, with native USDC (FR-036c, FR-036d).
+2. **Given** the token refuses to pay one participant or the fee recipient, **When** a stake settles, **Then**
+   everyone else still withdraws what is credited to them (FR-036b). The escrow address itself being blocked,
+   or the token paused, still stops every withdrawal: that is disclosed, not solved (FR-036e).
+3. **Given** any of the three FR-031h items is missing, or the legal opinion says no-go, **When** anyone tries to
+   open a real stake, **Then** there is no mainnet contract to open it on (SC-024).
+4. **Given** the oracle's gas balance on a network runs low, **When** the worker next reads it, **Then** the owner
+   gets a Sentry alert and the status page shows it, before a verdict fails to reach the chain (FR-022c).
+5. **Given** the page and the bot reply, **When** real value is live, **Then** neither says "testnet" or "worth
+   nothing", and both show amounts in USDC and the network a stake is on.
+6. **Given** a contract deployed to a mainnet, **When** its activation checks are not all done, **Then** no
+   authorization for that network is issued, so nobody can stake on it yet: deploying, opening the page and
+   issuing the first real authorization are three separate steps, per network.
+7. **Given** a claim already holding stakes up to its cap, or the network at its total cap, **When** another
+   offer is opened, **Then** the contract refuses it.
 
 ### Edge Cases
 
@@ -403,9 +438,27 @@ returned after expiry; (d) with the worker stopped, a matched wager is refunded 
   gate is exhaustively tested, like the other gates and the resolver; the status page is not (project rule:
   ~55% coverage is a cap, not a floor).
 
-- **FR-022**: Stage 2 is **testnet only** — no mainnet deployment, no real value and no fee, until the
-  contract has been reviewed by someone outside the project. A per-stake maximum is enforced in the contract
-  from the first deployment regardless.
+- **FR-022**: Stage 2 is **testnet only** — no mainnet deployment, no real value and no fee. Contract v1 never
+  goes to a mainnet: real value is v2 (FR-022a). A per-stake maximum is enforced in the contract from the first
+  deployment regardless.
+- **FR-022a**: **Stage 4 is real value** (owner, 2026-10-27): contract v2 (FR-036b, FR-036c) on Base and
+  Arbitrum One mainnet, staked in native USDC, once FR-031h's three items are on file. Mainnet gets its own
+  oracle and guardian keys, never the testnet ones. Limits (owner, 2026-10-28), raised only by an owner decision
+  written down with its date: **1,000 USDC** per side of a stake, **10,000 USDC** per claim, **50,000 USDC** of open
+  exposure per network, all three enforced by the contract; **1 USDC** minimum stake. The 72-hour payout hold,
+  the 14-day timeout, acceptance closing 24 hours before the deadline and offers expiring after 7 days carry
+  over from v1 (docs/decisions/002-escrow-v1.md). A per-address cap is not used: new addresses cost nothing.
+  Each network goes live on its own checklist; one network's fault never touches the other's outbox, oracle
+  or health.
+- **FR-022b**: **No fee at Stage 4's launch** (owner, 2026-10-27, docs/decisions/006-real-money.md). The
+  contract keeps the 5% ceiling as a constant and a fee recipient fixed at deployment; no refund path ever
+  charges one. A non-zero fee — a flat per-stake one is the only form considered, never a share of the pot — is
+  a new owner decision taken with the legal opinion's written answer on it (T380).
+- **FR-022c**: Per network, the settlement worker reads the oracle's gas balance, the escrow's USDC balance and
+  everything the escrow owes (open offers, matched stakes, credited balances not yet withdrawn), and writes them
+  to the database with its settlement backlog; the status page reads that row and nothing else (FR-003). Gas
+  under its low-water mark, a balance short of what is owed, or a backlog past its age raises a Sentry alert
+  from the worker.
 - **FR-023**: One escrow contract holds all stakes as a mapping, not one contract per stake. It stores the
   claim's identifier, the two addresses, the amount, the deadline and the state — and **no text**, the same
   rule the rest of the system follows (INIT_SPEC §6.9).
@@ -416,7 +469,7 @@ returned after expiry; (d) with the worker stopped, a matched wager is refunded 
   without a new deployment.
 - **FR-026**: Settlement is idempotent at two levels: the worker reads on-chain state before sending, and the
   contract rejects a second settlement of the same stake.
-- **FR-027**: The Node service writes one outbox row when a price-feed claim locks and sets its outcome once the
+- **FR-027**: The Node service writes one outbox row per network when a price-feed claim locks and sets its outcome once the
   verdict is final and a second read of the price agrees; a disagreement holds the row, so nothing settles
   and the timeout refunds. It makes no chain calls. The worker signs the claim's open authorization from that row,
   and after the verdict settles every matched stake the contract holds for the claim, or records that there
@@ -449,7 +502,7 @@ returned after expiry; (d) with the worker stopped, a matched wager is refunded 
 - **FR-031b**: A stake is never paid out at the moment the verdict is written. Recording the verdict and
   paying are separate transitions: the first stores a settlement time and pays nobody, and after that time
   the payout is callable by **anyone**, so finality does not depend on the operator being online. A fee is
-  fixed at deployment and set to zero on the testnet, so charging one later is a new deployment and a new
+  fixed at deployment and set to zero on the testnet and at Stage 4's launch (FR-022b), so charging one later is a new deployment and a new
   decision, not a setting; no refund path — a VOID verdict, the operator's void or the timeout — ever
   charges one. The window is a fixed number of
   hours in the contract, not a policy anyone can change per stake.
@@ -476,9 +529,12 @@ returned after expiry; (d) with the worker stopped, a matched wager is refunded 
 - **FR-031g**: The product is described as an escrow with a named referee and a published settlement policy
   — never as trustless or impartially arbitrated. Custody and payout mechanics are guaranteed by the code;
   correctness of the verdict is not, and the void power is the proof that it is not.
-- **FR-031h**: Real value is a separate decision from this feature, gated on three things: a legal opinion
-  for the country the operator actually lives in, covering the betting-intermediary role and the event types
-  offered; an independent reading of the contract and its state machine; and a written policy for oracle
+- **FR-031h**: Real value is this feature's goal, delivered as Stage 4 (owner, 2026-10-27), gated on three things: a dated
+  written legal opinion that classifies the product as built (two people on opposite sides, our fee, our
+  oracle), names the event types and the user countries it may serve, the licences and controls required
+  (gambling, financial services, crypto-assets, AML/KYC, sanctions, consumer law, tax) and any design change
+  — for the operator's own country and wherever the product is reachable or promoted — and ends in a go or a
+  no-go; an independent reading of the contract and its state machine; and a written policy for oracle
   compromise, source corrections, voids and refunds. ESMA's statement of 3 July 2026 holds that event
   contracts qualifying as financial instruments fall under the permanent national binary-options bans, and
   that renaming the product does not avoid them; what is not a financial instrument can still be gambling
@@ -527,11 +583,11 @@ returned after expiry; (d) with the worker stopped, a matched wager is refunded 
   EVM network is not: the same contract and the same worker serve each one, configured per network
   (FR-036d).
 - **FR-036a**: Real value runs on **both Arbitrum One and Base** (owner, 2026-10-25), Ethereum layer 2s with
-  native USDC; going live at all is still the real-value decision (FR-031h), outside this feature and
-  blocking nothing in it. The contract
+  native USDC; going live is Stage 4 (FR-022a), gated on FR-031h. The contract
   does not ship there unchanged: it gains FR-036b and FR-036c first. Whichever network is chosen, its own
   testnet gets the new contract and the end-to-end runs again before any real value, so what is tested is
-  what ships. This feature stays on Base Sepolia, where the current contract is live (002-escrow-v1).
+  what ships. Stage 2 stays on Base Sepolia, where the current contract is live (002-escrow-v1); Stage 4 adds Arbitrum
+  Sepolia for the v2 runs, then both mainnets.
 - **FR-036d**: Each network is its own market. An offer opened on Base is matched on Base and one on Arbitrum
   on Arbitrum; a claim may carry stakes on both, and every stake settles on the network it was opened on, with
   the same verdict. The oracle signs an authorization per network (the signature is bound to the chain and the
@@ -550,6 +606,9 @@ returned after expiry; (d) with the worker stopped, a matched wager is refunded 
   fee-on-transfer or rebasing token is supported. USDC's own pause, blocklist and upgrade controls are an
   external dependency, written into the real-value risk assessment (FR-031h).
 
+- **FR-036e**: Pull withdrawals isolate one blocked participant; they cannot help when the token blocks the
+  escrow's own address, pauses transfers, or the network stops. Those risks are written into the settlement
+  policy and the wager page before real value, never presented as solved.
 - **FR-037**: `wager` is a command, recognised before any claim parsing like `link` and `unlink` (FR-035a),
   from anyone in the thread of a recorded claim — not only its author, because the contract lets anyone
   holding the authorization open a stake. The claim is found the way the bot already finds one: the post's
@@ -572,14 +631,15 @@ returned after expiry; (d) with the worker stopped, a matched wager is refunded 
   thread where the bot was tagged. Link replies also have a daily cap of their own, per UTC day, because a
   URL-bearing post is priced well above a plain one; its number is set later, and the price is
   **UNRECONCILED** until measured on a real reply.
-- **FR-039**: The wager reply carries exactly one link, to our own domain, written as plain text, plus the
-  line that the testnet token has no value. No other reply carries a link (constitution VI).
+- **FR-039**: The wager reply carries exactly one link, to our own domain, written as plain text, plus one line
+  about the money: on a testnet, that the token has no value; on a mainnet, the network and that the stake is
+  real USDC. No other reply carries a link (constitution VI).
 - **FR-040**: Claim pages move to `/claim/<slug>`, with the wager page at `/claim/<slug>/wager`. The old
   `/c/<slug>` redirects there permanently, because links to it are already published. The slug is the
   lookup key; the on-chain claim hash comes from the outbox row, never computed in the browser.
 - **FR-041**: The wager page shows, before any wallet connects: the locked contract and its resolution rule,
   the deadline, when wagering closes, the offer-expiry rule, the payout (twice the stake, minus the fee set at
-  deployment — zero on the testnet), the maximum stake, the newest 20 wagers on the claim as the chain
+  deployment — zero on the testnet and at Stage 4's launch, FR-022b), the maximum stake, the newest 20 wagers on the claim as the chain
   reports them with how many there are in all, and that anyone can make an offer, so a wager is not the
   author's unless a link says so. No post text (V). Every field is escaped in the HTML, and the script
   receives data only as JSON, never as text spliced into code.
@@ -619,7 +679,7 @@ returned after expiry; (d) with the worker stopped, a matched wager is refunded 
 - **Verifier decision**: claim, evidence item, entailment outcome, confidence, model version, whether it
   finalised, escalated, or only observed (shadow). Shadow observations live apart from the resolution record.
 - **Stake**: claim, the two addresses, amount, deadline, state, settlement reference — held on-chain.
-- **Settlement outbox row**: one per locked price-feed claim — its hash, the open authorization, the outcome once final, state, attempts, a transaction reference per stake, last error.
+- **Settlement outbox row**: one per locked price-feed claim per network (Stage 2: Base Sepolia only) — its hash, the open authorization, the outcome once final, state, attempts, a transaction reference per stake, last error.
 - **Wallet link**: X user id, wallet family, address, when it was verified, when and by which half it was revoked.
 - **Wager reply**: claim, which kind of reply (the link, or the reason it was refused), the mention it
   answered, when. One per claim and kind; it is what makes "one link per claim" hold across restarts.
@@ -686,6 +746,17 @@ returned after expiry; (d) with the worker stopped, a matched wager is refunded 
   request before lock leaves that link unused; nothing is posted for `wager` outside a claim's thread.
 - **SC-022**: The page never shows a wager as opened, matched, paid or refunded before the chain does, tested
   with a transaction left pending and one that reverts.
+- **SC-023**: On each of Base and Arbitrum One, a real USDC stake opened and matched from the wager page
+  settles from a real verdict and the winner withdraws — and the fee recipient too, if a fee is ever set
+  (FR-022b) (Story 6).
+- **SC-024**: No contract is deployed to either mainnet before three things are on file, each with its date: a
+  legal opinion that says **go**, an independent review of the release commit with every critical and high
+  finding closed, and the incident policy (FR-031h).
+- **SC-025**: With a test token blocking the maker, then the taker, then the fee recipient, each in its own
+  fixture, the blocked address cannot withdraw while blocked and every other address withdraws all it is
+  credited, on payout, VOID, expiry and the timeout refund alike; proved on both testnets before any mainnet.
+- **SC-026**: An offer past the claim's cap or the network's total cap is refused by the contract, proved by
+  trying on a testnet, and the page says which cap was reached before the wallet is asked to sign.
 
 ## Assumptions
 
@@ -704,16 +775,16 @@ returned after expiry; (d) with the worker stopped, a matched wager is refunded 
   reason to wait, not a reason to loosen the hash check or lower the bar. The evidence that decides comes
   from shadow mode, where the model reads the exact text the resolver fetched at the time.
 - A second runtime is accepted for the service layer only. The bot, the resolver and anything that posts to
-  X stay in TypeScript. This feature changes them only where Story 5 says: the `wager` command, its reply
+  X stay in TypeScript. This feature changes them only where Stories 5 and 6 say: the `wager` command, its reply
   and the claim routes; Story 4's lock writing the outbox row and the confirm step before the resolver.
-- The chain is a cheap EVM layer 2, on its testnet. Stablecoin-denominated if it ever leaves a testnet, which
-  it may never do.
+- The chain is a cheap EVM layer 2: Base Sepolia for Stage 2, then Base and Arbitrum One in native USDC for
+  Stage 4 (FR-022a).
 - **The wager page is in Stage 2** (owner decision 2026-10-19, replacing "no stake page in Stage 2"): the
   testnet path passed from the command line, and a contract nobody can reach from a page proves nothing to
   the people it is for. Story 5 builds it; it needs no wallet link (FR-032).
 - The contract is Solidity. A Python-syntax alternative exists and is rejected for funds-holding code: a
   smaller reviewer pool, and a compiler bug that once cost a protocol tens of millions.
-- Whether a fee is ever taken, and what would have to be registered first, is deliberately outside this spec.
+- The fee is zero at Stage 4's launch (FR-022b); whether one is ever taken waits for the legal opinion (T380).
 - The wallet-link page and the wager page are the only places in this feature that accept input from a
   person, and the only pages with a script: signing needs the wallet in the browser. One small vanilla
   script shared by the two (FR-045) — no framework (constitution VII), and every other page stays

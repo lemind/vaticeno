@@ -1,0 +1,30 @@
+[Unit]
+Description=Vaticeno settlement worker for network %i (holds that network's oracle key and nothing else)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Its own user: the oracle key is readable by this process alone, never by the bot that reads posts from
+# strangers (003 FR-028, FR-028a). Created once by hand: useradd --system --no-create-home vaticeno-settle.
+User=vaticeno-settle
+WorkingDirectory=/opt/vaticeno
+ExecStart=/opt/vaticeno/.venv/bin/python -m settle.worker
+# One instance per network (003 FR-036d), named by chain id: vaticeno-settle@8453, vaticeno-settle@42161. Its env
+# file names DATABASE_URL_SETTLE, RPC_URL, ESCROW_ADDRESS, ESCROW_CHAIN_ID=%i, ESCROW_VERSION=2 and ORACLE_KEY_FILE,
+# its own key under /etc/vaticeno-settle/%i/; SENTRY_DSN for its alerts, GAS_LOW_WEI and BACKLOG_MAX_AGE_HOURS to
+# move their thresholds (settle/health.py). The Stage 2 testnet worker stays vaticeno-settle.service.
+# Both files owned by vaticeno-settle, mode 600. ProtectHome hides every home: the key must be copied here.
+EnvironmentFile=/etc/vaticeno-settle/%i/env
+Environment=PYTHONDONTWRITEBYTECODE=1
+Restart=always
+RestartSec=30
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadOnlyPaths=/opt/vaticeno
+ReadOnlyPaths=/etc/vaticeno-settle
+
+[Install]
+WantedBy=multi-user.target

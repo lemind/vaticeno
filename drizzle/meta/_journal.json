@@ -162,6 +162,13 @@
       "when": 1791952800000,
       "tag": "0022_verifier",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1792044000000,
+      "tag": "0023_networks",
+      "breakpoints": true
     }
   ]
 }

@@ -20,8 +20,10 @@ STATES = ["None", "Open", "Matched", "Settled", "Paid", "Voided", "Refunded", "E
 # A stake in one of these has had its verdict already, or never needed one.
 SETTLED_STATES = {"Settled", "Paid", "Voided", "Refunded"}
 
-# Only the functions the worker calls (contracts/src/Escrow.sol).
+# Only the functions the worker calls, the same in v1 and v2 (contracts/src/Escrow.sol, EscrowV2.sol).
 ESCROW_ABI = [
+    {"type": "function", "name": "domainSeparator", "stateMutability": "view", "inputs": [],
+     "outputs": [{"name": "", "type": "bytes32"}]},
     {"type": "function", "name": "oracle", "stateMutability": "view", "inputs": [],
      "outputs": [{"name": "", "type": "address"}]},
     {"type": "function", "name": "acceptanceCloses", "stateMutability": "view", "inputs": [],
@@ -39,10 +41,30 @@ ESCROW_ABI = [
          {"name": "settledAt", "type": "uint64"}, {"name": "makerSaysHit", "type": "bool"},
          {"name": "state", "type": "uint8"}, {"name": "outcome", "type": "uint8"},
      ]},
+    # v2 only: the token and the two counters that add up to everything it owes (007-escrow-v2, FR-022c).
+    {"type": "function", "name": "token", "stateMutability": "view", "inputs": [],
+     "outputs": [{"name": "", "type": "address"}]},
+    {"type": "function", "name": "lockedTotal", "stateMutability": "view", "inputs": [],
+     "outputs": [{"name": "", "type": "uint256"}]},
+    {"type": "function", "name": "creditTotal", "stateMutability": "view", "inputs": [],
+     "outputs": [{"name": "", "type": "uint256"}]},
     {"type": "function", "name": "settle", "stateMutability": "nonpayable",
      "inputs": [{"name": "id", "type": "uint256"}, {"name": "outcome", "type": "uint8"},
                 {"name": "evidenceRef", "type": "bytes32"}], "outputs": []},
 ]
+
+
+BALANCE_OF_ABI = [
+    {"type": "function", "name": "balanceOf", "stateMutability": "view",
+     "inputs": [{"name": "owner", "type": "address"}], "outputs": [{"name": "", "type": "uint256"}]},
+]
+
+
+@dataclass(frozen=True)
+class Holdings:
+    oracle_gas_wei: int
+    escrow_usdc: int
+    owed_usdc: int
 
 
 class ChainMismatch(Exception):
@@ -68,7 +90,7 @@ class Stake:
 
 
 class Escrow:
-    def __init__(self, w3: Web3, address: str, chain_id: int, account: LocalAccount):
+    def __init__(self, w3: Web3, address: str, chain_id: int, account: LocalAccount, version: int = 1):
         # Checked once at start, then before every send: a wrong chain or a wrong key stops the worker.
         if w3.eth.chain_id != chain_id:
             raise ChainMismatch(f"connected to chain {w3.eth.chain_id}, configured for {chain_id}")
@@ -80,13 +102,24 @@ class Escrow:
         oracle = self.contract.functions.oracle().call()
         if oracle != account.address:
             raise ChainMismatch(f"the contract's oracle is {oracle}, this key is {account.address}")
+        # v2 signs as version "2" (007-escrow-v2): a wrong version would sign authorizations the contract refuses.
+        self.version = version
+        if self._typed(b"\0" * 32, 0, 0).header != bytes(self.contract.functions.domainSeparator().call()):
+            raise ChainMismatch(f"the contract at {self.address} is not escrow version {version} on chain {chain_id}")
+        # The outbox's and the health row's name for this network: the chain id as text (data-model).
+        self.network = str(chain_id)
+        self._token: Contract | None = None  # v2's token, immutable: read once, on the first health pass
         self.acceptance_closes: int = self.contract.functions.acceptanceCloses().call()
         self.timeout: int = self.contract.functions.timeout().call()
         self._next_nonce = 0
 
     def sign_open(self, hash_: bytes, deadline: int, valid_until: int) -> str:
         """The EIP-712 authorization `Escrow.open` checks (FR-031a), bound to this contract and chain."""
-        message = encode_typed_data(full_message={
+        message = self._typed(hash_, deadline, valid_until)
+        return "0x" + Account.sign_message(message, self.account.key).signature.hex().removeprefix("0x")
+
+    def _typed(self, hash_: bytes, deadline: int, valid_until: int):
+        return encode_typed_data(full_message={
             "types": {
                 "EIP712Domain": [
                     {"name": "name", "type": "string"},
@@ -102,12 +135,11 @@ class Escrow:
             },
             "primaryType": "OpenAuthorization",
             "domain": {
-                "name": "Vaticeno Escrow", "version": "1",
+                "name": "Vaticeno Escrow", "version": str(self.version),
                 "chainId": self.chain_id, "verifyingContract": self.address,
             },
             "message": {"claimHash": hash_, "deadline": deadline, "validUntil": valid_until},
         })
-        return "0x" + Account.sign_message(message, self.account.key).signature.hex().removeprefix("0x")
 
     def stakes_of(self, hash_: bytes) -> list[Stake]:
         return [self.stake(int(i)) for i in self.contract.functions.stakesOf(hash_).call()]
@@ -147,6 +179,16 @@ class Escrow:
             return self.w3.eth.get_transaction(tx_hash)["blockNumber"] is None
         except TransactionNotFound:
             return False
+
+    def holdings(self) -> Holdings:
+        """v2: the oracle's gas, the escrow's token balance, and what it owes (live stakes plus unwithdrawn credits)."""
+        if self._token is None:
+            self._token = self.w3.eth.contract(address=self.contract.functions.token().call(), abi=BALANCE_OF_ABI)
+        return Holdings(
+            oracle_gas_wei=self.w3.eth.get_balance(self.account.address),
+            escrow_usdc=self._token.functions.balanceOf(self.address).call(),
+            owed_usdc=self.contract.functions.lockedTotal().call() + self.contract.functions.creditTotal().call(),
+        )
 
     def _nonce(self) -> int:
         # HACK(base-sepolia-rpc): OBSERVED 2026-10-19 in the end-to-end run: the public RPC is several nodes and

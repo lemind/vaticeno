@@ -6,10 +6,14 @@ import { readFileSync } from 'node:fs';
 import { describe, test } from 'node:test';
 import {
   actionsFor,
+  capRefusal,
   decodeStake,
+  decodeString,
   decodeUintArray,
   encodeAllowance,
   encodeApprove,
+  encodeCreditOf,
+  encodeLockedOnClaim,
   encodeOpen,
   encodeStakeCall,
   encodeStakesOf,
@@ -50,7 +54,32 @@ const SIGNATURES: Record<string, [string, string]> = {
   allowance: ['TestToken', 'allowance(address,address)'],
   balanceOf: ['TestToken', 'balanceOf(address)'],
   decimals: ['TestToken', 'decimals()'],
+  symbol: ['TestUsdc', 'symbol()'],
+  minStake: ['EscrowV2', 'minStake()'],
+  maxPerClaim: ['EscrowV2', 'maxPerClaim()'],
+  maxTotal: ['EscrowV2', 'maxTotal()'],
+  lockedOnClaim: ['EscrowV2', 'lockedOnClaim(bytes32)'],
+  lockedTotal: ['EscrowV2', 'lockedTotal()'],
+  creditOf: ['EscrowV2', 'creditOf(address)'],
+  withdraw: ['EscrowV2', 'withdraw()'],
 };
+
+// v1's calls the page also sends to v2: the same selectors in both, or the page breaks on one of them.
+const SHARED = [
+  'stakesOf',
+  'stakes',
+  'paused',
+  'maxStake',
+  'feeBps',
+  'settlementWindow',
+  'timeout',
+  'offerLifetime',
+  'open',
+  'accept',
+  'expire',
+  'payout',
+  'refund',
+];
 
 const HASH = '0x' + 'ab'.repeat(32);
 const SIG = '0x' + '11'.repeat(32) + '22'.repeat(32) + '1b';
@@ -66,6 +95,15 @@ describe('wager page calls match the deployed contract', () => {
         name,
       );
     }
+  });
+
+  test('every v1 call the page makes is the same call on v2', () => {
+    for (const name of SHARED)
+      assert.equal(
+        SELECTORS[name],
+        '0x' + out('EscrowV2').methodIdentifiers[SIGNATURES[name]![1]],
+        name,
+      );
   });
 
   test('open, with its dynamic signature, encodes exactly as cast does', () => {
@@ -108,6 +146,15 @@ describe('wager page calls match the deployed contract', () => {
       cast('calldata', 'allowance(address,address)', ALICE, ESCROW),
     );
     assert.equal(encodeStakesOf(HASH), cast('calldata', 'stakesOf(bytes32)', HASH));
+    assert.equal(
+      encodeLockedOnClaim(HASH),
+      cast('calldata', 'lockedOnClaim(bytes32)', HASH),
+    );
+    assert.equal(
+      encodeCreditOf(ALICE),
+      cast('calldata', 'creditOf(address)', ALICE),
+    );
+    assert.equal(decodeString(cast('abi-encode', 'f(string)', 'tUSDC')), 'tUSDC');
   });
 
   test('a stake and a list of ids decode from what the contract returns', () => {
@@ -149,6 +196,47 @@ describe('wager page calls match the deployed contract', () => {
     assert.throws(() => parseUnits('0.0000000000000000001', 18), /decimal places/);
     assert.throws(() => parseUnits('1e3', 18));
     assert.equal(formatUnits(2_500_000_000_000_000_000n, 18), '2.5');
+    // USDC: 6 decimals, so a cent is 10000 and a millionth is the smallest stake unit.
+    assert.equal(parseUnits('1000', 6), 1_000_000_000n);
+    assert.equal(parseUnits('0.01', 6), 10_000n);
+    assert.throws(() => parseUnits('0.0000001', 6), /decimal places/);
+    assert.equal(formatUnits(12_500_000n, 6), '12.5');
+  });
+
+  test('v2 names the cap a stake would hit before the wallet signs (SC-026)', () => {
+    const USDC = 1_000_000n;
+    const caps = {
+      minStake: USDC,
+      maxStake: 1_000n * USDC,
+      lockedOnClaim: 9_500n * USDC,
+      maxPerClaim: 10_000n * USDC,
+      lockedTotal: 20_000n * USDC,
+      maxTotal: 50_000n * USDC,
+      decimals: 6,
+      symbol: 'USDC',
+    };
+    assert.equal(
+      capRefusal(null, 10n ** 30n, { opening: true }),
+      null,
+      'v1: no caps',
+    );
+    assert.equal(capRefusal(caps, 500n * USDC, { opening: true }), null);
+    assert.match(capRefusal(caps, USDC / 2n, { opening: true })!, /between 1 USDC/);
+    assert.match(
+      capRefusal(caps, 1_001n * USDC, { opening: true })!,
+      /and 1000 USDC/,
+    );
+    assert.match(
+      capRefusal(caps, 501n * USDC, { opening: true })!,
+      /claim's cap is reached: 500 USDC of 10000 USDC left/,
+    );
+    const full = { ...caps, lockedOnClaim: 0n, lockedTotal: 49_800n * USDC };
+    assert.match(
+      capRefusal(full, 300n * USDC, { opening: false })!,
+      /contract's cap is reached: 200 USDC/,
+    );
+    // Accepting checks only the caps: an offer already open is never refused for its size.
+    assert.equal(capRefusal(caps, 400n * USDC, { opening: false }), null);
   });
 
   test('actions follow the contract: accept before expiry, return after, pay out after the hold', () => {
@@ -187,6 +275,26 @@ describe('wager page calls match the deployed contract', () => {
     const settled = { ...base, state: 'Settled', settledAt: 1100 };
     assert.equal(actionsFor(settled, { ...opts, now: 1199 })[0]!.live, false);
     assert.equal(actionsFor(settled, { ...opts, now: 1200 })[0]!.live, true);
+    const capped = actionsFor(base, {
+      ...opts,
+      now: 499,
+      caps: {
+        minStake: 1n,
+        maxStake: 10n,
+        lockedOnClaim: 20n,
+        maxPerClaim: 20n,
+        lockedTotal: 20n,
+        maxTotal: 100n,
+        decimals: 6,
+        symbol: 'USDC',
+      },
+    });
+    assert.equal(
+      capped[0]!.live,
+      false,
+      'a full claim shows Accept, refused, with why',
+    );
+    assert.match(capped[0]!.refused!, /claim's cap/);
     const matched = { ...base, state: 'Matched' };
     assert.deepEqual(actionsFor(matched, { ...opts, now: 1299 }), []);
     assert.deepEqual(

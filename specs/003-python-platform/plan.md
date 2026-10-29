@@ -7,7 +7,9 @@
 Make the service visible, measure it, then make it cheaper. A read-only Python service renders job health,
 build info and the project's own progress on one private page; a Python load harness replaces the specs'
 estimated capacity numbers with measured ones; a local entailment model finalises only the resolutions it can
-prove are easy, keeping the paid model for everything else.
+prove are easy, keeping the paid model for everything else. Alongside, a testnet escrow lets two people stake on
+a price claim and the verdict pay the winner, and Stage 4 takes that to real USDC on Base and Arbitrum One —
+the goal of the escrow work (owner, 2026-10-27).
 
 ## Technical Context
 
@@ -24,7 +26,7 @@ for the settlement worker. Each needs owner approval with a stated reason (const
 
 **Testing**: existing node test runner · pytest for the Python side, in the same CI workflow
 
-**Target Platform**: one small Linux VPS, systemd units behind Caddy, one instance only · an EVM testnet for Stage 2
+**Target Platform**: one small Linux VPS, systemd units behind Caddy, one instance only · an EVM testnet for Stage 2; Base and Arbitrum One mainnet for Stage 4
 
 **Project Type**: one service plus three side processes — two read-only or advisory, one holding a signing key and nothing else
 
@@ -45,6 +47,9 @@ is measured before a model is chosen and again once it runs.
 - **III (An Outage Is Never a Verdict).** A verifier that is missing, slow or failing falls through to the
   paid model. It never decides by failing and never causes a void.
 - **V (IDs, Not Text).** Evaluation data is assembled from evidence already stored and is never committed.
+- **VII, payments.** Real money with no fee is not a payment system: Vaticeno takes and charges nothing, and every
+  transfer is a user's own, signed in their own wallet. A non-zero fee reopens VII
+  (docs/decisions/006-real-money.md).
 
 ## Project Structure
 
@@ -90,6 +95,7 @@ to our own private Cloud Run service that Node treats as optional (FR-012a, deci
 | **1** | job state, build info, the status service, the capacity table | [tasks.md](tasks.md) Phases 1–4 |
 | **2** | the escrow contract, its settlement worker, the wager page and the `wager` command, and optional wallet links, testnet only | [tasks.md](tasks.md) Phase 5 |
 | **3** | the verifier — in shadow since 2026-10-25; going live parked, it avoids no paid call (SC-006) | [tasks.md](tasks.md) Phase 6 |
+| **4** | **real money, the goal**: contract v2 with native USDC on Base and Arbitrum One, the worker and the page for two networks, mainnet keys and monitoring — after FR-031h's three items | [tasks.md](tasks.md) Phase 8 |
 
 No stage waits for another. They meet in two places: the status page, which is one query function per block so
 a later stage adds rows without a rewrite, and the rule that a verdict decided by the local verifier alone
@@ -99,6 +105,15 @@ shipping", and the only one whose cost depends on a measurement Stage 1 produces
 no real value and no fee until the contract has been reviewed by someone else. The real-value contract is a
 second version, not this one redeployed: withdrawals by pull and native USDC only (FR-036b, FR-036c), built
 after the network is chosen (T374, T376).
+
+**Stage 4 is real money** (owner, 2026-10-27), and the reason Stage 2 and Story 5's page exist. The legal opinion
+is asked for first, because its answer may change the design (who may open an offer, which countries) and
+its no-go would end the stage. Then: v2 decision record and contract → two networks in the outbox, the worker
+and the page → full runs on Base Sepolia and Arbitrum Sepolia → the release candidate frozen and reviewed
+from outside → per network: deploy, monitoring and alerts, then the page, then the first authorization, then
+an owner-run smoke stake. Code may run ahead of the legal answer; a mainnet deploy may not (SC-024). Base is
+the natural first network; each goes live on its own checklist. Same contract, same worker, configured per
+network (FR-036d): no new runtime, no new service.
 
 ## Complexity Tracking
 
@@ -117,9 +132,10 @@ database access is never signing authority.
 
 ## Out of scope
 
-Uptime monitoring from outside the box, a public status page, authentication, alerting beyond Sentry, any
+Uptime monitoring from outside the box, a public status page, authentication, alerting beyond Sentry (Stage 4's
+alerts are Sentry's, FR-022c), any
 change to how claims are recorded, locked or judged, and any new X behaviour beyond the `wager`, `link` and
-`unlink` commands. A faucet, gas paid on anyone's behalf, and real value (FR-031h).
+`unlink` commands. A faucet, gas paid on anyone's behalf, and a fee on wagers (FR-022b).
 
 **The wager page reads the chain in the browser.** Node makes no chain calls (FR-027), so the page is rendered
 with the claim, its hash and its authorization from the outbox row, and the script reads the chain through a

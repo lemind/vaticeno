@@ -460,8 +460,9 @@ export const settlementOutbox = pgTable(
     id: uuid('id').primaryKey().defaultRandom(),
     claimId: uuid('claim_id')
       .notNull()
-      .unique()
       .references(() => claims.id),
+    // Chain id as text: one row per claim per network (FR-036d, 0023).
+    network: text('network').notNull(),
     claimHash: text('claim_hash'),
     openAuthorization: text('open_authorization'),
     authorizedUntil: utc('authorized_until'),
@@ -491,6 +492,27 @@ export const settlementOutbox = pgTable(
       sql`(${t.openAuthorization} is null) = (${t.authorizedUntil} is null)`,
     ),
     check('settlement_outbox_attempts_check', sql`${t.attempts} >= 0`),
+    check('settlement_outbox_network_check', sql`${t.network} ~ '^[0-9]+$'`),
+    unique('settlement_outbox_claim_network_unique').on(t.claimId, t.network),
+  ],
+);
+
+// Each network's chain state, written by its settlement worker every pass, read by the status page (FR-022c).
+export const networkHealth = pgTable(
+  'network_health',
+  {
+    network: text('network').primaryKey(),
+    oracleGasWei: numeric('oracle_gas_wei').notNull(),
+    escrowUsdc: numeric('escrow_usdc').notNull(),
+    owedUsdc: numeric('owed_usdc').notNull(),
+    backlog: integer('backlog').notNull(),
+    oldestBacklogAt: utc('oldest_backlog_at'),
+    lastSettledAt: utc('last_settled_at'),
+    readAt: utc('read_at').notNull(),
+  },
+  (t) => [
+    check('network_health_network_check', sql`${t.network} ~ '^[0-9]+$'`),
+    check('network_health_backlog_check', sql`${t.backlog} >= 0`),
   ],
 );
 

@@ -13,14 +13,15 @@ status page — healthy, dead job, no database. Nothing else; ~55% coverage is a
 | | |
 |---|---|
 | Stage 1 | **done** 2026-10-20: the front page and `/status` behind its password are live; memory measured on the droplet (T323) |
-| Stage 2 | contract, settlement path and the wager page live (page and `wager` command deployed 2026-10-20); end to end passed 2026-10-19 from the command line. Worker on the server since 2026-10-21 (T375). Open: the browser run (T373), wallet links. Testnet only, no real value, no fee, price-feed claims only (FR-031h) |
+| Stage 2 | **done**: contract, settlement path and the wager page live (page and `wager` command deployed 2026-10-20); end to end passed 2026-10-19 from the command line, and a real browser wager (#5vpcx) settled and paid out 2026-10-26. Worker on the server since 2026-10-21 (T375). Testnet only. Wallet links optional, open |
 | Escrow v1 | T326a answers FR-031f before anything is deployed |
-| Stage 3 | T341–T342 done 2026-10-22; shadow paused (memory, T346); the practice model (T343–T344a) next |
+| Stage 3 | **done** 2026-10-26: our own model in shadow on Cloud Run, the go-live count on the status page; going live parked (SC-006) |
+| **Stage 4** | **real money, the goal** (owner, 2026-10-27): Phase 8 — contract v2, two networks, the FR-031h gate, mainnet |
 | `docs/decisions/` | 001 second runtime (done); 002 escrow v1 is T326a |
 
 ## Format: `[ID] [P?] [Story] Description`
 
-[P] parallelisable · US1 status page · US2 capacity · US4 settlement and wallet links · US5 wager page · US3 verifier
+[P] parallelisable · US1 status page · US2 capacity · US4 settlement and wallet links · US5 wager page · US3 verifier · US6 real money
 
 ---
 
@@ -144,15 +145,12 @@ timeout refund from the page with the worker stopped (SC-020).
 - [x] T371 [US5] `src/web/wallet.js`: reads through the public RPC with no wallet; connect, switch network; `stakesOf` then the newest 20; approve when the allowance is short, open, accept, return expired offer, payout, refund — each offered only in the state the contract allows, each shown pending, mined or failed, state re-read after every transaction; amounts BigInt; an RPC failure shown as one (FR-042, FR-043, FR-045) **Done**: `src/web/wallet.js` + `wallet-abi.js`, no library; approves exactly the stake, never unlimited. The public RPC answered 429 on a page load plus a wallet connect (2026-10-20): reads are batched, a 429 is retried, and with a wallet connected the wallet's own node reads instead (`HACK(base-sepolia-rpc)`).
 - [x] T371a [US5] Test the hand-encoded calls and decoders against forge's ABI for the deployed contract and token: selectors, calldata, decoded stakes, the max-stake boundary in token units **Done**: `tests/abi/` — every selector from forge's output, `open` and the rest against `cast`; a CI step after Foundry.
 - [x] T372 [US5] Test the command and the reply: a burst of `wager` on one claim posts one link; a crash between the insert and the post never posts a second; a price claim before lock refuses without using it up; a model-judged claim is told "not a price claim" even before lock; a closed claim refuses once; a post whose parent is not the claim's posts nothing (SC-021) **Done**: `tests/integration/wager.test.ts`, the page included (authorization only while open, escaping, the redirect).
-- [ ] T373 [US5] End to end on a short-window testnet deployment with two browser wallets, the four wagers above, plus a pending and a reverted transaction never shown as done, and a verdict on X not yet on the chain shown as pending (SC-020, SC-022)
 - [x] T374 [US5] **Owner's, blocks nothing here**: the network for real value, Arbitrum One or Base, decided with FR-031h, and with it the token address (native USDC on that network, FR-036c) and the acceptance criteria for T376; the new contract and the end-to-end runs on that network's testnet come before any real value (FR-036a) **Decided 2026-10-25 (owner): both Arbitrum One and Base**, each its own market (FR-036d); token addresses per FR-036c
 - [x] T375 [US4] Put the settlement worker on the server: its own user, `/etc/vaticeno-settle/` with the env file and the oracle key (mode 600), `settle_rw` given a login, the unit enabled (FR-028, FR-028a). **Done 2026-10-21**: `vaticeno-settle` active, the key and env file mode 600 under its own user, heartbeat `ok` every minute; the owner ran the key copy.
-- [ ] T376 [US4] **T374 decided, before any real value**: escrow v2 in `contracts/src/Escrow.sol` — payout, void, refund and expiry credit balances, `withdraw()` per beneficiary (FR-036b); the token fixed to the T374 address, the cap in USDC base units (FR-036c); tests in `contracts/test/` with a token that blocks one address, proving the other side still withdraws; `wallet.js` and the worker follow (withdraw action, 6 decimals)
-- [ ] T377 [US4] **Before any real value, after T376**: two networks (FR-036d) — a network column on `settlement_outbox` (one row per claim per network) and its migration, one authorization per network, the worker settling each network it is configured for, the wager page's network picker with each network's offers apart; the end-to-end runs on both testnets (Base Sepolia, Arbitrum Sepolia)
 
 ### Linking a wallet, optional
 
-- [ ] T338 [US4] Migration `drizzle/0023_wallet_links.sql` + `src/db/schema.ts` per data-model.md: both wallet tables, no read policy on either (FR-032)
+- [ ] T338 [US4] Migration `drizzle/0024_wallet_links.sql` + `src/db/schema.ts` per data-model.md: both wallet tables, no read policy on either (FR-032)
 - [ ] T339 [US4] The link flow: the page resolves the named account, issues the code, shows what is public; the post binds it; confirmation, then the private signature, through the script the wager page shares (FR-033–035c, FR-045)
 - [ ] T339a [US4] `link` and `unlink` as commands, routed before claim parsing, one capped reply each, no address in it (FR-035a, FR-035d)
 - [ ] T339b [US4] Before building: decide what an X compliance event does to a link (FR-035g, owner's), and approve the EVM library for signature checks (constitution VII)
@@ -163,8 +161,7 @@ running, and two people can do all of it from the wager page.
 
 **🚀 Stage 2 deploys here** — testnet only, no real value, no fee.
 
-**Real value is not in this feature** (FR-031h): it needs a legal opinion for the operator's own country, an
-independent reading of the contract, and a written incident policy.
+**Real value is Stage 4, Phase 8** (FR-022a): T373, T376 and T377 moved there on 2026-10-27.
 
 ---
 
@@ -235,6 +232,54 @@ A trained model for practice and publication; it decides nothing. Runs on the la
 - [x] T358 [P] Mark tasks `[x]` with a one-line result; sync plan.md and data-model.md where the build diverged **Done 2026-10-26**: plan.md (where the verifier runs, Stage 3's row, the cost claim measured false) and data-model.md (the two `resolutions` columns stay null while parked)
 - [x] T359 Run the whole suite — node tests, integration, typecheck, ruff, pytest **Done 2026-10-26**: typecheck, node 185, integration 210, pytest 61, the training tests 2 in `.venv-train` (the main venv has no training stack, by design), ruff and Prettier clean
 
+
+---
+
+## Phase 8: Stage 4 — real money (US6) 🎯 the goal
+
+**Independent test**: every path, the timeout refund included, on both v2 testnets (T373); then on each of Base
+and Arbitrum One a real USDC stake opened and matched from the wager page settles from a real verdict and the
+winner withdraws (SC-023). No real money is left locked to watch a timeout.
+
+**Order**: T380 (the legal opinion) is asked for first: it may change the design and a no-go ends the stage.
+T378 is drafted now and amended (T378a) once T380 answers; A and B are code and start on the draft; C needs A
+and B; T381's final sign-off needs C; E needs C and D, and runs per
+network: Base first, Arbitrum One on its own checklist after. Nothing reaches a mainnet before D is complete
+(SC-024).
+
+### A. Contract v2
+
+- [x] T378 [US6] `docs/decisions/007-escrow-v2.md`, first draft: every FR-031f item answered again for real value before a line of v2 — the caps decided in FR-022a (1,000 / 10,000 / 50,000 USDC, minimum 1 USDC) in base units, the fee formula with its rounding and the exact net payout, the settlement window, the timeout, the offer lifetime, who may change each, the pinned native USDC address per network, and the mainnet oracle and guardian keys by public address, role, custody and recovery — one oracle key per network, new, never the testnet ones; **no secret in the file**; the fee 0 (FR-022a, FR-022b, SC-019) **Done 2026-10-28 (first draft)**: `docs/decisions/007-escrow-v2.md` — the caps and what they count (live stakes, not credited balances), the fee formula and rounding, the pull-withdrawal and token-pinning changes, the keys by role (one oracle per network on the server; the guardian the owner's alone, 24-hour response; a new fee-recipient wallet), and the four questions held for T378a
+- [ ] T378a [US6] **After T380**: amend 007 with every design change the legal opinion requires (who may open an offer, which countries, a fee), and carry each into T376–T377 before T381's final sign-off
+- [x] T376 [US6] **After T378**: escrow v2 in `contracts/src/Escrow.sol` — payout, void, refund and expiry credit balances, `withdraw()` per beneficiary (FR-036b); the token fixed to the T374 address, the cap in USDC base units (FR-036c); the per-claim and total open-exposure caps checked in `open` (FR-022a); tests in `contracts/test/` with a token that blocks the maker, the taker and the fee recipient in turn, on payout, VOID, expiry and timeout refund, each its own fixture (SC-025); an offer past the per-claim or the total cap refused (SC-026); `wallet.js` and the worker follow (withdraw action, 6 decimals, the page naming the cap reached before the wallet signs) **Contract part done 2026-10-28**: in `contracts/src/EscrowV2.sol`, not `Escrow.sol` (v1 is deployed and source-verified on Base Sepolia, so its file stays as deployed); `TestUsdc.sol` (6 decimals, a USDC-style blocklist); `test/EscrowV2.t.sol` — 59 tests (every v1 branch ported to credits and withdrawals, the caps, the minimum, the USDC pin on 8453 and 42161, a blocked maker, taker, fee recipient and escrow each in its own fixture, the fee rounded down) and 3 invariants (the escrow holds exactly what it owes; the caps count exactly the live stakes; the operator never gets a token or a credit). **Page and worker done 2026-10-28**: `ESCROW_VERSION` (1 or 2, default 1) for Node and the worker; the worker signs domain version "2" and refuses to start when the contract's domain is not its version; the page reads v2's minimum, caps, locked totals and the viewer's credit, names the cap an offer or an accept would hit before the wallet signs, shows a Withdraw button for a credit, and takes the token's symbol and decimals from the chain. Checked in headless Chrome against v2 and v1 on anvil (cap refusal shown, a 5 tUSDC credit withdrawn, v1 unchanged); worker tests on v2 (signed, settled, paid, withdrawn; the wrong version refused). The page's fixed text still says VTS on Base Sepolia: per-network wording is T377
+
+### B. Two networks
+
+- [x] T377 [US6] **After T376**: two networks (FR-036d) — migration `drizzle/0023_networks.sql` + `src/db/schema.ts` per data-model.md: a network column on `settlement_outbox` (one row per claim per network) and `network_health`; Node writing one outbox row per network at lock (FR-027); one authorization per network, the worker settling each network it is configured for with that network's chain ID, contract, RPC and oracle key, the wager page's network picker with each network's offers apart. Proved: an authorization signed for one network is refused on the other; a stuck transaction or a dead RPC on one never delays the other; the page never shows one network's offer while the wallet is on the other **Done 2026-10-28**: `drizzle/0023_networks.sql` (networks before the optional wallet links, now 0024): `settlement_outbox.network` with UNIQUE (claim_id, network), `network_health` (its writer is T385), heartbeats renamed `settle-<chain id>` and registered by each worker itself; `WAGER_NETWORKS` (`chainId:version:escrow:token`, `src/wager/networks.ts`, a mainnet refused in any token but native USDC), the Stage 2 variables still naming one network; a row per network at lock, one second read per claim whatever its networks; one worker process per network (`deploy/vaticeno-settle@.service`), reading and writing only its own network's rows by row id; the page's `?network=` picker, each network's own row, escrow and wording. Proved in `settle/tests/test_worker.py` on two local chains (84532, 421614): one network's authorization reverts on the other, and a dead node on one leaves the other settling; `tests/integration/wager.test.ts`: the second network's page never serves the first one's signature. **Not yet applied to production**: 0023, to be deployed with the new worker (the old one's `settle` heartbeat stops matching once 0023 renames it). The bot's wager reply still says testnet only: per-network wording before a mainnet goes on (T383)
+
+### C. Both testnets, end to end
+
+- [ ] T379 [US6] Deploy v2 on Base Sepolia and Arbitrum Sepolia with a test token that blocks one address; source verified on both explorers; the server's env names both (FR-036a) **Prepared 2026-10-28**: `contracts/script/DeployV2.s.sol` (testnets only, 007's numbers; `runEndToEnd` in minutes for T373) and `scripts/deploy-v2-testnet.sh <chain id>`, keys from `~/.vaticeno-keys/<chain id>/`, printing the `WAGER_NETWORKS` entry; tried on a local chain. **Open, owner**: the per-network keys and testnet ETH on both, then the run
+- [ ] T373 [US6] **Moved from Phase 5 and widened to v2, 2026-10-27**: end to end on both v2 testnets, short-window, with two browser wallets: the four wagers of SC-020 (paid out, VOID, offer returned, timeout refund), a withdraw on each side, the blocked address leaving the other side free (SC-025), plus a pending and a reverted transaction never shown as done, and a verdict on X not yet on the chain shown as pending (SC-020, SC-022)
+
+### D. The real-value gate (owner's)
+
+- [ ] T380 [US6] **Owner, asked first**: a dated written opinion (FR-031h) on the product as built — two people on opposite sides, no fee, our oracle, the price-claim event types — for the operator's own country and every country it is reachable or promoted in: its classification (betting, financial instrument under ESMA's statement of 3 July 2026, crypto-asset service under MiCA), the licences and controls required (AML/KYC, sanctions, consumer law, tax), which user countries are allowed, whether the contract must restrict who may open an offer (anyone with an authorization can call it directly, so a page-only block may not do), whether a flat per-stake fee would change the answer (FR-022b), and a go or a no-go
+- [ ] T381 [US6] **Owner**: an independent review by someone with Solidity security experience from outside the project (FR-031h, SC-013) — scope: signatures and replay across networks, every state transition, reentrancy, payout, fee and withdrawal accounting, caps, roles, pause, timeouts, token assumptions. It may start early; its **final sign-off is on the frozen release commit** after T373, naming the commit, compiler and settings, and deployment parameters. Every critical and high finding fixed and re-checked; a lower one accepted only in a dated owner decision; a material change after it is re-reviewed
+- [x] T382 [US6] `docs/settlement-policy.md` for real value (FR-031h, FR-036e): a wrong verdict, a corrected source, a compromised oracle key; a suspected contract fault or abuse and when to pause new offers while every exit stays open; what the guardian can do in the payout hold, who brings it online and within how long; chain or RPC outages, reorgs, low gas, stuck transactions, USDC blocking an address or the escrow itself; how users are told, where the incident is recorded **Done 2026-10-28, draft until T378a**: the policy now covers both the testnet and real money: networks apart, credits and Withdraw, the four limits, the risks the contract cannot remove (a blocked address, a blocked or paused USDC, a halted network, a late-found mistake, a code fault), who holds which role, ten incident cases with the guardian acting within 24 hours, how people are told, and `docs/incidents/` as the public record. The wager page's own wording of FR-036e is T384
+
+### E. Mainnet
+
+- [ ] T383 [US6] **Per network, Base first**: deploy the T381-signed commit with the T378 keys and caps; source verified and the deployed bytecode and constructor values checked against the reviewed commit; the oracle funded with ETH for gas; that network's oracle key installed on the server beside the worker's (`/etc/vaticeno-settle/`, mode 600, its own file); the server's env names the network **with no authorization issued yet** (FR-022a, FR-036c)
+- [x] T384 [US6] The page and the bot for real money: no "testnet" or "worth nothing" wording, amounts in USDC, the network shown on every stake, the network picker live (Story 6 scenario 5) **Done 2026-10-28**: the page's testnet notice, faucet line and test-token wording appear only on a testnet; on v2 it says money is credited and withdrawn, and the risks the contract cannot remove (a frozen address, a frozen or paused USDC, a halted network) beside the policy link (FR-036e); every stake and the count name their network. The bot's link names the real-money networks and USDC once any is switched on, still one link. Checked in `tests/integration/wager.test.ts`. Goes live per network with T383/T386
+- [x] T385 [US6] Monitoring per network (FR-022c): the worker reads the chain and writes `network_health`; it raises a **Sentry alert** to the owner, and the status page reads the row: the oracle's gas below a low-water mark, RPC health, the settlement backlog and its oldest age, failed or stuck transactions, the last successful settlement, and the escrow's USDC balance against everything it owes — open offers, matched stakes and credited balances not yet withdrawn (Story 6 scenario 4) **Done 2026-10-28**: `settle/health.py` after every pass (never before settling): the oracle's gas, the escrow's USDC and what it owes, read from a new `creditTotal()` on v2 (owed = `lockedTotal + creditTotal`, held by the invariant suite), the backlog aged from its final verdict, the last settlement; written to `network_health`, v2 networks only (v1 has no counters). Alerts `gas_low`, `underfunded`, `backlog_old`, `stuck` (10+ failed passes) and `rpc_down`, each raised once when it starts and logged when it clears, through `settle/alerts.py` (Sentry's envelope endpoint over the standard library; no SDK added). Thresholds 0.002 ETH and 6 hours, UNRECONCILED until T373 measures the gas. The status page's Networks panel; a network short of what it owes, or unread for five minutes, degrades the page
+- [ ] T386 [US6] **Per network, after T383–T385**: switch on the first authorization (a separate step from the deploy and the page, Story 6 scenario 6); then a small smoke stake from two wallets the owner controls, opened, matched, settled from a real verdict and withdrawn by both; the result written into this task. Only then is the network announced, in an owner-written post that names no claim carrying a stake (constitution VI) (SC-023)
+
+**Checkpoint**: per network — real USDC stakes settle and are withdrawn, every alert fires on a test, and
+the other network is unaffected by anything that happens on this one.
+
+**🚀 Stage 4 deploys here — real money.**
+
 ---
 
 ## Dependencies
@@ -243,8 +288,12 @@ A trained model for practice and publication; it decides nothing. Runs on the la
 T301 ─ blocks all Python work
   └─ Phase 2 (T305–T310) → US1 (T311–T318) → 🚀 Stage 1
                               US2 (T319–T326) ┘
-US4 contract (T327–T330) → settlement path (T331–T337) → US5 wager page (T366–T373) → links, optional (T338–T340) 🚀 Stage 2
+US4 contract (T327–T330) → settlement path (T331–T337) → US5 wager page (T366–T372) → links, optional (T338–T340) 🚀 Stage 2
 US3 offline (T341–T342) → practice model (T343–T344a, decision 004) → shadow (T345–T349a, **live since 2026-10-25** on Cloud Run, decision 005) 🚀 → the fast-path gate (T350–T351) → live (T352–T355) **parked**, avoids no paid call (SC-006) → memory (T356)
+US6 real money: legal opinion, asked first (T380) ──→ amend v2 decision (T378a)
+                v2 draft (T378) → v2 contract (T376) → two networks (T377) → testnets (T379, T373) → review sign-off (T381)
+                incident policy (T382) ──────────────────────────────────────────────────────────────────┐
+                per network, Base first: deploy (T383) → page (T384) → alerts (T385) → first stake (T386) ←┘ 🚀 Stage 4
 ```
 
 US1 and US2 are both P1 and independently shippable; US2 needs only Phase 2. **US3's offline evaluation runs
@@ -257,5 +306,6 @@ T343c beside T343 · T357 beside T356.
 
 ## Implementation strategy
 
+**The goal is Stage 4, real money** (owner, 2026-10-27); every stage before it makes it safe or measurable.
 MVP is US1 alone: useful the day it ships, and what makes everything after it measurable. US2 turns estimates
 into numbers. US3 may not ship at all, which is why its first checkpoint comes after two tasks (T341–T342).

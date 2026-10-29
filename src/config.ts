@@ -1,3 +1,4 @@
+import { parseWagerNetworks } from './wager/networks.js';
 import { z } from 'zod';
 
 const EnvSchema = z.object({
@@ -139,21 +140,31 @@ const CoreEnvSchema = z
         .optional(),
     ),
     ESCROW_CHAIN_ID: z.coerce.number().int().default(84532),
-    // The nodes the browser reads the chain through, tried in order: free ones rate-limit (003 plan).
+    // 1: the deployed testnet escrow (002); 2: credits, withdraw and caps (007). The worker reads the same.
+    ESCROW_VERSION: z.preprocess(
+      blankIsUnset,
+      z.coerce
+        .number()
+        .pipe(z.union([z.literal(1), z.literal(2)]))
+        .default(1),
+    ),
+    // Stage 4: every network wagering is on, `chainId:version:escrow:token,…` (src/wager/networks.ts). Replaces
+    // ESCROW_ADDRESS, STAKE_TOKEN_ADDRESS, ESCROW_CHAIN_ID and ESCROW_VERSION, which name one network.
+    WAGER_NETWORKS: optionalText,
+    // The nodes the browser reads the one Stage 2 network through, tried in order: free ones rate-limit (003
+    // plan). Unset: that network's list in src/wager/networks.ts, which is also where WAGER_NETWORKS' come from.
     PUBLIC_RPC_URLS: z.preprocess(
       blankIsUnset,
       z
         .string()
-        .default(
-          'https://base-sepolia-rpc.publicnode.com,https://base-sepolia.drpc.org,https://base-sepolia.gateway.tenderly.co,https://sepolia.base.org',
-        )
+        .optional()
         .transform((raw) =>
           raw
-            .split(',')
+            ?.split(',')
             .map((url) => url.trim())
             .filter(Boolean),
         )
-        .pipe(z.array(z.url()).min(1)),
+        .pipe(z.array(z.url()).min(1).optional()),
     ),
     // The local verifier (003 Stage 3, decision 005). off: never called. shadow: asked, recorded, ignored.
     VERIFIER_MODE: z.preprocess(
@@ -182,6 +193,32 @@ const CoreEnvSchema = z
         path: ['GEMINI_API_KEY'],
         message: `GEMINI_API_KEY is required when LLM_MODE=${env.LLM_MODE}`,
       });
+    }
+    if (env.WAGER_NETWORKS) {
+      if (env.ESCROW_ADDRESS || env.STAKE_TOKEN_ADDRESS)
+        ctx.addIssue({
+          code: 'custom',
+          path: ['WAGER_NETWORKS'],
+          message:
+            'WAGER_NETWORKS replaces ESCROW_ADDRESS and STAKE_TOKEN_ADDRESS: set one or the other',
+        });
+      // Never ignored in silence: with several networks, each one's nodes are listed in src/wager/networks.ts.
+      if (env.PUBLIC_RPC_URLS)
+        ctx.addIssue({
+          code: 'custom',
+          path: ['PUBLIC_RPC_URLS'],
+          message:
+            "PUBLIC_RPC_URLS names one network's nodes; with WAGER_NETWORKS, list them in src/wager/networks.ts",
+        });
+      try {
+        parseWagerNetworks(env.WAGER_NETWORKS);
+      } catch (error) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['WAGER_NETWORKS'],
+          message: (error as Error).message,
+        });
+      }
     }
     // The content jobs live in the scheduler, so ENABLE_FEED alone would silently do nothing.
     if (env.ENABLE_FEED && !env.ENABLE_JOBS) {

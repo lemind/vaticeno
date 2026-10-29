@@ -20,7 +20,10 @@ export function encodeApprove(spender: string, amount: bigint): string;
 export function encodeAllowance(owner: string, spender: string): string;
 export function encodeBalanceOf(owner: string): string;
 export function encodeStakesOf(claimHash: string): string;
+export function encodeLockedOnClaim(claimHash: string): string;
+export function encodeCreditOf(owner: string): string;
 export function decodeUint(hex: string): bigint;
+export function decodeString(hex: string): string;
 export function decodeUintArray(hex: string): bigint[];
 export type Stake = {
   claimHash: string;
@@ -37,11 +40,27 @@ export type Stake = {
 export function decodeStake(hex: string): Stake;
 export function parseUnits(text: string, decimals: number): bigint;
 export function formatUnits(value: bigint, decimals: number): string;
+export type Caps = {
+  minStake: bigint;
+  maxStake: bigint;
+  lockedOnClaim: bigint;
+  maxPerClaim: bigint;
+  lockedTotal: bigint;
+  maxTotal: bigint;
+  decimals: number;
+  symbol: string;
+};
+export function capRefusal(
+  caps: Caps | null,
+  amount: bigint,
+  opts: { opening: boolean },
+): string | null;
 export type Action = {
   name: string;
   label: string;
   live: boolean;
   opensAt?: number;
+  refused?: string;
 };
 export function actionsFor(
   stake: Stake,
@@ -51,5 +70,6 @@ export function actionsFor(
     paused: boolean;
     settlementWindow: number;
     timeout: number;
+    caps?: Caps | null;
   },
 ): Action[];

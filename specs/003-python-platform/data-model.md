@@ -1,7 +1,7 @@
 # Data Model: Visibility, settlement and cost
 
 Three changes to the Stage 0 model (`specs/001-stage0-contract-core/data-model.md`): one new table for job
-health, one for the verifier's shadow answers, one for a person's confirmation of their outcomes, one for the settlement queue, and two columns on `resolutions`. All timestamps
+health, one for the verifier's shadow answers, one for a person's confirmation of their outcomes, one for the settlement queue, one for each network's health (Stage 4), and two columns on `resolutions`. All timestamps
 `timestamptz`, stored UTC. Every enum column carries a CHECK constraint. RLS stays enabled everywhere — see
 Access, which is where the read-only role needs more than a grant.
 
@@ -11,6 +11,7 @@ Access, which is where the read-only role needs more than a grant.
 | `verifier_shadow` (new) | what the fast path would have concluded, next to what the paid model did | shadow answers must never be readable as the decision that was taken |
 | `outcome_confirmations` (new) | a person's check of a shadow claim's outcome and its underlying event | the go-live count (SC-005) must rest on outcomes our resolver did not only assert |
 | `settlement_outbox` (new) | one row per verdict that has a stake waiting on it | the only interface between the resolver and the process holding the signing key |
+| `network_health` (new, Stage 4) | per network: the oracle's gas, the escrow's USDC against what it owes, the settlement backlog | the status page and the alerts read the chain's state without the page ever calling a chain |
 | `wallet_links` (new) | which address a person proved they control, and for how long that held | attributing a stake to the author of a claim, without the contract knowing anything about X |
 | `resolutions` (+2 columns) | which verifier confirmed a fast-path verdict, and how confident it was | a verdict the paid model reached says so, even when the local model had an opinion |
 
@@ -117,7 +118,8 @@ With the fast path parked (spec SC-006) both stay null; they are kept so a later
 
 ## `settlement_outbox`
 
-The entire interface between TypeScript and the settlement worker: **one row per locked price-feed claim**,
+The entire interface between TypeScript and the settlement worker: **one row per locked price-feed claim per
+network** (Stage 2: Base Sepolia only; Stage 4 adds Base and Arbitrum One, 0023),
 carrying the claim from authorization to settlement. Node writes the row when the claim locks and sets the
 outcome when its verdict is final; the worker signs, settles and writes the results back. Nothing else
 touches it.
@@ -125,7 +127,8 @@ touches it.
 | Column | Type | Notes |
 |---|---|---|
 | id | uuid PK | |
-| claim_id | uuid NOT NULL UNIQUE → claims | one row per claim: the unique key is what stops a replay creating a second one |
+| claim_id | uuid NOT NULL → claims | UNIQUE (claim_id, network): one row per claim per network; the unique key is what stops a replay creating a second one |
+| network | text NOT NULL | chain id as text, e.g. `84532` (Base Sepolia), `8453` (Base), `42161` (Arbitrum One); added by 0023 with Base Sepolia as the existing rows' value |
 | claim_hash | text null | keccak-256 of the slug, written by the worker — the one place it is computed |
 | open_authorization | text null | the oracle's EIP-712 signature letting anyone open a stake on this claim; set once by the worker |
 | authorized_until | timestamptz null | when acceptance closes, 24 hours before the deadline; the signature holds until then |
@@ -151,7 +154,28 @@ of the resolution's id.
 
 Idempotency is enforced in three places, the same shape as never retrying a post after a failed existence
 check (INIT_SPEC §6.7): the worker reads each stake's on-chain state before sending, the contract rejects a
-second settlement, and the unique key here allows one row per claim.
+second settlement, and the unique key here allows one row per claim per network. The worker settles a row only
+with that network's chain id, contract, RPC and oracle key, so an authorization signed for one network is never
+usable on the other.
+
+## `network_health` (Stage 4)
+
+One row per network, written by the settlement worker each pass (003 FR-022c) and read by the status page. The
+status page never reads a chain itself (FR-003).
+
+| Column | Type | Notes |
+|---|---|---|
+| network | text PK | chain id as text, as in `settlement_outbox` |
+| oracle_gas_wei | numeric NOT NULL | the oracle address's native balance |
+| escrow_usdc | numeric NOT NULL | the escrow's USDC balance, in base units (6 decimals) |
+| owed_usdc | numeric NOT NULL | everything it owes: open offers, matched stakes, credited balances not yet withdrawn |
+| backlog | int NOT NULL | outbox rows of this network waiting to settle |
+| oldest_backlog_at | timestamptz null | |
+| last_settled_at | timestamptz null | the last transaction that confirmed |
+| read_at | timestamptz NOT NULL | when the worker last wrote the row: an old one means the worker is not reading |
+
+RLS on; the worker writes as `settle_rw`, the status page reads as `status_ro`. Low gas, `escrow_usdc` below
+`owed_usdc`, or a backlog past its age raises a Sentry alert from the worker.
 
 ## `wager_replies`
 
@@ -256,7 +280,8 @@ authenticated roles stay with no policy at all, so the public API still sees not
 | `drizzle/0020_settlement.sql` | `settlement_outbox` (one row per locked price claim), the `settle_rw` role's policies, its unique key |
 | `drizzle/0021_wager_replies.sql` | `wager_replies` with its unique key and CHECK, RLS on with no policy |
 | `drizzle/0022_verifier.sql` | `verifier_shadow` with its append-only trigger and policy, `outcome_confirmations` with RLS and its `status_ro` policy, the two `resolutions` columns |
-| `drizzle/0023_wallet_links.sql` | `wallet_links` and `wallet_link_challenges`, the partial unique index on an active address |
+| `drizzle/0023_networks.sql` | Stage 4: `settlement_outbox.network` with the unique key widened to (claim_id, network); `network_health` with RLS and its `settle_rw` and `status_ro` policies |
+| `drizzle/0024_wallet_links.sql` | `wallet_links` and `wallet_link_challenges`, the partial unique index on an active address |
 
 Numbered in deploy order, not in the order the tables were designed: Stage 2 ships before Stage 3, so the
 settlement migrations come first and the verifier's cannot be dragged in by a Stage 2 deployment. The

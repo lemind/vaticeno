@@ -143,7 +143,7 @@ def locked_claim(owner, deadline: int) -> dict:
     """, (slug, str(uuid.uuid4().int)[:12], str(uuid.uuid4().int)[:12],
           json.dumps({"subject": "BTC", "resolution_method": "price_feed"}), deadline_at)).fetchone()
     owner.execute("update claims set status = 'locked' where id = %s", (row[0],))
-    owner.execute("insert into settlement_outbox (claim_id) values (%s)", (row[0],))
+    owner.execute("insert into settlement_outbox (claim_id, network) values (%s, %s)", (row[0], str(CHAIN_ID)))
     return {"id": row[0], "slug": slug}
 
 
