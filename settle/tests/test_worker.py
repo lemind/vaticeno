@@ -436,7 +436,8 @@ def test_v2_the_worker_signs_version_2_and_the_winner_withdraws_the_pot(chain_v2
     assert run_once(db["worker"], chain_v2["client"], _now(w3)).sent == 1
     assert _stake_state(escrow, 1) == 3  # Settled
 
-    _warp_to(w3, claim["deadline"] + 3600 + 72 * 3600)
+    settled_at = escrow.functions.stakes(1).call()[6]  # the hold runs from when the verdict was mined
+    _warp_to(w3, settled_at + 72 * 3600)
     _send(w3, TAKER, escrow.functions.payout(1))  # anyone may; the winner is credited, not sent
     assert escrow.functions.creditOf(MAKER.address).call() == 2 * stake
     before = token.functions.balanceOf(MAKER.address).call()
