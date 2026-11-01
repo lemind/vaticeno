@@ -13,9 +13,9 @@ from psycopg.rows import dict_row
 from settle.alerts import Alerts
 from settle.chain import Escrow
 
-# Owner-set thresholds, overridable in the worker's env file. Not measured yet: UNRECONCILED until the testnet
-# runs (T373) show what one settlement costs in gas on each network.
-GAS_LOW_WEI = int(os.environ.get("GAS_LOW_WEI", str(2 * 10**15)))  # 0.002 ETH
+# Thresholds, overridable in the worker's env file. Gas measured 2026-11-01 on Base Sepolia (T373): two settlements
+# cost 0.0000007 ETH at 0.006 gwei, so 0.0001 ETH is about 300 settlements of warning. Arbitrum One: UNRECONCILED.
+GAS_LOW_WEI = int(os.environ.get("GAS_LOW_WEI", str(10**14)))  # 0.0001 ETH
 BACKLOG_MAX_AGE = timedelta(hours=int(os.environ.get("BACKLOG_MAX_AGE_HOURS", "6")))
 STUCK_AFTER_ATTEMPTS = 10  # ten passes, about ten minutes
 
