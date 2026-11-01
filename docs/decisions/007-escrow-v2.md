@@ -18,7 +18,7 @@ All in USDC base units (6 decimals: 1 USDC = `1_000_000`), immutable constructor
 | Maximum per side of a stake | **1,000 USDC** (`1_000_000_000`) | 100 test tokens | owner, 2026-10-28 |
 | Maximum per claim | **10,000 USDC** (`10_000_000_000`) | none | one wrong verdict moves at most this much |
 | Maximum per network | **50,000 USDC** (`50_000_000_000`) | none | what the contract holds in live stakes while it is new |
-| Minimum stake | **1 USDC** (`1_000_000`) | none | below it, gas costs more than the stake |
+| Minimum stake | **0.01 USDC** (`10_000`) | none | owner, 2026-11-01, so tests cost cents; a settlement measured at about 0.0000004 ETH of gas on Base Sepolia |
 | Fee | **0**, ceiling **5%** as a constant | the same | 006-real-money: no fee at launch |
 | Settlement window | **72 hours** | the same | |
 | Timeout | **14 days** | the same | |

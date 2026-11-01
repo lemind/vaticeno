@@ -447,7 +447,7 @@ timeout: that path is proved on testnet and in the contract's tests.
   Arbitrum One mainnet, staked in native USDC, once FR-031h's two items are on file. Mainnet gets its own
   oracle and guardian keys, never the testnet ones. Limits (owner, 2026-10-28), raised only by an owner decision
   written down with its date: **1,000 USDC** per side of a stake, **10,000 USDC** per claim, **50,000 USDC** of open
-  exposure per network, all three enforced by the contract; **1 USDC** minimum stake. The 72-hour payout hold,
+  exposure per network, all three enforced by the contract; **0.01 USDC** minimum stake (owner, 2026-11-01; it was 1 USDC). The 72-hour payout hold,
   the 14-day timeout, acceptance closing 24 hours before the deadline and offers expiring after 7 days carry
   over from v1 (docs/decisions/002-escrow-v1.md). A per-address cap is not used: new addresses cost nothing.
   Each network goes live on its own checklist; one network's fault never touches the other's outbox, oracle

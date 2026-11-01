@@ -3,6 +3,7 @@
 #   deploy/network-on.sh root@HOST 8453 0xESCROW worker     its settlement worker, settling only: it signs nothing yet
 #   deploy/network-on.sh root@HOST 8453 0xESCROW page       the wager page and the bot name the network
 #   deploy/network-on.sh root@HOST 8453 0xESCROW authorize  the worker starts signing: wagers can open
+#   deploy/network-on.sh root@HOST 8453 0xNEW replace       a network already on moves to a new, unused contract
 # Run after deploy/deploy.sh and the 0023 migration. Only this network's oracle key leaves this machine, copied once;
 # the worker's database login and Sentry DSN are reused from the Stage 2 worker's env file on the server.
 set -euo pipefail
@@ -10,7 +11,7 @@ set -euo pipefail
 HOST="${1:?usage: deploy/network-on.sh root@HOST CHAIN_ID ESCROW_ADDRESS worker|page|authorize}"
 CHAIN="${2:?chain id: 8453 (Base) or 42161 (Arbitrum One)}"
 ESCROW="${3:?the escrow address deploy-v2.sh printed}"
-STEP="${4:?step: worker, page or authorize}"
+STEP="${4:?step: worker, page, authorize or replace}"
 case "$CHAIN" in
   8453) RPC="https://mainnet.base.org"; USDC="0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" ;;
   42161) RPC="https://arb1.arbitrum.io/rpc"; USDC="0xaf88d065e77c8cC2239327C5EDb3A432268e5831" ;;
@@ -74,9 +75,32 @@ authorize() {
     && systemctl restart vaticeno-settle@$CHAIN && sleep 5 && systemctl is-active vaticeno-settle@$CHAIN"
 }
 
+# A contract's numbers never change, so changing one is a new contract (007-escrow-v2). The worker and the page move
+# to it, and every authorization signed for the old one is cleared: it is bound to the old address, and the worker
+# signs again on its next pass. Only for a contract nobody has staked on; the old one keeps running down otherwise.
+replace() {
+  ssh "$HOST" "set -euo pipefail
+    old=\$(grep -E '^ESCROW_ADDRESS=' $DIR/env | cut -d= -f2)
+    [ -n \"\$old\" ] && [ \"\${old,,}\" != \"${ESCROW,,}\" ] || { echo 'nothing to replace' >&2; exit 1; }
+    sed -i \"s/^ESCROW_ADDRESS=.*/ESCROW_ADDRESS=$ESCROW/\" $DIR/env
+    cd /opt/vaticeno; cp .env .env.before-replace-$CHAIN
+    sed -i -E \"/^WAGER_NETWORKS=/s/$CHAIN:2:\$old:/$CHAIN:2:$ESCROW:/I\" .env
+    grep -q \"$CHAIN:2:$ESCROW:\" .env || { cp .env.before-replace-$CHAIN .env; echo 'WAGER_NETWORKS not updated' >&2; exit 1; }
+    sudo -u vaticeno-settle bash -c 'set -a; . $DIR/env; set +a; exec /opt/vaticeno/.venv/bin/python -c \"
+import os, psycopg
+with psycopg.connect(os.environ[\\\"DATABASE_URL_SETTLE\\\"], autocommit=True) as c:
+    n = c.execute(\\\"update settlement_outbox set claim_hash = null, open_authorization = null, authorized_until = null where network = %s and state = %s\\\", (\\\"$CHAIN\\\", \\\"open\\\")).rowcount
+    print(n, \\\"authorizations cleared\\\")
+\"'
+    systemctl restart vaticeno-settle@$CHAIN vaticeno; sleep 8
+    systemctl is-active vaticeno-settle@$CHAIN vaticeno
+    grep '^WAGER_NETWORKS=' .env"
+}
+
 case "$STEP" in
   worker) worker; echo "network $CHAIN: worker on, settling only" ;;
   page) page; echo "network $CHAIN: on the page and in the bot's reply" ;;
   authorize) authorize; echo "network $CHAIN: authorizations on, wagers can open" ;;
-  *) echo "step: worker, page or authorize" >&2; exit 1 ;;
+  replace) replace; echo "network $CHAIN: moved to $ESCROW, authorizations signed again on the next pass" ;;
+  *) echo "step: worker, page, authorize or replace" >&2; exit 1 ;;
 esac

@@ -51,7 +51,7 @@ the other's.
 | | Testnet | Real money |
 |---|---|---|
 | Per side of a stake | 100 test tokens | **1,000 USDC** |
-| Smallest stake | none | **1 USDC** |
+| Smallest stake | none | **0.01 USDC** |
 | All stakes on one prediction | none | **10,000 USDC** |
 | All stakes on one network | none | **50,000 USDC** |
 

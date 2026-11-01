@@ -56,7 +56,7 @@ contract DeployV2 is Script {
                 timeout: timeout,
                 acceptanceCloses: acceptanceCloses,
                 offerLifetime: offerLifetime,
-                minStake: 1 * USDC,
+                minStake: USDC / 100, // 0.01 USDC (owner, 2026-11-01): gas on Base costs far less (007-escrow-v2)
                 maxStake: 1_000 * USDC,
                 maxPerClaim: 10_000 * USDC,
                 maxTotal: 50_000 * USDC
