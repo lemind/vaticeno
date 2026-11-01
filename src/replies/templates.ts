@@ -173,7 +173,7 @@ export function wagerLinkReply(
   networks: readonly string[] = [],
 ): string {
   const terms = networks.length
-    ? `Real money, in USDC, on ${networks.join(' or ')}. The rules and risks are on the page.`
+    ? `USDC on ${networks.join(' or ')}.`
     : 'Testnet only: the token has no value.';
   return assertReplyFits(
     `WAGER · #${slug}\nOffer a side or take one, with your own wallet:\n${host}/claim/${slug}/wager\n${terms}`,

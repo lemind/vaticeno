@@ -127,7 +127,7 @@ describe('the wager command', () => {
     await lockedPriceClaim(); // locked under Stage 2: a Base Sepolia row only
     const { deps, replies } = await bot([[wager('10')]], { networks: MAINNETS });
     await pollMentions(deps, NOW);
-    assert.doesNotMatch(replies[0]!.text, /Real money|\/wager/);
+    assert.doesNotMatch(replies[0]!.text, /USDC|\/wager/);
   });
 
   test('with real money on, the link names the networks and USDC, and still carries one link only', async () => {
@@ -136,8 +136,8 @@ describe('the wager command', () => {
       await t.sql`insert into settlement_outbox (claim_id, network) values (${claim.id}, ${network})`;
     const { deps, replies } = await bot([[wager('10')]], { networks: MAINNETS });
     await pollMentions(deps, NOW);
-    assert.match(replies[0]!.text, /Real money, in USDC, on Base or Arbitrum One\./);
-    assert.doesNotMatch(replies[0]!.text, /Testnet|no value/);
+    assert.match(replies[0]!.text, /\nUSDC on Base or Arbitrum One\.$/);
+    assert.doesNotMatch(replies[0]!.text, /Testnet|no value|[Rr]eal money|risk/);
     assert.equal(replies[0]!.text.match(/https?:\/\/|vaticeno\.test/g)!.length, 1);
     assert.ok(replies[0]!.text.includes(`${HOST}/claim/${claim.slug}/wager`));
   });
