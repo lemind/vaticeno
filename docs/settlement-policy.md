@@ -2,11 +2,10 @@
 
 **Today: testnet only.** Stakes are a test token worth nothing, on Base Sepolia. No real money is accepted.
 
-**Planned: real money in USDC on Base and Arbitrum One.** It is not live, and goes live only after a legal
-opinion, a review of the contract by someone outside the project, and this policy are all on file. This
-document already describes how it will work, so the rules are public before any money is. Where the testnet
-and the real-money contract differ, both are stated. The real-money parts are a draft until the legal opinion
-is in, and any change it requires is written here before launch.
+**Next: real money in USDC, on Base first, then Arbitrum One.** It goes live once the new contract has run end
+to end on a testnet. This document already describes how it works, so the rules are public before any money
+is. Where the testnet and the real-money contract differ, both are stated. The contract has not been reviewed
+by anyone outside the project; the limits below are what bound a fault in it.
 
 ## What this is
 
@@ -100,8 +99,8 @@ Said plainly, because none of them is solved by the contract:
 - **A network can stop.** If Base or Arbitrum One halts, nothing moves on it until it restarts. Every deadline
   in the contract is measured in the network's own time.
 - **The referee can be wrong.** The void covers mistakes found within 72 hours, not later ones.
-- **The code can have a fault.** It is reviewed from outside before real money, and the limits above cap what
-  any one fault can reach. A review is not a guarantee.
+- **The code can have a fault.** It is tested, but not reviewed by anyone outside the project. The limits above
+  cap what any one fault can reach.
 
 ## The roles
 

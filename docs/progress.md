@@ -26,8 +26,7 @@ stale instead of reading as current (003 FR-007). Only `## Stage
 
 ## Next
 
-- Ask for the legal opinion first: it may change the design, and a no-go ends Stage 4
-- Contract v2: withdrawals by pull, native USDC, per-claim and total caps
-- Two networks in the worker and the page; full runs on Base Sepolia and Arbitrum Sepolia
-- An outside review of the release commit, and the incident policy
-- Then per network, Base first: deploy, alerts, the page, the first real stake
+- Built: contract v2 (pull withdrawals, native USDC, caps), two networks in the worker and the page, alerts,
+  the incident policy
+- Next: the mainnet wallets, a full run on Base Sepolia, then Base mainnet: deploy, the page, a 1 USDC smoke stake
+- No legal opinion or outside review before launch (owner, 2026-10-29)

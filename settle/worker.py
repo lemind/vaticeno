@@ -45,9 +45,12 @@ class Run:
     tx_references: list[str] = field(default_factory=list)
 
 
-def run_once(conn: psycopg.Connection, escrow: Escrow, now: datetime) -> Run:
+def run_once(conn: psycopg.Connection, escrow: Escrow, now: datetime, sign: bool = True) -> Run:
+    """`sign` off: settle only, open nothing new. A new network starts so, and the first authorization is its own
+    later step (003 Story 6 scenario 6, T386)."""
     run = Run()
-    sign_authorizations(conn, escrow, now, run)
+    if sign:
+        sign_authorizations(conn, escrow, now, run)
     settle_confirmed(conn, escrow, now, run)
     return run
 
@@ -205,6 +208,8 @@ def main() -> None:
     log.info("settle.started network=%s oracle=%s escrow=%s version=%s",
              escrow.network, account.address, escrow.address, escrow.version)
     alerts = Alerts(os.environ.get("SENTRY_DSN"))
+    sign = os.environ.get("SIGN_AUTHORIZATIONS", "1") == "1"
+    log.info("settle.signing network=%s on=%s", escrow.network, sign)
     registered = False
     while True:
         started = datetime.now(UTC)
@@ -215,7 +220,7 @@ def main() -> None:
                     register(conn, escrow)
                     registered = True
                 try:
-                    run_once(conn, escrow, started)
+                    run_once(conn, escrow, started, sign)
                     heartbeat(conn, escrow, started, None)
                 except Exception as error:
                     heartbeat(conn, escrow, started, error)

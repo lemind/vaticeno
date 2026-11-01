@@ -14,8 +14,8 @@ stages: Stage 1, the owner's status page over job state and build info, with the
 replacing the UNRECONCILED numbers (live); Stage 2, the escrow contract, its settlement worker and the wager
 page people reach with `@vaticeno wager`, testnet only (live); Stage 3, a local entailment verifier, in shadow
 (live; going live parked); **Stage 4, real money — the goal**: contract v2 in native USDC on Base and Arbitrum
-One, no fee at launch, gated on a legal go, an outside review and an incident policy (FR-031h,
-`docs/decisions/006-real-money.md`).
+One, no fee at launch, gated on a testnet run and the incident policy; no legal opinion or outside review
+awaited (owner, 2026-10-29; FR-031h, `docs/decisions/006-real-money.md`).
 The service layer is Python, allowed by constitution VII since 2026-10-09
 (`docs/decisions/001-second-runtime.md`).
 Shipped before it: `specs/002-content-feed/spec.md` — the account's own feed: weighted pool reposts, the

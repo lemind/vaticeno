@@ -1,7 +1,7 @@
 # 007 — Escrow v2: the contract that holds real USDC
 
 **Date**: 2026-10-28 · **Decided by**: the owner · **Status**: first draft (003 T378); numbers and keys accepted
-2026-10-28; amended after the legal opinion (T378a) · **Answers**: 003 FR-031f again for real value, FR-022a,
+2026-10-28; no legal opinion awaited (owner, 2026-10-29) · **Answers**: 003 FR-031f again for real value, FR-022a,
 FR-022b, FR-036b–e · **Builds on**: 002-escrow-v1, 006-real-money
 
 Version one stays on Base Sepolia, unchanged. Version two is the contract that holds real money, on Base and
@@ -72,13 +72,13 @@ wrongly inside the window; the loss is bounded by the per-claim and per-network 
 acts. Guardian lost — nothing can be paused or voided any more; the contract keeps running, and the next
 deployment gets a new guardian. These are the cases 003 T382's incident policy turns into a procedure.
 
-## Waiting for the legal opinion (T378a)
+## Left open (no legal opinion is waited for, owner 2026-10-29)
 
-Left open on purpose until the lawyer answers (003 T380), because each may change the contract:
+Launch goes ahead as designed above. These stay open, each a new contract if it is ever changed:
 
 - **Who may open an offer.** Today anyone holding the claim's authorization can call the contract directly, so
-  blocking a country on the page alone blocks nothing. If the opinion requires it, the authorization becomes
-  per address, signed only after a check — a change to `open` and to the worker.
+  blocking a country on the page alone blocks nothing. Restricting it would make the authorization per
+  address, signed only after a check — a change to `open` and to the worker.
 - **Which countries**, and whether that is enforced on the page, in the authorization, or both.
 - **A fee**: whether a flat per-stake fee, charged to both sides whatever the outcome, would change the answer.
 - **Any KYC or AML threshold** at these amounts.

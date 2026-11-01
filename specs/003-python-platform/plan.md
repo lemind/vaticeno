@@ -95,7 +95,7 @@ to our own private Cloud Run service that Node treats as optional (FR-012a, deci
 | **1** | job state, build info, the status service, the capacity table | [tasks.md](tasks.md) Phases 1–4 |
 | **2** | the escrow contract, its settlement worker, the wager page and the `wager` command, and optional wallet links, testnet only | [tasks.md](tasks.md) Phase 5 |
 | **3** | the verifier — in shadow since 2026-10-25; going live parked, it avoids no paid call (SC-006) | [tasks.md](tasks.md) Phase 6 |
-| **4** | **real money, the goal**: contract v2 with native USDC on Base and Arbitrum One, the worker and the page for two networks, mainnet keys and monitoring — after FR-031h's three items | [tasks.md](tasks.md) Phase 8 |
+| **4** | **real money, the goal**: contract v2 with native USDC on Base and Arbitrum One, the worker and the page for two networks, mainnet keys and monitoring — after FR-031h's two items | [tasks.md](tasks.md) Phase 8 |
 
 No stage waits for another. They meet in two places: the status page, which is one query function per block so
 a later stage adds rows without a rewrite, and the rule that a verdict decided by the local verifier alone
@@ -106,12 +106,10 @@ no real value and no fee until the contract has been reviewed by someone else. T
 second version, not this one redeployed: withdrawals by pull and native USDC only (FR-036b, FR-036c), built
 after the network is chosen (T374, T376).
 
-**Stage 4 is real money** (owner, 2026-10-27), and the reason Stage 2 and Story 5's page exist. The legal opinion
-is asked for first, because its answer may change the design (who may open an offer, which countries) and
-its no-go would end the stage. Then: v2 decision record and contract → two networks in the outbox, the worker
-and the page → full runs on Base Sepolia and Arbitrum Sepolia → the release candidate frozen and reviewed
-from outside → per network: deploy, monitoring and alerts, then the page, then the first authorization, then
-an owner-run smoke stake. Code may run ahead of the legal answer; a mainnet deploy may not (SC-024). Base is
+**Stage 4 is real money** (owner, 2026-10-27), and the reason Stage 2 and Story 5's page exist. Order: v2
+decision record and contract → two networks in the outbox, the worker and the page → a full run on the
+testnet → per network: deploy, monitoring and alerts, then the page, then the first authorization, then an
+owner-run smoke stake. No legal opinion and no outside review are waited for (owner, 2026-10-29, FR-031h). Base is
 the natural first network; each goes live on its own checklist. Same contract, same worker, configured per
 network (FR-036d): no new runtime, no new service.
 

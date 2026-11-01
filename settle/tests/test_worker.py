@@ -359,6 +359,12 @@ def test_it_never_signs_for_a_claim_judged_by_the_model(chain, db):
     assert _row(db["owner"], claim)["open_authorization"] is None
 
 
+def test_a_network_not_yet_authorized_signs_nothing_but_still_settles(chain, db):
+    claim = _locked_claim(db["owner"], _chain_now(chain["w3"]) + 3 * DAY)
+    assert run_once(db["worker"], chain["client"], _now(chain["w3"]), sign=False).signed == 0
+    assert _row(db["owner"], claim)["open_authorization"] is None
+
+
 def test_it_signs_nothing_once_acceptance_has_closed(chain, db):
     w3 = chain["w3"]
     claim = _locked_claim(db["owner"], _chain_now(w3) + DAY // 2)

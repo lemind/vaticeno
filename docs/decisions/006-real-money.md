@@ -16,9 +16,9 @@ new deployment later, never by a setting.
 Taking a share of the pot is what a betting operator does, and is the strongest single sign a regulator reads.
 With no fee, Vaticeno takes no money from anyone: two people put up equal stakes, a contract holds them, and the
 verdict decides who collects both. That does not by itself settle the legal question — running the referee can
-count on its own — so the legal opinion (T380) is asked the exact question: is the no-fee version allowed, and
-would a flat per-stake fee, charged to both sides whatever the outcome, change the answer. A fee of any kind is
-a new owner decision taken with that written answer, never before it.
+count on its own. The legal opinion meant to answer it (T380) was dropped on 2026-10-29: the owner launches the
+no-fee version and carries that risk. A fee of any kind, a flat per-stake one being the only form considered, is
+a new, dated owner decision and reopens constitution VII.
 
 ## Constitution VII
 
@@ -30,9 +30,10 @@ and it reopens VII: it needs this file amended and the constitution's own amendm
 
 ## What gates it
 
-Nothing is deployed to a mainnet before three things are on file, each dated (003 SC-024): a legal opinion that
-says go, an independent review of the release commit with every critical and high finding closed, and the
-written incident policy. The order and the work are in 003 tasks Phase 8.
+Nothing is deployed to a mainnet before v2 has run end to end on its testnet and the written incident policy is
+on file (003 SC-024). **Amended 2026-10-29 (owner)**: the legal opinion and the outside review of the contract
+are no longer gates. Stakes are small and there are no users yet; the risk is the owner's, bounded by the
+contract's caps, and either can still be asked for later. The order and the work are in 003 tasks Phase 8.
 
 ## Accepted costs
 

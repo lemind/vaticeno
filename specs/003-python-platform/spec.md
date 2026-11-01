@@ -247,7 +247,9 @@ returned after expiry; (d) with the worker stopped, a matched wager is refunded 
 The goal of Stories 4 and 5 (owner, 2026-10-27): two people stake **real USDC** on opposite sides of a price
 claim, on Base or on Arbitrum One, and the verdict pays the winner. Everything the testnet proved carries
 over; what changes is the money, so the contract is a second version built for it, and nothing real is staked
-before a lawyer, a second pair of eyes on the contract and a written incident policy say it may be.
+before v2 has run end to end on a testnet and a written incident policy is on file. No legal opinion and no
+outside review are waited for (owner, 2026-10-29): stakes are small and there are no users yet; the risk is
+the owner's, bounded by the contract's caps.
 
 **Why this priority**: it is what the escrow work was for. The testnet stages exist to make this one safe.
 
@@ -263,7 +265,7 @@ timeout: that path is proved on testnet and in the contract's tests.
 2. **Given** the token refuses to pay one participant or the fee recipient, **When** a stake settles, **Then**
    everyone else still withdraws what is credited to them (FR-036b). The escrow address itself being blocked,
    or the token paused, still stops every withdrawal: that is disclosed, not solved (FR-036e).
-3. **Given** any of the three FR-031h items is missing, or the legal opinion says no-go, **When** anyone tries to
+3. **Given** v2 has not run end to end on its testnet, or the incident policy is missing, **When** anyone tries to
    open a real stake, **Then** there is no mainnet contract to open it on (SC-024).
 4. **Given** the oracle's gas balance on a network runs low, **When** the worker next reads it, **Then** the owner
    gets a Sentry alert and the status page shows it, before a verdict fails to reach the chain (FR-022c).
@@ -442,7 +444,7 @@ timeout: that path is proved on testnet and in the contract's tests.
   goes to a mainnet: real value is v2 (FR-022a). A per-stake maximum is enforced in the contract from the first
   deployment regardless.
 - **FR-022a**: **Stage 4 is real value** (owner, 2026-10-27): contract v2 (FR-036b, FR-036c) on Base and
-  Arbitrum One mainnet, staked in native USDC, once FR-031h's three items are on file. Mainnet gets its own
+  Arbitrum One mainnet, staked in native USDC, once FR-031h's two items are on file. Mainnet gets its own
   oracle and guardian keys, never the testnet ones. Limits (owner, 2026-10-28), raised only by an owner decision
   written down with its date: **1,000 USDC** per side of a stake, **10,000 USDC** per claim, **50,000 USDC** of open
   exposure per network, all three enforced by the contract; **1 USDC** minimum stake. The 72-hour payout hold,
@@ -453,7 +455,7 @@ timeout: that path is proved on testnet and in the contract's tests.
 - **FR-022b**: **No fee at Stage 4's launch** (owner, 2026-10-27, docs/decisions/006-real-money.md). The
   contract keeps the 5% ceiling as a constant and a fee recipient fixed at deployment; no refund path ever
   charges one. A non-zero fee — a flat per-stake one is the only form considered, never a share of the pot — is
-  a new owner decision taken with the legal opinion's written answer on it (T380).
+  a new, dated owner decision.
 - **FR-022c**: Per network, the settlement worker reads the oracle's gas balance, the escrow's USDC balance and
   everything the escrow owes (open offers, matched stakes, credited balances not yet withdrawn), and writes them
   to the database with its settlement backlog; the status page reads that row and nothing else (FR-003). Gas
@@ -529,13 +531,11 @@ timeout: that path is proved on testnet and in the contract's tests.
 - **FR-031g**: The product is described as an escrow with a named referee and a published settlement policy
   — never as trustless or impartially arbitrated. Custody and payout mechanics are guaranteed by the code;
   correctness of the verdict is not, and the void power is the proof that it is not.
-- **FR-031h**: Real value is this feature's goal, delivered as Stage 4 (owner, 2026-10-27), gated on three things: a dated
-  written legal opinion that classifies the product as built (two people on opposite sides, our fee, our
-  oracle), names the event types and the user countries it may serve, the licences and controls required
-  (gambling, financial services, crypto-assets, AML/KYC, sanctions, consumer law, tax) and any design change
-  — for the operator's own country and wherever the product is reachable or promoted — and ends in a go or a
-  no-go; an independent reading of the contract and its state machine; and a written policy for oracle
-  compromise, source corrections, voids and refunds. ESMA's statement of 3 July 2026 holds that event
+- **FR-031h**: Real value is this feature's goal, delivered as Stage 4 (owner, 2026-10-27), gated on two things: v2 run
+  end to end on its testnet (T379, T373), and a written policy for oracle compromise, source corrections, voids
+  and refunds (T382). **Owner, 2026-10-29**: no legal opinion and no outside review of the contract before
+  launch. Stakes are small and there are no users yet; the legal and contract risk is the owner's, bounded by
+  the caps in FR-022a, and either can be asked for later without blocking anything. Kept for the record: ESMA's statement of 3 July 2026 holds that event
   contracts qualifying as financial instruments fall under the permanent national binary-options bans, and
   that renaming the product does not avoid them; what is not a financial instrument can still be gambling
   under national law or fall under MiCA. None of that is answered by deploying to an L2 or by having no
@@ -724,8 +724,8 @@ timeout: that path is proved on testnet and in the contract's tests.
   rather than by us.
 - **SC-012**: No stake is ever settled twice, and no settlement ever happens for a verdict that is not final,
   across the whole test campaign.
-- **SC-013**: An independent reading of the contract confirms there is no path by which the operator can move
-  staked funds — demonstrated by tests that try.
+- **SC-013**: No path lets the operator move staked funds, demonstrated by tests that try: v1's and v2's operator
+  invariants. For v2 the reading is the project's own: the outside one (T381) was dropped by the owner on 2026-10-29.
 - **SC-014**: The contract's tests cover every branch of settle and refund, the standard the gates and the
   resolver are held to rather than the ~55% repository target.
 - **SC-015**: A full stake, settled, with no wallet ever linked — proving linking is optional and not on the
@@ -749,9 +749,8 @@ timeout: that path is proved on testnet and in the contract's tests.
 - **SC-023**: On each of Base and Arbitrum One, a real USDC stake opened and matched from the wager page
   settles from a real verdict and the winner withdraws — and the fee recipient too, if a fee is ever set
   (FR-022b) (Story 6).
-- **SC-024**: No contract is deployed to either mainnet before three things are on file, each with its date: a
-  legal opinion that says **go**, an independent review of the release commit with every critical and high
-  finding closed, and the incident policy (FR-031h).
+- **SC-024**: No contract is deployed to a mainnet before v2 has run end to end on its testnet and the incident
+  policy is on file (FR-031h). The legal opinion and the outside review were dropped as gates (owner, 2026-10-29).
 - **SC-025**: With a test token blocking the maker, then the taker, then the fee recipient, each in its own
   fixture, the blocked address cannot withdraw while blocked and every other address withdraws all it is
   credited, on payout, VOID, expiry and the timeout refund alike; proved on both testnets before any mainnet.
@@ -784,7 +783,7 @@ timeout: that path is proved on testnet and in the contract's tests.
   the people it is for. Story 5 builds it; it needs no wallet link (FR-032).
 - The contract is Solidity. A Python-syntax alternative exists and is rejected for funds-holding code: a
   smaller reviewer pool, and a compiler bug that once cost a protocol tens of millions.
-- The fee is zero at Stage 4's launch (FR-022b); whether one is ever taken waits for the legal opinion (T380).
+- The fee is zero at Stage 4's launch (FR-022b); a fee is ever taken only by a new owner decision.
 - The wallet-link page and the wager page are the only places in this feature that accept input from a
   person, and the only pages with a script: signing needs the wallet in the browser. One small vanilla
   script shared by the two (FR-045) — no framework (constitution VII), and every other page stays
