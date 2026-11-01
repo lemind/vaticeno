@@ -42,6 +42,7 @@ class Run:
     no_stake: int = 0
     failed: int = 0
     retrying: int = 0
+    finished: int = 0
     tx_references: list[str] = field(default_factory=list)
 
 
@@ -52,7 +53,40 @@ def run_once(conn: psycopg.Connection, escrow: Escrow, now: datetime, sign: bool
     if sign:
         sign_authorizations(conn, escrow, now, run)
     settle_confirmed(conn, escrow, now, run)
+    finish_stakes(conn, escrow, run)
     return run
+
+
+def finish_stakes(conn: psycopg.Connection, escrow: Escrow, run: Run) -> None:
+    """Pays out, refunds and returns whatever the contract allows now, so nobody has to press a button for their
+    money. Anyone may make these calls, and the contract pays the right person whoever calls; the worker only
+    spares people the trouble. Claims past every deadline are left alone: their stakes are long finished."""
+    horizon = escrow.timeout + escrow.settlement_window + 2 * 86_400
+    rows = _rows(conn, """
+        select c.slug from settlement_outbox o join claims c on c.id = o.claim_id
+        where o.network = %s and o.claim_hash is not null
+          and c.deadline_at > now() - make_interval(secs => %s)
+    """, (escrow.network, horizon))
+    if not rows:
+        return
+    now = escrow.chain_time()
+    for row in rows:
+        for stake in escrow.stakes_of(claim_hash(row["slug"])):
+            action = escrow.due_action(stake, now)
+            if action is None:
+                continue
+            try:
+                tx = escrow.send_finish(action, stake.id)
+                if tx is None:
+                    continue
+                escrow.wait_mined(tx)
+            except (ChainMismatch, Web3Exception, RuntimeError, OSError, ValueError) as error:
+                log.warning("settle.finish_failed slug=%s stake=%s action=%s error=%s", row["slug"], stake.id,
+                            action, error)
+                continue
+            run.finished += 1
+            run.tx_references.append(tx)
+            log.info("settle.finished slug=%s stake=%s action=%s tx=%s", row["slug"], stake.id, action, tx)
 
 
 def sign_authorizations(conn: psycopg.Connection, escrow: Escrow, now: datetime, run: Run) -> None:

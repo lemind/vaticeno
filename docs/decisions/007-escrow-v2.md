@@ -40,11 +40,11 @@ VOID, the guardian's void, the timeout, an expired offer — ever takes a fee.
 
 | Change | v1 | v2 |
 |---|---|---|
-| **Pull, not push** (FR-036b) | `payout` and the refunds send tokens to one or two addresses in the same call | every exit **credits** a balance; each address calls `withdraw()` for its own credit, in its own transaction. A blocked maker never stops the taker, and a blocked fee recipient never stops either |
+| **Direct, with a credit fallback** (FR-036b; pull only until 2026-11-01) | `payout` and the refunds send tokens to one or two addresses in the same call, and one refusal reverts it all | every payment is sent on its own; one the token refuses is **credited**, and only that address calls `withdraw()` for it. A blocked maker never stops the taker, and a blocked fee recipient never stops either. The settlement worker makes every payout, refund and expiry call itself |
 | **The token** (FR-036c) | any ERC-20 named at deployment | native USDC: on chain 8453 the constructor accepts only `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`, on chain 42161 only `0xaf88d065e77c8cC2239327C5EDb3A432268e5831`; on a testnet any token, so the blocking test token can stand in |
 | **Caps** (FR-022a) | one per-stake maximum | per side, per claim and per network, as above, plus the minimum |
 | **Withdrawal** | "no withdrawal function of any kind exists" | one: `withdraw()`, which moves only the caller's own credited balance. Still no function moves anyone else's money |
-| **Events** | as 002 | adds `Credited(account, stakeId, amount)` and `Withdrawn(account, amount)`, so every balance can be audited from the chain alone |
+| **Events** | as 002 | adds `Sent(account, stakeId, amount)` for a direct payment, `Credited(account, stakeId, amount)` for one the token refused, and `Withdrawn(account, amount)`, so every balance can be audited from the chain alone |
 | **Views** | `stakesOf` | adds `creditOf(address)`, `lockedOnClaim(claimHash)`, `lockedTotal()`, `creditTotal()` (so what it owes is
 `lockedTotal + creditTotal`), for the page and the worker's health row (FR-022c) |
 | **Signature version** | the worker signs `"1"` | the worker signs `"2"`. `ESCROW_VERSION` (1 or 2, default 1) tells the page and the worker which contract they face; the worker refuses to start when the contract's own domain is not that version |

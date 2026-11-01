@@ -8,7 +8,8 @@ interface IERC20 {
 
 /// The escrow that holds real USDC (003 Stage 4, FR-022a, FR-036b–e). Its rules are answered in
 /// docs/decisions/007-escrow-v2.md; whatever that file does not change is v1's (002-escrow-v1.md).
-/// Every exit credits a balance and each address withdraws its own: no function moves anyone else's money.
+/// Every exit sends straight to each person's wallet; one the token refuses (a frozen address) is credited instead,
+/// and only its owner can withdraw it, so a frozen address never holds up anyone else's money (FR-036b).
 contract EscrowV2 {
     enum State {
         None,
@@ -105,7 +106,7 @@ contract EscrowV2 {
     // Money held for live stakes: an open offer once, a matched stake twice. Credits are owed, not at stake.
     mapping(bytes32 => uint256) public lockedOnClaim;
     uint256 public lockedTotal;
-    // What each address may withdraw: every exit lands here, never in a transfer (FR-036b).
+    // What each address may withdraw: only a payment the token refused lands here (FR-036b).
     mapping(address => uint256) public creditOf;
     // All credits not yet withdrawn: with lockedTotal, everything the escrow owes (003 FR-022c).
     uint256 public creditTotal;
@@ -125,6 +126,7 @@ contract EscrowV2 {
     event Voided(uint256 indexed id, uint8 reasonCode, bytes32 evidenceRef);
     event Refunded(uint256 indexed id);
     event Expired(uint256 indexed id);
+    event Sent(address indexed account, uint256 indexed id, uint256 amount);
     event Credited(address indexed account, uint256 indexed id, uint256 amount);
     event Withdrawn(address indexed account, uint256 amount);
     event PausedBy(address indexed guardian);
@@ -241,7 +243,7 @@ contract EscrowV2 {
         stake.state = State.Expired;
         _unlock(stake.claimHash, stake.amount);
         emit Expired(id);
-        _credit(stake.maker, id, stake.amount);
+        _pay(stake.maker, id, stake.amount);
     }
 
     /// The oracle records a final verdict. HIT or MISS starts the window and pays nobody (FR-031b); VOID refunds.
@@ -269,7 +271,7 @@ contract EscrowV2 {
         }
     }
 
-    /// After the window, anyone may credit the winner, so finality never waits on the operator (FR-031b).
+    /// After the window, anyone may pay the winner, so finality never waits on the operator (FR-031b).
     function payout(uint256 id) external {
         Stake storage stake = stakes[id];
         if (stake.state != State.Settled) revert BadState();
@@ -284,8 +286,8 @@ contract EscrowV2 {
         stake.state = State.Paid;
         _unlock(stake.claimHash, pot);
         emit Paid(id, winner, pot - fee, fee);
-        _credit(winner, id, pot - fee);
-        if (fee > 0) _credit(feeRecipient, id, fee);
+        _pay(winner, id, pot - fee);
+        if (fee > 0) _pay(feeRecipient, id, fee);
     }
 
     /// Inside the window only: each side gets its own stake back, and nothing else can happen here (FR-031c).
@@ -314,7 +316,7 @@ contract EscrowV2 {
         _refundBoth(id, stake);
     }
 
-    /// Each address takes its own credit, in its own transaction: a blocked one blocks only itself (FR-036b).
+    /// A payment the token refused waits here; its owner takes it once the token allows (FR-036b).
     function withdraw() external {
         uint256 amount = creditOf[msg.sender];
         if (amount == 0) revert NothingToWithdraw();
@@ -404,22 +406,43 @@ contract EscrowV2 {
         );
     }
 
-    // ---- money: in by transferFrom, out only by withdraw; state is always written before a transfer ----
+    // ---- money: in by transferFrom, out by a direct transfer or a withdrawal; state is written before either ----
 
     function _refundBoth(uint256 id, Stake storage stake) private {
         _unlock(stake.claimHash, uint256(stake.amount) * 2);
-        _credit(stake.maker, id, stake.amount);
-        _credit(stake.taker, id, stake.amount);
+        _pay(stake.maker, id, stake.amount);
+        _pay(stake.taker, id, stake.amount);
+    }
+
+    /// Straight to the wallet; if the token refuses (the address is frozen, or the token paused), credited instead,
+    /// so the other side's transfer in the same call still goes through.
+    function _pay(address account, uint256 id, uint256 amount) private {
+        // Every stake's state and every lock is written before this call, and the token is fixed native USDC: a
+        // re-entry finds nothing left to move, and the events follow the transfer they report.
+        if (_tryPush(account, amount)) {
+            // forge-lint: disable-next-line(reentrancy-events)
+            emit Sent(account, id, amount);
+        } else {
+            _credit(account, id, amount);
+        }
     }
 
     function _credit(address account, uint256 id, uint256 amount) private {
         creditOf[account] += amount;
         creditTotal += amount;
+        // forge-lint: disable-next-line(reentrancy-events)
         emit Credited(account, id, amount);
     }
 
     function _pull(address from, uint256 value) private {
         _call(abi.encodeCall(IERC20.transferFrom, (from, address(this), value)));
+    }
+
+    // Never reverts: a refusal is reported, not raised. Accepts a token that returns nothing as well as one returning true.
+    function _tryPush(address to, uint256 value) private returns (bool) {
+        // forge-lint: disable-next-line(reentrancy-no-eth)
+        (bool ok, bytes memory returned) = address(token).call(abi.encodeCall(IERC20.transfer, (to, value)));
+        return ok && (returned.length == 0 || (returned.length == 32 && abi.decode(returned, (bool))));
     }
 
     function _push(address to, uint256 value) private {

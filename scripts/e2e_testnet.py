@@ -99,7 +99,8 @@ class Sender:
         return receipt
 
     def call(self, account, fn) -> dict:
-        return self.send(account, fn.build_transaction({"from": account.address, "gas": 400_000}))
+        # Estimated, not a fixed 400,000: a node refuses a call whose gas limit the wallet could not pay in full.
+        return self.send(account, fn.build_transaction({"from": account.address}))
 
 
 def chain_now(w3: Web3) -> int:

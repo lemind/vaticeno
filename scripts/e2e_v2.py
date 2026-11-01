@@ -1,8 +1,9 @@
 """End to end for escrow v2 on Base Sepolia (003 T373): four wagers on a minutes-scale throwaway deployment, settled
 by the real worker code against the local database, every exit taken out with `withdraw()`.
 
-A pays the winner after the hold; B is VOID, and while the maker is blocked by the token the taker still withdraws
-(SC-025); C gets no verdict and refunds at the timeout with no worker; D is never taken and returns to its maker.
+Nobody presses anything: the worker returns D's untaken offer, settles A and B, pays A out after the hold and
+refunds C at the timeout, every payment straight to a wallet. While the token freezes the maker, the maker's money
+waits as a credit and the taker is paid as usual (SC-025); unfrozen, the maker withdraws it.
 
     scripts/e2e-v2.sh        # deploys the throwaway contracts, then runs this (about 35 minutes)
 """
@@ -45,7 +46,7 @@ RPC = os.environ.get("RPC_URL", "https://sepolia.base.org")
 KEYS = Path.home() / ".vaticeno-keys" / str(CHAIN_ID)
 USDC = 10**6
 STAKE = 10 * USDC
-GAS_FLOAT = Web3.to_wei(0.00002, "ether")  # about ten transactions each at 0.006 gwei, with room
+GAS_FLOAT = Web3.to_wei(0.000012, "ether")  # a top-up when under half: ~25 transactions at 0.006 gwei, measured
 
 TOKEN_ABI = [
     {"type": "function", "name": f, "stateMutability": "nonpayable", "outputs": [],
@@ -137,40 +138,38 @@ def main() -> None:
     say(f"A, B, C opened by the maker on HIT and matched by the taker; D left open: {stakes}")
     maker_before, taker_before = balance(maker), balance(taker)
 
-    wait_until(w3, deadline + 5, "the deadline (D's offer has expired by now)")
-    sender.call(taker, escrow.functions.expire(stakes["D"]))  # anyone may return it
-    eventually(lambda: client.stake(stakes["D"]).state, "Expired")
-    eventually(lambda: credit(maker), STAKE)
-    say("D returned: credited to its maker")
+    run = lambda: run_once(worker, client, datetime.fromtimestamp(chain_now(w3), UTC))  # noqa: E731
 
+    wait_until(w3, deadline + 5, "the deadline (D's offer has expired by now)")
+    # SC-025: the token freezes the maker before anything is paid back.
+    sender.call(deployer, token.functions.setBlocked(maker.address, True))
     final_verdict(owner, claims["A"], "hit")
     final_verdict(owner, claims["B"], "void")
     for _ in range(6):  # C is never given a verdict: as far as it is concerned, the worker is stopped
-        run_once(worker, client, datetime.fromtimestamp(chain_now(w3), UTC))
+        run()
         states = {s for (s,) in owner.execute(
             "select state from settlement_outbox where claim_id = any(%s)",
             ([claims["A"]["id"], claims["B"]["id"]],)).fetchall()}
-        if states == {"sent"}:
+        if states == {"sent"} and client.stake(stakes["D"]).state == "Expired":
             break
         time.sleep(15)
     assert states == {"sent"}, f"outbox states {states}"
+    eventually(lambda: client.stake(stakes["D"]).state, "Expired")
     eventually(lambda: client.stake(stakes["A"]).state, "Settled")
     eventually(lambda: client.stake(stakes["B"]).state, "Refunded")
-    eventually(lambda: credit(maker), 2 * STAKE)  # D's stake, then B's
-    eventually(lambda: credit(taker), STAKE)
-    say("A settled HIT, nobody paid yet; B VOID, both sides credited")
+    say("the worker alone: D's untaken offer returned, A settled HIT, B settled VOID")
 
-    # SC-025: the token blocks the maker; the taker withdraws regardless.
-    sender.call(deployer, token.functions.setBlocked(maker.address, True))
+    eventually(lambda: balance(taker), taker_before + STAKE)  # B's stake, straight to the taker's wallet
+    eventually(lambda: credit(maker), 2 * STAKE)  # D's and B's, refused by the token: waiting for the maker
     try:
         escrow.functions.withdraw().call({"from": maker.address})
-        raise AssertionError("a blocked maker could withdraw")
+        raise AssertionError("a frozen maker could withdraw")
     except ContractLogicError:
-        say("the blocked maker cannot withdraw")
-    sender.call(taker, escrow.functions.withdraw())
-    eventually(lambda: balance(taker), taker_before + STAKE)
-    say("the taker withdrew B's stake while the maker was blocked")
+        say("the frozen maker's money waits as a credit; the taker was paid straight to the wallet")
     sender.call(deployer, token.functions.setBlocked(maker.address, False))
+    sender.call(maker, escrow.functions.withdraw())
+    eventually(lambda: (credit(maker), balance(maker)), (0, maker_before + 2 * STAKE))
+    say("unfrozen, the maker withdrew both credits")
 
     record_health(worker, client, datetime.now(UTC), Alerts(None))
     owed = owner.execute("select escrow_usdc, owed_usdc from network_health where network = %s",
@@ -178,29 +177,18 @@ def main() -> None:
     assert owed[0] == owed[1], f"the escrow holds {owed[0]} and owes {owed[1]}"
     say(f"health row: the escrow holds exactly what it owes ({owed[0] / USDC:g} USDC)")
 
-    settled_at = chain_now(w3)
-    try:  # asked, not sent: a refusal costs nothing
-        escrow.functions.payout(stakes["A"]).call({"from": deployer.address})
-        raise AssertionError("the contract would pay out inside the hold")
-    except ContractLogicError:
-        say("a payout inside the hold is refused, as it must be")
+    settled_at = client.stake(stakes["A"]).settled_at
     wait_until(w3, settled_at + window + 5, "the end of A's hold")
-    sender.call(deployer, escrow.functions.payout(stakes["A"]))  # a third address: finality needs nobody
-    eventually(lambda: client.stake(stakes["A"]).state, "Paid")
-    eventually(lambda: credit(maker), 4 * STAKE)
-    say("A paid out: the pot credited to the maker, triggered by a third address")
+    eventually(lambda: (run(), client.stake(stakes["A"]).state)[1], "Paid")
+    eventually(lambda: balance(maker), maker_before + 4 * STAKE)  # the pot, straight to the winner
+    say("A paid out by the worker, the pot straight into the maker's wallet: nobody pressed anything")
 
     wait_until(w3, deadline + client.timeout + 5, "C's timeout")
-    sender.call(deployer, escrow.functions.refund(stakes["C"]))
-    eventually(lambda: client.stake(stakes["C"]).state, "Refunded")
-    say("C refunded both sides at the timeout, with no verdict and no worker")
-
-    sender.call(maker, escrow.functions.withdraw())
-    sender.call(taker, escrow.functions.withdraw())
-    eventually(lambda: (credit(maker), credit(taker)), (0, 0))
+    eventually(lambda: (run(), client.stake(stakes["C"]).state)[1], "Refunded")
     eventually(lambda: balance(maker), maker_before + 5 * STAKE)  # D 1, B 1, A 2, C 1
     eventually(lambda: balance(taker), taker_before + 2 * STAKE)  # B 1, C 1
-    say("both withdrew everything they were owed; the escrow owes nothing")
+    eventually(lambda: (credit(maker), credit(taker)), (0, 0))
+    say("C refunded by the worker at the timeout; both have everything back in their wallets")
     say("END TO END PASSED")
 
 

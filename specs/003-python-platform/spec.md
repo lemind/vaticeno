@@ -593,12 +593,12 @@ timeout: that path is proved on testnet and in the contract's tests.
   the same verdict. The oracle signs an authorization per network (the signature is bound to the chain and the
   contract), the outbox and the worker track settlement per network, and the wager page lets the visitor pick
   one and shows each network's offers apart.
-- **FR-036b**: Before real value, money leaves the escrow by **pull**, not push. Payout credits the winner and
-  the fee recipient separately; VOID, the void path and the timeout refund credit maker and taker separately;
-  an expired offer credits its maker. Each beneficiary withdraws their own balance in their own transaction,
-  so an address the token refuses to pay (USDC can block one) never freezes the other side's money. What it
-  cannot do: a blocked address's own balance stays unwithdrawable while the token blocks it — a documented
-  residual risk, not a contract bug.
+- **FR-036b**: Before real value, money leaves the escrow **straight to each wallet**, and the settlement worker
+  triggers every exit itself (payout after the hold, the timeout refund, an expired offer), so nobody presses a
+  button for their money (owner, 2026-11-01). Each payment is sent on its own: one the token refuses (USDC can
+  block an address) is **credited** instead, and only that address can withdraw it, so a blocked address never
+  freezes the other side's money. What it cannot do: a blocked address's own credit stays unwithdrawable while
+  the token blocks it — a documented residual risk, not a contract bug.
 - **FR-036c**: Before real value, the stake token is exactly one address: **native USDC** on the chosen network
   (Base `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`, Arbitrum One `0xaf88d065e77c8cC2239327C5EDb3A432268e5831`,
   both published by Circle), never a bridged variant. USDC has 6 decimals, so the cap is set in base units

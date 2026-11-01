@@ -175,15 +175,16 @@ export async function wagerPage(
       <dd>
         <span id="hold">A fixed time</span> after the verdict reaches the chain.
         During it the referee can void its own mistake, which refunds both sides.
-        After it anyone can pay out.
+        After it the referee pays it out to the winner's wallet; anyone else can too.
         <a href="${POLICY_URL}" rel="noopener">Settlement policy</a>
       </dd>
       ${
         config.version === 2
           ? html`<dt>How money comes back</dt>
               <dd>
-                credited in the contract; you take your own with Withdraw below,
-                whenever you like, and nobody can take anyone else's
+                straight to your wallet when the hold ends; nobody has to press
+                anything. Only if USDC has frozen your address does it wait here, for
+                you to withdraw once it is unfrozen
               </dd>
               <dt>Risks we cannot remove</dt>
               <dd>

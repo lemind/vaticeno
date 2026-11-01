@@ -5,7 +5,8 @@ import {Test, console} from "forge-std/Test.sol";
 import {EscrowV2} from "../src/EscrowV2.sol";
 import {TestUsdc} from "../src/TestUsdc.sol";
 
-/// Every branch of every transition (003 SC-014) for v2, plus what v2 adds: credits and withdrawals (FR-036b),
+/// Every branch of every transition (003 SC-014) for v2, plus what v2 adds: direct payment with a credit fallback
+/// and withdrawals (FR-036b),
 /// one blocked address never freezing another (SC-025), the caps (SC-026) and the USDC pin (FR-036c).
 contract EscrowV2Test is Test {
     uint64 constant WINDOW = 72 hours;
@@ -113,6 +114,21 @@ contract EscrowV2Test is Test {
 
     function _offerExpiry(uint256 id) internal view returns (uint64 expiry) {
         (,,,,, expiry,,,,) = escrow.stakes(id);
+    }
+
+    mapping(address => uint256) snapshot;
+
+    /// Wallet balances now, so `_in` can say what each address received after the next exit.
+    function _snap() internal {
+        for (uint256 i = 0; i < 5; i++) {
+            address who = [maker, taker, stranger, feeRecipient, oracle][i];
+            snapshot[who] = token.balanceOf(who);
+        }
+    }
+
+    /// What reached `who` since `_snap`: sent to its wallet plus anything credited to it.
+    function _in(address who) internal view returns (uint256) {
+        return token.balanceOf(who) - snapshot[who] + escrow.creditOf(who);
     }
 
     function _withdraw(address who) internal returns (uint256 got) {
@@ -416,9 +432,10 @@ contract EscrowV2Test is Test {
         uint256 id = _settled(true, EscrowV2.Outcome.Hit);
         assertEq(escrow.lockedOnClaim(CLAIM), uint256(AMOUNT) * 2);
         vm.warp(vm.getBlockTimestamp() + WINDOW);
+        _snap();
         escrow.payout(id);
-        // Credited to the winner, not withdrawn: owed, no longer at stake.
-        assertEq(escrow.creditOf(maker), uint256(AMOUNT) * 2);
+        // Paid to the winner: no longer at stake.
+        assertEq(_in(maker), uint256(AMOUNT) * 2);
         assertEq(escrow.lockedOnClaim(CLAIM), 0);
         assertEq(escrow.lockedTotal(), 0);
     }
@@ -484,18 +501,19 @@ contract EscrowV2Test is Test {
 
     // ---- expire ----
 
-    function test_an_unmatched_offer_is_credited_to_its_maker_called_by_anyone() public {
+    function test_an_unmatched_offer_goes_back_to_its_maker_called_by_anyone() public {
         uint256 id = _open(true);
         vm.prank(stranger);
         vm.expectRevert(EscrowV2.TooEarly.selector);
         escrow.expire(id);
 
         vm.warp(_offerExpiry(id));
+        _snap();
         vm.prank(stranger);
         escrow.expire(id);
-        assertEq(escrow.creditOf(maker), AMOUNT);
+        assertEq(token.balanceOf(maker) - snapshot[maker], AMOUNT, "straight back to the maker's wallet");
+        assertEq(escrow.creditOf(maker), 0);
         assertEq(uint8(_state(id)), uint8(EscrowV2.State.Expired));
-        assertEq(_withdraw(maker), AMOUNT);
     }
 
     function test_a_matched_stake_cannot_expire() public {
@@ -559,13 +577,16 @@ contract EscrowV2Test is Test {
         assertEq(escrow.creditOf(taker), 0);
     }
 
-    function test_a_void_verdict_credits_both_their_own_stake() public {
-        uint256 id = _settled(true, EscrowV2.Outcome.Void);
+    function test_a_void_verdict_sends_both_their_own_stake() public {
+        uint256 id = _matched(true);
+        _snap();
+        vm.warp(deadline);
+        vm.prank(oracle);
+        escrow.settle(id, EscrowV2.Outcome.Void, EVIDENCE);
         assertEq(uint8(_state(id)), uint8(EscrowV2.State.Refunded));
-        assertEq(escrow.creditOf(maker), AMOUNT);
-        assertEq(escrow.creditOf(taker), AMOUNT);
-        assertEq(_withdraw(maker), AMOUNT);
-        assertEq(_withdraw(taker), AMOUNT);
+        assertEq(token.balanceOf(maker) - snapshot[maker], AMOUNT);
+        assertEq(token.balanceOf(taker) - snapshot[taker], AMOUNT);
+        assertEq(escrow.creditTotal(), 0, "nothing left to withdraw");
         assertEq(token.balanceOf(address(escrow)), 0);
     }
 
@@ -579,10 +600,11 @@ contract EscrowV2Test is Test {
         escrow.payout(id);
 
         vm.warp(vm.getBlockTimestamp() + 1);
+        _snap();
         vm.prank(stranger);
         escrow.payout(id);
         assertEq(uint8(_state(id)), uint8(EscrowV2.State.Paid));
-        assertEq(_withdraw(maker), uint256(AMOUNT) * 2);
+        assertEq(token.balanceOf(maker) - snapshot[maker], uint256(AMOUNT) * 2, "the pot lands in the winner's wallet");
     }
 
     function test_the_winner_is_whoever_took_the_side_the_verdict_names() public {
@@ -593,11 +615,12 @@ contract EscrowV2Test is Test {
                 setUp();
                 uint256 id = _settled(sides[i], outcomes[j]);
                 vm.warp(vm.getBlockTimestamp() + WINDOW);
+                _snap();
                 escrow.payout(id);
                 bool makerWins = (outcomes[j] == EscrowV2.Outcome.Hit) == sides[i];
                 (address winner, address loser) = makerWins ? (maker, taker) : (taker, maker);
-                assertEq(escrow.creditOf(winner), uint256(AMOUNT) * 2);
-                assertEq(escrow.creditOf(loser), 0);
+                assertEq(_in(winner), uint256(AMOUNT) * 2);
+                assertEq(_in(loser), 0);
             }
         }
     }
@@ -621,23 +644,25 @@ contract EscrowV2Test is Test {
         vm.prank(oracle);
         escrow.settle(id, EscrowV2.Outcome.Hit, EVIDENCE);
         vm.warp(vm.getBlockTimestamp() + WINDOW);
+        _snap();
         escrow.payout(id);
 
         uint256 pot = uint256(odd) * 2;
         uint256 fee = (pot * 500) / 10_000;
-        assertEq(escrow.creditOf(feeRecipient), fee);
-        assertEq(escrow.creditOf(maker), pot - fee);
+        assertEq(_in(feeRecipient), fee);
+        assertEq(_in(maker), pot - fee);
         assertEq(fee + (pot - fee), pot);
 
         vm.expectRevert(EscrowV2.BadState.selector);
         escrow.payout(id);
     }
 
-    function test_no_fee_means_nothing_is_ever_credited_to_the_fee_recipient() public {
+    function test_no_fee_means_the_fee_recipient_never_receives_anything() public {
         uint256 id = _settled(true, EscrowV2.Outcome.Hit);
         vm.warp(vm.getBlockTimestamp() + WINDOW);
+        _snap();
         escrow.payout(id);
-        assertEq(escrow.creditOf(feeRecipient), 0);
+        assertEq(_in(feeRecipient), 0);
     }
 
     function test_payout_refuses_anything_not_settled() public {
@@ -648,7 +673,7 @@ contract EscrowV2Test is Test {
 
     // ---- void ----
 
-    function test_a_void_inside_the_window_credits_both_and_pays_nobody() public {
+    function test_a_void_inside_the_window_returns_both_stakes_and_pays_nobody() public {
         address[2] memory referees = [oracle, guardian];
         for (uint256 i = 0; i < 2; i++) {
             setUp();
@@ -658,12 +683,13 @@ contract EscrowV2Test is Test {
             vm.prank(taker);
             token.approve(address(escrow), type(uint256).max);
             uint256 id = _settled(true, EscrowV2.Outcome.Hit);
+            _snap();
             vm.prank(referees[i]);
             escrow.voidStake(id, 1, EVIDENCE);
-            assertEq(escrow.creditOf(maker), AMOUNT);
-            assertEq(escrow.creditOf(taker), AMOUNT);
+            assertEq(_in(maker), AMOUNT);
+            assertEq(_in(taker), AMOUNT);
             // No refund path ever takes a fee, even where one is set (FR-022b).
-            assertEq(escrow.creditOf(feeRecipient), 0);
+            assertEq(_in(feeRecipient), 0);
             assertEq(uint8(_state(id)), uint8(EscrowV2.State.Voided));
 
             vm.warp(vm.getBlockTimestamp() + WINDOW);
@@ -713,11 +739,12 @@ contract EscrowV2Test is Test {
         escrow.refund(id);
 
         vm.warp(uint256(deadline) + TIMEOUT);
+        _snap();
         vm.prank(stranger);
         escrow.refund(id);
         assertEq(uint8(_state(id)), uint8(EscrowV2.State.Refunded));
-        assertEq(_withdraw(maker), AMOUNT);
-        assertEq(_withdraw(taker), AMOUNT);
+        assertEq(_in(maker), AMOUNT);
+        assertEq(_in(taker), AMOUNT);
     }
 
     function test_a_settled_stake_cannot_also_be_refunded() public {
@@ -734,14 +761,19 @@ contract EscrowV2Test is Test {
         escrow.refund(id);
     }
 
-    // ---- withdraw ----
+    // ---- withdraw: only what the token refused to send ----
 
-    function test_withdraw_takes_the_whole_credit_once() public {
+    function test_a_refused_payment_waits_as_a_credit_and_leaves_in_one_withdrawal() public {
         uint256 b = _open(true);
-        uint256 a = _settled(true, EscrowV2.Outcome.Void);
+        uint256 a = _matched(true);
+        token.setBlocked(maker, true); // the token refuses the maker's wallet for both exits
+        vm.warp(deadline);
+        vm.prank(oracle);
+        escrow.settle(a, EscrowV2.Outcome.Void, EVIDENCE);
         escrow.expire(b);
-        assertEq(uint8(_state(a)), uint8(EscrowV2.State.Refunded));
-        // Credits from two stakes add up and leave in one withdrawal.
+        assertEq(escrow.creditOf(maker), uint256(AMOUNT) * 2, "two refused payments add up");
+        assertEq(escrow.creditOf(taker), 0, "the taker was paid straight away");
+        token.setBlocked(maker, false);
         assertEq(_withdraw(maker), uint256(AMOUNT) * 2);
         assertEq(escrow.creditOf(maker), 0);
         vm.prank(maker);
@@ -750,7 +782,12 @@ contract EscrowV2Test is Test {
     }
 
     function test_withdraw_moves_only_the_callers_own_credit() public {
-        _settled(true, EscrowV2.Outcome.Void);
+        uint256 id = _matched(true);
+        token.setBlocked(maker, true);
+        token.setBlocked(taker, true);
+        vm.warp(deadline);
+        vm.prank(oracle);
+        escrow.settle(id, EscrowV2.Outcome.Void, EVIDENCE);
         for (uint256 i = 0; i < 4; i++) {
             address who = [stranger, oracle, guardian, feeRecipient][i];
             vm.prank(who);
@@ -761,20 +798,22 @@ contract EscrowV2Test is Test {
         assertEq(escrow.creditOf(taker), AMOUNT);
     }
 
-    // ---- one blocked address freezes only itself (SC-025) ----
+    // ---- one blocked address holds up only itself (SC-025) ----
 
-    /// The token blocks `blocked` after the stake is placed; every other address still withdraws all it is owed.
-    function _blockAndCheckOthers(address blocked, address[] memory others, uint256[] memory owed) internal {
-        token.setBlocked(blocked, true);
+    /// After an exit made while `blocked` was frozen: every other address already has its money in its wallet,
+    /// the blocked one has a credit that cannot leave while frozen and leaves in full once unfrozen.
+    function _checkOnlyBlockedWaits(address blocked, address[] memory others, uint256[] memory owed) internal {
+        for (uint256 i = 0; i < others.length; i++) {
+            assertEq(token.balanceOf(others[i]) - snapshot[others[i]], owed[i], "paid despite the frozen address");
+            assertEq(escrow.creditOf(others[i]), 0);
+        }
+        uint256 waiting = escrow.creditOf(blocked);
+        assertGt(waiting, 0);
         vm.prank(blocked);
         vm.expectRevert(EscrowV2.TransferFailed.selector);
         escrow.withdraw();
-        for (uint256 i = 0; i < others.length; i++) {
-            assertEq(_withdraw(others[i]), owed[i]);
-        }
-        // Unblocked, the blocked side's credit was waiting the whole time.
         token.setBlocked(blocked, false);
-        assertGt(_withdraw(blocked), 0);
+        assertEq(_withdraw(blocked), waiting);
         assertEq(token.balanceOf(address(escrow)), 0);
     }
 
@@ -790,29 +829,32 @@ contract EscrowV2Test is Test {
             for (uint256 side = 0; side < 2; side++) {
                 setUp();
                 uint256 id = _matched(true);
+                (address blocked, address other) = side == 0 ? (maker, taker) : (taker, maker);
+                if (path == 1) {
+                    vm.warp(deadline);
+                    vm.prank(oracle);
+                    escrow.settle(id, EscrowV2.Outcome.Hit, EVIDENCE);
+                }
+                _snap();
+                token.setBlocked(blocked, true);
                 if (path == 0) {
                     vm.warp(deadline);
                     vm.prank(oracle);
                     escrow.settle(id, EscrowV2.Outcome.Void, EVIDENCE);
                 } else if (path == 1) {
-                    vm.warp(deadline);
-                    vm.prank(oracle);
-                    escrow.settle(id, EscrowV2.Outcome.Hit, EVIDENCE);
                     vm.prank(guardian);
                     escrow.voidStake(id, 1, EVIDENCE);
                 } else {
                     vm.warp(uint256(deadline) + TIMEOUT);
                     escrow.refund(id);
                 }
-                (address blocked, address other) = side == 0 ? (maker, taker) : (taker, maker);
                 (address[] memory who, uint256[] memory amounts) = _one(other, AMOUNT);
-                _blockAndCheckOthers(blocked, who, amounts);
+                _checkOnlyBlockedWaits(blocked, who, amounts);
             }
         }
     }
 
-    function test_a_blocked_loser_or_winner_never_stops_the_other_on_a_payout() public {
-        // The loser has nothing to take; a blocked winner still leaves the fee recipient free.
+    function test_a_blocked_winner_never_stops_the_fee_recipient_and_a_blocked_loser_changes_nothing() public {
         escrow = _deploy(escrow.FEE_CEILING_BPS());
         vm.prank(maker);
         token.approve(address(escrow), type(uint256).max);
@@ -820,15 +862,16 @@ contract EscrowV2Test is Test {
         token.approve(address(escrow), type(uint256).max);
         uint256 id = _settled(true, EscrowV2.Outcome.Hit);
         vm.warp(vm.getBlockTimestamp() + WINDOW);
-        token.setBlocked(taker, true);
+        _snap();
+        token.setBlocked(maker, true); // the winner
+        token.setBlocked(taker, true); // the loser: owed nothing either way
         escrow.payout(id);
         uint256 pot = uint256(AMOUNT) * 2;
         uint256 fee = pot / 20;
-        assertEq(_withdraw(maker), pot - fee);
         token.setBlocked(taker, false);
-
-        token.setBlocked(maker, true);
-        assertEq(_withdraw(feeRecipient), fee);
+        (address[] memory who, uint256[] memory amounts) = _one(feeRecipient, fee);
+        _checkOnlyBlockedWaits(maker, who, amounts);
+        assertEq(_in(taker), 0);
     }
 
     function test_a_blocked_fee_recipient_never_stops_the_winner() public {
@@ -839,10 +882,12 @@ contract EscrowV2Test is Test {
         token.approve(address(escrow), type(uint256).max);
         uint256 id = _settled(true, EscrowV2.Outcome.Hit);
         vm.warp(vm.getBlockTimestamp() + WINDOW);
+        _snap();
+        token.setBlocked(feeRecipient, true);
         escrow.payout(id);
         uint256 pot = uint256(AMOUNT) * 2;
         (address[] memory who, uint256[] memory amounts) = _one(maker, pot - pot / 20);
-        _blockAndCheckOthers(feeRecipient, who, amounts);
+        _checkOnlyBlockedWaits(feeRecipient, who, amounts);
     }
 
     function test_a_blocked_maker_of_an_expired_offer_blocks_nobody_else() public {
@@ -852,22 +897,28 @@ contract EscrowV2Test is Test {
         vm.prank(stranger);
         uint256 theirs = escrow.open(CLAIM, deadline, validUntil, auth, true, AMOUNT);
         vm.warp(_offerExpiry(mine));
+        _snap();
+        token.setBlocked(maker, true);
         escrow.expire(mine);
         escrow.expire(theirs);
         (address[] memory who, uint256[] memory amounts) = _one(stranger, AMOUNT);
-        _blockAndCheckOthers(maker, who, amounts);
+        _checkOnlyBlockedWaits(maker, who, amounts);
     }
 
-    function test_the_escrow_itself_blocked_stops_every_withdrawal() public {
-        // Disclosed, not solved (FR-036e): nothing the contract does gets money out past a blocked escrow.
-        _settled(true, EscrowV2.Outcome.Void);
+    function test_the_escrow_itself_blocked_stops_every_payment_but_loses_nothing() public {
+        // Disclosed, not solved (FR-036e): nothing gets money out past a blocked escrow; it all waits as credit.
+        uint256 id = _matched(true);
         token.setBlocked(address(escrow), true);
+        vm.warp(deadline);
+        vm.prank(oracle);
+        escrow.settle(id, EscrowV2.Outcome.Void, EVIDENCE);
+        assertEq(escrow.creditOf(maker), AMOUNT);
+        assertEq(escrow.creditOf(taker), AMOUNT);
         for (uint256 i = 0; i < 2; i++) {
             vm.prank([maker, taker][i]);
             vm.expectRevert(EscrowV2.TransferFailed.selector);
             escrow.withdraw();
         }
-        // The credits survive the failed attempts, so unblocking releases everything.
         token.setBlocked(address(escrow), false);
         assertEq(_withdraw(maker), AMOUNT);
         assertEq(_withdraw(taker), AMOUNT);
@@ -875,7 +926,7 @@ contract EscrowV2Test is Test {
 
     // ---- token behaviour ----
 
-    function test_a_failed_transfer_reverts_the_whole_move() public {
+    function test_a_failed_pull_reverts_the_whole_open() public {
         address broke = makeAddr("broke");
         uint64 validUntil = uint64(vm.getBlockTimestamp() + 1 hours);
         bytes memory auth = _sign(oracleKey, CLAIM, deadline, validUntil);
@@ -894,16 +945,15 @@ contract EscrowV2Test is Test {
         escrow.open(CLAIM, deadline, validUntil, auth, true, AMOUNT);
     }
 
-    function test_a_token_that_returns_nothing_still_works() public {
+    function test_a_token_that_returns_nothing_still_pays_directly() public {
         NoReturnTokenV2 quiet = new NoReturnTokenV2();
         escrow = new EscrowV2(_configFor(address(quiet)));
         quiet.mint(maker, AMOUNT);
         uint256 id = _open(true);
         vm.warp(_offerExpiry(id));
         escrow.expire(id);
-        vm.prank(maker);
-        escrow.withdraw();
         assertEq(quiet.balanceOf(maker), AMOUNT);
+        assertEq(escrow.creditOf(maker), 0);
     }
 
     function test_the_signing_domain_follows_the_chain() public {
@@ -943,9 +993,7 @@ contract EscrowV2Test is Test {
         escrow.expire(offered);
         vm.warp(uint256(deadline) + TIMEOUT);
         escrow.refund(toRefund);
-        _withdraw(maker);
-        _withdraw(taker);
-        assertEq(token.balanceOf(address(escrow)), 0);
+        assertEq(token.balanceOf(address(escrow)), 0, "everything owed was paid straight out");
     }
 }
 

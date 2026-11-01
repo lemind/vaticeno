@@ -273,7 +273,7 @@ def test_a_claim_nobody_staked_on_sends_nothing(chain, db):
     assert _row(db["owner"], claim)["state"] == "no_stake"
 
 
-def test_an_offer_nobody_took_is_left_to_expire_and_counts_as_no_stake(chain, db):
+def test_an_offer_nobody_took_is_returned_to_its_maker_and_counts_as_no_stake(chain, db):
     w3, escrow = chain["w3"], chain["escrow"]
     claim = _locked_claim(db["owner"], _chain_now(w3) + 3 * DAY)
     run_once(db["worker"], chain["client"], _now(w3))
@@ -283,8 +283,9 @@ def test_an_offer_nobody_took_is_left_to_expire_and_counts_as_no_stake(chain, db
         bytes.fromhex(row["open_authorization"][2:]), True, AMOUNT))
     _warp_to(w3, claim["deadline"] + 3600)
     _final_verdict(db["owner"], claim, "hit")
-    assert run_once(db["worker"], chain["client"], _now(w3)).no_stake == 1
-    assert _stake_state(escrow, 1) == 1  # still Open: its maker takes it back with `expire`
+    run = run_once(db["worker"], chain["client"], _now(w3))
+    assert (run.no_stake, run.finished) == (1, 1)
+    assert _stake_state(escrow, 1) == 7  # Expired: the worker returned it, nobody had to ask
 
 
 def _matched_stake(chain, db, claim):
@@ -420,7 +421,7 @@ def test_each_network_registers_and_beats_its_own_heartbeat(chain, db):
 # ---- escrow v2 (007-escrow-v2) ----
 
 
-def test_v2_the_worker_signs_version_2_and_the_winner_withdraws_the_pot(chain_v2, db):
+def test_v2_the_worker_signs_version_2_and_pays_the_winner_after_the_hold(chain_v2, db):
     w3, escrow, token = chain_v2["w3"], chain_v2["escrow"], chain_v2["token"]
     claim = _locked_claim(db["owner"], _chain_now(w3) + 3 * DAY)
     assert run_once(db["worker"], chain_v2["client"], _now(w3)).signed == 1
@@ -436,13 +437,40 @@ def test_v2_the_worker_signs_version_2_and_the_winner_withdraws_the_pot(chain_v2
     assert run_once(db["worker"], chain_v2["client"], _now(w3)).sent == 1
     assert _stake_state(escrow, 1) == 3  # Settled
 
+    before = token.functions.balanceOf(MAKER.address).call()
+    assert run_once(db["worker"], chain_v2["client"], _now(w3)).finished == 0  # inside the hold: nothing yet
     settled_at = escrow.functions.stakes(1).call()[6]  # the hold runs from when the verdict was mined
     _warp_to(w3, settled_at + 72 * 3600)
-    _send(w3, TAKER, escrow.functions.payout(1))  # anyone may; the winner is credited, not sent
-    assert escrow.functions.creditOf(MAKER.address).call() == 2 * stake
-    before = token.functions.balanceOf(MAKER.address).call()
-    _send(w3, MAKER, escrow.functions.withdraw())
+    # Nobody presses anything: the worker pays out, and the pot lands in the winner's wallet.
+    assert run_once(db["worker"], chain_v2["client"], _now(w3)).finished == 1
+    assert _stake_state(escrow, 1) == 4  # Paid
     assert token.functions.balanceOf(MAKER.address).call() == before + 2 * stake
+    assert escrow.functions.creditOf(MAKER.address).call() == 0
+    assert run_once(db["worker"], chain_v2["client"], _now(w3)).finished == 0  # once only
+
+
+def test_v2_the_worker_returns_an_untaken_offer_and_refunds_a_stake_with_no_verdict(chain_v2, db):
+    w3, escrow, token = chain_v2["w3"], chain_v2["escrow"], chain_v2["token"]
+    claim = _locked_claim(db["owner"], _chain_now(w3) + 3 * DAY)
+    run_once(db["worker"], chain_v2["client"], _now(w3))
+    row = _row(db["owner"], claim)
+    open_offer = lambda: _send(w3, MAKER, escrow.functions.open(  # noqa: E731
+        claim_hash(claim["slug"]), claim["deadline"], int(row["authorized_until"].timestamp()),
+        bytes.fromhex(row["open_authorization"][2:]), True, 5 * USDC))
+    open_offer()  # 1: taken; 2: left open
+    _send(w3, TAKER, escrow.functions.accept(1))
+    open_offer()
+    maker_before = token.functions.balanceOf(MAKER.address).call()
+    taker_before = token.functions.balanceOf(TAKER.address).call()
+
+    _warp_to(w3, claim["deadline"] + 3600)  # past the offer's expiry: it goes back to its maker
+    assert run_once(db["worker"], chain_v2["client"], _now(w3)).finished == 1
+    assert _stake_state(escrow, 2) == 7  # Expired
+    _warp_to(w3, claim["deadline"] + 14 * DAY)  # no verdict ever came: both get their stake back
+    assert run_once(db["worker"], chain_v2["client"], _now(w3)).finished == 1
+    assert _stake_state(escrow, 1) == 6  # Refunded
+    assert token.functions.balanceOf(MAKER.address).call() == maker_before + 10 * USDC
+    assert token.functions.balanceOf(TAKER.address).call() == taker_before + 5 * USDC
 
 
 def test_v2_a_v1_signature_would_be_refused_so_the_wrong_version_stops_the_worker(chain_v2, chain):

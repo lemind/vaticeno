@@ -41,10 +41,11 @@ page shows one network at a time and says which.
 
 A VOID verdict — the prediction could not be decided — refunds both sides.
 
-**How money comes back.** On the testnet, a payout or refund is sent straight to the wallet. With real money,
-it is **credited** in the contract instead, and each person takes their own with **Withdraw** on the wager page,
-whenever they like. Nobody can withdraw anyone else's credit, and one person's problem (below) never holds up
-the other's.
+**How money comes back.** Straight to your wallet, with nothing to press: when the hold ends the referee pays
+out the winner, at the timeout it refunds both sides, and an offer nobody took goes back to its maker. Anyone
+else may make the same calls; the contract pays the right person whoever does. Only if USDC refuses to send to
+an address (Circle has frozen it) does that person's money wait in the contract as a credit, which they take
+with **Withdraw** once it is unfrozen; the other side is paid as usual.
 
 ## Limits
 

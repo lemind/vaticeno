@@ -217,8 +217,8 @@ function renderWagers() {
 // The chain's state in words; a verdict on X that is not on the chain yet is the server's line above.
 // v2 credits instead of sending: the money waits in the contract until its owner withdraws it.
 function describe(stake) {
-  const paid = v2 ? 'credited' : 'paid out';
-  const back = v2 ? 'both credited back' : 'both refunded';
+  const paid = 'paid out';
+  const back = 'both refunded';
   switch (stake.state) {
     case 'Open':
       return nowSeconds() >= stake.offerExpiry ? 'offer expired' : `open until ${utc(stake.offerExpiry)}`;
@@ -233,7 +233,7 @@ function describe(stake) {
     case 'Refunded':
       return stake.outcome === 'Void' ? `VOID: ${back}` : `no verdict by the timeout: ${back}`;
     case 'Expired':
-      return v2 ? 'offer expired: credited back to its maker' : 'offer expired: returned to its maker';
+      return 'offer expired: returned to its maker';
     default:
       return stake.state;
   }

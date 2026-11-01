@@ -48,6 +48,11 @@ ESCROW_ABI = [
      "outputs": [{"name": "", "type": "uint256"}]},
     {"type": "function", "name": "creditTotal", "stateMutability": "view", "inputs": [],
      "outputs": [{"name": "", "type": "uint256"}]},
+    # Anyone may call these three; the worker does, so nobody has to (003 FR-031b, FR-030).
+    *[{"type": "function", "name": name, "stateMutability": "nonpayable",
+       "inputs": [{"name": "id", "type": "uint256"}], "outputs": []} for name in ("payout", "refund", "expire")],
+    {"type": "function", "name": "settlementWindow", "stateMutability": "view", "inputs": [],
+     "outputs": [{"name": "", "type": "uint64"}]},
     {"type": "function", "name": "settle", "stateMutability": "nonpayable",
      "inputs": [{"name": "id", "type": "uint256"}, {"name": "outcome", "type": "uint8"},
                 {"name": "evidenceRef", "type": "bytes32"}], "outputs": []},
@@ -87,6 +92,8 @@ class Stake:
     claim_hash: bytes
     deadline: int
     state: str
+    offer_expiry: int = 0
+    settled_at: int = 0
 
 
 class Escrow:
@@ -111,6 +118,7 @@ class Escrow:
         self._token: Contract | None = None  # v2's token, immutable: read once, on the first health pass
         self.acceptance_closes: int = self.contract.functions.acceptanceCloses().call()
         self.timeout: int = self.contract.functions.timeout().call()
+        self.settlement_window: int = self.contract.functions.settlementWindow().call()
         self._next_nonce = 0
 
     def sign_open(self, hash_: bytes, deadline: int, valid_until: int) -> str:
@@ -146,7 +154,8 @@ class Escrow:
 
     def stake(self, stake_id: int) -> Stake:
         row = self.contract.functions.stakes(stake_id).call()
-        return Stake(id=stake_id, claim_hash=bytes(row[0]), deadline=int(row[4]), state=STATES[row[8]])
+        return Stake(id=stake_id, claim_hash=bytes(row[0]), deadline=int(row[4]), state=STATES[row[8]],
+                     offer_expiry=int(row[5]), settled_at=int(row[6]))
 
     def send_settle(self, stake: Stake, outcome: str, evidence: bytes) -> str:
         """Send the settlement of one stake and return its hash at once; `wait_mined` confirms it. The worker
@@ -165,6 +174,36 @@ class Escrow:
             raise ChainMismatch("the transaction is not addressed to the escrow")
         signed = self.account.sign_transaction(tx)
         tx_hash = self.w3.eth.send_raw_transaction(signed.raw_transaction)
+        self._next_nonce = tx["nonce"] + 1
+        return "0x" + tx_hash.hex().removeprefix("0x")
+
+    def chain_time(self) -> int:
+        """The latest block's time: the contract judges every deadline by it, not by this machine's clock."""
+        return int(self.w3.eth.get_block("latest")["timestamp"])
+
+    def due_action(self, stake: Stake, now: int) -> str | None:
+        """What anyone may now call on this stake, by the contract's own rules: pay out after the hold, refund
+        a matched stake at the timeout, return an offer nobody took."""
+        if stake.state == "Settled" and now >= stake.settled_at + self.settlement_window:
+            return "payout"
+        if stake.state == "Matched" and now >= stake.deadline + self.timeout:
+            return "refund"
+        if stake.state == "Open" and now >= stake.offer_expiry:
+            return "expire"
+        return None
+
+    def send_finish(self, action: str, stake_id: int) -> str | None:
+        """Payout, refund or expire, asked first and sent only if the contract would accept it, so a stake someone
+        else finished a moment ago costs no gas. Returns the transaction hash, or None when there was nothing to do."""
+        fn = getattr(self.contract.functions, action)(stake_id)
+        try:
+            fn.call({"from": self.account.address})
+        except Exception:  # noqa: BLE001 — any refusal means: not now
+            return None
+        tx = fn.build_transaction({"from": self.account.address, "nonce": self._nonce(), "chainId": self.chain_id})
+        if Web3.to_checksum_address(tx["to"]) != self.address:
+            raise ChainMismatch("the transaction is not addressed to the escrow")
+        tx_hash = self.w3.eth.send_raw_transaction(self.account.sign_transaction(tx).raw_transaction)
         self._next_nonce = tx["nonce"] + 1
         return "0x" + tx_hash.hex().removeprefix("0x")
 
