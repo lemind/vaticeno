@@ -344,6 +344,22 @@ describe('the wager page', () => {
     );
   });
 
+  test('a plain link opens on the real-money network the bot named, not on the testnet', async () => {
+    const claim = await withAuthorization();
+    await t.sql`insert into settlement_outbox (claim_id, network) values (${claim.id}, '8453')`;
+    const base = {
+      ...network(8453, '0x' + '22'.repeat(20), KNOWN_NETWORKS[8453]!.usdc!),
+      version: 2 as const,
+    };
+    const res = await buildServer({
+      db: t.db,
+      now: () => NOW,
+      wager: [...config, base],
+    }).inject(`/claim/${claim.slug}/wager`);
+    assert.equal(pageData(res.body).chainId, 8453);
+    assert.match(res.body, /network=84532/, 'the testnet is still one click away');
+  });
+
   test('a network switched on after the claim locked is never offered for it', async () => {
     const claim = await withAuthorization(); // a Base Sepolia row only
     const later = [

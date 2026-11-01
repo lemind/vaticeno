@@ -47,7 +47,10 @@ export async function wagerPage(
   const withRow = networks.filter((n) =>
     rows.some((row) => row.network === String(n.chainId)),
   );
-  const shown = withRow.length ? withRow : networks;
+  // Real money first: the bot's link names the mainnet, so a plain link opens on it, not on the testnet.
+  const shown = [...(withRow.length ? withRow : networks)].sort(
+    (a, b) => Number(a.testnet) - Number(b.testnet),
+  );
   const config = shown.find((n) => n.chainId === chainId) ?? shown[0] ?? null;
   const outbox = rows.find((row) => row.network === String(config?.chainId));
   const deadline = new Date(contract.deadline_at);
