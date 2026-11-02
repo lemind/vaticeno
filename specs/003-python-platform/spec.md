@@ -222,7 +222,8 @@ returned after expiry; (d) with the worker stopped, a matched wager is refunded 
 6. **Given** a connected wallet on the wrong network, **When** the person tries to act, **Then** the page asks
    to switch and does nothing until it has.
 7. **Given** a maker who picks a side and an amount within the maximum, **When** they confirm, **Then** the page
-   asks for the token approval if the allowance is short, then the open, shows each transaction as pending
+   asks for the token approval if the allowance is short, then the open (one batched confirmation where the
+   wallet supports it, FR-043), shows each transaction as pending
    until it is mined, and lists the offer only once the chain shows it.
 8. **Given** an open offer, **When** a second wallet takes it, **Then** the page asks for the approval if needed,
    then the accept, and the wager shows as matched only once the chain says so. The maker cannot take their
@@ -649,7 +650,8 @@ timeout: that path is proved on testnet and in the contract's tests.
   the operator's script, the one the end-to-end run mints with, not through the page.
 - **FR-043**: The page offers each action only in the state the contract allows it: open while not paused and
   before acceptance closes; accept while not paused and before the offer's own expiry, which is at the latest
-  when acceptance closes; each preceded by a token approval when the allowance is short; return an expired
+  when acceptance closes; each preceded by a token approval when the allowance is short, batched with it into one confirmation and one
+  fee when the wallet can (EIP-5792 atomic batch), else two transactions; return an expired
   offer, by anyone, to its maker; pay out after the hold, shown disabled with its countdown during it; refund
   after the timeout. Void is never
   a button: it belongs to the oracle and the guardian. Amounts are whole token units in the token's own

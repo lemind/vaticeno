@@ -285,8 +285,8 @@ export async function wagerPage(
         </label>
         <button type="submit" class="primary">Make an offer</button>
         <p class="muted hint">
-          Your wallet asks first to approve exactly this amount, if needed, then to
-          open the offer.
+          Your wallet approves exactly this amount, if needed, and opens the offer:
+          one confirmation where the wallet can batch, otherwise two.
         </p>
       </form>
       <p id="offer-closed" class="muted">${opening}</p>

@@ -287,25 +287,24 @@ function status(text, txHash) {
 }
 
 // Pending until mined; the page re-reads the chain after, and shows nothing as done before it is (FR-043).
-async function send(label, to, callData) {
-  await ensureNetwork();
-  const hash = await window.ethereum.request({ method: 'eth_sendTransaction', params: [{ from: account, to, data: callData }] });
-  status(`${label}: pending…`, hash);
+// `read` asks the wallet once: null while pending, else { ok, hash }.
+async function waitMined(label, read, firstHash) {
+  status(`${label}: pending…`, firstHash);
   const started = Date.now();
   let failures = 0;
   while (Date.now() - started < RECEIPT_WAIT_MS) {
-    let receipt = null;
+    let mined = null;
     try {
       // The sender's own wallet node: polling the public RPC every two seconds is what earns a 429.
-      receipt = await window.ethereum.request({ method: 'eth_getTransactionReceipt', params: [hash] });
+      mined = await read();
       failures = 0;
     } catch (error) {
       // One blip is retried; a network that keeps failing is said plainly, not shown as "pending".
       if (++failures >= 5) throw new Error(`${label} was sent, but the network can't be read (${error.message}); check it on the explorer`);
     }
-    if (receipt) {
-      if (receipt.status !== '0x1') throw new Error(`${label} failed on the chain`);
-      status(`${label}: done.`, hash);
+    if (mined) {
+      if (!mined.ok) throw new Error(`${label} failed on the chain`);
+      status(`${label}: done.`, mined.hash);
       return;
     }
     await new Promise((resolve) => setTimeout(resolve, RECEIPT_POLL_MS));
@@ -313,11 +312,61 @@ async function send(label, to, callData) {
   throw new Error(`${label} is still pending; check it on the explorer`);
 }
 
-// Approve exactly what this wager needs, and only when the allowance is short.
-async function ensureAllowance(amount) {
+async function send(label, to, callData) {
+  await ensureNetwork();
+  const hash = await window.ethereum.request({ method: 'eth_sendTransaction', params: [{ from: account, to, data: callData }] });
+  await waitMined(label, async () => {
+    const receipt = await window.ethereum.request({ method: 'eth_getTransactionReceipt', params: [hash] });
+    return receipt && { ok: receipt.status === '0x1', hash };
+  }, hash);
+}
+
+// EIP-5792: a wallet that can batch atomically signs approve and the stake as one confirmation, one fee.
+// "ready" is a wallet that upgrades the account on first use. Returns the EIP-5792 version to speak, or null.
+async function canBatch() {
+  const chainHex = '0x' + data.chainId.toString(16);
+  try {
+    const capabilities = await window.ethereum.request({ method: 'wallet_getCapabilities', params: [account, [chainHex]] });
+    const here = capabilities?.[chainHex] ?? capabilities?.[data.chainId];
+    if (['supported', 'ready'].includes(here?.atomic?.status)) return '2.0.0';
+    return here?.atomicBatch?.supported === true ? '1.0' : null; // the v1 draft: atomic by declaring it
+  } catch (error) {
+    console.info('no atomic batch, two transactions instead:', error.message); // most wallets lack the method
+    return null;
+  }
+}
+
+async function sendBatch(label, calls, version) {
+  await ensureNetwork();
+  const sent = await window.ethereum.request({
+    method: 'wallet_sendCalls',
+    params: [
+      version === '1.0'
+        ? { version, from: account, chainId: '0x' + data.chainId.toString(16), calls }
+        : { version, from: account, chainId: '0x' + data.chainId.toString(16), atomicRequired: true, calls },
+    ],
+  });
+  const id = typeof sent === 'string' ? sent : sent.id;
+  await waitMined(label, async () => {
+    const result = await window.ethereum.request({ method: 'wallet_getCallsStatus', params: [id] });
+    // v2 numbers the status (100 pending, 200 confirmed, 400+ failed); v1 named it.
+    if (result.status === 100 || result.status === 'PENDING') return null;
+    const receipts = result.receipts ?? [];
+    const ok = (result.status === 200 || result.status === 'CONFIRMED') && receipts.every((r) => r.status === '0x1' || r.status === 1);
+    return { ok, hash: receipts.at(-1)?.transactionHash };
+  });
+}
+
+// Approve exactly what this wager needs, and only when the allowance is short; batched with the stake
+// when the wallet can, else approve first, then the stake.
+async function sendWithAllowance(amount, label, to, callData) {
   const [allowance] = await readAll([[data.token, encodeAllowance(account, data.escrow)]]);
-  const allowed = decodeUint(allowance);
-  if (allowed < amount) await send(`Approve ${chain.symbol}`, data.token, encodeApprove(data.escrow, amount));
+  if (decodeUint(allowance) >= amount) return send(label, to, callData);
+  const approve = { to: data.token, data: encodeApprove(data.escrow, amount) };
+  const version = await canBatch();
+  if (version) return sendBatch(label, [approve, { to, data: callData }], version);
+  await send(`Approve ${chain.symbol}`, approve.to, approve.data);
+  await send(label, to, callData);
 }
 
 // One transaction at a time: every control is locked from the first click until the chain has answered,
@@ -347,8 +396,7 @@ async function act(name, stake) {
       await refresh(); // the caps as they are now, not as the page last drew them
       const refused = capRefusal(chain.caps, stake.amount, { opening: false });
       if (refused) throw new Error(`Can't accept: ${refused}`);
-      await ensureAllowance(stake.amount);
-      await send('Accept', data.escrow, encodeStakeCall('accept', stake.id));
+      await sendWithAllowance(stake.amount, 'Accept', data.escrow, encodeStakeCall('accept', stake.id));
     } else {
       const labels = { expire: 'Return expired offer', payout: 'Pay out', refund: 'Refund both' };
       await send(labels[name], data.escrow, encodeStakeCall(name, stake.id));
@@ -373,8 +421,7 @@ async function makeOffer(event) {
     const refused = capRefusal(chain.caps, amount, { opening: true });
     if (refused) throw new Error(`Can't open: ${refused}`);
     const makerSaysHit = new FormData(event.target).get('side') === 'hit';
-    await ensureAllowance(amount);
-    await send('Open offer', data.escrow, encodeOpen({ claimHash: data.claimHash, deadline: data.deadline, validUntil: data.validUntil, signature: data.authorization, makerSaysHit, amount }));
+    await sendWithAllowance(amount, 'Open offer', data.escrow, encodeOpen({ claimHash: data.claimHash, deadline: data.deadline, validUntil: data.validUntil, signature: data.authorization, makerSaysHit, amount }));
     $('amount').value = ''; // done: the next offer starts empty
   } catch (error) {
     status(error.message);
