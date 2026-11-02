@@ -161,7 +161,10 @@ describe('author page', () => {
       'none known yet: the id only',
     );
     await t.sql`insert into x_handles ${t.sql({ x_user_id: '200', handle: 'lemind', seen_at: NOW.toISOString() })}`;
-    assert.match((await app().inject('/u/200')).body, /@lemind<\/a\s*>\s*·\s*X user 200/);
+    assert.match(
+      (await app().inject('/u/200')).body,
+      /@lemind<\/a\s*>\s*·\s*X user 200/,
+    );
     assert.match(
       (await app().inject(`/claim/${claim.slug}`)).body,
       /<a href="\/u\/200">@lemind<\/a>/,

@@ -203,6 +203,16 @@ export function layout(
           .muted {
             color: var(--muted);
           }
+          .steps li,
+          ul li {
+            margin: 4px 0;
+          }
+          code {
+            font-size: 0.92em;
+            padding: 1px 5px;
+            border: 1px solid var(--line);
+            border-radius: 4px;
+          }
           a {
             color: inherit;
           }
