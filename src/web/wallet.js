@@ -248,6 +248,12 @@ function renderOfferForm() {
   // The server's line stands for not-yet-locked and not-yet-signed; once read, the chain decides the rest.
   if (!open && data.authorization)
     $('offer-closed').textContent = chain.paused ? 'New offers are paused by the referee.' : 'Wagering is closed for new offers.';
+  // The newest open offer's amount, or the minimum, until the person types their own.
+  const input = $('amount');
+  const minStake = chain.caps?.minStake;
+  if (minStake) input.placeholder = formatUnits(minStake, chain.decimals);
+  const newestOpen = chain.stakes.find((stake) => stake.state === 'Open');
+  if (!input.dataset.typed && newestOpen) input.value = formatUnits(newestOpen.amount, chain.decimals);
 }
 
 
@@ -424,7 +430,8 @@ async function makeOffer(event) {
     if (refused) throw new Error(`Can't open: ${refused}`);
     const makerSaysHit = new FormData(event.target).get('side') === 'hit';
     await sendWithAllowance(amount, 'Open offer', data.escrow, encodeOpen({ claimHash: data.claimHash, deadline: data.deadline, validUntil: data.validUntil, signature: data.authorization, makerSaysHit, amount }));
-    $('amount').value = ''; // done: the next offer starts empty
+    $('amount').value = ''; // done: the next offer starts from the newest open one again
+    delete $('amount').dataset.typed;
   } catch (error) {
     status(error.message);
   }
@@ -467,5 +474,6 @@ async function withdraw() {
 $('connect').addEventListener('click', () => connect().catch((error) => status(error.message)));
 $('withdraw').addEventListener('click', withdraw);
 $('offer').addEventListener('submit', makeOffer);
+$('amount').addEventListener('input', () => ($('amount').dataset.typed = '1'));
 $('wallet-panel').hidden = false;
 rememberedAccount().then(refresh);
