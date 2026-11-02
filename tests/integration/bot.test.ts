@@ -221,6 +221,36 @@ const llm = {
         costs: [],
       };
     }
+    // The #jes9p shape (2026-11-02): the model sees the post with its handles stripped and says "author".
+    if (text.includes('followers')) {
+      return {
+        data: {
+          is_prediction: true,
+          x_rules_ok: true,
+          contract: {
+            ...MODEL_BASE,
+            subject: "Author's X account",
+            criterion: "Author's account reaches 3500 followers on X",
+            deadline_at: '2026-11-01T23:59:59Z',
+            source: {
+              ...VALID_CONTRACT.source,
+              name: 'X',
+              kind: 'web',
+              locator: 'https://x.com/',
+              scope: 'followers',
+              entity_id: 'author',
+            },
+            negative_condition: 'fewer than 3500 followers',
+            resolution_method: 'model',
+          },
+          unclear: [],
+          unclear_explanation: '',
+          examples: [],
+          self_confidence: 0.9,
+        },
+        costs: [],
+      };
+    }
     if (text.startsWith('down')) throw new LlmUnavailable('model down');
     if (text.endsWith('?'))
       return {
@@ -307,6 +337,7 @@ async function bot(
     }),
     getTweet: async (id: string) =>
       threadPosts[id] ?? Promise.reject(new Error('404')),
+    getUserByUsername: async (username: string) => ({ id: '777', username }),
     getConversation: async (id: string, opts?: { untilId?: string }) => {
       conversationReads.push(`${id}${opts?.untilId ? `<${opts.untilId}` : ''}`); // the page must end at the mention
       return conversation;
@@ -364,6 +395,23 @@ describe('recording from X', () => {
       [claim!.source_tweet_id, claim!.summon_tweet_id, claim!.status],
       ['10', '10', 'draft'],
     );
+  });
+
+  test('a follower count names the account the post tags, not the poster: handles reach that check', async () => {
+    const m = mention(
+      '30',
+      '@Fearlespatriot @vaticeno bet @Fearlespatriot reach 3500 followers by 1 November',
+    );
+    const { deps, replies } = await bot([[m]]);
+    await pollMentions(deps, NOW);
+    assert.match(replies[0]!.text, /^RECORDED · #/);
+    const [claim] = await t.sql`select contract from claims`;
+    assert.equal(
+      claim!.contract.followers.user_id,
+      '777',
+      "the tagged account's count, not the poster's",
+    );
+    assert.match(claim!.contract.source.scope, /@Fearlespatriot/);
   });
 
   test('an empty mention under your own post records that post', async () => {

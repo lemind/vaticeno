@@ -51,6 +51,7 @@ export type ClaimDeps = {
 export type SubmitInput = {
   text: string; // used for the proposal only — never stored or logged (FR-029)
   context?: readonly string[]; // posts above it in the thread, same rule: read, never stored
+  posted?: string; // the text as posted, handles kept: whose followers a count is about (004 T419); never stored
   // The rest of the conversation, paid for and read only if the context above left the prediction
   // unrecordable (owner decision 2026-10-07): an answer that names the match can sit beside the post
   // rather than above it, so asking for more beats refusing.
@@ -94,6 +95,7 @@ export async function evaluateClaimText(
   costs: CallCost[],
   context: readonly string[] = [],
   authorId?: string,
+  posted = text, // `text` has its handles stripped for the model; the follower account is named by one
 ): Promise<Evaluation> {
   const proposed = await proposeContract(
     deps.llm,
@@ -136,7 +138,7 @@ export async function evaluateClaimText(
           deps.x,
           deps.botHandle ?? 'vaticeno',
           checked.contract,
-          text,
+          posted,
           authorId,
           costs,
         )
@@ -209,6 +211,7 @@ export async function submitClaim(
         costs,
         input.context ?? [],
         input.authorId,
+        input.posted,
       );
       // Nothing is written yet, so a second look is free of consequences: only the reads cost.
       if (input.moreContext && worthMoreContext(evaluated.decision, input.text)) {
@@ -226,6 +229,7 @@ export async function submitClaim(
             costs,
             wider,
             input.authorId,
+            input.posted,
           );
           // The wider read only ever helps: a worse answer is discarded and the first one stands.
           if (second.decision.outcome === 'recorded') evaluated = second;
@@ -310,6 +314,7 @@ export type AmendInput = {
   text: string;
   now: Date;
   context?: readonly string[];
+  posted?: string; // as in SubmitInput
 };
 // `ignored` (someone other than the author): no reply at all (FR-010).
 export type AmendResult =
@@ -369,6 +374,7 @@ export async function amendClaim(
         costs,
         input.context ?? [],
         input.authorId,
+        input.posted,
       ),
   );
 
@@ -466,6 +472,7 @@ async function amendDraft(
         costs,
         input.context ?? [],
         input.authorId,
+        input.posted,
       ),
   );
   if (decision.outcome !== 'recorded') {
