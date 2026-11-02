@@ -82,8 +82,23 @@ function asFollowerContract(
   const match = FOLLOWERS.exec(contract.criterion);
   const threshold = match ? parseCount(match[1]!, match[2]) : null;
   if (threshold === null || !/^\d{1,25}$/.test(userId)) return contract;
+  const below = BELOW.test(contract.criterion);
+  const count = threshold.toLocaleString('en-US');
+  // A named account is said by name: the model's "Author" read as the poster or the bot (2m7px, 004 T431).
+  const named = handle
+    ? {
+        subject: `@${handle}'s X account`,
+        criterion: below
+          ? `@${handle} has fewer than ${count} followers on X`
+          : `@${handle} reaches ${count} followers on X`,
+        negative_condition: below
+          ? `@${handle} has ${count} or more followers at the deadline`
+          : `@${handle} has fewer than ${count} followers at the deadline`,
+      }
+    : {};
   const candidate = {
     ...contract,
+    ...named,
     source: {
       ...contract.source,
       kind: X_PROFILE_KIND,
@@ -96,9 +111,7 @@ function asFollowerContract(
     },
     followers: {
       user_id: userId,
-      comparison: BELOW.test(contract.criterion)
-        ? ('BELOW' as const)
-        : ('AT_LEAST' as const),
+      comparison: below ? ('BELOW' as const) : ('AT_LEAST' as const),
       threshold,
     },
   };
