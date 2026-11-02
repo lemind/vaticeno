@@ -99,6 +99,15 @@ const FILLER = new Set([
   'a',
   'the',
 ]);
+// Command words that take any words after them (owner, 2026-11-02).
+const ANY_WORDS = new Set([
+  'help',
+  'ping',
+  'quote',
+  'quotes',
+  'selfpromo',
+  'selfpromote',
+]);
 const isFiller = (word: string) => FILLER.has(word) || /^\d{1,2}$/.test(word);
 
 export function resolveCommand(body: string): Command | null {
@@ -116,8 +125,15 @@ export function resolveCommand(body: string): Command | null {
     words[0] === 'self' && words.length > 1
       ? [`self${words[1]}`, words.slice(2)]
       : [words[0]!, words.slice(1)];
-  if (rest.length > MAX_EXTRA_WORDS || !rest.every(isFiller)) return null;
+  // X refuses the same post twice, so a command is asked again in other words (owner, 2026-11-02): "wager"
+  // anywhere is the wager command; outside a claim's thread src/bot/mentions.ts reads the post as usual.
+  if (words.some((w) => w === 'wager' || w === 'wagers')) return 'wager';
   const exact = ALIASES[first];
+  // Any other command word first, with any words after it. A number makes the text a prediction for the
+  // model to read ("Quote me: BTC hits 200k"). Only the main names: STOP stays bare (a typed stop must mean
+  // stop), and short aliases ("promo", "brand", "bio") start ordinary sentences.
+  if (exact && ANY_WORDS.has(first) && !rest.some((w) => /\d/.test(w))) return exact;
+  if (rest.length > MAX_EXTRA_WORDS || !rest.every(isFiller)) return null;
   if (exact) return exact;
   for (const alias of FUZZY_WORDS) {
     if (editDistance(first, alias) <= (alias.length >= 8 ? 2 : 1))

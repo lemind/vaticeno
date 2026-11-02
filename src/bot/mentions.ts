@@ -138,7 +138,16 @@ export async function routeMention(
     return { action: 'ignored_not_addressed', reply: null };
   }
 
-  if (command) return runCommand(deps, mention, command, now);
+  // "I wager BTC hits 100k" under no claim is a prediction to record, not a request for a wager link.
+  const wagerOutsideClaim =
+    command === 'wager' &&
+    /\d/.test(body) &&
+    !(await claimInThread(
+      deps,
+      mention,
+      mention.referenced_tweets?.find((ref) => ref.type === 'replied_to')?.id,
+    ));
+  if (command && !wagerOutsideClaim) return runCommand(deps, mention, command, now);
   // Tagging the bot again after STOP resumes (owner decision 2026-09-30, constitution IV).
   await deps.db.delete(optOuts).where(eq(optOuts.xUserId, mention.author_id));
   const repliedTo = mention.referenced_tweets?.find(

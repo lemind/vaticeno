@@ -204,6 +204,20 @@ describe('the wager command', () => {
     );
   });
 
+  test('"wager" with any words is the command, never a new claim (live 2026-11-02, "wager do!")', async () => {
+    await lockedPriceClaim();
+    const { deps, replies } = await bot([
+      [{ ...wager('10'), text: '@vaticeno wager do!' }],
+    ]);
+    await pollMentions(deps, NOW);
+    assert.match(replies[0]!.text, /^WAGER · /);
+    assert.equal(
+      (await t.sql`select count(*)::int as n from claims`)[0]!.n,
+      1,
+      'no claim recorded',
+    );
+  });
+
   test('a model-judged claim carries a wager like any other (owner, 2026-11-02)', async () => {
     const { price: _price, ...modelContract } = VALID_CONTRACT;
     await insertClaim(t.sql, 'locked', {
