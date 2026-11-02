@@ -133,7 +133,7 @@ export async function rejudgeClaim(
   return recheckClaim(deps.db, slug, at);
 }
 
-// A contract locked before 004 T418–T419, read as recording reads it today. In memory only: a locked
+// A contract read as recording reads it today: before 004 T418–T419, or with the account named wrongly (T430). In memory only: a locked
 // contract is never written (INIT_SPEC §4).
 async function readAsRecordedToday(
   deps: ResolverDeps,
@@ -142,8 +142,9 @@ async function readAsRecordedToday(
   costs: CallCost[],
 ): Promise<Contract> {
   const recordedAt = claim.createdAt;
-  // Post text is never stored (§6.9), so it is read again from X: it names the account, the contract does not.
-  if (!contract.followers && deps.x?.getTweet) {
+  // Post text is never stored (§6.9), so it is read again from X: it names the account, the contract does not,
+  // even one that already carries an account (jes9p read the poster's, 004 T430).
+  if (deps.x?.getTweet) {
     const post = await deps.x.getTweet(claim.sourceTweetId);
     costs.push({
       provider: 'x',
