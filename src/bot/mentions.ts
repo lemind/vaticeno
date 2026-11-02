@@ -159,6 +159,7 @@ export async function routeMention(
         slug: claim.slug,
         authorId: mention.author_id,
         text: body,
+        posted: mention.text,
         now,
         context: own,
       },
@@ -175,6 +176,7 @@ export async function routeMention(
             slug: claim.slug,
             authorId: mention.author_id,
             text: body,
+            posted: mention.text,
             now,
             context,
           },
@@ -225,6 +227,7 @@ export async function routeMention(
     // The summon's own words are context for the parent post ("@vaticeno this, by next month").
     const result = await submitClaim(deps, {
       text: forModel(post.text),
+      posted: post.text,
       context: [body],
       authorId: mention.author_id,
       sourceTweetId: repliedTo,
@@ -253,7 +256,7 @@ export async function routeMention(
   const latest = mention.edit_history_tweet_ids?.at(-1) ?? mention.id;
   const current =
     latest === mention.id
-      ? { versionId: mention.id, text: forModel(mention.text) }
+      ? { versionId: mention.id, text: forModel(mention.text), posted: mention.text }
       : await currentVersion(deps, mention.id);
   // An edit of the mention gets a new id: the claim is keyed on the first version, so edits never record twice.
   const original = mention.edit_history_tweet_ids?.[0] ?? mention.id;
@@ -263,6 +266,7 @@ export async function routeMention(
     : [];
   const result = await submitClaim(deps, {
     text: current.text,
+    posted: current.posted,
     context,
     authorId: mention.author_id,
     sourceTweetId: original,
@@ -298,9 +302,9 @@ export async function routeMention(
 async function currentVersion(
   deps: BotDeps,
   tweetId: string,
-): Promise<{ versionId: string; text: string }> {
+): Promise<{ versionId: string; text: string; posted: string }> {
   const post = await deps.reader.readVersion(tweetId);
-  return { versionId: post.versionId, text: forModel(post.text) };
+  return { versionId: post.versionId, text: forModel(post.text), posted: post.text };
 }
 
 async function runCommand(
