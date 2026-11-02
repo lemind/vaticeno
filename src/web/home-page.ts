@@ -110,32 +110,38 @@ export async function homePage(
 
       <h2>Commands</h2>
       <p class="muted">
-        Tag ${bot} with any of these. Commands are recognised inside a longer message
-        too.
+        Reply to a post or tag the bot. Extra words around a command are fine; ask it
+        anything else and it answers briefly.
       </p>
-      <dl>
-        <dt>your prediction</dt>
-        <dd>records it and answers with its terms</dd>
-        <dt>a reply in the thread</dt>
-        <dd>corrects the terms, within 15 minutes</dd>
-        <dt><code>wager</code></dt>
-        <dd>under a recorded prediction: the link to wager on it</dd>
-        <dt><code>help</code></dt>
-        <dd>how it works, in one reply</dd>
-        <dt>a question</dt>
-        <dd>a short answer</dd>
-        <dt><code>quote</code></dt>
-        <dd>a quote about bets and predictions</dd>
-        <dt><code>selfpromo</code></dt>
-        <dd>who Vaticeno is</dd>
-        <dt><code>ping</code></dt>
-        <dd>pong, to check it is alive</dd>
-        <dt><code>STOP</code></dt>
-        <dd>
-          stop receiving replies from Vaticeno. Your locked predictions are still
-          resolved. Tag it again to resume.
-        </dd>
-      </dl>
+      <table class="commands">
+        <tr>
+          <td><code>@${handle} wager</code></td>
+          <td>under a recorded prediction: the link to wager on it</td>
+        </tr>
+        <tr>
+          <td><code>@${handle} help</code></td>
+          <td>how it works, in one reply</td>
+        </tr>
+        <tr>
+          <td><code>@${handle} quote</code></td>
+          <td>a quote about bets and predictions</td>
+        </tr>
+        <tr>
+          <td><code>@${handle} selfpromo</code></td>
+          <td>who Vaticeno is</td>
+        </tr>
+        <tr>
+          <td><code>@${handle} ping</code></td>
+          <td>pong, to check it is alive</td>
+        </tr>
+        <tr>
+          <td><code>@${handle} STOP</code></td>
+          <td>
+            no more replies to you; your locked predictions are still resolved. Tag
+            it again to resume.
+          </td>
+        </tr>
+      </table>
 
       <h2>Status</h2>
       <dl>

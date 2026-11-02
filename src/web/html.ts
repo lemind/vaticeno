@@ -208,10 +208,19 @@ export function layout(
             margin: 4px 0;
           }
           code {
-            font-size: 0.92em;
-            padding: 1px 5px;
-            border: 1px solid var(--line);
-            border-radius: 4px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 0.88em;
+            padding: 2px 6px;
+            border-radius: 6px;
+            background: color-mix(in srgb, var(--line) 60%, transparent);
+            white-space: nowrap;
+          }
+          table.commands td {
+            padding: 8px 12px 8px 0;
+          }
+          table.commands td:first-child {
+            width: 1%;
+            white-space: nowrap;
           }
           a {
             color: inherit;
