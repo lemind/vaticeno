@@ -208,9 +208,10 @@ export function layout(
             margin: 4px 0;
           }
           code {
-            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-            font-size: 0.88em;
-            padding: 2px 6px;
+            font-family: inherit; /* the page's own font: system monospace read badly */
+            font-size: 0.95em;
+            font-weight: 600;
+            padding: 1px 7px;
             border-radius: 6px;
             background: color-mix(in srgb, var(--line) 60%, transparent);
             white-space: nowrap;
