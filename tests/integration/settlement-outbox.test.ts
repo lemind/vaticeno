@@ -129,11 +129,11 @@ describe('which claims get a row (T331a)', () => {
     );
   });
 
-  test('a model-judged claim locks with no row: it can never carry a stake', async () => {
+  test('a model-judged claim gets its row too: any claim can carry a stake (owner, 2026-11-02)', async () => {
     const { claim, deps } = await dueDraft('model');
     const [result] = await lockDueDrafts(deps, new Date(LOCK));
     assert.equal(result!.outcome, 'locked');
-    assert.equal(await outbox(claim.id), undefined);
+    assert.equal((await outbox(claim.id))!.state, 'open');
   });
 
   test('a claim has one row per network at most', async () => {

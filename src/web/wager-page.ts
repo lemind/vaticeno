@@ -77,9 +77,7 @@ export async function wagerPage(
     return layout(
       `#${claim.slug} · wager`,
       html`${head}
-        <p>
-          This claim can't carry a wager: only claims decided by a price feed can.
-        </p>`,
+        <p>This claim can't carry a wager: it has no deadline.</p>`,
     );
   if (!config)
     return layout(

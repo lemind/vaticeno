@@ -19,6 +19,9 @@ import {
 } from '../replies/templates.js';
 import { wagerKind } from '../wager/terms.js';
 
+// Every deployed escrow closes offers 24 hours before the deadline (Deploy.s.sol, DeployV2.s.sol).
+const ACCEPTANCE_CLOSES_MS = 24 * 3_600_000;
+
 // A switched-on network, as far as the reply needs it (src/wager/networks.ts).
 type ReplyNetwork = { chainId: number; name: string; testnet: boolean };
 
@@ -55,6 +58,25 @@ export async function wagerReply(
   if (!deps.wager) {
     alert('wager.not_configured', { slug });
     return { action: 'wager_not_configured', reply: null };
+  }
+
+  // A claim locked before its networks were switched on gets its rows when first asked, while offers can
+  // still open (owner, 2026-11-02): the worker signs them on its next pass.
+  if (
+    claim.status === 'locked' &&
+    claim.deadlineAt &&
+    now.getTime() < claim.deadlineAt.getTime() - ACCEPTANCE_CLOSES_MS &&
+    deps.wager.networks.length
+  ) {
+    await deps.db
+      .insert(settlementOutbox)
+      .values(
+        deps.wager.networks.map((n) => ({
+          claimId: claim.id,
+          network: String(n.chainId),
+        })),
+      )
+      .onConflictDoNothing();
   }
 
   // Each network the claim has a row on and that is switched on now answers for itself (FR-036d): the

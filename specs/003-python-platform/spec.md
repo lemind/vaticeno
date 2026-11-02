@@ -472,7 +472,8 @@ timeout: that path is proved on testnet and in the contract's tests.
   without a new deployment.
 - **FR-026**: Settlement is idempotent at two levels: the worker reads on-chain state before sending, and the
   contract rejects a second settlement of the same stake.
-- **FR-027**: The Node service writes one outbox row per network when a price-feed claim locks and sets its outcome once the
+- **FR-027**: The Node service writes one outbox row per network when a claim locks (or, for a claim locked before
+  a network was switched on, when `wager` is first asked while offers can open) and sets its outcome once the
   verdict is final and a second read of the price agrees; a disagreement holds the row, so nothing settles
   and the timeout refunds. It makes no chain calls. The worker signs the claim's open authorization from that row,
   and after the verdict settles every matched stake the contract holds for the claim, or records that there
@@ -493,8 +494,8 @@ timeout: that path is proved on testnet and in the contract's tests.
   refund and both parties are made whole. This path does not depend on the operator being alive.
 - **FR-031**: A verdict decided by the local verifier alone never settles a stake. Anything with value
   attached is decided by the price feed (FR-031a) or a human.
-- **FR-031a**: Only a claim whose resolution method is the price feed may carry a stake (owner decision
-  2026-10-09). Eligibility is decided off-chain, where the locked contract can be read, and proved on-chain:
+- **FR-031a**: Any locked claim with a deadline may carry a stake, whether the price feed or the model decides it
+  (owner decision 2026-11-02, replacing the price-feed-only rule of 2026-10-09). Eligibility is decided off-chain, where the locked contract can be read, and proved on-chain:
   a stake cannot be opened without an authorization signed by the oracle for that claim hash. A hash alone
   tells the contract nothing about the claim, so without that signature the rule would hold only for stakes
   opened through our own page (review 2026-10-12). The worker signs it once per claim, from the locked claim

@@ -123,11 +123,17 @@ const MAINNETS = [
 ];
 
 describe('the wager command', () => {
-  test('a claim with no row on any network switched on is closed, never a real-money link', async () => {
-    await lockedPriceClaim(); // locked under Stage 2: a Base Sepolia row only
+  test('a claim locked before a network was on gets its row when asked, and the link names it', async () => {
+    const claim = await lockedPriceClaim(); // locked under Stage 2: a Base Sepolia row only
     const { deps, replies } = await bot([[wager('10')]], { networks: MAINNETS });
     await pollMentions(deps, NOW);
-    assert.doesNotMatch(replies[0]!.text, /USDC|\/wager/);
+    assert.match(replies[0]!.text, /\nUSDC on Base or Arbitrum One\.$/);
+    const rows =
+      await t.sql`select network from settlement_outbox where claim_id = ${claim.id} order by network`;
+    assert.deepEqual(
+      rows.map((r) => r.network),
+      ['42161', '8453', '84532'],
+    );
   });
 
   test('with real money on, the link names the networks and USDC, and still carries one link only', async () => {
@@ -198,17 +204,16 @@ describe('the wager command', () => {
     );
   });
 
-  test('a model-judged claim is "not a price claim" even before it locks, once', async () => {
+  test('a model-judged claim carries a wager like any other (owner, 2026-11-02)', async () => {
     const { price: _price, ...modelContract } = VALID_CONTRACT;
-    await insertClaim(t.sql, 'draft', {
+    await insertClaim(t.sql, 'locked', {
       ...THREAD,
       resolution_method: 'model',
       contract: JSON.stringify({ ...modelContract, resolution_method: 'model' }),
     });
-    const { deps, replies } = await bot([[wager('10'), wager('11')]]);
+    const { deps, replies } = await bot([[wager('10')]]);
     await pollMentions(deps, NOW);
-    assert.equal(replies.length, 1);
-    assert.match(replies[0]!.text, /only claims decided by a price feed/);
+    assert.match(replies[0]!.text, /^WAGER · /);
   });
 
   test('a claim whose wagering has closed refuses once, without a link', async () => {
@@ -237,12 +242,21 @@ describe('the wager command', () => {
     );
   });
 
-  test('a claim locked before settlement existed has no row, so no dead link: closed', async () => {
-    await insertClaim(t.sql, 'locked', THREAD);
+  test('a claim with no row asked after acceptance closed gets no row and no dead link: closed', async () => {
+    const claim = await insertClaim(t.sql, 'locked', {
+      ...THREAD,
+      deadline_at: '2026-10-21T06:00:00Z', // offers closed 24 hours before
+    });
     const { deps, replies } = await bot([[wager('10')]]);
     await pollMentions(deps, NOW);
     assert.equal(replies.length, 1);
     assert.match(replies[0]!.text, /is closed for new offers/);
+    assert.equal(
+      (
+        await t.sql`select count(*)::int as n from settlement_outbox where claim_id = ${claim.id}`
+      )[0]!.n,
+      0,
+    );
   });
 
   test('a post that provably never left gives the link back for the next ask', async () => {
@@ -417,15 +431,15 @@ describe('the wager page', () => {
     assert.match(res.body, /Wagering opens shortly/);
   });
 
-  test('a model-judged claim has no wager controls', async () => {
+  test('a model-judged claim gets the wager page like any other', async () => {
     const { price: _price, ...modelContract } = VALID_CONTRACT;
-    const claim = await insertClaim(t.sql, 'locked', {
+    const claim = await lockedPriceClaim({
       resolution_method: 'model',
       contract: JSON.stringify({ ...modelContract, resolution_method: 'model' }),
     });
     const res = await app().inject(`/claim/${claim.slug}/wager`);
-    assert.match(res.body, /can't carry a wager/);
-    assert.doesNotMatch(res.body, /wallet\.js/);
+    assert.doesNotMatch(res.body, /can't carry a wager/);
+    assert.match(res.body, /Wagering opens shortly/);
   });
 
   test('a contract field cannot break out of the page or its data', async () => {

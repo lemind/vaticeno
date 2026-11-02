@@ -193,7 +193,7 @@ export function wagerNotLockedReply(
 }
 
 export const wagerNotPriceReply = (slug: string) =>
-  `#${slug} can't carry a wager: only claims decided by a price feed can.`;
+  `#${slug} can't carry a wager: it has no deadline.`;
 
 export const wagerClosedReply = (slug: string) =>
   `Wagering on #${slug} is closed for new offers.`;

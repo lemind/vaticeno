@@ -90,15 +90,15 @@ def finish_stakes(conn: psycopg.Connection, escrow: Escrow, run: Run) -> None:
 
 
 def sign_authorizations(conn: psycopg.Connection, escrow: Escrow, now: datetime, run: Run) -> None:
-    """One signature per locked price claim, valid until acceptance closes; every stake on it reuses it."""
+    """One signature per locked claim, valid until acceptance closes; every stake on it reuses it."""
     rows = _rows(conn, """
         select o.id, c.slug, c.deadline_at, c.resolution_method
         from settlement_outbox o join claims c on c.id = o.claim_id
         where o.network = %s and o.state = 'open' and o.open_authorization is null
     """, (escrow.network,))
     for row in rows:
-        # The third refusal of a model-judged claim, after the lock and the contract (FR-031a, T336a).
-        if row["resolution_method"] != "price_feed" or row["deadline_at"] is None:
+        # Any claim with a deadline can carry a stake (owner, 2026-11-02; FR-031a); one without has nothing to sign.
+        if row["deadline_at"] is None:
             log.error("settle.refused_to_sign slug=%s method=%s", row["slug"], row["resolution_method"])
             run.refused += 1
             continue

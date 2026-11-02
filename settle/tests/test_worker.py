@@ -352,12 +352,12 @@ def test_a_row_whose_outcome_is_not_the_verdict_is_stopped_not_sent(chain, db):
     assert _row(db["owner"], claim)["state"] == "failed"
 
 
-def test_it_never_signs_for_a_claim_judged_by_the_model(chain, db):
+def test_it_signs_for_a_claim_judged_by_the_model_too(chain, db):
     w3 = chain["w3"]
     claim = _locked_claim(db["owner"], _chain_now(w3) + 3 * DAY, method="model")
     run = run_once(db["worker"], chain["client"], _now(w3))
-    assert (run.signed, run.refused) == (0, 1)
-    assert _row(db["owner"], claim)["open_authorization"] is None
+    assert (run.signed, run.refused) == (1, 0)
+    assert _row(db["owner"], claim)["open_authorization"] is not None
 
 
 def test_a_network_not_yet_authorized_signs_nothing_but_still_settles(chain, db):
