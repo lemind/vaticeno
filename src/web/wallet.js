@@ -187,8 +187,10 @@ function renderWagers() {
       empty ? ['—'] : [`${short(stake.taker)} on ${stake.makerSaysHit ? 'MISS' : 'HIT'}`, `${data.explorer}/address/${stake.taker}`],
       [describe(stake)],
     ];
-    for (const [text, href] of cells) {
+    const labels = ['Wager', 'Stake', 'Maker', 'Taker', 'State']; // the phone layout's card labels
+    for (const [i, [text, href]] of cells.entries()) {
       const cell = document.createElement('td');
+      cell.dataset.label = labels[i];
       if (href) {
         const link = document.createElement('a');
         link.href = href;

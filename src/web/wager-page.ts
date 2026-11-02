@@ -229,7 +229,7 @@ export async function wagerPage(
       </p></noscript
     >
     <div class="scroll">
-      <table>
+      <table class="wagers">
         <thead>
           <tr>
             <th>Wager</th>
