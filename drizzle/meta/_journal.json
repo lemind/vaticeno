@@ -169,6 +169,13 @@
       "when": 1792044000000,
       "tag": "0023_networks",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1792130400000,
+      "tag": "0024_x_handles",
+      "breakpoints": true
     }
   ]
 }

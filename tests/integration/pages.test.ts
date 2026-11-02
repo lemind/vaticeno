@@ -152,6 +152,22 @@ describe('author page', () => {
     );
   });
 
+  test('a known handle is shown, the page still keyed on the id (INIT_SPEC §3)', async () => {
+    const claim = await insertClaim(t.sql, 'locked');
+    await insertPosition(t.sql, claim.id);
+    assert.doesNotMatch(
+      (await app().inject('/u/200')).body,
+      /@lemind/,
+      'none known yet: the id only',
+    );
+    await t.sql`insert into x_handles ${t.sql({ x_user_id: '200', handle: 'lemind', seen_at: NOW.toISOString() })}`;
+    assert.match((await app().inject('/u/200')).body, /@lemind<\/a\s*>\s*·\s*X user 200/);
+    assert.match(
+      (await app().inject(`/claim/${claim.slug}`)).body,
+      /<a href="\/u\/200">@lemind<\/a>/,
+    );
+  });
+
   test('unknown or malformed user → 404', async () => {
     assert.equal((await app().inject('/u/999')).statusCode, 404);
     assert.equal((await app().inject('/u/not-a-number')).statusCode, 404);

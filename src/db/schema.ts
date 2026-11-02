@@ -498,6 +498,19 @@ export const settlementOutbox = pgTable(
 );
 
 // Each network's chain state, written by its settlement worker every pass, read by the status page (FR-022c).
+// The X handle as a display cache, never identity (INIT_SPEC §3): the newest one a mentions read returned.
+export const xHandles = pgTable(
+  'x_handles',
+  {
+    xUserId: text('x_user_id').primaryKey(),
+    handle: text('handle').notNull(),
+    seenAt: utc('seen_at').notNull(),
+  },
+  (t) => [
+    check('x_handles_handle_check', sql`${t.handle} ~ '^[A-Za-z0-9_]{1,15}$'`),
+  ],
+);
+
 export const networkHealth = pgTable(
   'network_health',
   {

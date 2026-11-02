@@ -4,7 +4,13 @@ import { and, desc, eq, isNotNull } from 'drizzle-orm';
 import { renderStatement } from '../contract/render.js';
 import { ContractSchema } from '../contract/schema.js';
 import type { Db } from '../db/client.js';
-import { claims, corrections, positions, resolutions } from '../db/schema.js';
+import {
+  claims,
+  corrections,
+  positions,
+  resolutions,
+  xHandles,
+} from '../db/schema.js';
 import { REACHED_LOCK } from '../lifecycle/transitions.js';
 import { html, layout, utc } from './html.js';
 
@@ -54,7 +60,22 @@ export async function authorPage(db: Db, xUserId: string): Promise<string | null
     void: withResult.filter((r) => r.result === 'void').length,
   };
 
-  const body = html` <p class="muted">X user ${xUserId}</p>
+  const [known] = await db
+    .select({ handle: xHandles.handle })
+    .from(xHandles)
+    .where(eq(xHandles.xUserId, xUserId))
+    .limit(1);
+  // The handle is a display cache (INIT_SPEC §3): the page stays keyed on the id, which never changes.
+  const body = html` <p class="muted">
+      ${
+        known
+          ? html`<a href="https://x.com/${known.handle}" rel="nofollow noopener"
+                >@${known.handle}</a
+              >
+              · X user ${xUserId}`
+          : html`X user ${xUserId}`
+      }
+    </p>
     <h1>Predictions on record</h1>
     <p>
       ${counts.recorded} recorded · ${counts.resolved} resolved ·
