@@ -17,10 +17,7 @@ import {
   wagerNotLockedReply,
   wagerNotPriceReply,
 } from '../replies/templates.js';
-import { wagerKind } from '../wager/terms.js';
-
-// Every deployed escrow closes offers 24 hours before the deadline (Deploy.s.sol, DeployV2.s.sol).
-const ACCEPTANCE_CLOSES_MS = 24 * 3_600_000;
+import { ACCEPTANCE_CLOSES_MS, wagerKind } from '../wager/terms.js';
 
 // A switched-on network, as far as the reply needs it (src/wager/networks.ts).
 type ReplyNetwork = { chainId: number; name: string; testnet: boolean };

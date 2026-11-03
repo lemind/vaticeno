@@ -10,6 +10,9 @@ export type WagerClaim = {
   outbox: { authorizedUntil: Date | null } | null;
 };
 
+// Every deployed escrow closes offers 24 hours before the deadline (Deploy.s.sol, DeployV2.s.sol).
+export const ACCEPTANCE_CLOSES_MS = 24 * 3_600_000;
+
 // Checked in FR-038's order, so a claim that can never be wagered is never told it will open.
 export function wagerKind(claim: WagerClaim, now: Date): WagerReplyKind {
   // Any claim with a deadline can carry a stake (owner, 2026-11-02; FR-031a); `not_price` is only "no deadline".
@@ -18,6 +21,11 @@ export function wagerKind(claim: WagerClaim, now: Date): WagerReplyKind {
   // No row: the bot writes one when asked, so here it means acceptance had already closed (src/bot/wager.ts).
   if (claim.status !== 'locked' || !claim.outbox) return 'closed';
   const closes = claim.outbox.authorizedUntil;
-  // Not signed yet: the worker signs within a minute of lock, and only while acceptance is open.
-  return !closes || now < closes ? 'link' : 'closed';
+  // Not signed yet: the worker signs within a minute, but only while acceptance is open; past it, nothing
+  // will come (a contract switch clears every signature, 2026-11-03).
+  if (!closes)
+    return now.getTime() < claim.deadlineAt.getTime() - ACCEPTANCE_CLOSES_MS
+      ? 'link'
+      : 'closed';
+  return now < closes ? 'link' : 'closed';
 }
