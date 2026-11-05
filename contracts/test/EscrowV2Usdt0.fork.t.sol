@@ -50,7 +50,7 @@ contract EscrowV2Usdt0ForkTest is Test {
             })
         );
         escrowBefore = IErc20(USDT0).balanceOf(address(escrow));
-        deadline = uint64(block.timestamp + 30 days);
+        deadline = uint64(vm.getBlockTimestamp() + 30 days);
         for (uint256 i = 0; i < 2; i++) {
             address who = [maker, taker][i];
             deal(USDT0, who, 1e6);
@@ -60,7 +60,7 @@ contract EscrowV2Usdt0ForkTest is Test {
     }
 
     function _open() internal returns (uint256) {
-        uint64 validUntil = uint64(block.timestamp + 1 hours);
+        uint64 validUntil = uint64(vm.getBlockTimestamp() + 1 hours);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(oracleKey, escrow.openDigest(CLAIM, deadline, validUntil));
         vm.prank(maker);
         return escrow.open(CLAIM, deadline, validUntil, abi.encodePacked(r, s, v), true, AMOUNT);
@@ -80,7 +80,7 @@ contract EscrowV2Usdt0ForkTest is Test {
         vm.warp(deadline);
         vm.prank(oracle);
         escrow.settle(id, EscrowV2.Outcome.Hit, keccak256("evidence"));
-        vm.warp(block.timestamp + 72 hours);
+        vm.warp(vm.getBlockTimestamp() + 72 hours);
         escrow.payout(id);
 
         assertEq(_balance(maker), 1e6 + AMOUNT);
@@ -105,7 +105,7 @@ contract EscrowV2Usdt0ForkTest is Test {
     function test_an_untaken_offer_goes_back_in_usdt0() public {
         if (!forked) return;
         uint256 id = _open();
-        vm.warp(block.timestamp + 7 days);
+        vm.warp(vm.getBlockTimestamp() + 7 days);
         escrow.expire(id);
 
         assertEq(_balance(maker), 1e6);
