@@ -237,8 +237,9 @@ def main() -> None:
     account = Account.from_key(read_key(Path(os.environ["ORACLE_KEY_FILE"])))
     # RPC_URL: this network's node. BASE_SEPOLIA_RPC_URL is the name Stage 2's env file already carries.
     w3 = Web3(Web3.HTTPProvider(os.environ.get("RPC_URL") or os.environ["BASE_SEPOLIA_RPC_URL"]))
+    # NETWORK_KEY: a second market on the same chain, e.g. `42161-usdt`; unset, the chain id names it.
     escrow = Escrow(w3, os.environ["ESCROW_ADDRESS"], int(os.environ["ESCROW_CHAIN_ID"]), account,
-                    int(os.environ.get("ESCROW_VERSION", "1")))
+                    int(os.environ.get("ESCROW_VERSION", "1")), os.environ.get("NETWORK_KEY"))
     log.info("settle.started network=%s oracle=%s escrow=%s version=%s",
              escrow.network, account.address, escrow.address, escrow.version)
     alerts = Alerts(os.environ.get("SENTRY_DSN"))

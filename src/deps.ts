@@ -21,9 +21,7 @@ export function buildDeps(config: CoreConfig) {
     coinbase: createCoinbase({ mode: config.LLM_MODE, store }),
     normalizerModel: config.NORMALIZER_MODEL,
     answerModel: config.ANSWER_MODEL,
-    settlementNetworks: networks.length
-      ? networks.map((n) => String(n.chainId))
-      : undefined,
+    settlementNetworks: networks.length ? networks.map((n) => n.key) : undefined,
     wagerNetworks: networks,
     fetchPage: createPageFetcher({ mode: config.LLM_MODE, store }),
     judgeModelA: config.JUDGE_MODEL_A,

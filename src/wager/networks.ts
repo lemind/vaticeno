@@ -1,5 +1,5 @@
-// The networks a wager can be on (003 FR-036a, FR-036d). Public facts only: names, explorers, public nodes and
-// Circle's native USDC. Which ones are switched on, and their escrow, comes from WAGER_NETWORKS (config.ts).
+// The networks a wager can be on (003 FR-036a, FR-036d). Public facts only: names, explorers, public nodes,
+// Circle's native USDC and, on Arbitrum One, Tether's USDT0. Which ones are switched on, and their escrow, comes from WAGER_NETWORKS (config.ts).
 
 export type KnownNetwork = {
   name: string;
@@ -9,6 +9,8 @@ export type KnownNetwork = {
   rpcUrls: string[];
   // Native USDC (FR-036c); a mainnet escrow in any other token is refused at start, as the contract refuses it.
   usdc?: string;
+  // A second market on the same network, in Tether's USDT0: its own contract and offers (owner, 2026-11-05).
+  usdt?: string;
 };
 
 export const KNOWN_NETWORKS: Record<number, KnownNetwork> = {
@@ -52,11 +54,15 @@ export const KNOWN_NETWORKS: Record<number, KnownNetwork> = {
       'https://arb1.arbitrum.io/rpc',
     ],
     usdc: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
+    usdt: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9',
   },
 };
 
 // One switched-on network: what the wager page needs to read and send on it.
 export type WagerNetwork = KnownNetwork & {
+  // The market's name in the outbox and the health row: the chain id, or `<chain id>-usdt` for USDT0.
+  key: string;
+  symbol: 'USDC' | 'USDT' | 'tokens';
   chainId: number;
   version: 1 | 2;
   escrow: string;
@@ -80,6 +86,8 @@ export function wagerNetworks(config: {
     {
       ...known,
       rpcUrls: config.PUBLIC_RPC_URLS ?? known.rpcUrls,
+      key: String(config.ESCROW_CHAIN_ID),
+      symbol: known.usdc ? 'USDC' : 'tokens',
       chainId: config.ESCROW_CHAIN_ID,
       version: config.ESCROW_VERSION,
       escrow: config.ESCROW_ADDRESS,
@@ -91,7 +99,8 @@ export function wagerNetworks(config: {
 const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
 
 // `chainId:version:escrow:token`, comma-separated, e.g. `84532:1:0x62…:0x5C…,421614:2:0x…:0x…`. Throws on
-// anything it can't vouch for: an unknown chain, a repeated one, a bad address, a mainnet token that is not USDC.
+// anything it can't vouch for: an unknown chain, a market named twice, a bad address, a mainnet token that is
+// neither its USDC nor its USDT0.
 export function parseWagerNetworks(raw: string): WagerNetwork[] {
   const networks = raw
     .split(',')
@@ -106,17 +115,26 @@ export function parseWagerNetworks(raw: string): WagerNetwork[] {
         throw new Error(`escrow version must be 1 or 2: ${entry}`);
       if (!ADDRESS.test(escrow ?? '') || !ADDRESS.test(token ?? ''))
         throw new Error(`bad address in: ${entry}`);
-      if (known.usdc && token!.toLowerCase() !== known.usdc.toLowerCase())
+      const isUsdt =
+        !!known.usdt && token!.toLowerCase() === known.usdt.toLowerCase();
+      if (known.usdc && !isUsdt && token!.toLowerCase() !== known.usdc.toLowerCase())
         throw new Error(`${known.name} takes native USDC only (${known.usdc})`);
       return {
         ...known,
+        key: isUsdt ? `${chainId}-usdt` : String(chainId),
+        symbol: isUsdt
+          ? ('USDT' as const)
+          : known.usdc
+            ? ('USDC' as const)
+            : ('tokens' as const),
         chainId,
         version: Number(version) as 1 | 2,
         escrow: escrow!,
         token: token!,
       };
     });
-  const ids = networks.map((n) => n.chainId);
-  if (new Set(ids).size !== ids.length) throw new Error('a network is named twice');
+  const keys = networks.map((n) => n.key);
+  if (new Set(keys).size !== keys.length)
+    throw new Error('a network is named twice');
   return networks;
 }

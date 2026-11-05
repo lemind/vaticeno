@@ -392,6 +392,13 @@ def test_the_wrong_chain_stops_the_worker(chain):
         Escrow(chain["w3"], chain["escrow"].address, 1, ORACLE)
 
 
+def test_a_market_key_names_the_rows_and_must_be_on_its_chain(chain):
+    usdt = Escrow(chain["w3"], chain["escrow"].address, CHAIN_ID, ORACLE, network=f"{CHAIN_ID}-usdt")
+    assert usdt.network == f"{CHAIN_ID}-usdt"
+    with pytest.raises(ChainMismatch):
+        Escrow(chain["w3"], chain["escrow"].address, CHAIN_ID, ORACLE, network="42161-usdt")
+
+
 def test_a_key_file_others_can_read_is_refused(tmp_path):
     key = tmp_path / "oracle.key"
     key.write_text(KEYS[1])

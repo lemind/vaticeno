@@ -492,7 +492,7 @@ export const settlementOutbox = pgTable(
       sql`(${t.openAuthorization} is null) = (${t.authorizedUntil} is null)`,
     ),
     check('settlement_outbox_attempts_check', sql`${t.attempts} >= 0`),
-    check('settlement_outbox_network_check', sql`${t.network} ~ '^[0-9]+$'`),
+    check('settlement_outbox_network_check', sql`${t.network} ~ '^[0-9]+(-usdt)?$'`),
     unique('settlement_outbox_claim_network_unique').on(t.claimId, t.network),
   ],
 );
@@ -524,7 +524,7 @@ export const networkHealth = pgTable(
     readAt: utc('read_at').notNull(),
   },
   (t) => [
-    check('network_health_network_check', sql`${t.network} ~ '^[0-9]+$'`),
+    check('network_health_network_check', sql`${t.network} ~ '^[0-9]+(-usdt)?$'`),
     check('network_health_backlog_check', sql`${t.backlog} >= 0`),
   ],
 );

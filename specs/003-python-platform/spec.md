@@ -607,6 +607,9 @@ timeout: that path is proved on testnet and in the contract's tests.
   (100 USDC = `100_000_000`, not `100e18`), and the page converts between base units and USDC. No
   fee-on-transfer or rebasing token is supported. USDC's own pause, blocklist and upgrade controls are an
   external dependency, written into the real-value risk assessment (FR-031h).
+  **USDT0 on Arbitrum One** (owner, 2026-11-05): beside USDC there, a second market in Tether's USDT0
+  (`0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9`, 6 decimals), with its own contract, worker, oracle key and
+  offers; a USDT offer never matches a USDC one. Base has no USDT of its own, so none there.
 
 - **FR-036e**: Pull withdrawals isolate one blocked participant; they cannot help when the token blocks the
   escrow's own address, pauses transfers, or the network stops. Those risks are written into the settlement

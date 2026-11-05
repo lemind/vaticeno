@@ -20,7 +20,7 @@ import {
 import { ACCEPTANCE_CLOSES_MS, wagerKind } from '../wager/terms.js';
 
 // A switched-on network, as far as the reply needs it (src/wager/networks.ts).
-type ReplyNetwork = { chainId: number; name: string; testnet: boolean };
+type ReplyNetwork = { key: string; name: string; symbol: string; testnet: boolean };
 
 export type WagerDeps = {
   db: Db;
@@ -70,7 +70,7 @@ export async function wagerReply(
       .values(
         deps.wager.networks.map((n) => ({
           claimId: claim.id,
-          network: String(n.chainId),
+          network: n.key,
         })),
       )
       .onConflictDoNothing();
@@ -86,7 +86,7 @@ export async function wagerReply(
     .from(settlementOutbox)
     .where(eq(settlementOutbox.claimId, claim.id));
   const answers = deps.wager.networks.flatMap((network) => {
-    const row = rows.find((r) => r.network === String(network.chainId));
+    const row = rows.find((r) => r.network === network.key);
     return row ? [{ network, kind: wagerKind({ ...claim, outbox: row }, now) }] : [];
   });
   const open = answers.filter((a) => a.kind === 'link');
@@ -96,7 +96,7 @@ export async function wagerReply(
     : (answers[0]?.kind ?? wagerKind({ ...claim, outbox: null }, now));
   const realMoney = open
     .filter((a) => !a.network.testnet)
-    .map((a) => a.network.name);
+    .map((a) => ({ name: a.network.name, symbol: a.network.symbol }));
   if (
     kind === 'link' &&
     (await linksToday(deps.db, now)) >= deps.wager.linksPerDay
@@ -133,7 +133,7 @@ export async function wagerReply(
 function replyFor(
   kind: WagerReplyKind,
   host: string,
-  realMoney: readonly string[],
+  realMoney: readonly { name: string; symbol: string }[],
   slug: string,
   lockAt: Date | null,
   now: Date,

@@ -2,22 +2,25 @@
 # Deploy escrow v2 to one network, source verified publicly (003 T379, T383).
 #   scripts/deploy-v2.sh 84532|421614 [end-to-end]   testnet, with a blocking test USDC
 #   scripts/deploy-v2.sh 8453|42161                  mainnet, native USDC: asks you to type the network's name first
+#   scripts/deploy-v2.sh 42161-usdt                  Arbitrum One in Tether's USDT0, its own contract and keys folder
 # Keys from ~/.vaticeno-keys/<chain id>/ (scripts/make-v2-wallets.py), never the Stage 2 ones the v1 worker uses;
 # ETHERSCAN_API_KEY from .env (one key covers both explorers).
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
-chain="${1:?chain id: 84532 (Base Sepolia) or 421614 (Arbitrum Sepolia)}"
+market="${1:?chain id: 84532 (Base Sepolia) or 421614 (Arbitrum Sepolia)}"
+chain="${market%-usdt}"
 entry="run()"
 [ "${2:-}" = "end-to-end" ] && entry="runEndToEnd()"
-case "$chain" in
+case "$market" in
   84532) rpc="${RPC_URL:-https://sepolia.base.org}" ;;
   421614) rpc="${RPC_URL:-https://sepolia-rollup.arbitrum.io/rpc}" ;;
   8453) rpc="${RPC_URL:-https://mainnet.base.org}"; entry="runMainnet()"; name="Base" ;;
   42161) rpc="${RPC_URL:-https://arb1.arbitrum.io/rpc}"; entry="runMainnet()"; name="Arbitrum One" ;;
-  *) echo "a chain id: 84532, 421614, 8453 or 42161" >&2; exit 1 ;;
+  42161-usdt) rpc="${RPC_URL:-https://arb1.arbitrum.io/rpc}"; entry="runMainnetUsdt0()"; name="Arbitrum One USDT" ;;
+  *) echo "a chain id: 84532, 421614, 8453, 42161 or 42161-usdt" >&2; exit 1 ;;
 esac
-if [ "$entry" = "runMainnet()" ]; then
+if [ "$entry" != "run()" ] && [ "$entry" != "runEndToEnd()" ]; then
   # Real money gets committed source only: what is verified on the explorer is a commit anyone can check out (T383).
   if ! git diff --quiet HEAD -- contracts/src contracts/script contracts/foundry.toml; then
     echo "contracts/ has uncommitted changes: commit them first, nothing deployed" >&2; exit 1
@@ -26,7 +29,7 @@ if [ "$entry" = "runMainnet()" ]; then
   read -r -p "Deploy the real-money escrow on $name? Type $name to go on: " answer
   [ "$answer" = "$name" ] || { echo "stopped: nothing deployed" >&2; exit 1; }
 fi
-keys="$HOME/.vaticeno-keys/$chain"
+keys="$HOME/.vaticeno-keys/$market"
 forge="$HOME/.foundry/bin/forge"
 cast="$HOME/.foundry/bin/cast"
 

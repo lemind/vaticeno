@@ -22,15 +22,15 @@ const SETTLEMENT_WORDS: Record<string, string> = {
   failed: 'not settled by the referee: matched wagers refund at the timeout',
 };
 
-// `chainId` picks the network (FR-036d): each has its own row, its own escrow and its own offers, and the page
-// shows one at a time. Only networks the claim has a row on are offered (rows are written at lock, so one
-// switched on later has none); an unknown or absent `chainId` shows the first of them.
+// `market` picks the network and token (FR-036d): each has its own row, its own escrow and its own offers, and
+// the page shows one at a time. Only markets the claim has a row on are offered (rows are written at lock, so
+// one switched on later has none); an unknown or absent `market` shows the first of them.
 export async function wagerPage(
   db: Db,
   slug: string,
   now: Date,
   networks: WagerNetwork[],
-  chainId?: number,
+  market?: string,
 ): Promise<string | null> {
   const [claim] = await db
     .select()
@@ -44,15 +44,13 @@ export async function wagerPage(
     db.select().from(resolutions).where(eq(resolutions.claimId, claim.id)).limit(1),
     db.select().from(corrections).where(eq(corrections.claimId, claim.id)).limit(1),
   ]);
-  const withRow = networks.filter((n) =>
-    rows.some((row) => row.network === String(n.chainId)),
-  );
+  const withRow = networks.filter((n) => rows.some((row) => row.network === n.key));
   // Real money first: the bot's link names the mainnet, so a plain link opens on it, not on the testnet.
   const shown = [...(withRow.length ? withRow : networks)].sort(
     (a, b) => Number(a.testnet) - Number(b.testnet),
   );
-  const config = shown.find((n) => n.chainId === chainId) ?? shown[0] ?? null;
-  const outbox = rows.find((row) => row.network === String(config?.chainId));
+  const config = shown.find((n) => n.key === market) ?? shown[0] ?? null;
+  const outbox = rows.find((row) => row.network === config?.key);
   const deadline = new Date(contract.deadline_at);
   // The same rule the bot answers by (src/wager/terms.ts).
   const kind = wagerKind({ ...claim, outbox: outbox ?? null }, now);
@@ -110,21 +108,20 @@ export async function wagerPage(
   // Each network is its own market: a link per network, the one shown marked (FR-036d).
   const picker =
     shown.length > 1
-      ? html`<p class="networks">
-          Network:
-          ${shown.map((n) =>
-            n.chainId === config.chainId
-              ? html` <strong aria-current="page">${n.name}</strong>`
-              : html` <a
-                  href="/claim/${claim.slug}/wager?network=${String(n.chainId)}"
-                  >${n.name}</a
-                >`,
-          )}
-          <br /><span class="muted"
-            >Offers on one network are matched and settled on that network
-            only.</span
-          >
-        </p>`
+      ? html`<nav class="networks" aria-label="Network">
+          <div class="seg">
+            ${shown.map((n) =>
+              n.key === config.key
+                ? html`<span class="on" aria-current="page">${marketLabel(n)}</span>`
+                : html`<a href="/claim/${claim.slug}/wager?network=${n.key}"
+                    >${marketLabel(n)}</a
+                  >`,
+            )}
+          </div>
+          <p class="muted">
+            Offers on one network are matched and settled on that network only.
+          </p>
+        </nav>`
       : '';
 
   const body = html`${head} ${picker}
@@ -181,15 +178,16 @@ export async function wagerPage(
           ? html`<dt>How money comes back</dt>
               <dd>
                 straight to your wallet when the hold ends; nobody has to press
-                anything. Only if USDC has frozen your address does it wait here, for
-                you to withdraw once it is unfrozen
+                anything. Only if ${config.symbol} has frozen your address does it
+                wait here, for you to withdraw once it is unfrozen
               </dd>
               <dt>Risks we cannot remove</dt>
               <dd>
-                USDC's issuer can freeze an address: a frozen one cannot withdraw
-                while it lasts, and the other side is unaffected. If it freezes the
-                escrow itself or pauses USDC, nobody can withdraw until that lifts.
-                If ${config.name} halts, nothing moves until it restarts.
+                ${config.symbol}'s issuer can freeze an address: a frozen one cannot
+                withdraw while it lasts, and the other side is unaffected. If it
+                freezes the escrow itself or pauses ${config.symbol}, nobody can
+                withdraw until that lifts. If ${config.name} halts, nothing moves
+                until it restarts.
                 <a href="${POLICY_URL}" rel="noopener">Settlement policy</a>
               </dd>`
           : ''
@@ -278,7 +276,7 @@ export async function wagerPage(
               autocomplete="off"
               required
             />
-            <span class="unit">${config.usdc ? 'USDC' : 'tokens'}</span>
+            <span class="unit">${config.symbol}</span>
           </span>
         </label>
         <button type="submit" class="primary">Make an offer</button>
@@ -294,6 +292,8 @@ export async function wagerPage(
       escrow: config.escrow,
       token: config.token,
       chainId: config.chainId,
+      // The page's name for the token; USDT0 calls itself USD₮0 on chain.
+      symbol: config.symbol === 'tokens' ? null : config.symbol,
       version: config.version,
       chainName: config.name,
       rpcUrls: config.rpcUrls,
@@ -308,3 +308,7 @@ export async function wagerPage(
     })}`;
   return layout(`#${claim.slug} · wager`, body, { script: '/assets/wallet.js' });
 }
+
+// A real-money market names its token, since one network can carry two: "Arbitrum One · USDT".
+const marketLabel = (n: WagerNetwork) =>
+  n.testnet ? n.name : `${n.name} · ${n.symbol}`;

@@ -48,7 +48,12 @@ async function bot(
     linksPerDay?: number;
     failPosts?: number;
     notSent?: number;
-    networks?: Array<{ chainId: number; name: string; testnet: boolean }>;
+    networks?: Array<{
+      key: string;
+      name: string;
+      symbol: string;
+      testnet: boolean;
+    }>;
   } = {},
 ) {
   const replies: Array<{ to: string; text: string }> = [];
@@ -85,7 +90,7 @@ async function bot(
       host: HOST,
       linksPerDay: opts.linksPerDay ?? 10,
       networks: opts.networks ?? [
-        { chainId: 84532, name: 'Base Sepolia', testnet: true },
+        { key: '84532', name: 'Base Sepolia', symbol: 'tokens', testnet: true },
       ],
     },
     statePath: join(await mkdtemp(join(tmpdir(), 'vaticeno-wager-')), 'ingest.json'),
@@ -118,9 +123,15 @@ async function lockedPriceClaim(overrides: Record<string, unknown> = {}) {
 }
 
 const MAINNETS = [
-  { chainId: 8453, name: 'Base', testnet: false },
-  { chainId: 42161, name: 'Arbitrum One', testnet: false },
+  { key: '8453', name: 'Base', symbol: 'USDC', testnet: false },
+  { key: '42161', name: 'Arbitrum One', symbol: 'USDC', testnet: false },
 ];
+const ARBITRUM_USDT = {
+  key: '42161-usdt',
+  name: 'Arbitrum One',
+  symbol: 'USDT',
+  testnet: false,
+};
 
 describe('the wager command', () => {
   test('a claim locked before a network was on gets its row when asked, and the link names it', async () => {
@@ -146,6 +157,24 @@ describe('the wager command', () => {
     assert.doesNotMatch(replies[0]!.text, /Testnet|no value|[Rr]eal money|risk/);
     assert.equal(replies[0]!.text.match(/https?:\/\/|vaticeno\.test/g)!.length, 1);
     assert.ok(replies[0]!.text.includes(`${HOST}/claim/${claim.slug}/wager`));
+  });
+
+  test('with USDT on Arbitrum too, the link names each token with its networks, and the claim gets a USDT row', async () => {
+    const claim = await lockedPriceClaim();
+    const { deps, replies } = await bot([[wager('10')]], {
+      networks: [...MAINNETS, ARBITRUM_USDT],
+    });
+    await pollMentions(deps, NOW);
+    assert.match(
+      replies[0]!.text,
+      /\nUSDC on Base or Arbitrum One; USDT on Arbitrum One\.$/,
+    );
+    const rows =
+      await t.sql`select network from settlement_outbox where claim_id = ${claim.id} order by network`;
+    assert.deepEqual(
+      rows.map((r) => r.network),
+      ['42161', '42161-usdt', '8453', '84532'],
+    );
   });
 
   test('a burst on one claim posts one link, from anyone in the thread, and never again', async () => {
@@ -302,6 +331,8 @@ describe('the wager command', () => {
 describe('the wager page', () => {
   const network = (chainId: number, escrow: string, token: string) => ({
     ...KNOWN_NETWORKS[chainId]!,
+    key: String(chainId),
+    symbol: KNOWN_NETWORKS[chainId]!.usdc ? ('USDC' as const) : ('tokens' as const),
     chainId,
     version: 1 as const,
     escrow,
@@ -356,7 +387,10 @@ describe('the wager page', () => {
     ];
     const server = buildServer({ db: t.db, now: () => NOW, wager: both });
     const base = await server.inject(`/claim/${claim.slug}/wager`);
-    assert.match(base.body, /<strong aria-current="page">Base Sepolia<\/strong>/);
+    assert.match(
+      base.body,
+      /<span class="on" aria-current="page">Base Sepolia<\/span>/,
+    );
     assert.match(base.body, /href="\/claim\/[^"]+\/wager\?network=421614"/);
     assert.equal(pageData(base.body).chainId, 84532);
     assert.equal(pageData(base.body).authorization, '0x' + '11'.repeat(65));

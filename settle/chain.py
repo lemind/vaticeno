@@ -97,7 +97,8 @@ class Stake:
 
 
 class Escrow:
-    def __init__(self, w3: Web3, address: str, chain_id: int, account: LocalAccount, version: int = 1):
+    def __init__(self, w3: Web3, address: str, chain_id: int, account: LocalAccount, version: int = 1,
+                 network: str | None = None):
         # Checked once at start, then before every send: a wrong chain or a wrong key stops the worker.
         if w3.eth.chain_id != chain_id:
             raise ChainMismatch(f"connected to chain {w3.eth.chain_id}, configured for {chain_id}")
@@ -113,8 +114,10 @@ class Escrow:
         self.version = version
         if self._typed(b"\0" * 32, 0, 0).header != bytes(self.contract.functions.domainSeparator().call()):
             raise ChainMismatch(f"the contract at {self.address} is not escrow version {version} on chain {chain_id}")
-        # The outbox's and the health row's name for this network: the chain id as text (data-model).
-        self.network = str(chain_id)
+        # The outbox's and the health row's name for this market: the chain id as text, or `42161-usdt` (0025).
+        self.network = network or str(chain_id)
+        if self.network.split("-")[0] != str(chain_id):
+            raise ChainMismatch(f"market {self.network} is not on chain {chain_id}")
         self._token: Contract | None = None  # v2's token, immutable: read once, on the first health pass
         self.acceptance_closes: int = self.contract.functions.acceptanceCloses().call()
         self.timeout: int = self.contract.functions.timeout().call()

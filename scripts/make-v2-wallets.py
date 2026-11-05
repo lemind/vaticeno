@@ -1,6 +1,6 @@
 """Create one network's escrow v2 wallets (003 T378, docs/decisions/007-escrow-v2.md): deployer, oracle, guardian, fee.
 
-    .venv/bin/python scripts/make-v2-wallets.py 84532|421614|8453|42161
+    .venv/bin/python scripts/make-v2-wallets.py 84532|421614|8453|42161|42161-usdt
 
 Each key is written to ~/.vaticeno-keys/<chain id>/<role>.key, readable by its owner alone, and never printed: only
 the addresses are. An existing key is never overwritten. On a mainnet these hold real money or real power: back
@@ -15,7 +15,8 @@ from pathlib import Path
 
 from eth_account import Account
 
-NETWORKS = {"84532": "Base Sepolia", "421614": "Arbitrum Sepolia", "8453": "Base", "42161": "Arbitrum One"}
+NETWORKS = {"84532": "Base Sepolia", "421614": "Arbitrum Sepolia", "8453": "Base", "42161": "Arbitrum One",
+            "42161-usdt": "Arbitrum One, USDT0"}
 ROLES = (
     ("deployer", "pays gas for the deploy; no power after it"),
     ("oracle", "the server's key: records verdicts; needs a little ETH for gas"),

@@ -240,6 +240,38 @@ export function layout(
           .scroll {
             overflow-x: auto;
           }
+          .networks .seg {
+            display: inline-flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            padding: 4px;
+            border: 1px solid var(--line);
+            border-radius: 999px;
+          }
+          .networks .seg a,
+          .networks .seg .on {
+            padding: 6px 14px;
+            border-radius: 999px;
+            font-size: 0.92rem;
+            text-decoration: none;
+            white-space: nowrap;
+          }
+          .networks .seg a {
+            color: var(--muted);
+          }
+          .networks .seg a:hover {
+            color: var(--fg);
+            background: color-mix(in srgb, var(--line) 60%, transparent);
+          }
+          .networks .seg .on {
+            background: var(--fg);
+            color: var(--bg);
+            font-weight: 600;
+          }
+          .networks p {
+            margin: 6px 0 0;
+            font-size: 0.85rem;
+          }
           .notice {
             border: 1px solid var(--line);
             border-radius: 8px;

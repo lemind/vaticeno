@@ -73,7 +73,7 @@ export function buildServer(deps: {
         request.params.slug,
         now(),
         deps.wager ?? [],
-        Number(request.query.network) || undefined,
+        request.query.network || undefined,
       );
       return page
         ? reply

@@ -128,7 +128,7 @@ touches it.
 |---|---|---|
 | id | uuid PK | |
 | claim_id | uuid NOT NULL → claims | UNIQUE (claim_id, network): one row per claim per network; the unique key is what stops a replay creating a second one |
-| network | text NOT NULL | chain id as text, e.g. `84532` (Base Sepolia), `8453` (Base), `42161` (Arbitrum One); added by 0023 with Base Sepolia as the existing rows' value |
+| network | text NOT NULL | the market: chain id as text, e.g. `84532` (Base Sepolia), `8453` (Base), `42161` (Arbitrum One), or `42161-usdt` for USDT0 on Arbitrum One (0025); added by 0023 with Base Sepolia as the existing rows' value |
 | claim_hash | text null | keccak-256 of the slug, written by the worker — the one place it is computed |
 | open_authorization | text null | the oracle's EIP-712 signature letting anyone open a stake on this claim; set once by the worker |
 | authorized_until | timestamptz null | when acceptance closes, 24 hours before the deadline; the signature holds until then |
@@ -165,7 +165,7 @@ status page never reads a chain itself (FR-003).
 
 | Column | Type | Notes |
 |---|---|---|
-| network | text PK | chain id as text, as in `settlement_outbox` |
+| network | text PK | the market, as in `settlement_outbox` |
 | oracle_gas_wei | numeric NOT NULL | the oracle address's native balance |
 | escrow_usdc | numeric NOT NULL | the escrow's USDC balance, in base units (6 decimals) |
 | owed_usdc | numeric NOT NULL | everything it owes: open offers, matched stakes, credited balances not yet withdrawn |
@@ -281,7 +281,8 @@ authenticated roles stay with no policy at all, so the public API still sees not
 | `drizzle/0021_wager_replies.sql` | `wager_replies` with its unique key and CHECK, RLS on with no policy |
 | `drizzle/0022_verifier.sql` | `verifier_shadow` with its append-only trigger and policy, `outcome_confirmations` with RLS and its `status_ro` policy, the two `resolutions` columns |
 | `drizzle/0023_networks.sql` | Stage 4: `settlement_outbox.network` with the unique key widened to (claim_id, network); `network_health` with RLS and its `settle_rw` and `status_ro` policies |
-| `drizzle/0025_wallet_links.sql` | `wallet_links` and `wallet_link_challenges`, the partial unique index on an active address |
+| `drizzle/0025_market_keys.sql` | Stage 4: `network` in `settlement_outbox` and `network_health` also takes `<chain id>-usdt`, a USDT0 market beside the network's USDC one |
+| `drizzle/0026_wallet_links.sql` | `wallet_links` and `wallet_link_challenges`, the partial unique index on an active address |
 
 Numbered in deploy order, not in the order the tables were designed: Stage 2 ships before Stage 3, so the
 settlement migrations come first and the verifier's cannot be dragged in by a Stage 2 deployment. The

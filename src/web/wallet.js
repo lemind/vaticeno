@@ -100,7 +100,7 @@ async function loadChain() {
   const n = (name) => (read[name] === undefined ? null : decodeUint(read[name]));
   const ids = read.ids ? decodeUintArray(read.ids) : [];
   const decimals = Number(n('decimals'));
-  const symbol = decodeString(read.symbol);
+  const symbol = data.symbol ?? decodeString(read.symbol);
   const newest = ids.slice(-SHOWN).reverse();
   const raw = newest.length ? await readAll(newest.map((id) => [data.escrow, encodeStakeCall('stakes', id)])) : [];
   const [paused, maxStake, feeBps, settlementWindow, timeout, offerLifetime] = terms.map(n);
@@ -139,7 +139,7 @@ async function refresh() {
   renderTerms();
   renderWagers();
   renderOfferForm();
-  if (account) $('balance').textContent = `${short(account)} · ${units(chain.balance)}`;
+  if (account) $('balance').textContent = `${short(account)} · ${units(chain.balance)} on ${data.chainName}`;
   renderWithdraw();
   if (busy) setBusy(true); // a redraw mid-action draws fresh buttons: they stay locked too
 }

@@ -166,14 +166,18 @@ export function alreadyRecordedReply(existingSlug: string): string {
 }
 
 // The one reply allowed a link (constitution VI 2.8.0, 003 FR-039): our own domain, plain text, once a claim.
-// `networks`: their names when real money is on; none means every network is a testnet (Story 6 scenario 5).
+// `markets`: the real-money ones open, each a network and its token; none means every network is a testnet
+// (Story 6 scenario 5). One line per token: "USDC on Base or Arbitrum One; USDT on Arbitrum One."
 export function wagerLinkReply(
   host: string,
   slug: string,
-  networks: readonly string[] = [],
+  markets: readonly { name: string; symbol: string }[] = [],
 ): string {
-  const terms = networks.length
-    ? `USDC on ${networks.join(' or ')}.`
+  const bySymbol = new Map<string, string[]>();
+  for (const m of markets)
+    bySymbol.set(m.symbol, [...(bySymbol.get(m.symbol) ?? []), m.name]);
+  const terms = markets.length
+    ? `${[...bySymbol].map(([symbol, names]) => `${symbol} on ${names.join(' or ')}`).join('; ')}.`
     : 'Testnet only: the token has no value.';
   return assertReplyFits(
     `WAGER · #${slug}\nOffer a side or take one, with your own wallet:\n${host}/claim/${slug}/wager\n${terms}`,
