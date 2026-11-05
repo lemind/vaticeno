@@ -29,7 +29,7 @@ from settle.chain import Escrow, claim_hash  # noqa: E402
 from settle.worker import run_once  # noqa: E402
 
 RPC = os.environ.get("BASE_SEPOLIA_RPC_URL", "https://sepolia.base.org")
-CHAIN_ID = 84532
+CHAIN_ID = int(os.environ.get("CHAIN_ID", "84532"))  # 421614 for Arbitrum Sepolia (scripts/e2e-v2.sh)
 KEYS = Path.home() / ".vaticeno-keys"
 STAKE = 10 * 10**18
 GAS_FLOAT = Web3.to_wei(0.00003, "ether")
@@ -170,7 +170,7 @@ def final_verdict(owner, claim: dict, outcome: str) -> None:
 def main() -> None:
     escrow_address, token_address = sys.argv[1], sys.argv[2]
     w3 = Web3(Web3.HTTPProvider(RPC))
-    assert w3.eth.chain_id == CHAIN_ID, "not Base Sepolia"
+    assert w3.eth.chain_id == CHAIN_ID, f"not chain {CHAIN_ID}"
     deployer, oracle, maker, taker = key("deployer"), key("oracle"), key("e2e-maker"), key("e2e-taker")
     sender = Sender(w3)
     escrow = w3.eth.contract(address=escrow_address, abi=ESCROW_ABI)

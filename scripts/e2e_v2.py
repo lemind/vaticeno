@@ -1,11 +1,11 @@
-"""End to end for escrow v2 on Base Sepolia (003 T373): four wagers on a minutes-scale throwaway deployment, settled
-by the real worker code against the local database, every exit taken out with `withdraw()`.
+"""End to end for escrow v2 on Base or Arbitrum Sepolia (003 T373): four wagers on a minutes-scale throwaway
+deployment, settled by the real worker code against the local database, every exit taken out with `withdraw()`.
 
 Nobody presses anything: the worker returns D's untaken offer, settles A and B, pays A out after the hold and
 refunds C at the timeout, every payment straight to a wallet. While the token freezes the maker, the maker's money
 waits as a credit and the taker is paid as usual (SC-025); unfrozen, the maker withdraws it.
 
-    scripts/e2e-v2.sh        # deploys the throwaway contracts, then runs this (about 35 minutes)
+    scripts/e2e-v2.sh [421614]   # deploys the throwaway contracts, then runs this (about 35 minutes)
 """
 
 from __future__ import annotations
@@ -46,7 +46,7 @@ RPC = os.environ.get("RPC_URL", "https://sepolia.base.org")
 KEYS = Path.home() / ".vaticeno-keys" / str(CHAIN_ID)
 USDC = 10**6
 STAKE = 10 * USDC
-GAS_FLOAT = Web3.to_wei(0.000012, "ether")  # a top-up when under half: ~25 transactions at 0.006 gwei, measured
+GAS_FLOAT = Web3.to_wei(0.00005, "ether")  # a top-up when under half: ~25 transactions at Arbitrum Sepolia's 0.02 gwei
 
 TOKEN_ABI = [
     {"type": "function", "name": f, "stateMutability": "nonpayable", "outputs": [],
@@ -93,7 +93,7 @@ def key(role: str) -> Account:
 def main() -> None:
     escrow_address, token_address = sys.argv[1], sys.argv[2]
     w3 = Web3(Web3.HTTPProvider(RPC))
-    assert w3.eth.chain_id == CHAIN_ID, "not Base Sepolia"
+    assert w3.eth.chain_id == CHAIN_ID, f"not chain {CHAIN_ID}"
     deployer, oracle, maker, taker = key("deployer"), key("oracle"), key("e2e-maker"), key("e2e-taker")
     sender = Sender(w3)
     escrow = w3.eth.contract(address=escrow_address, abi=ESCROW_ABI)

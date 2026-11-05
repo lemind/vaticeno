@@ -90,7 +90,8 @@ export async function homePage(
       <p>
         Put money on a recorded prediction. Reply <code>@${handle} wager</code> in
         its thread and you get a link to its wager page: pick HIT or MISS, stake USDC
-        on Base from your own wallet, and anyone can take the other side.
+        on Base or Arbitrum One from your own wallet, and anyone can take the other
+        side.
       </p>
       <ul>
         <li>The verdict settles it; the winner gets both stakes. No fee.</li>
@@ -102,9 +103,9 @@ export async function homePage(
           sooner, and its stake goes back to its maker.
         </li>
         <li>
-          The money sits in a public contract on Base, never with us; the winner is
-          paid after a 3-day hold, during which a wrong verdict can still be voided
-          and both sides refunded.
+          The money sits in a public contract on that network, never with us; the
+          winner is paid after a 3-day hold, during which a wrong verdict can still
+          be voided and both sides refunded.
         </li>
       </ul>
 
