@@ -119,7 +119,8 @@ export async function wagerPage(
             )}
           </div>
           <p class="muted">
-            Offers on one network are matched and settled on that network only.
+            Each market is its own: an offer is matched and settled only where it was
+            made.
           </p>
         </nav>`
       : '';

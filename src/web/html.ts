@@ -246,7 +246,7 @@ export function layout(
             gap: 4px;
             padding: 4px;
             border: 1px solid var(--line);
-            border-radius: 999px;
+            border-radius: 21px;
           }
           .networks .seg a,
           .networks .seg .on {
