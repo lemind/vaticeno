@@ -52,6 +52,7 @@ def run_once(conn: psycopg.Connection, escrow: Escrow, now: datetime, sign: bool
     run = Run()
     if sign:
         sign_authorizations(conn, escrow, now, run)
+    record_matched(conn, escrow)
     settle_confirmed(conn, escrow, now, run)
     finish_stakes(conn, escrow, run)
     return run
@@ -87,6 +88,24 @@ def finish_stakes(conn: psycopg.Connection, escrow: Escrow, run: Run) -> None:
             run.finished += 1
             run.tx_references.append(tx)
             log.info("settle.finished slug=%s stake=%s action=%s tx=%s", row["slug"], stake.id, action, tx)
+
+
+def record_matched(conn: psycopg.Connection, escrow: Escrow) -> None:
+    """Once a claim's deadline has passed no stake can be added, so whether any was matched is final: written for
+    Node, which pays for a second read of the verdict only when one was (0026). Never signed: nothing to match."""
+    now = escrow.chain_time()
+    rows = _rows(conn, """
+        select o.id, o.claim_hash, c.slug from settlement_outbox o join claims c on c.id = o.claim_id
+        where o.network = %s and o.state = 'open' and o.matched is null
+          and c.deadline_at <= to_timestamp(%s)
+    """, (escrow.network, now))
+    for row in rows:
+        matched = row["claim_hash"] is not None and any(
+            stake.state == "Matched" or stake.state in SETTLED_STATES
+            for stake in escrow.stakes_of(claim_hash(row["slug"])))
+        _execute(conn, "update settlement_outbox set matched = %s where id = %s and matched is null",
+                 (matched, row["id"]))
+        log.info("settle.matched slug=%s matched=%s", row["slug"], matched)
 
 
 def sign_authorizations(conn: psycopg.Connection, escrow: Escrow, now: datetime, run: Run) -> None:

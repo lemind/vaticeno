@@ -476,6 +476,9 @@ export const settlementOutbox = pgTable(
     lastError: text('last_error'),
     createdAt: utc('created_at').notNull().defaultNow(),
     sentAt: utc('sent_at'),
+    // Any stake on the claim matched, read from the chain by the worker once the deadline passed (0026):
+    // null until then. Node pays for a second read of the verdict only when it is true.
+    matched: boolean('matched'),
   },
   (t) => [
     check(

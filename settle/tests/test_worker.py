@@ -300,6 +300,28 @@ def _matched_stake(chain, db, claim):
     return stake_id
 
 
+def test_after_the_deadline_it_records_whether_any_stake_was_matched(chain, db):
+    w3, escrow = chain["w3"], chain["escrow"]
+    deadline = _chain_now(w3) + 3 * DAY
+    staked, offered = _locked_claim(db["owner"], deadline), _locked_claim(db["owner"], deadline)
+    _matched_stake(chain, db, staked)
+    row = _row(db["owner"], offered)
+    _send(w3, MAKER, escrow.functions.open(
+        claim_hash(offered["slug"]), deadline, int(row["authorized_until"].timestamp()),
+        bytes.fromhex(row["open_authorization"][2:]), True, AMOUNT))
+    unsigned = _locked_claim(db["owner"], deadline)
+    db["owner"].execute("update settlement_outbox set claim_hash = null, open_authorization = null, "
+                        "authorized_until = null where claim_id = %s", (unsigned["id"],))
+    matched = lambda c: db["owner"].execute(  # noqa: E731
+        "select matched from settlement_outbox where claim_id = %s", (c["id"],)).fetchone()[0]
+
+    run_once(db["worker"], chain["client"], _now(w3), sign=False)
+    assert [matched(c) for c in (staked, offered, unsigned)] == [None, None, None], "a stake can still come"
+    _warp_to(w3, deadline + 60)
+    run_once(db["worker"], chain["client"], _now(w3), sign=False)
+    assert [matched(c) for c in (staked, offered, unsigned)] == [True, False, False]
+
+
 def test_a_chain_error_on_one_claim_never_stops_the_others(chain, db, monkeypatch):
     w3 = chain["w3"]
     first = _locked_claim(db["owner"], _chain_now(w3) + 3 * DAY)

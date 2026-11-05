@@ -102,7 +102,8 @@ async function dueDraft(resolutionMethod: 'price_feed' | 'model') {
 }
 
 // A price claim already locked with its outbox row, as T331a leaves it.
-async function lockedWithRow() {
+// `matched`: what the worker read from the chain after the deadline (0026); a stake taken unless a test says not.
+async function lockedWithRow(matched: boolean | null = true) {
   const claim = await insertClaim(t.sql, 'locked', {
     contract: JSON.stringify({ ...VALID_CONTRACT, deadline_at: DEADLINE }),
     resolution_method: 'price_feed',
@@ -110,7 +111,7 @@ async function lockedWithRow() {
     lock_at: LOCK,
     next_check_at: DEADLINE,
   });
-  await t.sql`insert into settlement_outbox ${t.sql({ claim_id: claim.id, network: '84532' })}`;
+  await t.sql`insert into settlement_outbox ${t.sql({ claim_id: claim.id, network: '84532', matched })}`;
   return claim;
 }
 
@@ -179,6 +180,33 @@ describe('when a verdict may move a stake (T332, T332a, T336)', () => {
     assert.equal(reads.candles, 1, 'the price was read again');
     const row = await outbox(claim.id);
     assert.deepEqual([row!.state, row!.outcome], ['pending', 'hit']);
+  });
+
+  test('with no stake matched, the verdict goes to the worker without paying for a second read', async () => {
+    const claim = await lockedWithRow(false);
+    await resolveDueClaims(resolverDeps(ABOVE).deps, AFTER);
+    const { deps, reads } = resolverDeps(BELOW); // a second read would disagree: it must not happen
+    assert.deepEqual(await confirmStakedVerdicts(deps, NEXT_HOUR), {
+      confirmed: 1,
+      held: 0,
+      skipped: 0,
+    });
+    assert.equal(reads.candles, 0, 'nothing read again');
+    const row = await outbox(claim.id);
+    assert.deepEqual([row!.state, row!.outcome], ['pending', 'hit']);
+  });
+
+  test('before the worker has read the chain, the row waits and nothing is read again', async () => {
+    const claim = await lockedWithRow(null);
+    await resolveDueClaims(resolverDeps(ABOVE).deps, AFTER);
+    const { deps, reads } = resolverDeps(ABOVE);
+    assert.deepEqual(await confirmStakedVerdicts(deps, NEXT_HOUR), {
+      confirmed: 0,
+      held: 0,
+      skipped: 1,
+    });
+    assert.equal(reads.candles, 0);
+    assert.equal((await outbox(claim.id))!.state, 'open');
   });
 
   test('a second read that disagrees holds the row: nothing settles, and the timeout refunds', async () => {

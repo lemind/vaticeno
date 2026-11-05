@@ -153,7 +153,9 @@ export async function wagerPage(
         >
       </dd>
       <dt>Decided by</dt>
-      <dd>${contract.source.name}, daily UTC close</dd>
+      <dd>
+        ${contract.source.name}${contract.resolution_method === 'price_feed' ? ', daily UTC close' : ''}
+      </dd>
       <dt>Deadline</dt>
       <dd>${utc(deadline)}</dd>
       <dt>Wagering closes</dt>
