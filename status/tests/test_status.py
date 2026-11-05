@@ -166,6 +166,8 @@ def test_a_network_short_of_what_it_owes_or_unread_degrades_the_page(client):
                             read_at=NOW - timedelta(minutes=1))
     page = client(replace(snapshot(HEALTHY), networks=[healthy])).get("/").text
     assert "2000.00 / 2000.00 USDC" in page and "0.00500 ETH" in page
+    usdt = client(replace(snapshot(HEALTHY), networks=[replace(healthy, network="42161-usdt")])).get("/").text
+    assert "chain 42161-usdt" in usdt and "2000.00 / 2000.00 USDT" in usdt
     assert client(replace(snapshot(HEALTHY), networks=[healthy])).get("/status.json").json()["state"] == "OK"
     short = replace(healthy, escrow_usdc=1_999_000_000)
     unread = replace(healthy, network="42161", read_at=NOW - timedelta(minutes=6))
