@@ -89,13 +89,13 @@ done by the owner in the X app; their drafts live in `specs/005-x-growth/content
   F1, horse racing, cricket, baseball, combat sports, golf) and 8 others (crypto, central banks, economic data,
   earnings, politics, tech, space, awards), each with its season and official sources; all weighted alike (owner,
   2026-11-06). `drawTopic` and `npm run content:topic [-- --last <id>]`: random, in season, never the last.
-- [ ] T516 [US3a] `src/llm/instructions/event.v1.md` + `src/content/event-find.ts`: one grounded model call per
+- [x] T516 [US3a] `src/llm/instructions/event.v1.md` + `src/content/event-find.ts`: one grounded model call per
   topic — the nearest major scheduled event 3–10 days ahead: name, date (UTC day), place, 2–4 page URLs. Zod schema;
   a malformed answer is no event.
-- [ ] T517 [US3a] `src/content/event-check.ts`: read each URL with the existing page reader; accept only when two
+- [x] T517 [US3a] `src/content/event-check.ts`: read each URL with the existing page reader; accept only when two
   pages on different sites both contain the event's name and its date (any common date form). Pure check over
   page text, which is never stored.
-- [ ] T517a [US3a] `src/content/event-post.ts`: the template (event · scheduled for · date · place, plus one of a
+- [x] T517a [US3a] `src/content/event-post.ts`: the template (event · scheduled for · date · place, plus one of a
   few fixed closing lines), the usual own-feed text checks, and `src/content/event-run.ts`: free slot → up to three
   topics → post once, kind `event` with payload {topic, name, date} (migration in T509); the next run's last topic is the latest event post's, never the same event twice,
   costs logged, dry run respected. Scheduled Tue–Thu after the queue run.
@@ -103,7 +103,7 @@ done by the owner in the X app; their drafts live in `specs/005-x-growth/content
   prompt per sport (abstract, no text, no logos, no "Vaticeno"), cost logged; X media upload in `src/x/client.ts`;
   `media.write` added to `OAUTH_SCOPES` and the owner logs the bot in once more (`poc:auth`, as the vaticeno
   user). A failed image or upload posts the text alone.
-- [ ] T517b [US3a] Tests: two agreeing pages post; one page, or disagreeing dates, do not; three failed topics post
+- [x] T517b [US3a] Tests: two agreeing pages post; one page, or disagreeing dates, do not; three failed topics post
   nothing; a repeat event is skipped; the text never carries a link, a handle or a hashtag.
 - [ ] T518 [US3] **[owner]** Record at least two predictions a week through the bot; after each lock or verdict,
   write its post ("CALL · recorded on Vaticeno"), misses included, and queue it.

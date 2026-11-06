@@ -12,11 +12,15 @@ import {
 import { accessToken } from '../bot/wire.js';
 import type { ContentDeps } from './pool-run.js';
 import type { QuoteDeps } from './quote.js';
+import type { PageFetcher } from '../resolve/fetch.js';
 
 export function buildContentDeps(
-  quoteDeps: QuoteDeps,
+  quoteDeps: QuoteDeps & { fetchPage: PageFetcher },
   core: CoreConfig,
-): ContentDeps & { postText: (text: string) => Promise<{ id: string }> } {
+): ContentDeps & {
+  postText: (text: string) => Promise<{ id: string }>;
+  fetchPage: PageFetcher;
+} {
   const config = loadConfig();
   if (!config.X_BOT_USER_ID)
     throw new Error('X_BOT_USER_ID is missing. Run `npm run poc:whoami` first.');
@@ -66,5 +70,6 @@ export function buildContentDeps(
     dailyUsdCap: core.FEED_DAILY_USD_CAP,
     platformAccountId: core.FEED_PLATFORM_ACCOUNT_ID,
     showAuthorIds: core.FEED_SHOW_AUTHOR_IDS,
+    fetchPage: quoteDeps.fetchPage,
   };
 }

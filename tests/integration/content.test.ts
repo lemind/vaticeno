@@ -15,6 +15,7 @@ import {
 } from '../../src/content/slots.js';
 import { runPoolPost, type ContentDeps } from '../../src/content/pool-run.js';
 import { runDigest } from '../../src/content/record-run.js';
+import { type EventDeps, runEventPost } from '../../src/content/event-run.js';
 import {
   runOriginalPost,
   type OriginalDeps,
@@ -707,4 +708,83 @@ test('the Monday digest: one a day, its slugs kept, and a dry run reserves nothi
   const [row] =
     await t.sql`select kind, payload from feed_posts where kind = 'digest'`;
   assert.deepEqual(row!.payload, { slugs: [claim.slug] });
+});
+
+// Spec 005 US3a: the bot's event post, with the search and the pages stubbed.
+function eventDeps(
+  answer: Record<string, unknown>,
+  pages: Record<string, string>,
+  over: Partial<EventDeps> = {},
+): EventDeps & { searches: number[] } {
+  const searches: number[] = [];
+  const deps = {
+    ...originalDeps(),
+    llm: {
+      groundedAnswer: async () => {
+        searches.push(1);
+        return { text: JSON.stringify(answer), urls: Object.keys(pages), costs: [] };
+      },
+    },
+    fetchPage: async (url: string) => {
+      if (!(url in pages)) throw new Error('unreadable');
+      return { url, text: pages[url]! };
+    },
+    searches,
+    ...over,
+  };
+  return deps as unknown as EventDeps & { searches: number[] };
+}
+
+const TUESDAY = new Date('2026-11-03T15:11:00Z');
+const FOUND = {
+  found: true,
+  name: 'Crystal Palace vs Liverpool',
+  date: '2026-11-08',
+  place: 'Selhurst Park, London',
+};
+const TWO_SITES = {
+  'https://www.bbc.co.uk/a': 'Crystal Palace v Liverpool, Sunday 8 November',
+  'https://www.skysports.com/b': 'Crystal Palace vs Liverpool on Nov 8',
+};
+
+test('an event two sites confirm posts once from the template, and never again', async () => {
+  const sent: string[] = [];
+  const deps = eventDeps(FOUND, TWO_SITES, {
+    postText: async (text: string) => {
+      sent.push(text);
+      return { id: `ev${sent.length}` };
+    },
+  } as Partial<EventDeps>);
+  assert.equal((await runEventPost(deps, TUESDAY, () => 0)).done, 'posted');
+  assert.match(
+    sent[0]!,
+    /^Crystal Palace vs Liverpool is scheduled for Sun 8 Nov at Selhurst Park, London\./,
+  );
+  const [row] = await t.sql`select payload from feed_posts where kind = 'event'`;
+  assert.equal((row!.payload as { name: string }).name, FOUND.name);
+  // Wednesday: the same event is skipped, and the slot of the day is free.
+  assert.equal(
+    (await runEventPost(deps, new Date('2026-11-04T15:11:00Z'), () => 0)).done,
+    'no_event',
+  );
+  assert.equal(sent.length, 1);
+});
+
+test('one site, a date outside the window, or no event: nothing is posted after three topics', async () => {
+  const oneSite = eventDeps(FOUND, {
+    'https://www.bbc.co.uk/a': TWO_SITES['https://www.bbc.co.uk/a'],
+  });
+  assert.equal((await runEventPost(oneSite, TUESDAY, () => 0)).done, 'no_event');
+  assert.equal(oneSite.searches.length, 3, 'three topics, then the day is skipped');
+  const tooFar = eventDeps({ ...FOUND, date: '2026-11-30' }, TWO_SITES);
+  assert.equal((await runEventPost(tooFar, TUESDAY, () => 0)).done, 'no_event');
+  const none = eventDeps({ found: false }, {});
+  assert.equal((await runEventPost(none, TUESDAY, () => 0)).done, 'no_event');
+});
+
+test('a day whose own-post slot is taken costs no search', async () => {
+  await t.sql`insert into feed_posts ${t.sql({ kind: 'original', day: '2026-11-03', slot: 1, status: 'posted', posted_id: 'q1', queue_item_id: (await t.sql`insert into feed_queue ${t.sql({ text: 'Q', position: 1 })} returning id`)[0]!.id })}`;
+  const deps = eventDeps(FOUND, TWO_SITES);
+  assert.equal((await runEventPost(deps, TUESDAY, () => 0)).done, 'slot_taken');
+  assert.equal(deps.searches.length, 0);
 });
