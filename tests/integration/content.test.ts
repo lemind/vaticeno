@@ -14,6 +14,7 @@ import {
   utcDay,
 } from '../../src/content/slots.js';
 import { runPoolPost, type ContentDeps } from '../../src/content/pool-run.js';
+import { runDigest } from '../../src/content/record-run.js';
 import {
   runOriginalPost,
   type OriginalDeps,
@@ -679,4 +680,31 @@ test('the quiet-week alert: a Friday after two own posts alerts, after three it 
       'feed.quiet_week',
     ),
   );
+});
+
+test('the Monday digest: one a day, its slugs kept, and a dry run reserves nothing', async () => {
+  const monday = new Date('2027-01-04T08:17:00Z');
+  const claim = await insertClaim(t.sql, 'locked', {
+    deadline_at: '2027-01-07T23:59:59Z',
+  });
+  const sent: string[] = [];
+  const dry = originalDeps({ dryRun: true });
+  assert.equal((await runDigest(dry, monday)).done, 'logged');
+  assert.equal((await t.sql`select count(*)::int as n from feed_posts`)[0]!.n, 0);
+  const deps = originalDeps({
+    postText: async (text) => {
+      sent.push(text);
+      return { id: `d${sent.length}` };
+    },
+  });
+  assert.equal((await runDigest(deps, monday)).done, 'posted');
+  assert.match(sent[0]!, new RegExp(`#${claim.slug} · 7 Jan`));
+  assert.equal(
+    (await runDigest(deps, monday)).done,
+    'nothing_new',
+    'a slug is named once a week',
+  );
+  const [row] =
+    await t.sql`select kind, payload from feed_posts where kind = 'digest'`;
+  assert.deepEqual(row!.payload, { slugs: [claim.slug] });
 });

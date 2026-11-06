@@ -5,7 +5,8 @@ import type { Db } from '../db/client.js';
 import { FEED_COST_OPERATIONS, costEvents, feedPosts } from '../db/schema.js';
 import { PostNotSent } from '../x/client.js';
 
-export type FeedKind = 'repost' | 'quote' | 'original' | 'receipt';
+export type FeedKind =
+  'repost' | 'quote' | 'original' | 'receipt' | 'digest' | 'record' | 'event';
 
 export type Reservation = {
   kind: FeedKind;
@@ -13,6 +14,7 @@ export type Reservation = {
   sourcePostId?: string; // the post we repost, quote, or the verdict reply a receipt quotes
   accountId?: string; // the pool account (pool kinds only)
   queueItemId?: string; // the owner's queue item (originals only)
+  payload?: unknown; // our own derived data: a digest's slugs, a record's counts, an event (005 FR-022)
 };
 
 // Daily caps per cap group (reposts and quote posts share the pool group).
@@ -48,6 +50,7 @@ export async function reserveSlot(
         sourcePostId: reservation.sourcePostId ?? null,
         accountId: reservation.accountId ?? null,
         queueItemId: reservation.queueItemId ?? null,
+        payload: reservation.payload ?? null,
       })
       .onConflictDoNothing()
       .returning({ id: feedPosts.id, slot: feedPosts.slot });

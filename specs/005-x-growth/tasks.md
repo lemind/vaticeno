@@ -77,7 +77,7 @@ done by the owner in the X app; their drafts live in `specs/005-x-growth/content
 
 ## Phase 4: The week's record (US4)
 
-- [ ] T515 [US4] Build spec 002 T050–T055 as written there (deadline digest Monday morning, record counts Friday
+- [x] T515 [US4] Build spec 002 T050–T055 as written there (deadline digest Monday morning, record counts Friday
   afternoon), with no migration of their own (their kinds and `payload` are in 0027); both take the day's original slot (T509);
   002 FR-012a's money filter is not built (constitution VI: set aside for now). Mark them done in `specs/002-content-feed/tasks.md`.
 

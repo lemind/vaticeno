@@ -180,7 +180,7 @@ async function alertQuietWeek(deps: OriginalDeps, now: Date): Promise<void> {
       and(
         eq(feedPosts.status, 'posted'),
         inArray(feedPosts.kind, ['original', 'digest', 'record', 'event']),
-        gte(feedPosts.createdAt, since),
+        gte(feedPosts.day, utcDay(since)),
       ),
     );
   const posted = row?.n ?? 0;
