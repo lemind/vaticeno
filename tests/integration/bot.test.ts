@@ -777,11 +777,25 @@ describe('fixes from X', () => {
     const { deps, replies } = await bot([[summon], [fix]], {
       '50': { versionId: '50', text: 'vague BTC to the moon' },
     });
+    const fixing: boolean[] = [];
+    const real = deps.llm.generateJson;
+    deps.llm = {
+      ...deps.llm,
+      generateJson: async (call: Parameters<typeof real>[0]) => {
+        if (call.instructionVersion.startsWith('normalize'))
+          fixing.push(
+            (JSON.parse(call.input) as { fixing?: boolean }).fixing ?? false,
+          );
+        return real(call);
+      },
+    } as typeof deps.llm;
     await pollMentions(deps, NOW);
     assert.match(replies[0]!.text, /^NOT RECORDED/);
     await pollMentions(deps, new Date(NOW.getTime() + 60_000));
     assert.match(replies[1]!.text, /^RECORDED/);
     assert.equal((await t.sql`select status from claims`)[0]!.status, 'draft');
+    // normalize.v6: a new post is judged on its own words; a fix may complete the author's own claim
+    assert.deepEqual([fixing[0], fixing.at(-1)], [false, true], String(fixing));
   });
 
   test('a thread inside an older thread: replies under each bot answer fix the claim', async () => {

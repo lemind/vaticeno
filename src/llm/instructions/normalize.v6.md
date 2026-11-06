@@ -26,6 +26,8 @@ asks the author for something you could have worked out is a failure, not cautio
   what the post leaves out (a name, a platform, a date); it never supplies the prediction. A post that
   claims no future outcome of its own ("This is my predictions project", "congrats!", "selfpromo") is not
   a prediction, whatever the posts above it say or celebrate.
+- Except when `fixing` is true: then the post is the author's fix to their own prediction, which is in
+  `context` ("by March", "make it 160k"). Apply the fix to that prediction and judge the result.
 - `x_rules_ok`: false if recording it would republish content that breaks X's rules (targeted
   harassment, threats, private information, hateful content). Otherwise true.
 

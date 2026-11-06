@@ -21,6 +21,8 @@ export async function proposeContract(
   // The posts above this one, oldest first, when the caller already has them: they resolve "she", "it"
   // and a bare name without another paid read (normalize.v4 "Never ask for what you can work out").
   context: readonly string[] = [],
+  // The post fixes the author's own prediction, which `context` holds (normalize.v6 "Decide").
+  fixing = false,
 ): Promise<ProposalResult> {
   const modelId = `${model}/${version}`;
   const costs: CallCost[] = [];
@@ -32,11 +34,13 @@ export async function proposeContract(
         operation: 'normalize',
         system: loadInstruction(version),
         // attempt is part of the input so a retry is a distinct recorded call
-        input: JSON.stringify(
-          context.length > 0
-            ? { today: todayUtc, text, context, attempt }
-            : { today: todayUtc, text, attempt },
-        ),
+        input: JSON.stringify({
+          today: todayUtc,
+          text,
+          ...(context.length > 0 && { context }),
+          ...(fixing && { fixing }),
+          attempt,
+        }),
         schema: ProposalSchema,
       });
       costs.push(...callCosts);

@@ -102,6 +102,7 @@ export async function evaluateClaimText(
   context: readonly string[] = [],
   authorId?: string,
   posted = text, // `text` has its handles stripped for the model; the follower account is named by one
+  fixing = false, // a fix to the author's own claim, which `context` holds
 ): Promise<Evaluation> {
   const proposed = await proposeContract(
     deps.llm,
@@ -110,6 +111,7 @@ export async function evaluateClaimText(
     now.toISOString().slice(0, 10),
     undefined,
     context,
+    fixing,
   );
   costs.push(...proposed.costs);
   if (proposed.kind === 'malformed') {
@@ -381,6 +383,7 @@ export async function amendClaim(
         input.context ?? [],
         input.authorId,
         input.posted,
+        true,
       ),
   );
 
@@ -479,6 +482,7 @@ async function amendDraft(
         input.context ?? [],
         input.authorId,
         input.posted,
+        true,
       ),
   );
   if (decision.outcome !== 'recorded') {
