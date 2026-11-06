@@ -86,8 +86,9 @@ the model may look, so it would save nothing (spec SC-006). It runs as a private
 | `@vaticeno ping` | `pong` |
 | `@vaticeno wager`, replying to the bot's post under a prediction | once per claim: a link to its wager page (USDC or USDT, real money); otherwise why not |
 
-Bare commands and typos (`quote`, `qoute 2`) are matched instantly, with no AI call, also when typed after
-the handle at the end of a longer post (`This is my project. @vaticeno selfpromo`). Anything else unclear
+Bare commands and typos (`quote`, `qoute 2`) are matched instantly, with no AI call. A command word inside
+a longer post (`This is my project. @vaticeno selfpromo`) sends it to the AI first, which reads the thread
+and decides whether it is the command or a prediction. Anything else unclear
 ("quote me something nice", "so?" under a quote, a question) is read by the AI.
 
 **Questions get answered.** If what you wrote is not a prediction — or it is one the bot could not record,

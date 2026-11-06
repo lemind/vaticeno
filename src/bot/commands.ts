@@ -142,17 +142,7 @@ export function resolveCommand(body: string): Command | null {
   return null;
 }
 
-// A bare command typed after the bot's handle further on in a post ("This is my project. @vaticeno selfpromo"):
-// the words after the last handle are read as a whole post would be. #ymjep recorded one as a prediction.
-export function commandAfterHandle(text: string, botHandle: string): Command | null {
-  const handles = [...text.matchAll(new RegExp(`@${botHandle}\\b`, 'gi'))];
-  const last = handles.at(-1);
-  if (!last) return null;
-  const after = text.slice(last.index + last[0].length).replace(/@\w+/g, ' ');
-  return resolveCommand(after);
-}
-
-// The exact command word that starts a longer text, if any: then the model decides what the text means.
+// The exact command word that starts a longer text, or a main one anywhere in it: then the model decides.
 export function commandWordIn(body: string): Command | null {
   const words = body
     .toLowerCase()
@@ -164,7 +154,14 @@ export function commandWordIn(body: string): Command | null {
     words[0] === 'self' && words.length > 1 ? `self${words[1]}` : words[0];
   const command = first ? (ALIASES[first] ?? null) : null;
   // The model has no wager intent: "Wager: BTC above 100k" is a prediction, not a paid detour (review 2026-10-20).
-  return command === 'wager' ? null : command;
+  if (command) return command === 'wager' ? null : command;
+  // A main command word further on ("This is my project. @vaticeno selfpromo"): the model reads the thread and
+  // decides. #ymjep was recorded as a prediction instead (2026-11-06).
+  const later = words.map((w, i) =>
+    w === 'self' && words[i + 1] ? `self${words[i + 1]}` : w,
+  );
+  const named = later.find((w) => ANY_WORDS.has(w));
+  return named ? ALIASES[named]! : null;
 }
 
 // Damerau-Levenshtein (optimal string alignment): a swap of two neighbours ("qoute") counts as one edit.

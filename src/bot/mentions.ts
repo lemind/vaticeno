@@ -10,12 +10,7 @@ import {
 import { amendClaim, type ClaimDeps, submitClaim } from '../lifecycle/claims.js';
 import type { SourceReader } from '../lifecycle/source-reader.js';
 import { log } from '../log.js';
-import {
-  type Command,
-  commandAfterHandle,
-  commandWordIn,
-  resolveCommand,
-} from './commands.js';
+import { type Command, commandWordIn, resolveCommand } from './commands.js';
 import { addressesBot, escapeRegExp } from '../commands/parse.js';
 import { ContractSchema } from '../contract/schema.js';
 import { renderStatement } from '../contract/render.js';
@@ -118,9 +113,7 @@ export async function routeMention(
   if (mention.referenced_tweets?.some((ref) => ref.type === 'retweeted'))
     return { action: 'ignored_repost', reply: null };
   const body = cleanBody(mention.text);
-  // A bare command, matched in code: no model call.
-  const command =
-    resolveCommand(body) ?? commandAfterHandle(mention.text, deps.botHandle);
+  const command = resolveCommand(body); // a bare command, matched in code: no model call
 
   // No mention, no reply (constitution VI, owner decision 2026-10-09). Decided before any spend.
   if (!addressesBot(mention, deps.botHandle, deps.botUserId, weRepliedInThread)) {

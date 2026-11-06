@@ -85,6 +85,11 @@ const llm = {
         text: string;
         thread: Array<{ from: string; text: string }>;
       };
+      if (text.endsWith('selfpromo'))
+        return {
+          data: { intent: 'selfpromo', answer: null, older_posts_would_help: false },
+          costs: [],
+        };
       if (text === 'so?' && thread[0]?.from === 'bot')
         return {
           data: { intent: 'quote', answer: null, older_posts_would_help: false },
@@ -942,7 +947,7 @@ describe('selfpromo and quote', () => {
     assert.match(replies[0]!.text, /Vaticeno[\s\S]*\n\nI predicted this joke/);
   });
 
-  test('a command typed after the handle at the end of a longer post is the command, not a prediction', async () => {
+  test('a command word later in a longer post goes to the model, which reads the thread and decides', async () => {
     // Live 2026-11-06 (#ymjep): recorded as "Bhoomi reaches 1000 followers" from the post above.
     const { deps, replies } = await bot([
       [

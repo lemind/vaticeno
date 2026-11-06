@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { commandAfterHandle, commandWordIn, resolveCommand } from './commands.js';
+import { commandWordIn, resolveCommand } from './commands.js';
 
 test('commands: exact, aliases, small typos and a few extra words; longer text is a prediction', () => {
   const cases: Array<[string, string | null]> = [
@@ -69,6 +69,19 @@ test('a command word followed by real text is a candidate for the model, not a c
   assert.equal(commandWordIn('Quote me: BTC hits 200k by 2027'), 'quote');
   assert.equal(commandWordIn('stop at 90k'), 'stop');
   assert.equal(commandWordIn('BTC above 100k'), null);
+  // a main command word anywhere sends the post to the model first (#ymjep, 2026-11-06)
+  assert.equal(
+    commandWordIn('This is my predictions project. selfpromo'),
+    'selfpromo',
+  );
+  assert.equal(commandWordIn('Great bot, self promo please'), 'selfpromo');
+  assert.equal(commandWordIn('BTC above 100k, quote me on that'), 'quote');
+  assert.equal(commandWordIn('BTC above 100k by Friday, wager on it'), null);
+  assert.equal(
+    commandWordIn('Apple brand tops the chart by May'),
+    null,
+    'short aliases only first',
+  );
 });
 
 test('selfpromo has many names, phrases included; short ones never catch ordinary words by typo', () => {
@@ -95,31 +108,4 @@ test('selfpromo has many names, phrases included; short ones never catch ordinar
   for (const input of ['plus', 'drag', 'flux', 'promote BTC to 100k by Friday'])
     assert.equal(resolveCommand(input), null, input);
   assert.equal(resolveCommand('promte'), 'selfpromo', 'typo of promote');
-});
-
-test('a bare command after the last handle in a longer post is that command; anything more is not', () => {
-  const posted =
-    '@Bhoomi1021 @vaticeno @X This is my predictions project. \n@vaticeno selfpromo';
-  assert.equal(
-    commandAfterHandle(posted, 'vaticeno'),
-    'selfpromo',
-    'live 2026-11-06, #ymjep',
-  );
-  assert.equal(
-    commandAfterHandle('Nice thread @VATICENO help pls', 'vaticeno'),
-    'help',
-  );
-  assert.equal(
-    commandAfterHandle('@vaticeno BTC above 100k by Friday', 'vaticeno'),
-    null,
-  );
-  assert.equal(
-    commandAfterHandle('@vaticeno selfpromo and BTC 100k by Friday', 'vaticeno'),
-    null,
-  );
-  assert.equal(
-    commandAfterHandle('BTC above 100k by Friday @vaticeno', 'vaticeno'),
-    null,
-  );
-  assert.equal(commandAfterHandle('@vaticenofan selfpromo', 'vaticeno'), null);
 });
