@@ -7,13 +7,33 @@ export const MAX_AGE_MS = 48 * 60 * 60 * 1000;
 // want: a few minutes "in the future" still counts as just posted.
 const SKEW_MS = 5 * 60 * 1000;
 
-export function latestEligible(posts: readonly UserPost[], now: Date, usedIds: ReadonlySet<string>): UserPost | null {
+export function latestEligible(
+  posts: readonly UserPost[],
+  now: Date,
+  usedIds: ReadonlySet<string>,
+): UserPost | null {
+  return eligiblePosts(posts, now, usedIds)[0] ?? null;
+}
+
+// Every post we may repost, newest first: the repost policy chooses among them (spec 005 FR-011).
+export function eligiblePosts(
+  posts: readonly UserPost[],
+  now: Date,
+  usedIds: ReadonlySet<string>,
+): UserPost[] {
   const fresh = posts.filter((post) => {
     // No timestamp (X omits fields on withheld posts) means we cannot prove it is recent: skip it.
     if (!post.created_at) return false;
     const age = now.getTime() - new Date(post.created_at).getTime();
-    return Number.isFinite(age) && age >= -SKEW_MS && age <= MAX_AGE_MS && !usedIds.has(post.id);
+    return (
+      Number.isFinite(age) &&
+      age >= -SKEW_MS &&
+      age <= MAX_AGE_MS &&
+      !usedIds.has(post.id)
+    );
   });
   // X returns newest first, but the order is not promised anywhere.
-  return [...fresh].sort((a, b) => Date.parse(b.created_at!) - Date.parse(a.created_at!))[0] ?? null;
+  return [...fresh].sort(
+    (a, b) => Date.parse(b.created_at!) - Date.parse(a.created_at!),
+  );
 }

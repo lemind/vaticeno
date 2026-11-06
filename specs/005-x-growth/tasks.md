@@ -32,7 +32,7 @@ done by the owner in the X app; their drafts live in `specs/005-x-growth/content
 - [x] T504 [P] [US2] Draft `content/profile.md`: bio (what it does, "Automated" label and operator kept,
   vaticeno.n30sk.cc as the only link), pinned post (one full example: prediction → RECORDED → HIT/MISS/VOID, how to
   tag the bot), header note. No promise of accuracy, no wager promotion.
-- [ ] T505 [US2] **[owner]** Apply bio, pinned post and header in the X app.
+- [x] T505 [US2] **[owner]** Apply bio, pinned post and header in the X app.
 - [x] T506 [P] [US5] Research `content/accounts.md`: 35–40 candidates — sports 15, crypto and markets 10, politics
   7, forecasting 8 — ranked within category: name, exact handle, profile URL, audience where visible, why useful.
   From web research only; no paid X lookup. Marked unconfirmed until T507.
@@ -66,7 +66,7 @@ done by the owner in the X app; their drafts live in `specs/005-x-growth/content
   retired and alerted once even after two days down; the digest's slot stops the original that day; stale radar
   held; a Friday after two own posts alerts, after three does not; the guard holds a claim
   whose author is not on the list, at `add` and at post time.
-- [ ] T514 [US3] Curated reposts: `src/llm/instructions/repost.v1.md` (the policy's kinds and exclusions) and a
+- [x] T514 [US3] Curated reposts: `src/llm/instructions/repost.v1.md` (the policy's kinds and exclusions) and a
   lite-model classifier in `src/content/pool-run.ts`: each candidate → kind and fit; repost the best above `none`,
   else one other account, else skip and log. Cadence unchanged (two a day). Costs logged. Test: a `none` for every
   candidate posts nothing; a fit beats a newer `none`.
@@ -99,6 +99,10 @@ done by the owner in the X app; their drafts live in `specs/005-x-growth/content
   few fixed closing lines), the usual own-feed text checks, and `src/content/event-run.ts`: free slot → up to three
   topics → post once, kind `event` with payload {topic, name, date} (migration in T509); the next run's last topic is the latest event post's, never the same event twice,
   costs logged, dry run respected. Scheduled Tue–Thu after the queue run.
+- [ ] T517c [US3a] Event poster (FR-024): `src/content/event-image.ts` — one Gemini 2.5 Flash Image call from a fixed
+  prompt per sport (abstract, no text, no logos, no "Vaticeno"), cost logged; X media upload in `src/x/client.ts`;
+  `media.write` added to `OAUTH_SCOPES` and the owner logs the bot in once more (`poc:auth`, as the vaticeno
+  user). A failed image or upload posts the text alone.
 - [ ] T517b [US3a] Tests: two agreeing pages post; one page, or disagreeing dates, do not; three failed topics post
   nothing; a repeat event is skipped; the text never carries a link, a handle or a hashtag.
 - [ ] T518 [US3] **[owner]** Record at least two predictions a week through the bot; after each lock or verdict,

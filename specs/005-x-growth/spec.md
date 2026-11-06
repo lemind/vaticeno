@@ -269,9 +269,13 @@ best — and changes next week's mix from it.
   derived data, not page text: constitution V).
 - **FR-023**: Every model, search and page read is cost-logged; the feed's daily spend cap covers them. Event posts
   respect `FEED_DRY_RUN`. A wrong post is deleted by hand (`post:delete`).
-- **FR-024**: Images are a later step: a card drawn by code (event, date, place in the site's style), once X media
-  upload is granted (the bot's login lacks `media.write`) and its price measured. No AI images of real people or
-  team marks.
+- **FR-024**: Each event post may carry one AI-generated poster (owner, 2026-11-06; tried with the cheapest model,
+  Gemini 2.5 Flash Image, ≈ $0.039 an image): an abstract picture of the event's sport — a ball, an abstract
+  player, a track, a court — in the sport's or teams' colours. It is a poster for the event, not for Vaticeno: no
+  "Vaticeno" on it. The facts (event, date, place) stay in the post's text, because the model misspells names and
+  draws fake crests (trial 2026-11-06: "LIEVERPOOL", "NOTINGHIAM"); the prompt asks for no text and no logos. No
+  photo-like real person. Needs the bot's X login to gain `media.write` and the upload price measured. A failed
+  image never stops the post: it goes out as text.
 
 - **FR-018**: A weekly review from three sources: X's own dashboard (read by the owner; no paid API read), the
   site report (US1), and the database (claims recorded; distinct authors who tagged the bot, owner excluded).
