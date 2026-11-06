@@ -142,6 +142,16 @@ export function resolveCommand(body: string): Command | null {
   return null;
 }
 
+// A bare command typed after the bot's handle further on in a post ("This is my project. @vaticeno selfpromo"):
+// the words after the last handle are read as a whole post would be. #ymjep recorded one as a prediction.
+export function commandAfterHandle(text: string, botHandle: string): Command | null {
+  const handles = [...text.matchAll(new RegExp(`@${botHandle}\\b`, 'gi'))];
+  const last = handles.at(-1);
+  if (!last) return null;
+  const after = text.slice(last.index + last[0].length).replace(/@\w+/g, ' ');
+  return resolveCommand(after);
+}
+
 // The exact command word that starts a longer text, if any: then the model decides what the text means.
 export function commandWordIn(body: string): Command | null {
   const words = body

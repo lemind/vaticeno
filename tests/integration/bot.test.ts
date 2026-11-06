@@ -942,6 +942,21 @@ describe('selfpromo and quote', () => {
     assert.match(replies[0]!.text, /Vaticeno[\s\S]*\n\nI predicted this joke/);
   });
 
+  test('a command typed after the handle at the end of a longer post is the command, not a prediction', async () => {
+    // Live 2026-11-06 (#ymjep): recorded as "Bhoomi reaches 1000 followers" from the post above.
+    const { deps, replies } = await bot([
+      [
+        mention(
+          '125',
+          '@Bhoomi1021 @vaticeno @X This is my predictions project. \n@vaticeno selfpromo',
+        ),
+      ],
+    ]);
+    await pollMentions(deps, NOW);
+    assert.match(replies[0]!.text, /I predicted this joke/);
+    assert.equal((await t.sql`select count(*)::int as n from claims`)[0]!.n, 0);
+  });
+
   test('a quote is posted with its author; if the source is down it is retried later, not dropped', async () => {
     const found = await bot([[mention('121', '@vaticeno quote 1')]]);
     found.deps.quoteSource = async () => ({

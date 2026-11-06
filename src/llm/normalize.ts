@@ -2,7 +2,7 @@ import { type Proposal, ProposalSchema } from '../contract/proposal.js';
 import { type CallCost, type LlmClient, LlmSchemaError } from './client.js';
 import { loadInstruction } from './instructions.js';
 
-export const NORMALIZE_VERSION = 'normalize.v5';
+export const NORMALIZE_VERSION = 'normalize.v6';
 // The fixture corpus was recorded with v2; it replays with it — no paid re-record.
 export const CORPUS_NORMALIZE_VERSION = 'normalize.v2';
 
@@ -32,7 +32,11 @@ export async function proposeContract(
         operation: 'normalize',
         system: loadInstruction(version),
         // attempt is part of the input so a retry is a distinct recorded call
-        input: JSON.stringify(context.length > 0 ? { today: todayUtc, text, context, attempt } : { today: todayUtc, text, attempt }),
+        input: JSON.stringify(
+          context.length > 0
+            ? { today: todayUtc, text, context, attempt }
+            : { today: todayUtc, text, attempt },
+        ),
         schema: ProposalSchema,
       });
       costs.push(...callCosts);

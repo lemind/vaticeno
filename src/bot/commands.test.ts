@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { commandWordIn, resolveCommand } from './commands.js';
+import { commandAfterHandle, commandWordIn, resolveCommand } from './commands.js';
 
 test('commands: exact, aliases, small typos and a few extra words; longer text is a prediction', () => {
   const cases: Array<[string, string | null]> = [
@@ -95,4 +95,31 @@ test('selfpromo has many names, phrases included; short ones never catch ordinar
   for (const input of ['plus', 'drag', 'flux', 'promote BTC to 100k by Friday'])
     assert.equal(resolveCommand(input), null, input);
   assert.equal(resolveCommand('promte'), 'selfpromo', 'typo of promote');
+});
+
+test('a bare command after the last handle in a longer post is that command; anything more is not', () => {
+  const posted =
+    '@Bhoomi1021 @vaticeno @X This is my predictions project. \n@vaticeno selfpromo';
+  assert.equal(
+    commandAfterHandle(posted, 'vaticeno'),
+    'selfpromo',
+    'live 2026-11-06, #ymjep',
+  );
+  assert.equal(
+    commandAfterHandle('Nice thread @VATICENO help pls', 'vaticeno'),
+    'help',
+  );
+  assert.equal(
+    commandAfterHandle('@vaticeno BTC above 100k by Friday', 'vaticeno'),
+    null,
+  );
+  assert.equal(
+    commandAfterHandle('@vaticeno selfpromo and BTC 100k by Friday', 'vaticeno'),
+    null,
+  );
+  assert.equal(
+    commandAfterHandle('BTC above 100k by Friday @vaticeno', 'vaticeno'),
+    null,
+  );
+  assert.equal(commandAfterHandle('@vaticenofan selfpromo', 'vaticeno'), null);
 });
