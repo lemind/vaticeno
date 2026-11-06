@@ -22,11 +22,14 @@ export function parseCommand(text: string, botHandle: string): ParsedCommand {
   const mentionMatch = mention.exec(text);
   if (!mentionMatch) return { kind: 'none' };
 
-  if (STOP_PATTERN.test(text) || OPT_OUT_PATTERN.test(text)) return { kind: 'opt_out' };
+  if (STOP_PATTERN.test(text) || OPT_OUT_PATTERN.test(text))
+    return { kind: 'opt_out' };
 
   const before = stripLeadingHandles(text.slice(0, mentionMatch.index));
   // Skip further handles X prepends to replies ("@vaticeno @alice ping") before reading the verb.
-  const after = stripLeadingHandles(text.slice(mentionMatch.index + mentionMatch[0].length));
+  const after = stripLeadingHandles(
+    text.slice(mentionMatch.index + mentionMatch[0].length),
+  );
   const afterLower = after.toLowerCase();
 
   if (/^amend\b/.test(afterLower)) {
@@ -36,7 +39,10 @@ export function parseCommand(text: string, botHandle: string): ParsedCommand {
   for (const verb of RECORD_VERBS) {
     if (new RegExp(`^${escapeRegExp(verb)}\\b`).test(afterLower)) {
       const rest = cleanBody(after.slice(verb.length));
-      return { kind: 'record', body: [before, rest].filter(Boolean).join(' ').trim() };
+      return {
+        kind: 'record',
+        body: [before, rest].filter(Boolean).join(' ').trim(),
+      };
     }
   }
 
@@ -60,13 +66,24 @@ export type AddressableMention = {
 
 // Addressed to us, or did we just end up in it? See specs/001-stage0-contract-core/spec.md.
 // HACK(x): OBSERVED 2026-10-08 — v2 marks nothing as a carried handle. REVISIT: drop the body test if it does.
-export function addressesBot(mention: AddressableMention, botHandle: string, botUserId: string, weRepliedInThread: boolean): boolean {
-  if (!mention.referenced_tweets?.some((ref) => ref.type === 'replied_to')) return true; // its own post, naming us
+export function addressesBot(
+  mention: AddressableMention,
+  botHandle: string,
+  botUserId: string,
+  weRepliedInThread: boolean,
+): boolean {
+  if (!mention.referenced_tweets?.some((ref) => ref.type === 'replied_to'))
+    return true; // its own post, naming us
   if (mention.in_reply_to_user_id === botUserId) return true; // answering us: a fix, or a question
   if (mention.in_reply_to_user_id === mention.author_id) return true; // "@vaticeno" under their own post
   if (!weRepliedInThread) return true; // tagged into someone else's thread: deliberate, nothing to carry
   // We are in this thread, and they are talking to someone else: only their own words can summon us.
-  return new RegExp(`@${escapeRegExp(botHandle)}\\b`, 'i').test(stripLeadingHandles(mention.text));
+  const handle = `@${escapeRegExp(botHandle)}\\b`;
+  if (new RegExp(handle, 'i').test(stripLeadingHandles(mention.text))) return true;
+  // HACK(x): OBSERVED 2026-11-06 — X lists each handle once in a reply's prefix, so ours twice there means one was
+  // typed ("@alice @vaticeno @vaticeno help" went unanswered). REVISIT: with the HACK above.
+  const prefix = mention.text.match(/^(\s*@\w{1,15})+/)?.[0] ?? '';
+  return (prefix.match(new RegExp(handle, 'gi')) ?? []).length > 1;
 }
 
 function cleanBody(text: string): string {

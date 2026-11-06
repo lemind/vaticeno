@@ -69,6 +69,19 @@ test('a command word followed by real text is a candidate for the model, not a c
   assert.equal(commandWordIn('Quote me: BTC hits 200k by 2027'), 'quote');
   assert.equal(commandWordIn('stop at 90k'), 'stop');
   assert.equal(commandWordIn('BTC above 100k'), null);
+  // a main command word anywhere sends the post to the model first (#ymjep, 2026-11-06)
+  assert.equal(
+    commandWordIn('This is my predictions project. selfpromo'),
+    'selfpromo',
+  );
+  assert.equal(commandWordIn('Great bot, self promo please'), 'selfpromo');
+  assert.equal(commandWordIn('BTC above 100k, quote me on that'), 'quote');
+  assert.equal(commandWordIn('BTC above 100k by Friday, wager on it'), null);
+  assert.equal(
+    commandWordIn('Apple brand tops the chart by May'),
+    null,
+    'short aliases only first',
+  );
 });
 
 test('selfpromo has many names, phrases included; short ones never catch ordinary words by typo', () => {

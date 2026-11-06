@@ -85,6 +85,11 @@ const llm = {
         text: string;
         thread: Array<{ from: string; text: string }>;
       };
+      if (text.endsWith('selfpromo'))
+        return {
+          data: { intent: 'selfpromo', answer: null, older_posts_would_help: false },
+          costs: [],
+        };
       if (text === 'so?' && thread[0]?.from === 'bot')
         return {
           data: { intent: 'quote', answer: null, older_posts_would_help: false },
@@ -772,11 +777,25 @@ describe('fixes from X', () => {
     const { deps, replies } = await bot([[summon], [fix]], {
       '50': { versionId: '50', text: 'vague BTC to the moon' },
     });
+    const fixing: boolean[] = [];
+    const real = deps.llm.generateJson;
+    deps.llm = {
+      ...deps.llm,
+      generateJson: async (call: Parameters<typeof real>[0]) => {
+        if (call.instructionVersion.startsWith('normalize'))
+          fixing.push(
+            (JSON.parse(call.input) as { fixing?: boolean }).fixing ?? false,
+          );
+        return real(call);
+      },
+    } as typeof deps.llm;
     await pollMentions(deps, NOW);
     assert.match(replies[0]!.text, /^NOT RECORDED/);
     await pollMentions(deps, new Date(NOW.getTime() + 60_000));
     assert.match(replies[1]!.text, /^RECORDED/);
     assert.equal((await t.sql`select status from claims`)[0]!.status, 'draft');
+    // normalize.v6: a new post is judged on its own words; a fix may complete the author's own claim
+    assert.deepEqual([fixing[0], fixing.at(-1)], [false, true], String(fixing));
   });
 
   test('a thread inside an older thread: replies under each bot answer fix the claim', async () => {
@@ -940,6 +959,21 @@ describe('selfpromo and quote', () => {
     const { deps, replies } = await bot([[mention('120', '@vaticeno selfpromote')]]);
     await pollMentions(deps, NOW);
     assert.match(replies[0]!.text, /Vaticeno[\s\S]*\n\nI predicted this joke/);
+  });
+
+  test('a command word later in a longer post goes to the model, which reads the thread and decides', async () => {
+    // Live 2026-11-06 (#ymjep): recorded as "Bhoomi reaches 1000 followers" from the post above.
+    const { deps, replies } = await bot([
+      [
+        mention(
+          '125',
+          '@Bhoomi1021 @vaticeno @X This is my predictions project. \n@vaticeno selfpromo',
+        ),
+      ],
+    ]);
+    await pollMentions(deps, NOW);
+    assert.match(replies[0]!.text, /I predicted this joke/);
+    assert.equal((await t.sql`select count(*)::int as n from claims`)[0]!.n, 0);
   });
 
   test('a quote is posted with its author; if the source is down it is retried later, not dropped', async () => {

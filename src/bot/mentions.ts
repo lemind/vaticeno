@@ -153,6 +153,9 @@ export async function routeMention(
   const repliedTo = mention.referenced_tweets?.find(
     (ref) => ref.type === 'replied_to',
   )?.id;
+  // Each post read is billed: the posts above are read once for this mention, whichever steps need them.
+  let aboveRead: Promise<ThreadPost[]> | undefined;
+  const readAbove = () => (aboveRead ??= threadAbove(deps, repliedTo));
   let askedModel = false; // one assessment per mention, whichever path asks for it (owner decision 2026-10-07)
 
   // A reply in a claim's thread is the author's fix (FR-010, no keyword); anyone else is ignored, and a closed
@@ -174,10 +177,7 @@ export async function routeMention(
       },
     );
     if (fixed.outcome === 'still_needs_info' && repliedTo) {
-      const context = [
-        ...(await threadAbove(deps, repliedTo)).map((post) => post.text),
-        ...own,
-      ];
+      const context = [...(await readAbove()).map((post) => post.text), ...own];
       if (context.length > own.length) {
         fixed = await amendClaim(
           { ...deps, reader: deps.reader },
@@ -200,6 +200,7 @@ export async function routeMention(
       const answered = await assess(deps, mention, body, repliedTo, now, {
         onlyQuestion: true,
         about: claim,
+        readAbove,
       });
       askedModel = true;
       if (answered) return { ...answered, slug: claim.slug };
@@ -216,6 +217,7 @@ export async function routeMention(
     const answered = await assess(deps, mention, body, repliedTo, now, {
       onlyQuestion: true,
       about: claim,
+      readAbove,
     });
     // The slug puts the answer in the claim's thread, so the next reply still arrives with it (FR-033).
     if (answered) return { ...answered, slug: claim.slug };
@@ -255,7 +257,9 @@ export async function routeMention(
   // A command word with more text: the model decides, seeing the thread (a prediction goes on below).
   const firstAssessed = commandWordIn(body);
   if (firstAssessed && !askedModel) {
-    const assessed = await assess(deps, mention, body, repliedTo, now);
+    const assessed = await assess(deps, mention, body, repliedTo, now, {
+      readAbove,
+    });
     if (assessed) return assessed;
   }
 
@@ -270,9 +274,7 @@ export async function routeMention(
   // An edit of the mention gets a new id: the claim is keyed on the first version, so edits never record twice.
   const original = mention.edit_history_tweet_ids?.[0] ?? mention.id;
   // The posts above resolve "she", "it" and bare names; they are already paid for when this is a reply.
-  const context = repliedTo
-    ? (await threadAbove(deps, repliedTo)).map((post) => post.text)
-    : [];
+  const context = repliedTo ? (await readAbove()).map((post) => post.text) : [];
   const result = await submitClaim(deps, {
     text: current.text,
     posted: current.posted,
@@ -295,7 +297,9 @@ export async function routeMention(
       current.text,
       repliedTo,
       now,
-      notPrediction ? { predictionRuledOut: true } : { onlyQuestion: true },
+      notPrediction
+        ? { predictionRuledOut: true, readAbove }
+        : { onlyQuestion: true, readAbove },
     );
     // The answer joins the thread of the claim it is about, when there is one.
     if (assessed) return { ...assessed, slug: result.slug };
@@ -380,8 +384,9 @@ async function contextAround(
   mention: Mention,
   repliedTo: string | undefined,
   before?: string,
+  readAbove = () => threadAbove(deps, repliedTo),
 ): Promise<{ posts: ThreadPost[]; conversation: ThreadPost[]; oldest?: string }> {
-  const above = before ? [] : await threadAbove(deps, repliedTo);
+  const above = before ? [] : await readAbove();
   const seen = new Set(above.map((post) => post.text));
   // Our own replies are context for a question, and still not for the recorder (FR-033a, T048).
   const read = await conversationPosts(deps, mention, before);
@@ -515,12 +520,19 @@ async function assess(
     predictionRuledOut?: boolean;
     onlyQuestion?: boolean;
     about?: ClaimRef;
+    readAbove?: () => Promise<ThreadPost[]>;
   } = {},
 ): Promise<Routed | null> {
   // The model sees our own record first, then the posts above; only what people wrote is echo-checked
   // (FR-033a).
   const ours = opts.about ? await claimContext(deps, opts.about) : [];
-  const first = await contextAround(deps, mention, repliedTo);
+  const first = await contextAround(
+    deps,
+    mention,
+    repliedTo,
+    undefined,
+    opts.readAbove,
+  );
   // Nearest first, then the conversation oldest to newest, which is the order intent.v4 is told to expect.
   const above = first.posts.filter((post) => !first.conversation.includes(post));
   let pages = first.conversation;
