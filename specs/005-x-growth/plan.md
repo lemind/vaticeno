@@ -7,7 +7,7 @@
 Most of this feature is editorial work done by hand: a profile, a network of accounts, a calendar of posts. The
 code is small and sits on what spec 002 built: the queue gets dates, a source link and a last-checked date; the
 own-post job picks today's dated post first, never posts a missed one late, holds a stale event post, and alerts
-once at a low-water mark instead of every day; the pool posts on two days a week; spec 002 US4 (deadline digest,
+once on a quiet week instead of every day; the pool keeps two reposts a day but reposts only what fits the repost policy; spec 002 US4 (deadline digest,
 record counts) is finally built, for Monday and Friday; a free weekly review command counts what the database
 knows. Site traffic is Cloudflare's script on the public pages, already written.
 
@@ -58,9 +58,10 @@ them a day. A digest with nothing to say posts nothing and leaves the slot free.
 refuses a Monday or Friday date while US4 runs, so a dated post is never crowded out. The week is then 3 queued
 originals plus the 2 record posts: the 4–5 originals of FR-009.
 
-Low-water alert without state: every Friday run, if fewer than four **publishable** items remain (undated, or
-dated today or later, not missed, not held by the radar or claim guard), alert `feed.queue_low` once with the
-count; the run that posts the last one alerts too. Never one a day. `feed.queue_empty` becomes a log line.
+Quiet-week alert without state: every Friday run counts own posts that went out in the past 7 days (`feed_posts`
+kinds `original`, `event`, `digest`, `record`, status posted); fewer than three → `feed.quiet_week` once with the
+count. An empty queue is normal now — event posts fill free days — so it alerts nothing; `feed.queue_empty` becomes
+a log line.
 
 ## The claim guard: a list
 
@@ -79,10 +80,31 @@ date and a check date, a named claim whose author is not on the list. `list` sho
 decided later. The owner records predictions through the bot like anyone; the post about one is written by the
 owner after the lock or the verdict and queued like any other.
 
-## Pool cadence (FR-011)
+## Event posts by the bot (US3a, FR-019–FR-024)
 
-`FEED_POOL_DAYS` (default `2,6` — Tuesday and Saturday, cron day numbers): the pool job runs once on those days at
-18:23 UTC instead of twice a day. About two reposts a week.
+`src/content/event-run.ts`, Tue–Thu after the queue run, only when the day's original slot is still free:
+
+1. `drawTopic(month, lastEventTopic)` from `src/content/topics.ts`.
+2. One grounded model call (`event.v1`, the search the resolver already uses): the nearest major scheduled event
+   3–10 days ahead — name, UTC date, place, 2–4 URLs. Zod-validated; malformed → no event.
+3. The code reads each URL with the existing page reader and accepts only when two pages on different hosts both
+   contain the name and the date. Page text is read and dropped, never stored (constitution V).
+4. Not posted before (`feed_posts` kind `event`, payload `{topic, name, date}`; the topic is what the next run's
+   `drawTopic` reads as the last) → the template, own-feed text checks,
+   reserve the slot, post. Otherwise the next topic; three tries, then nothing today.
+
+Same shape as the resolver: the model proposes, code gates. The text has no free model words.
+Images (FR-024) come later: a code-drawn card, after the bot's X login gains `media.write` and the upload price is
+measured.
+
+## Curated reposts (FR-011)
+
+Twice a day as now (09:23 and 18:23 UTC). `src/content/pool-run.ts` already reads the picked account's latest
+posts; each eligible one (not a reply or repost, ≤ 48 h, never posted) goes to one lite-model call (`repost.v1`,
+structured output: `kind` ∈ prediction · event · development · result · none, plus a 1–10 fit). The best fit
+above `none` is reposted; none fits → one other account; still none → the slot is skipped and logged. Post text is
+read for the call and never stored (constitution V). Kinds and exclusions live in the instruction file, versioned
+like every prompt.
 
 ## The week's record (US4)
 
@@ -116,15 +138,16 @@ URL $0.20, content management $0.005. Per week:
 | Post | Calls | Cost |
 |---|---|---|
 | 3 queued originals + digest + record | 5 × Post: Create | $0.075 |
-| 2 pool reposts | each: one timeline read of up to 5 posts ($0.025) + the repost, recorded at $0.015 | $0.080 |
-| **Total** | | **≈ $0.16/week**, against ~$0.60 now |
+| 14 pool reposts | each: one or two timeline reads ($0.025 each) + one lite-model call per candidate (≈ $0.0005, UNRECONCILED) + the repost ($0.015) | ≈ $0.56–0.91 |
+| up to 3 event posts | each: one grounded model call + 2–4 page reads (≈ $0.02–0.05, UNRECONCILED) + Post: Create | ≈ $0.10–0.20 |
+| **Total** | | **≈ $0.75–1.20/week**, against ~$0.60 now (curated reposts cost one extra read when the first account has nothing that fits) |
 
 The repost is recorded at the Post: Create price today; X may bill it as content management ($0.005).
-UNRECONCILED until checked against our usage. No AI call anywhere in this feature.
+UNRECONCILED until checked against our usage. The only AI calls are the event posts' searches.
 
 ## Risks
 
-- **The queue runs dry again.** The low-water alert and the weekly review only help if the owner acts; the
+- **The account goes quiet again.** The quiet-week alert and the weekly review only help if the owner acts; the
   review is the routine, not the alert.
 - **A stale event post.** Held by the 7-day check, but a cancelled event checked yesterday still goes out; the
   weekly review is the guard.

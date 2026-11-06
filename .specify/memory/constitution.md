@@ -2,7 +2,8 @@
 Sync Impact Report
 - Version change: 2.8.0 → 2.9.0 (2026-11-06, MINOR): VI — one exception to "the feed MUST NOT republish a
   verdict": the terms and verdict of a claim whose author is on the owner's list (for now, the owner alone) may be
-  shown, as owner-approved text, no @mention, misses as well as hits. The 2026-10-09 money rule is superseded:
+  shown, as owner-approved text, no @mention, misses as well as hits. And automated event posts: a scheduled
+  event with a public outcome, confirmed by two independent sources the code reads, from a fixed template. The 2026-10-09 money rule is superseded:
   for now a claim carrying money is not excluded; revisited later. The deadline digest (slug and date, no result) is untouched. The owner has given it
   (docs/decisions/008-x-growth.md, spec 005). CLAUDE.md version line updated.
 - Earlier: 2.7.1 → 2.8.0 (2026-10-19, MINOR): VI — replies carry no links, except one plain-text
@@ -180,7 +181,10 @@ entire class of problems, and it is what X's terms require.
   the claim's final verdict is posted once as a reply in its thread, under the author's summon (owner
   decision 2026-10-04), through the same allowlist and caps; never to an author who sent STOP.
 - Own-feed posts are allowed (owner decision 2026-10-05, spec 002): reposts and quote posts of a fixed
-  owner-chosen pool, and owner-written originals. The feed MUST NOT republish a verdict: it is told once,
+  owner-chosen pool, and owner-written originals. Also automated event posts (owner decision 2026-11-06, spec
+  005): an upcoming scheduled event with a public outcome, found by a model with web search, accepted only when
+  the code itself reads at least two independent pages that give the same event and date, and written from a
+  fixed template — the model fills slots (event, date, place), never free text. The feed MUST NOT republish a verdict: it is told once,
   in the claim's thread, because a hit or a miss belongs to its author (owner decision 2026-10-07). One exception
   (owner decision 2026-11-06, `docs/decisions/008-x-growth.md`): a claim whose author has given the account
   permission — for now, an author on the owner's list in configuration, which holds the owner alone — MAY be
@@ -214,7 +218,8 @@ Rationale: the account is the product's only distribution channel. Losing it end
 
 - KISS over DRY; no abstraction before its third real use; explicit over clever.
 - Deliberately absent until justified by measurement: Redis, message brokers, frontend
-  frameworks, user auth, payments, microservices. (Web search is allowed, for model resolution.)
+  frameworks, user auth, payments, microservices. (Web search is allowed, for model resolution and for
+  finding the events the feed announces, spec 005.)
   The measurements that would bring in Redis and RabbitMQ, and the jobs each would do, are in
   `docs/decisions/003-redis-and-rabbitmq.md`.
 - One runtime, with one exception (owner decision 2026-10-09, `docs/decisions/001-second-runtime.md`): a

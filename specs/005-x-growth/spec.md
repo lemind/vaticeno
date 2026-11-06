@@ -82,13 +82,33 @@ dated post goes out on its day, the undated one on the first free day, and nothi
    goes out, as today.
 4. **Given** a post over X's length limit, or carrying anything the constitution forbids in the bot's own text,
    **When** the owner queues it, **Then** it is refused at once, not on the day.
-5. **Given** fewer than four approved posts on a Friday, **When** that day's run comes, **Then** the owner is
-   alerted once with the count; the run that posts the last one alerts too. Never one a day while it stays low:
-   the daily `feed.queue_empty` alert that became noise goes.
+5. **Given** a Friday on which fewer than three own posts (queued, event, digest or record) went out in the past
+   7 days, **When** that day's run comes, **Then** the owner is alerted once with the count. An empty queue alone
+   alerts nothing: the bot's event posts fill free days. The daily `feed.queue_empty` alert that became noise goes.
 6. **Given** an Event Radar post, **When** the owner queues it, **Then** it must carry its date, its source link
    and when it was last checked; the link stays in the queue for the owner's fact-check and never in the post.
 7. **Given** an Event Radar post last checked more than 7 days before its date, **When** its day comes, **Then**
    it is held, not posted, and the owner is alerted to check the event again.
+
+---
+
+### User Story 3a - Event posts by the bot (Priority: P1)
+
+Three days a week, with nothing else to post, the bot announces a major event coming up in a random topic —
+"Wimbledon final is scheduled for 12 Jul in London. Have a call? Tag Vaticeno before it starts." — having found it
+with a web search and confirmed it in two independent sources itself. The owner does nothing.
+
+**Why this priority**: it is most of the account's own voice, and the owner only adds predictions sometimes.
+
+**Independent Test**: with stub search answers, a topic whose event two pages confirm posts once from the template;
+one page, or two that disagree on the date, posts nothing and tries the next topic; the same event never twice.
+
+**Acceptance Scenarios**:
+
+1. **Given** a free slot, **When** the run comes, **Then** at most one event post goes out, from the template.
+2. **Given** an event only one readable page confirms, **When** it is checked, **Then** it is not posted.
+3. **Given** three topics without a confirmed event, **When** the run ends, **Then** nothing is posted that day.
+4. **Given** an event already posted, **When** it is found again, **Then** it is skipped.
 
 ---
 
@@ -185,9 +205,9 @@ best — and changes next week's mix from it.
 
 **Originals and cadence (US3, US4)**
 
-- **FR-007**: Every standalone post the bot makes is text the owner wrote or approved word for word before it
-  entered the queue; the bot generates and edits nothing at run time (spec 002 FR-003 stands). The digest and
-  record posts are fixed templates over counts and slugs (spec 002 US4).
+- **FR-007**: A queued post is text the owner wrote or approved word for word; the bot edits nothing in it. The
+  digest and record posts are fixed templates over counts and slugs (spec 002 US4). Event posts are the bot's own
+  (FR-019–FR-023), and the only posts it composes, from a fixed template.
 - **FR-008**: A queued post may carry a date. On its day it goes out ahead of undated posts; a dated post missed
   on its day is never posted later, and the owner is alerted once for it — also when the server was down for
   days, since a marker on the post, not the date of yesterday, decides.
@@ -196,12 +216,17 @@ best — and changes next week's mix from it.
 - **FR-009**: One original a day, whichever kind: a queued post, an owner's-call post, the Monday digest or the
   Friday record share the day's slot. A digest with nothing to say leaves it free. Dated posts are not put on
   Mondays or Fridays. The target, 4–5 originals a week, counts all four kinds.
-- **FR-010**: On Fridays, one alert when fewer than four publishable posts remain (a low-water mark; missed or
-  held posts do not count), and one on the day the last one goes out — never one a day while it stays low. Once a week the owner reviews the next seven days: events still scheduled, new originals added,
-  stale ones removed.
-- **FR-011**: Pool reposts drop from two a day to about two a week. Which days is configuration. Target: about
-  70% of the account's posts are its own, over four rolling weeks — replies left out, native reposts counted
-  against it, quote posts counted on their own. A target to steer by, never a quota.
+- **FR-010**: One quiet-week alert: on Fridays, if fewer than three own posts (queued, event, digest or record)
+  went out in the past 7 days, the owner is alerted once with the count. An empty queue alone alerts nothing, since
+  the bot's event posts fill free days. Once a week the owner glances at what went out and what is queued.
+- **FR-011**: Pool reposts stay at two a day (owner, 2026-11-06), but curated: a post is reposted only if it fits
+  the repost policy — a public prediction or forecast; an upcoming event with a checkable outcome; a significant
+  development in sports, crypto, markets or politics; an official result that settles a public event. Never
+  highlights, routine results, memes, partisan argument, crypto hype, unrelated breaking news, or anything
+  promoting betting. A cheap model call sorts each candidate into one of those kinds or "none"; the bot reposts
+  the best fit, tries one other account if nothing fits, and otherwise skips the slot. No fit, no repost.
+- **FR-011a**: Following an account does not make its posts repostable; the pool is a smaller, owner-chosen set
+  of the accounts followed (spec 002 FR-001).
 - **FR-012**: Spec 002 User Story 4 (deadline digest and record counts) is built as written, on Monday and
   Friday.
 - **FR-013**: Formats: Event Radar (a scheduled event with a public outcome, "scheduled for", never "will"),
@@ -229,6 +254,25 @@ best — and changes next week's mix from it.
 
 **Measurement (US6)**
 
+**Automated event posts (owner, 2026-11-06)**
+
+- **FR-019**: On days the slot is free (no digest, record or queued post), the bot draws a topic (in season, never
+  the last; `src/content/topics.ts`, all alike) and asks a model with web search for the nearest major scheduled
+  event in it, 3–10 days ahead: its name, date, place, and the pages that state them.
+- **FR-020**: The event is accepted only if the code itself reads at least two independent pages (different
+  sites) that both give the event's name and date; otherwise another topic is tried, at most three, then nothing
+  is posted that day. A page that cannot be read does not count. The model proposes; code decides (constitution II).
+- **FR-021**: The text is a fixed template with three slots — event, date, place — and one of a few fixed closing
+  lines ("Have a call? Tag Vaticeno before it starts."). No free model text, no link, no @mention, no hashtag, no
+  prediction; "scheduled for", never "will". Checked like every own-feed post.
+- **FR-022**: The same event is never posted twice; its name and date are kept as the post's payload (our own
+  derived data, not page text: constitution V).
+- **FR-023**: Every model, search and page read is cost-logged; the feed's daily spend cap covers them. Event posts
+  respect `FEED_DRY_RUN`. A wrong post is deleted by hand (`post:delete`).
+- **FR-024**: Images are a later step: a card drawn by code (event, date, place in the site's style), once X media
+  upload is granted (the bot's login lacks `media.write`) and its price measured. No AI images of real people or
+  team marks.
+
 - **FR-018**: A weekly review from three sources: X's own dashboard (read by the owner; no paid API read), the
   site report (US1), and the database (claims recorded; distinct authors who tagged the bot, owner excluded).
 
@@ -244,10 +288,10 @@ best — and changes next week's mix from it.
 
 - **SC-001**: The owner can read the visits and page views of any day of the last month, and how many visits came
   from X where the browser said so, from the Cloudflare dashboard, within a minute.
-- **SC-002**: From week 2 on, at least 4 originals go out every week, and the queue never runs empty without a
-  Friday low-water alert first.
-- **SC-003**: Over the four weeks from week 2, about 70% of the account's posts are its own (as FR-011 counts
-  them).
+- **SC-002**: From week 2 on, at least 4 own posts go out every week; a week with fewer than three raises the
+  Friday alert.
+- **SC-003**: From week 2, every repost fits the policy (FR-011): the owner's weekly look at what went out finds
+  none that should not have.
 - **SC-004**: By the end of week 4: profile, pinned post and three Lists in place; 30 or more of the researched
   accounts followed; four weekly reviews made.
 - **SC-006**: From week 2, the owner records at least 2 predictions a week through the bot.
@@ -265,4 +309,5 @@ best — and changes next week's mix from it.
   the owner creates the Cloudflare account and its site token.
 - The 280-character limit applies to queued originals, as today; an Event Radar of several events is split
   over days, or posted by hand.
-- Out of scope: paid promotion, follow automation, AI-written posts at run time, a public stats page.
+- Out of scope: paid promotion, follow automation, AI free text in posts (event posts are a template with
+  slots), images for now (FR-024), a public stats page.

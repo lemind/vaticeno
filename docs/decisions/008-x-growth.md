@@ -13,17 +13,17 @@ is, and nothing measures whether anyone opens the site: Caddy keeps no access lo
 
 ## The decision
 
-**1. Two channels, one voice.** The bot publishes only fixed, owner-approved text; judgement, links and other
-people are the owner's, by hand, in the X app.
+**1. Two channels, one voice.** The bot publishes owner-approved text, fixed templates and its own event posts
+(2a); judgement, links and other people are the owner's, by hand, in the X app.
 
 | Channel | What | Rules |
 |---|---|---|
-| The bot (automated, spec 002) | owner-approved originals from the queue, now on a date; the weekly deadline digest and record counts (spec 002 US4, finally built); about two pool reposts a week | constitution VI: no @mentions, links or hashtags in feed-post text; no verdict republished as a standalone post unless its author is on the list (below); the list is the only claim guard |
+| The bot (automated, spec 002) | owner-approved originals from the queue, now on a date; event posts it finds and confirms itself (2a); the weekly deadline digest and record counts (spec 002 US4, finally built); two curated pool reposts a day | constitution VI: no @mentions, links or hashtags in feed-post text; no verdict republished as a standalone post unless its author is on the list (below); the list is the only claim guard |
 | The owner (by hand) | bio, pinned post, header; follows and three X Lists; quote posts of other people's predictions; replies in conversations; links to sources | X's rules; the same editorial voice (`docs/content-rules.md`) |
 
-Every standalone post the bot makes is text the owner approved word for word, drafted with help (AI included)
-before it enters the queue. The bot generates and edits nothing at run time (spec 002 FR-003 stands); the digest
-and record posts are fixed templates over counts and slugs (spec 002 US4).
+A queued post is text the owner approved word for word, drafted with help (AI included); the bot edits nothing in
+it. The digest and record posts are fixed templates over counts and slugs (spec 002 US4); an event post is a fixed
+template whose slots come from a confirmed event (2a). No post carries free model text.
 
 **2. Calls shown only with their author's permission.** The account may show a recorded prediction — terms after
 the lock, verdict after the deadline — once its author has given permission, and never before. For now only the
@@ -36,13 +36,20 @@ shown; off it, never. Whether a claim carries money is not checked for now — t
 aside while the account grows, and revisited later. The verdict itself is still posted once in the claim's thread,
 as for anyone.
 
-**3. Originals first.** About 70% of the account's posts are its own, measured over four rolling weeks: replies
-left out, native reposts counted against it, quote posts counted on their own. A target to steer by, never a
-quota: three good posts beat five filler ones.
+**2a. Event posts by the bot** (amended 2026-11-06). The owner only adds predictions sometimes, so the bot posts
+upcoming events itself: a random topic in season, a model with web search finds the nearest major event, and the
+code accepts it only when two independent pages it reads give the same name and date. The text is a fixed template
+with slots; the model writes no words of its own. Constitution VI allows exactly this. Images later, drawn by code.
+
+**3. Curated reposts, not random ones** (amended 2026-11-06). Two a day stay, but each must fit the repost
+policy: a public prediction, an upcoming checkable event, a significant development, or an official result. Never
+highlights, routine results, memes, partisan argument, hype or betting promotion. A cheap model call sorts the
+candidates; nothing fits, nothing is reposted. Vaticeno is not a news aggregator. Own posts still take the day's
+original slot first; three good posts beat five filler ones.
 
 **4. A queue that does not run dry silently.** Once a week the owner reviews the next seven days: checks that each
-upcoming event is still scheduled, adds originals, removes anything stale. The alert fires on Fridays when fewer than four
-approved posts remain (a low-water mark), and once when the last one goes out — not every day it stays empty.
+upcoming event is still scheduled, adds originals, removes anything stale. The alert fires on Fridays only when fewer than three
+own posts went out that week — an empty queue alone is normal, since event posts fill free days.
 
 **5. Site traffic measured by Cloudflare Web Analytics.** One async script line on the public pages: page views,
 visits (Cloudflare counts a visit as a page view arriving from another site or a direct link), paths, referring
