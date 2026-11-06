@@ -27,6 +27,7 @@
     "content:queue": "tsx --env-file-if-exists=.env src/cli/content-queue.ts",
     "content:pool-ids": "tsx --env-file-if-exists=.env src/cli/pool-ids.ts",
     "content:topic": "tsx src/cli/content-topic.ts",
+    "growth:week": "tsx --env-file-if-exists=.env src/cli/growth-week.ts",
     "review:list": "tsx --env-file-if-exists=.env src/cli/review-list.ts",
     "resolve:manual": "tsx --env-file-if-exists=.env src/cli/resolve-manual.ts",
     "review:confirm": "tsx --env-file-if-exists=.env src/cli/review-confirm.ts",

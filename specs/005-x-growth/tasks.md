@@ -112,14 +112,14 @@ done by the owner in the X app; their drafts live in `specs/005-x-growth/content
 
 ## Phase 6: Measure and keep it running (US6)
 
-- [ ] T519 [US6] `src/cli/growth-week.ts` + `npm run growth:week [--quotes N]`: last 7 days from the database only —
+- [x] T519 [US6] `src/cli/growth-week.ts` + `npm run growth:week [--quotes N]`: last 7 days from the database only —
   claims recorded; active authors and first-time authors, the owner left out; automated posts by kind; the
   four-week share of own posts only when `--quotes N` gives the owner's hand-made quote posts, else the subtotal.
   Prints where to read X's and Cloudflare's numbers. Free.
-- [ ] T520a Update spec 002 to match: FR-002 and FR-003 (two a day, curated by the repost policy), FR-005 (the queue's
+- [x] T520a Update spec 002 to match: FR-002 and FR-003 (two a day, curated by the repost policy), FR-005 (the queue's
   dates, the shared daily cap, the held post, the Friday quiet-week alert), FR-011 (digest Monday, record Friday,
   in the original slot), FR-012a (set aside for now, constitution VI 2.9.0); point each to spec 005.
-- [ ] T520 [P] Rewrite `docs/content-rules.md`: the two channels, the formats, no links in the bot's posts (and why:
+- [x] T520 [P] Rewrite `docs/content-rules.md`: the two channels, the formats, no links in the bot's posts (and why:
   $0.20 vs $0.015), the owner's calls, the weekly routine (review the next 7 days, re-check events — a sports fixture
   again on its day —, add posts, run `growth:week --quotes N`, read both dashboards). Update `README.md` (status table, commands) and `docs/progress.md`.
 - [ ] T521 **[owner]** Weekly, every Friday: the routine above. Four reviews by the end of week 4 (SC-004).
