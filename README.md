@@ -28,13 +28,24 @@ and reposts its latest post, or quotes it with a line of its own (1 in 10); one 
 from a queue. The feed never republishes a verdict: a hit or a miss is told once, in its author's thread.
 `FEED_DRY_RUN=true` (the default) records the picks and posts nothing.
 
-**Wagers on a testnet (spec 003, Stage 2):** [spec](specs/003-python-platform/spec.md),
-[tasks](specs/003-python-platform/tasks.md), [settlement policy](docs/settlement-policy.md). Two people
-can stake equal amounts on opposite sides of a price prediction, and the verdict pays the winner through an
-escrow contract on Base Sepolia. Reply `wager` to the bot's post under a price prediction and it answers
-once with the claim's wager page, where your own wallet makes or takes an offer. The token (VTS) is worth
-nothing; real money is a separate decision (FR-031h). Live: the contract, the bot command and the page.
-The settlement worker runs on the server since 2026-10-21; a claim locked before then has no settlement row and can't be wagered.
+**Wagers in real money (spec 003, Stages 2 and 4):** [spec](specs/003-python-platform/spec.md),
+[tasks](specs/003-python-platform/tasks.md), [settlement policy](docs/settlement-policy.md),
+[decision 006](docs/decisions/006-real-money.md). Two people stake equal amounts on opposite sides of any
+recorded prediction with a deadline, and the verdict pays the winner through a public escrow contract. Reply
+`wager` to the bot's post under a prediction and it answers once with the claim's wager page, where your own
+wallet makes or takes an offer; offers close 24 hours before the deadline. No fee. Four markets, each its own
+contract and offers:
+
+| Market | Escrow |
+|---|---|
+| USDC on Base | [0xac59…d0fb](https://basescan.org/address/0xac594644f4523cf0a6a1b2b03ce43698ebb6d0fb) |
+| USDC on Arbitrum One | [0xE6ef…bA06](https://arbiscan.io/address/0xE6efA2B40a1b22455FC047A15238E1df2a47bA06) |
+| USDT (USDT0) on Arbitrum One | [0x0F74…0091](https://arbiscan.io/address/0x0F740cFab0F4Bf6A50aA6DA7a8223cDc55560091) |
+| VTS on Base Sepolia (testnet, worth nothing) | the Stage 2 contract |
+
+The first real-money wager settled MISS and paid out on 2026-11-06, from the first Base contract
+([0x9E95…62E6](https://basescan.org/address/0x9E95688b38b49a816284Dce2a4a58a4bCb2962E6)), which now only runs
+down. A claim locked before its market was switched on has no settlement row there and can't be wagered.
 
 **A local verifier, in shadow (spec 003, Stage 3):** a small entailment model we trained and published,
 [Leminds/deberta-v3-xsmall-nli-oanc](https://huggingface.co/Leminds/deberta-v3-xsmall-nli-oanc), reads the
@@ -48,12 +59,13 @@ the model may look, so it would save nothing (spec SC-006). It runs as a private
 |---|---|
 | X: mentions → one reply each; fixes by replying under the bot's answer; STOP; help; verdict replies carrying the result; questions answered from the conversation, or from the web when nothing in the thread can settle them | Per-claim AI budget in the live resolver |
 | Predictions → contracts by AI, checked in code; price + date = daily close; unclear ones get a checked example | |
-| Sports: the event and its competitor must exist (web search), competition filled in, recordable until the start | Public pages on a domain (HTTPS config is ready in `deploy/`) |
+| Sports: the event and its competitor must exist (web search), competition filled in, recordable until the start | |
 | Database: lock and verdict rules enforced by Postgres, locally and on Supabase | Nightly backups (scripts in `deploy/`, not installed) |
 | Verdicts after the deadline: Coinbase daily close, or AI reading web pages behind code gates; human review | |
 | Own feed (spec 002): 2 pool posts a day (repost, or a quote post with our own line), 1 owner-written post a day from a queue; caps and "never twice" enforced by Postgres; off until `ENABLE_FEED=true` | Switch the feed on the server; a weekly stats post |
-| Claim and author pages, public at `/claim/<slug>` (old `/c/` links forward) | |
-| Testnet wagers (spec 003): escrow contract on Base Sepolia, source verified; the worker that signs and settles; `wager` on X → one link per claim → a page where your own wallet offers, accepts, pays out or refunds | A live run with two browser wallets; wallet links |
+| Claim and author pages, public on [vaticeno.n30sk.cc](https://vaticeno.n30sk.cc) at `/claim/<slug>` (old `/c/` links forward) | |
+| Testnet wagers (spec 003): escrow contract on Base Sepolia, source verified; the worker that signs and settles; `wager` on X → one link per claim → a page where your own wallet offers, accepts, pays out or refunds; a browser wager settled and paid out (2026-10-26) | |
+| **Real money (Stage 4)**: contract v2, no fee, in USDC on Base and Arbitrum One and USDT0 on Arbitrum One, sources verified; one worker per market; testnet runs on both networks first; the first real wager paid out (2026-11-06) | Wallet links (one X account, one wallet) |
 | Verdicts decide on the right event (spec 004): a page must name the event the contract does before it counts, a site speaks through its best page rather than its first, silence proves nothing, and no verdict contradicts its own evidence | |
 | A verdict that was wrong is corrected (spec 004): the original is never edited, the correction is a separate record posted once in the claim's thread, and a match nobody can place in time is refused rather than recorded | |
 | Local verifier (spec 003): our own model, published on Hugging Face, reads each web verdict's pages in shadow and records what it would conclude; person-confirmed outcomes counted on the status page | Parked: going live saves no paid call |
@@ -72,7 +84,7 @@ the model may look, so it would save nothing (spec SC-006). It runs as a private
 | `@vaticeno selfpromo` (or promote, show off, flex, brag, who are you…) | a motto + a joke |
 | `@vaticeno STOP` | stops replying to you until you tag it again |
 | `@vaticeno ping` | `pong` |
-| `@vaticeno wager`, replying to the bot's post under a price prediction | once per claim: a link to its wager page (testnet, no real money); otherwise why not |
+| `@vaticeno wager`, replying to the bot's post under a prediction | once per claim: a link to its wager page (USDC or USDT, real money); otherwise why not |
 
 Bare commands and typos (`quote`, `qoute 2`) are matched instantly, with no AI call. Anything else unclear
 ("quote me something nice", "so?" under a quote, a question) is read by the AI.
@@ -147,14 +159,18 @@ Runs as systemd service `vaticeno` (`src/web/server.ts` with `ENABLE_JOBS=true E
 `journalctl -u vaticeno -f` on the server. Sentry (errors, logs, alerts) reports only from production:
 `SENTRY_DSN` and `NODE_ENV=production` in the server's `.env`. Production database: Supabase (Frankfurt),
 connection string in the gitignored `.env.production`; apply migrations there with
-`set -a; . ./.env.production; set +a; npm run db:migrate` before deploying code that needs them.
+`npx tsx --env-file=.env.production src/cli/db-migrate.ts` before deploying code that needs them.
 Claim pages are public through Caddy: `https://vaticeno.n30sk.cc/claim/<slug>` and its `/wager` page, which
-needs `ESCROW_ADDRESS` and `STAKE_TOKEN_ADDRESS` in the server's `.env`.
+needs `ESCROW_ADDRESS` and `STAKE_TOKEN_ADDRESS` in the server's `.env`, or, from Stage 4, `WAGER_NETWORKS`
+naming every market (`?network=<market>` picks one: `8453`, `42161`, `42161-usdt`, `84532`).
 
 The settlement worker is a separate service, `vaticeno-settle`, with its own system user. Its env file and
 the oracle key live in `/etc/vaticeno-settle/` (owner `vaticeno-settle`, mode 600), copied by hand and
 never synced; it connects as `settle_rw`, whose password is set by hand like `status_ro`'s. Unit:
-[deploy/vaticeno-settle.service](deploy/vaticeno-settle.service).
+[deploy/vaticeno-settle.service](deploy/vaticeno-settle.service). Stage 4 runs one more per market,
+[deploy/vaticeno-settle@.service](deploy/vaticeno-settle@.service) as `vaticeno-settle@<market>` (`8453`,
+`42161`, `42161-usdt`), each with its own env file and oracle key under `/etc/vaticeno-settle/<market>/`; each
+registers its own `settle-<market>` heartbeat. `deploy/network-on.sh` switches a market on in three steps.
 
 The local verifier is not on the droplet: it is the private Cloud Run service `vaticeno-verifier`
 (us-central1, scales to zero, one instance taking one request at a time; the bot reads pages one after
@@ -166,9 +182,10 @@ account, whose JSON key sits in `/opt/vaticeno/.state/`, and needs `VERIFIER_MOD
 ### Hosting and capacity
 
 One DigitalOcean droplet (458 MB RAM, 1 GB swap) with Caddy in front, which gets the certificate itself:
-`vaticeno.n30sk.cc` is the front page, `/status` the owner's. Three processes share it: the bot (148 MiB
-peak), the status page (56) and the settlement worker (72), which leaves about 108 MiB if all three peak
-together. The verifier runs elsewhere.
+`vaticeno.n30sk.cc` is the front page, `/status` the owner's. Six processes share it: the bot (148 MiB
+peak), the status page (56) and four settlement workers (72 measured for one, before Stage 4), one per market.
+On 2026-11-06 they used 61, 2 and 14–17 MiB each, with 194 MiB available and 379 MiB in swap; the peak with
+all six has not been measured. The verifier runs elsewhere.
 
 It serves **~430 requests a second** before it saturates, and past that requests queue rather than fail:
 latency rises, nothing is refused, and the first request after the load is served in 4 ms. The ceiling is
@@ -238,7 +255,7 @@ src/
 drizzle/      SQL migrations (tables, triggers, row-level security)
 status/       the owner's status page (Python, FastAPI)
 load/         load-test harness, local targets only
-contracts/    the testnet escrow (Solidity, Foundry): src, tests, deploy script
+contracts/    the escrows (Solidity, Foundry): v1 on the testnet, v2 for real money; tests, deploy scripts
 settle/       the settlement worker (Python): signs open authorizations, settles stakes
 verifier/     the local verifier (Python): eval and training (offline), serve (the Cloud Run service)
 tests/        database tests against real Postgres
@@ -252,8 +269,8 @@ Code follows a light "pure core, I/O at the edges" structure — see
 ## Stack
 
 Node 22 · TypeScript (strict) · Zod · PostgreSQL (Supabase) + Drizzle · Gemini · Sentry · X API v2.
-Fastify (server-rendered pages, no client JS) · node-cron (jobs in the same process).
+Fastify (server-rendered pages; one browser script, for the wallet) · node-cron (jobs in the same process).
 Python 3.12 · FastAPI + Jinja2 (the status page) · ONNX Runtime on Cloud Run (the verifier; trained
-with PyTorch and Transformers on Colab). Solidity + Foundry on Base Sepolia (the testnet escrow,
+with PyTorch and Transformers on Colab). Solidity + Foundry on Base and Arbitrum One (the escrows,
 [settlement policy](docs/settlement-policy.md)). Planned, not in yet: Redis and RabbitMQ, each when its
 trigger is measured ([decision 003](docs/decisions/003-redis-and-rabbitmq.md)).

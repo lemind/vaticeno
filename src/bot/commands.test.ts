@@ -29,8 +29,9 @@ test('commands: exact, aliases, small typos and a few extra words; longer text i
     ['pin', null],
     ['pong', null],
     ['hope', null],
-    ['quote pp', null],
-    ['help what is this', null],
+    ['quote pp', 'quote'], // any words after a command (owner, 2026-11-02)
+    ['help what is this', 'help'],
+    ['stop this nonsense right now please', null], // STOP stays bare
     ['stop at 90k', null],
     ['promo ends Friday', null],
     ['Quote me: BTC hits 200k by 2027', null],
@@ -49,10 +50,22 @@ test('commands: exact, aliases, small typos and a few extra words; longer text i
 
 test('a command word followed by real text is a candidate for the model, not a command', () => {
   assert.equal(commandWordIn('quote me something nice'), 'quote');
-  // wager is a bare command only: the model has no wager intent (review 2026-10-20)
+  // the model has no wager intent: code alone decides (review 2026-10-20)
   assert.equal(commandWordIn('Wager: BTC above 100k by Friday'), null);
   assert.equal(resolveCommand('wager'), 'wager');
   assert.equal(resolveCommand('wager please'), 'wager');
+  assert.equal(
+    resolveCommand('wager do!'),
+    'wager',
+    'live 2026-11-02: recorded as a claim instead',
+  );
+  assert.equal(
+    resolveCommand('ok do the wager now my friend'),
+    'wager',
+    'anywhere, any words',
+  );
+  // in a claim's thread a wager; anywhere else src/bot/mentions.ts records it as a prediction
+  assert.equal(resolveCommand('Wager: BTC above 100k'), 'wager');
   assert.equal(commandWordIn('Quote me: BTC hits 200k by 2027'), 'quote');
   assert.equal(commandWordIn('stop at 90k'), 'stop');
   assert.equal(commandWordIn('BTC above 100k'), null);

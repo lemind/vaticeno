@@ -460,8 +460,9 @@ export const settlementOutbox = pgTable(
     id: uuid('id').primaryKey().defaultRandom(),
     claimId: uuid('claim_id')
       .notNull()
-      .unique()
       .references(() => claims.id),
+    // Chain id as text: one row per claim per network (FR-036d, 0023).
+    network: text('network').notNull(),
     claimHash: text('claim_hash'),
     openAuthorization: text('open_authorization'),
     authorizedUntil: utc('authorized_until'),
@@ -475,6 +476,9 @@ export const settlementOutbox = pgTable(
     lastError: text('last_error'),
     createdAt: utc('created_at').notNull().defaultNow(),
     sentAt: utc('sent_at'),
+    // Any stake on the claim matched, read from the chain by the worker once the deadline passed (0026):
+    // null until then. Node pays for a second read of the verdict only when it is true.
+    matched: boolean('matched'),
   },
   (t) => [
     check(
@@ -491,6 +495,40 @@ export const settlementOutbox = pgTable(
       sql`(${t.openAuthorization} is null) = (${t.authorizedUntil} is null)`,
     ),
     check('settlement_outbox_attempts_check', sql`${t.attempts} >= 0`),
+    check('settlement_outbox_network_check', sql`${t.network} ~ '^[0-9]+(-usdt)?$'`),
+    unique('settlement_outbox_claim_network_unique').on(t.claimId, t.network),
+  ],
+);
+
+// Each network's chain state, written by its settlement worker every pass, read by the status page (FR-022c).
+// The X handle as a display cache, never identity (INIT_SPEC §3): the newest one a mentions read returned.
+export const xHandles = pgTable(
+  'x_handles',
+  {
+    xUserId: text('x_user_id').primaryKey(),
+    handle: text('handle').notNull(),
+    seenAt: utc('seen_at').notNull(),
+  },
+  (t) => [
+    check('x_handles_handle_check', sql`${t.handle} ~ '^[A-Za-z0-9_]{1,15}$'`),
+  ],
+);
+
+export const networkHealth = pgTable(
+  'network_health',
+  {
+    network: text('network').primaryKey(),
+    oracleGasWei: numeric('oracle_gas_wei').notNull(),
+    escrowUsdc: numeric('escrow_usdc').notNull(),
+    owedUsdc: numeric('owed_usdc').notNull(),
+    backlog: integer('backlog').notNull(),
+    oldestBacklogAt: utc('oldest_backlog_at'),
+    lastSettledAt: utc('last_settled_at'),
+    readAt: utc('read_at').notNull(),
+  },
+  (t) => [
+    check('network_health_network_check', sql`${t.network} ~ '^[0-9]+(-usdt)?$'`),
+    check('network_health_backlog_check', sql`${t.backlog} >= 0`),
   ],
 );
 

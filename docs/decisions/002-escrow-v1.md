@@ -60,9 +60,9 @@ the claim is eligible, not that one stake is. The offer's own expiry is computed
 
 ## FR-031h — real value
 
-Not answered, on purpose: this deployment is a testnet and carries none. Real value needs a legal opinion for
-the operator's country, an independent reading of the contract, and a written incident policy. None of the
-three is in this feature.
+Not answered here, on purpose: this deployment is a testnet and carries none, and v1 never goes to a mainnet.
+Real value is 003's Stage 4 with contract v2 (docs/decisions/006-real-money.md), gated on a testnet run and a
+written incident policy (003 FR-031h, SC-024); the legal opinion and the outside review were dropped (owner, 2026-10-29).
 
 ## Still the owner's
 

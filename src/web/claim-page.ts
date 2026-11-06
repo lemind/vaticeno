@@ -8,6 +8,7 @@ import {
   corrections,
   evidences,
   positions,
+  xHandles,
   resolutions,
 } from '../db/schema.js';
 import { html, layout, safeHref, utc } from './html.js';
@@ -47,8 +48,15 @@ export async function claimPage(
       .orderBy(desc(evidences.runAt), asc(evidences.createdAt))
       .limit(MAX_ROWS),
     db
-      .select()
+      .select({
+        xUserId: positions.xUserId,
+        stance: positions.stance,
+        isAuthor: positions.isAuthor,
+        joinedAt: positions.joinedAt,
+        handle: xHandles.handle,
+      })
       .from(positions)
+      .leftJoin(xHandles, eq(xHandles.xUserId, positions.xUserId))
       .where(eq(positions.claimId, claim.id))
       .orderBy(asc(positions.joinedAt))
       .limit(MAX_ROWS),
@@ -202,7 +210,7 @@ export async function claimPage(
 
     <h2>Positions</h2>
     <ul>
-      ${people.map((p) => html`<li><a href="/u/${p.xUserId}">${p.xUserId}</a> · ${p.stance}${p.isAuthor ? ' (author)' : ''} · ${utc(p.joinedAt)}</li>`)}
+      ${people.map((p) => html`<li><a href="/u/${p.xUserId}">${p.handle ? `@${p.handle}` : p.xUserId}</a> · ${p.stance}${p.isAuthor ? ' (author)' : ''} · ${utc(p.joinedAt)}</li>`)}
     </ul>
   `;
   return layout(`#${claim.slug}`, body);

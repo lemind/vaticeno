@@ -102,7 +102,8 @@ async function dueDraft(resolutionMethod: 'price_feed' | 'model') {
 }
 
 // A price claim already locked with its outbox row, as T331a leaves it.
-async function lockedWithRow() {
+// `matched`: what the worker read from the chain after the deadline (0026); a stake taken unless a test says not.
+async function lockedWithRow(matched: boolean | null = true) {
   const claim = await insertClaim(t.sql, 'locked', {
     contract: JSON.stringify({ ...VALID_CONTRACT, deadline_at: DEADLINE }),
     resolution_method: 'price_feed',
@@ -110,7 +111,7 @@ async function lockedWithRow() {
     lock_at: LOCK,
     next_check_at: DEADLINE,
   });
-  await t.sql`insert into settlement_outbox ${t.sql({ claim_id: claim.id })}`;
+  await t.sql`insert into settlement_outbox ${t.sql({ claim_id: claim.id, network: '84532', matched })}`;
   return claim;
 }
 
@@ -129,18 +130,33 @@ describe('which claims get a row (T331a)', () => {
     );
   });
 
-  test('a model-judged claim locks with no row: it can never carry a stake', async () => {
+  test('a model-judged claim gets its row too: any claim can carry a stake (owner, 2026-11-02)', async () => {
     const { claim, deps } = await dueDraft('model');
     const [result] = await lockDueDrafts(deps, new Date(LOCK));
     assert.equal(result!.outcome, 'locked');
-    assert.equal(await outbox(claim.id), undefined);
+    assert.equal((await outbox(claim.id))!.state, 'open');
   });
 
-  test('a claim has one row at most', async () => {
+  test('a claim has one row per network at most', async () => {
     const claim = await lockedWithRow();
     await assert.rejects(
-      t.sql`insert into settlement_outbox ${t.sql({ claim_id: claim.id })}`,
-      /settlement_outbox_claim_id_unique/,
+      t.sql`insert into settlement_outbox ${t.sql({ claim_id: claim.id, network: '84532' })}`,
+      /settlement_outbox_claim_network_unique/,
+    );
+    await t.sql`insert into settlement_outbox ${t.sql({ claim_id: claim.id, network: '421614' })}`;
+  });
+
+  test('a claim locks with one row on each network switched on (FR-036d)', async () => {
+    const { claim, deps } = await dueDraft('price_feed');
+    await lockDueDrafts(
+      { ...deps, settlementNetworks: ['84532', '421614'] },
+      new Date(LOCK),
+    );
+    const rows = await t.sql`select network from settlement_outbox
+      where claim_id = ${claim.id} order by network`;
+    assert.deepEqual(
+      rows.map((r) => r.network),
+      ['421614', '84532'],
     );
   });
 });
@@ -164,6 +180,33 @@ describe('when a verdict may move a stake (T332, T332a, T336)', () => {
     assert.equal(reads.candles, 1, 'the price was read again');
     const row = await outbox(claim.id);
     assert.deepEqual([row!.state, row!.outcome], ['pending', 'hit']);
+  });
+
+  test('with no stake matched, the verdict goes to the worker without paying for a second read', async () => {
+    const claim = await lockedWithRow(false);
+    await resolveDueClaims(resolverDeps(ABOVE).deps, AFTER);
+    const { deps, reads } = resolverDeps(BELOW); // a second read would disagree: it must not happen
+    assert.deepEqual(await confirmStakedVerdicts(deps, NEXT_HOUR), {
+      confirmed: 1,
+      held: 0,
+      skipped: 0,
+    });
+    assert.equal(reads.candles, 0, 'nothing read again');
+    const row = await outbox(claim.id);
+    assert.deepEqual([row!.state, row!.outcome], ['pending', 'hit']);
+  });
+
+  test('before the worker has read the chain, the row waits and nothing is read again', async () => {
+    const claim = await lockedWithRow(null);
+    await resolveDueClaims(resolverDeps(ABOVE).deps, AFTER);
+    const { deps, reads } = resolverDeps(ABOVE);
+    assert.deepEqual(await confirmStakedVerdicts(deps, NEXT_HOUR), {
+      confirmed: 0,
+      held: 0,
+      skipped: 1,
+    });
+    assert.equal(reads.candles, 0);
+    assert.equal((await outbox(claim.id))!.state, 'open');
   });
 
   test('a second read that disagrees holds the row: nothing settles, and the timeout refunds', async () => {
@@ -249,7 +292,7 @@ describe('when a verdict may move a stake (T332, T332a, T336)', () => {
       deadline_at: DEADLINE,
       lock_at: LOCK,
     });
-    await t.sql`insert into settlement_outbox ${t.sql({ claim_id: broken.id })}`;
+    await t.sql`insert into settlement_outbox ${t.sql({ claim_id: broken.id, network: '84532' })}`;
     await t.sql`insert into resolutions ${t.sql({
       claim_id: broken.id,
       outcome: 'void',
@@ -348,11 +391,11 @@ describe("the worker's role (settle_rw, FR-028a)", () => {
 
   test('it beats its own heartbeat and no other job, and cannot move its own window (FR-020a)', async () => {
     // Other suites clear job_state, so the row the migration seeds is put back first.
-    await t.sql`insert into job_state (job, stale_after_seconds) values ('settle', 180) on conflict do nothing`;
+    await t.sql`insert into job_state (job, stale_after_seconds) values ('settle-84532', 180) on conflict do nothing`;
     await t.sql`insert into job_state (job, stale_after_seconds) values ('resolve', 7260) on conflict do nothing`;
     const own = await asWorker(
       (sql) =>
-        sql`update job_state set last_ok_at = now(), last_outcome = 'ok' where job = 'settle' returning job`,
+        sql`update job_state set last_ok_at = now(), last_outcome = 'ok' where job = 'settle-84532' returning job`,
     );
     assert.equal((own as unknown[]).length, 1);
     const other = await asWorker(
@@ -364,10 +407,23 @@ describe("the worker's role (settle_rw, FR-028a)", () => {
       0,
       'row-level security hides every other job',
     );
+    // A new network's worker registers its own heartbeat, and nothing but a `settle-` one.
+    const registered = await asWorker(
+      (sql) =>
+        sql`insert into job_state (job, stale_after_seconds) values ('settle-421614', 180) returning job`,
+    );
+    assert.equal((registered as unknown[]).length, 1);
     await assert.rejects(
       asWorker(
         (sql) =>
-          sql`update job_state set stale_after_seconds = 1 where job = 'settle'`,
+          sql`insert into job_state (job, stale_after_seconds) values ('resolve-2', 180)`,
+      ),
+      /row-level security/,
+    );
+    await assert.rejects(
+      asWorker(
+        (sql) =>
+          sql`update job_state set stale_after_seconds = 1 where job = 'settle-84532'`,
       ),
       /permission denied/,
     );
@@ -378,7 +434,8 @@ describe("the worker's role (settle_rw, FR-028a)", () => {
     await t.sql`delete from settlement_outbox where claim_id = ${claim.id}`;
     await assert.rejects(
       asWorker(
-        (sql) => sql`insert into settlement_outbox ${sql({ claim_id: claim.id })}`,
+        (sql) =>
+          sql`insert into settlement_outbox ${sql({ claim_id: claim.id, network: '84532' })}`,
       ),
       /permission denied/,
     );

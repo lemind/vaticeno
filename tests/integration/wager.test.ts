@@ -9,6 +9,7 @@ import { type BotDeps, pollMentions } from '../../src/bot/mentions.js';
 import type { Coinbase } from '../../src/feeds/coinbase.js';
 import { createMemorySourceReader } from '../../src/lifecycle/source-reader.js';
 import type { LlmClient } from '../../src/llm/client.js';
+import { KNOWN_NETWORKS } from '../../src/wager/networks.js';
 import { buildServer } from '../../src/web/server.js';
 import { type Mention, PostNotSent, type XClient } from '../../src/x/client.js';
 import {
@@ -43,7 +44,17 @@ const llm = new Proxy(
 
 async function bot(
   mentionsByPoll: Mention[][],
-  opts: { linksPerDay?: number; failPosts?: number; notSent?: number } = {},
+  opts: {
+    linksPerDay?: number;
+    failPosts?: number;
+    notSent?: number;
+    networks?: Array<{
+      key: string;
+      name: string;
+      symbol: string;
+      testnet: boolean;
+    }>;
+  } = {},
 ) {
   const replies: Array<{ to: string; text: string }> = [];
   let poll = 0;
@@ -75,7 +86,13 @@ async function bot(
     },
     allowAuthor: () => true,
     caps: { perAuthorPerHour: 30, perDay: 300 },
-    wager: { host: HOST, linksPerDay: opts.linksPerDay ?? 10 },
+    wager: {
+      host: HOST,
+      linksPerDay: opts.linksPerDay ?? 10,
+      networks: opts.networks ?? [
+        { key: '84532', name: 'Base Sepolia', symbol: 'tokens', testnet: true },
+      ],
+    },
     statePath: join(await mkdtemp(join(tmpdir(), 'vaticeno-wager-')), 'ingest.json'),
   };
   return { deps, replies };
@@ -101,11 +118,65 @@ const THREAD = {
 // Locked since Stage 2 shipped: the lock wrote its settlement row (src/lifecycle/lock.ts).
 async function lockedPriceClaim(overrides: Record<string, unknown> = {}) {
   const claim = await insertClaim(t.sql, 'locked', { ...THREAD, ...overrides });
-  await t.sql`insert into settlement_outbox (claim_id) values (${claim.id})`;
+  await t.sql`insert into settlement_outbox (claim_id, network) values (${claim.id}, '84532')`;
   return claim;
 }
 
+const MAINNETS = [
+  { key: '8453', name: 'Base', symbol: 'USDC', testnet: false },
+  { key: '42161', name: 'Arbitrum One', symbol: 'USDC', testnet: false },
+];
+const ARBITRUM_USDT = {
+  key: '42161-usdt',
+  name: 'Arbitrum One',
+  symbol: 'USDT',
+  testnet: false,
+};
+
 describe('the wager command', () => {
+  test('a claim locked before a network was on gets its row when asked, and the link names it', async () => {
+    const claim = await lockedPriceClaim(); // locked under Stage 2: a Base Sepolia row only
+    const { deps, replies } = await bot([[wager('10')]], { networks: MAINNETS });
+    await pollMentions(deps, NOW);
+    assert.match(replies[0]!.text, /\nUSDC on Base or Arbitrum One\.$/);
+    const rows =
+      await t.sql`select network from settlement_outbox where claim_id = ${claim.id} order by network`;
+    assert.deepEqual(
+      rows.map((r) => r.network),
+      ['42161', '8453', '84532'],
+    );
+  });
+
+  test('with real money on, the link names the networks and USDC, and still carries one link only', async () => {
+    const claim = await lockedPriceClaim();
+    for (const network of ['8453', '42161'])
+      await t.sql`insert into settlement_outbox (claim_id, network) values (${claim.id}, ${network})`;
+    const { deps, replies } = await bot([[wager('10')]], { networks: MAINNETS });
+    await pollMentions(deps, NOW);
+    assert.match(replies[0]!.text, /\nUSDC on Base or Arbitrum One\.$/);
+    assert.doesNotMatch(replies[0]!.text, /Testnet|no value|[Rr]eal money|risk/);
+    assert.equal(replies[0]!.text.match(/https?:\/\/|vaticeno\.test/g)!.length, 1);
+    assert.ok(replies[0]!.text.includes(`${HOST}/claim/${claim.slug}/wager`));
+  });
+
+  test('with USDT on Arbitrum too, the link names each token with its networks, and the claim gets a USDT row', async () => {
+    const claim = await lockedPriceClaim();
+    const { deps, replies } = await bot([[wager('10')]], {
+      networks: [...MAINNETS, ARBITRUM_USDT],
+    });
+    await pollMentions(deps, NOW);
+    assert.match(
+      replies[0]!.text,
+      /\nUSDC on Base or Arbitrum One; USDT on Arbitrum One\.$/,
+    );
+    const rows =
+      await t.sql`select network from settlement_outbox where claim_id = ${claim.id} order by network`;
+    assert.deepEqual(
+      rows.map((r) => r.network),
+      ['42161', '42161-usdt', '8453', '84532'],
+    );
+  });
+
   test('a burst on one claim posts one link, from anyone in the thread, and never again', async () => {
     const claim = await lockedPriceClaim();
     const { deps, replies } = await bot([
@@ -153,7 +224,7 @@ describe('the wager command', () => {
     await pollMentions(deps, NOW);
     assert.equal(replies.length, 1, 'the refusal is said once per claim');
     await t.sql`update claims set status = 'locked' where id = ${claim.id}`;
-    await t.sql`insert into settlement_outbox (claim_id) values (${claim.id})`;
+    await t.sql`insert into settlement_outbox (claim_id, network) values (${claim.id}, '84532')`;
     await pollMentions(deps, NOW);
     assert.match(
       replies[1]!.text,
@@ -162,17 +233,30 @@ describe('the wager command', () => {
     );
   });
 
-  test('a model-judged claim is "not a price claim" even before it locks, once', async () => {
+  test('"wager" with any words is the command, never a new claim (live 2026-11-02, "wager do!")', async () => {
+    await lockedPriceClaim();
+    const { deps, replies } = await bot([
+      [{ ...wager('10'), text: '@vaticeno wager do!' }],
+    ]);
+    await pollMentions(deps, NOW);
+    assert.match(replies[0]!.text, /^WAGER · /);
+    assert.equal(
+      (await t.sql`select count(*)::int as n from claims`)[0]!.n,
+      1,
+      'no claim recorded',
+    );
+  });
+
+  test('a model-judged claim carries a wager like any other (owner, 2026-11-02)', async () => {
     const { price: _price, ...modelContract } = VALID_CONTRACT;
-    await insertClaim(t.sql, 'draft', {
+    await insertClaim(t.sql, 'locked', {
       ...THREAD,
       resolution_method: 'model',
       contract: JSON.stringify({ ...modelContract, resolution_method: 'model' }),
     });
-    const { deps, replies } = await bot([[wager('10'), wager('11')]]);
+    const { deps, replies } = await bot([[wager('10')]]);
     await pollMentions(deps, NOW);
-    assert.equal(replies.length, 1);
-    assert.match(replies[0]!.text, /only claims decided by a price feed/);
+    assert.match(replies[0]!.text, /^WAGER · /);
   });
 
   test('a claim whose wagering has closed refuses once, without a link', async () => {
@@ -201,12 +285,21 @@ describe('the wager command', () => {
     );
   });
 
-  test('a claim locked before settlement existed has no row, so no dead link: closed', async () => {
-    await insertClaim(t.sql, 'locked', THREAD);
+  test('a claim with no row asked after acceptance closed gets no row and no dead link: closed', async () => {
+    const claim = await insertClaim(t.sql, 'locked', {
+      ...THREAD,
+      deadline_at: '2026-10-21T06:00:00Z', // offers closed 24 hours before
+    });
     const { deps, replies } = await bot([[wager('10')]]);
     await pollMentions(deps, NOW);
     assert.equal(replies.length, 1);
     assert.match(replies[0]!.text, /is closed for new offers/);
+    assert.equal(
+      (
+        await t.sql`select count(*)::int as n from settlement_outbox where claim_id = ${claim.id}`
+      )[0]!.n,
+      0,
+    );
   });
 
   test('a post that provably never left gives the link back for the next ask', async () => {
@@ -236,14 +329,22 @@ describe('the wager command', () => {
 });
 
 describe('the wager page', () => {
-  const config = {
-    escrow: '0x6281F12b4d4AB4bC3d53719A209381F81aFC0A72',
-    token: '0x5C2cfb7a6a87cbD0D927EDe2ea01BFc8C816c2d7',
-    chainId: 84532,
-    chainName: 'Base Sepolia',
-    rpcUrls: ['https://base-sepolia-rpc.publicnode.com', 'https://sepolia.base.org'],
-    explorer: 'https://sepolia.basescan.org',
-  };
+  const network = (chainId: number, escrow: string, token: string) => ({
+    ...KNOWN_NETWORKS[chainId]!,
+    key: String(chainId),
+    symbol: KNOWN_NETWORKS[chainId]!.usdc ? ('USDC' as const) : ('tokens' as const),
+    chainId,
+    version: 1 as const,
+    escrow,
+    token,
+  });
+  const config = [
+    network(
+      84532,
+      '0x6281F12b4d4AB4bC3d53719A209381F81aFC0A72',
+      '0x5C2cfb7a6a87cbD0D927EDe2ea01BFc8C816c2d7',
+    ),
+  ];
   const app = (now = NOW) =>
     buildServer({ db: t.db, now: () => now, wager: config });
   const pageData = (body: string) =>
@@ -277,6 +378,92 @@ describe('the wager page', () => {
     assert.match(script.headers['content-type'] as string, /text\/javascript/);
   });
 
+  test('each network is its own page: its own row, escrow and chain, never the other one (FR-036d)', async () => {
+    const claim = await withAuthorization(); // signed on Base Sepolia only
+    await t.sql`insert into settlement_outbox (claim_id, network) values (${claim.id}, '421614')`;
+    const both = [
+      ...config,
+      network(421614, '0x' + '22'.repeat(20), '0x' + '33'.repeat(20)),
+    ];
+    const server = buildServer({ db: t.db, now: () => NOW, wager: both });
+    const base = await server.inject(`/claim/${claim.slug}/wager`);
+    assert.match(
+      base.body,
+      /<span class="on" aria-current="page">Base Sepolia<\/span>/,
+    );
+    assert.match(base.body, /href="\/claim\/[^"]+\/wager\?network=421614"/);
+    assert.equal(pageData(base.body).chainId, 84532);
+    assert.equal(pageData(base.body).authorization, '0x' + '11'.repeat(65));
+    const arb = pageData(
+      (await server.inject(`/claim/${claim.slug}/wager?network=421614`)).body,
+    );
+    assert.equal(arb.chainId, 421614);
+    assert.equal(arb.escrow, '0x' + '22'.repeat(20));
+    assert.equal(
+      arb.authorization,
+      null,
+      "Base Sepolia's signature is never served for Arbitrum",
+    );
+  });
+
+  test('a plain link opens on the real-money network the bot named, not on the testnet', async () => {
+    const claim = await withAuthorization();
+    await t.sql`insert into settlement_outbox (claim_id, network) values (${claim.id}, '8453')`;
+    const base = {
+      ...network(8453, '0x' + '22'.repeat(20), KNOWN_NETWORKS[8453]!.usdc!),
+      version: 2 as const,
+    };
+    const res = await buildServer({
+      db: t.db,
+      now: () => NOW,
+      wager: [...config, base],
+    }).inject(`/claim/${claim.slug}/wager`);
+    assert.equal(pageData(res.body).chainId, 8453);
+    assert.match(res.body, /network=84532/, 'the testnet is still one click away');
+  });
+
+  test('a network switched on after the claim locked is never offered for it', async () => {
+    const claim = await withAuthorization(); // a Base Sepolia row only
+    const later = [
+      network(421614, '0x' + '22'.repeat(20), '0x' + '33'.repeat(20)),
+      ...config,
+    ];
+    const res = await buildServer({ db: t.db, now: () => NOW, wager: later }).inject(
+      `/claim/${claim.slug}/wager`,
+    );
+    assert.equal(
+      pageData(res.body).chainId,
+      84532,
+      'the plain link opens where the claim has a market',
+    );
+    assert.doesNotMatch(res.body, /network=421614|Arbitrum Sepolia/);
+  });
+
+  test('on a real-money network the page says so: no testnet wording, USDC, and the risks it cannot remove', async () => {
+    const claim = await withAuthorization();
+    await t.sql`insert into settlement_outbox (claim_id, network) values (${claim.id}, '8453')`;
+    const base = {
+      ...network(8453, '0x' + '22'.repeat(20), KNOWN_NETWORKS[8453]!.usdc!),
+      version: 2 as const,
+    };
+    const res = await buildServer({
+      db: t.db,
+      now: () => NOW,
+      wager: [base],
+    }).inject(`/claim/${claim.slug}/wager`);
+    assert.doesNotMatch(
+      res.body,
+      /Testnet|test token|faucet|no value|worth nothing/i,
+    );
+    assert.match(res.body, /cannot remove/);
+    assert.match(
+      res.body.replace(/\s+/g, ' '),
+      /freezes the escrow itself or pauses USDC, nobody can withdraw/,
+    );
+    assert.match(res.body, /the escrow on Basescan/);
+    assert.match(res.body, /<span class="unit">USDC<\/span>/);
+  });
+
   test('after acceptance closes the authorization is no longer served', async () => {
     const claim = await withAuthorization();
     const res = await app(new Date('2026-12-31T00:00:00Z')).inject(
@@ -292,15 +479,15 @@ describe('the wager page', () => {
     assert.match(res.body, /Wagering opens shortly/);
   });
 
-  test('a model-judged claim has no wager controls', async () => {
+  test('a model-judged claim gets the wager page like any other', async () => {
     const { price: _price, ...modelContract } = VALID_CONTRACT;
-    const claim = await insertClaim(t.sql, 'locked', {
+    const claim = await lockedPriceClaim({
       resolution_method: 'model',
       contract: JSON.stringify({ ...modelContract, resolution_method: 'model' }),
     });
     const res = await app().inject(`/claim/${claim.slug}/wager`);
-    assert.match(res.body, /can't carry a wager/);
-    assert.doesNotMatch(res.body, /wallet\.js/);
+    assert.doesNotMatch(res.body, /can't carry a wager/);
+    assert.match(res.body, /Wagering opens shortly/);
   });
 
   test('a contract field cannot break out of the page or its data', async () => {

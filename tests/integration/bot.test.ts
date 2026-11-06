@@ -1049,8 +1049,8 @@ describe('unclear mentions: the model reads the thread', () => {
     );
     assert.match(
       replies[1]!.text,
-      /Tag me under your prediction/,
-      'the stub says "other" → help',
+      /Bugsy Siegel/,
+      'a command word with any words after it is the command (owner, 2026-11-02)',
     );
   });
 });
@@ -1412,7 +1412,8 @@ describe('a refusal is not a dead end (FR-033)', () => {
       },
     } as unknown as BotDeps;
 
-    const asking = mention('821', '@vaticeno quote me something about this', {
+    // A number keeps it from being a bare command, so the model decides.
+    const asking = mention('821', '@vaticeno quote me something about 2026', {
       in_reply_to_user_id: BOT,
       referenced_tweets: [{ type: 'replied_to', id: 'r-820' }],
     });

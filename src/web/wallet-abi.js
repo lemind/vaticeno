@@ -16,10 +16,19 @@ export const SELECTORS = {
   expire: '0xbf81bf43',
   payout: '0xe1152343',
   refund: '0x278ecde1',
+  // v2 only (docs/decisions/007-escrow-v2.md): the minimum, the caps, what they hold, and the credits.
+  minStake: '0x375b3c0a',
+  maxPerClaim: '0xe14e4386',
+  maxTotal: '0x648e3c26',
+  lockedOnClaim: '0x136b3206', // lockedOnClaim(bytes32)
+  lockedTotal: '0xf145c73b',
+  creditOf: '0x75807250', // creditOf(address)
+  withdraw: '0x3ccfd60b',
   approve: '0x095ea7b3', // approve(address,uint256)
   allowance: '0xdd62ed3e', // allowance(address,address)
   balanceOf: '0x70a08231',
   decimals: '0x313ce567',
+  symbol: '0x95d89b41',
 };
 
 // Escrow.State and Escrow.Outcome, in the contract's own order.
@@ -64,6 +73,8 @@ export const encodeApprove = (spender, amount) => call(SELECTORS.approve, addres
 export const encodeAllowance = (owner, spender) => call(SELECTORS.allowance, address(owner), address(spender));
 export const encodeBalanceOf = (owner) => call(SELECTORS.balanceOf, address(owner));
 export const encodeStakesOf = (claimHash) => call(SELECTORS.stakesOf, bytes32(claimHash));
+export const encodeLockedOnClaim = (claimHash) => call(SELECTORS.lockedOnClaim, bytes32(claimHash));
+export const encodeCreditOf = (owner) => call(SELECTORS.creditOf, address(owner));
 
 const words = (hex) => strip(hex).match(/.{64}/g) ?? [];
 export const decodeUint = (hex) => BigInt('0x' + (words(hex)[0] ?? '0'));
@@ -74,6 +85,15 @@ export function decodeUintArray(hex) {
   const start = Number(BigInt('0x' + w[0]) / 32n);
   const length = Number(BigInt('0x' + w[start]));
   return w.slice(start + 1, start + 1 + length).map((item) => BigInt('0x' + item));
+}
+
+// string: offset, length, UTF-8 bytes.
+export function decodeString(hex) {
+  const h = strip(hex);
+  const start = Number(BigInt('0x' + h.slice(0, 64))) * 2;
+  const length = Number(BigInt('0x' + h.slice(start, start + 64))) * 2;
+  const bytes = h.slice(start + 64, start + 64 + length).match(/../g) ?? [];
+  return new TextDecoder().decode(new Uint8Array(bytes.map((b) => parseInt(b, 16))));
 }
 
 // The public `stakes` getter: ten static words, in Escrow.Stake's order.
@@ -112,12 +132,29 @@ export function formatUnits(value, decimals) {
   return fraction ? `${whole}.${fraction}` : `${whole}`;
 }
 
+// Why v2 would refuse a stake of `amount`, in the contract's own order, or null; checked before the wallet
+// signs (003 SC-026). `opening`: open also checks the amount, accept only the caps. v1 has no caps: null.
+export function capRefusal(caps, amount, { opening }) {
+  if (!caps) return null;
+  const { minStake, maxStake, lockedOnClaim, maxPerClaim, lockedTotal, maxTotal, decimals, symbol } = caps;
+  const units = (value) => `${formatUnits(value, decimals)} ${symbol}`;
+  if (opening && (amount < minStake || amount > maxStake))
+    return `the stake must be between ${units(minStake)} and ${units(maxStake)}`;
+  if (lockedOnClaim + amount > maxPerClaim)
+    return `this claim's cap is reached: ${units(maxPerClaim - lockedOnClaim)} of ${units(maxPerClaim)} left`;
+  if (lockedTotal + amount > maxTotal)
+    return `the contract's cap is reached: ${units(maxTotal - lockedTotal)} of ${units(maxTotal)} left`;
+  return null;
+}
+
 // What the page may offer for one stake, by the contract's own conditions (003 FR-043). `now` in seconds.
-export function actionsFor(stake, { now, account, paused, settlementWindow, timeout }) {
+export function actionsFor(stake, { now, account, paused, settlementWindow, timeout, caps = null }) {
   const mine = account && stake.maker.toLowerCase() === account.toLowerCase();
   if (stake.state === 'Open') {
     if (now >= stake.offerExpiry) return [{ name: 'expire', label: 'Return expired offer', live: true }];
-    return mine || paused ? [] : [{ name: 'accept', label: 'Accept', live: true }];
+    if (mine || paused) return [];
+    const refused = capRefusal(caps, stake.amount, { opening: false });
+    return [refused ? { name: 'accept', label: 'Accept', live: false, refused } : { name: 'accept', label: 'Accept', live: true }];
   }
   if (stake.state === 'Settled') {
     const opens = stake.settledAt + settlementWindow;

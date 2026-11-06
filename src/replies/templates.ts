@@ -166,9 +166,21 @@ export function alreadyRecordedReply(existingSlug: string): string {
 }
 
 // The one reply allowed a link (constitution VI 2.8.0, 003 FR-039): our own domain, plain text, once a claim.
-export function wagerLinkReply(host: string, slug: string): string {
+// `markets`: the real-money ones open, each a network and its token; none means every network is a testnet
+// (Story 6 scenario 5). One line per token: "USDC on Base or Arbitrum One; USDT on Arbitrum One."
+export function wagerLinkReply(
+  host: string,
+  slug: string,
+  markets: readonly { name: string; symbol: string }[] = [],
+): string {
+  const bySymbol = new Map<string, string[]>();
+  for (const m of markets)
+    bySymbol.set(m.symbol, [...(bySymbol.get(m.symbol) ?? []), m.name]);
+  const terms = markets.length
+    ? `${[...bySymbol].map(([symbol, names]) => `${symbol} on ${names.join(' or ')}`).join('; ')}.`
+    : 'Testnet only: the token has no value.';
   return assertReplyFits(
-    `WAGER · #${slug}\nOffer a side or take one, with your own wallet:\n${host}/claim/${slug}/wager\nTestnet only: the token has no value.`,
+    `WAGER · #${slug}\nOffer a side or take one, with your own wallet:\n${host}/claim/${slug}/wager\n${terms}`,
   );
 }
 
@@ -185,7 +197,7 @@ export function wagerNotLockedReply(
 }
 
 export const wagerNotPriceReply = (slug: string) =>
-  `#${slug} can't carry a wager: only claims decided by a price feed can.`;
+  `#${slug} can't carry a wager: it has no deadline.`;
 
 export const wagerClosedReply = (slug: string) =>
   `Wagering on #${slug} is closed for new offers.`;

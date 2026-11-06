@@ -118,16 +118,17 @@ export function layout(
           }
           dl {
             display: grid;
-            grid-template-columns: max-content 1fr;
+            grid-template-columns: max-content minmax(0, 1fr);
             gap: 4px 16px;
             margin: 0;
           }
           dt {
             color: var(--muted);
           }
+          /* break-word, not anywhere: anywhere lets a column shrink to one letter ("Accep/t"). */
           dd {
             margin: 0;
-            overflow-wrap: anywhere;
+            overflow-wrap: break-word;
           }
           table {
             width: 100%;
@@ -140,11 +141,48 @@ export function layout(
             padding: 6px 8px 6px 0;
             border-bottom: 1px solid var(--line);
             vertical-align: top;
-            overflow-wrap: anywhere;
+            overflow-wrap: break-word;
           }
           th {
             color: var(--muted);
             font-weight: 500;
+            white-space: nowrap;
+          }
+          /* A phone stacks a label above its value, so neither column is squeezed. */
+          @media (max-width: 560px) {
+            dl {
+              grid-template-columns: minmax(0, 1fr);
+              gap: 0;
+            }
+            dt {
+              margin-top: 10px;
+            }
+            .scroll table:not(.wagers) {
+              min-width: 520px;
+            }
+            /* Each wager as a card, its action on its own line, so Accept is never off-screen. */
+            table.wagers thead {
+              display: none;
+            }
+            table.wagers tr {
+              display: block;
+              padding: 8px 0;
+              border-bottom: 1px solid var(--line);
+            }
+            table.wagers td {
+              display: grid;
+              grid-template-columns: 64px minmax(0, 1fr);
+              gap: 8px;
+              padding: 2px 0;
+              border: 0;
+            }
+            table.wagers td::before {
+              content: attr(data-label);
+              color: var(--muted);
+            }
+            table.wagers td:last-child {
+              display: block;
+            }
           }
           .status {
             display: inline-block;
@@ -165,6 +203,26 @@ export function layout(
           .muted {
             color: var(--muted);
           }
+          .steps li,
+          ul li {
+            margin: 4px 0;
+          }
+          code {
+            font-family: inherit; /* the page's own font: system monospace read badly */
+            font-size: 0.95em;
+            font-weight: 600;
+            padding: 1px 7px;
+            border-radius: 6px;
+            background: color-mix(in srgb, var(--line) 60%, transparent);
+            white-space: nowrap;
+          }
+          table.commands td {
+            padding: 8px 12px 8px 0;
+          }
+          table.commands td:first-child {
+            width: 1%;
+            white-space: nowrap;
+          }
           a {
             color: inherit;
           }
@@ -181,6 +239,38 @@ export function layout(
           }
           .scroll {
             overflow-x: auto;
+          }
+          .networks .seg {
+            display: inline-flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            padding: 4px;
+            border: 1px solid var(--line);
+            border-radius: 21px;
+          }
+          .networks .seg a,
+          .networks .seg .on {
+            padding: 6px 14px;
+            border-radius: 999px;
+            font-size: 0.92rem;
+            text-decoration: none;
+            white-space: nowrap;
+          }
+          .networks .seg a {
+            color: var(--muted);
+          }
+          .networks .seg a:hover {
+            color: var(--fg);
+            background: color-mix(in srgb, var(--line) 60%, transparent);
+          }
+          .networks .seg .on {
+            background: var(--fg);
+            color: var(--bg);
+            font-weight: 600;
+          }
+          .networks p {
+            margin: 6px 0 0;
+            font-size: 0.85rem;
           }
           .notice {
             border: 1px solid var(--line);

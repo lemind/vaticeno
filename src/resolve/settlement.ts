@@ -1,5 +1,6 @@
-// The one writer of a settlement outcome (003 FR-027). A price verdict is read a second time before it can
-// move money: the window is 72 hours and the weekly recheck does not fit in it (docs/decisions/002-escrow-v1.md).
+// The one writer of a settlement outcome (003 FR-027). A verdict is read a second time before it can move
+// money: the window is 72 hours and the weekly recheck does not fit in it (docs/decisions/002-escrow-v1.md).
+// Only a claim with a matched stake is read again: the worker records that from the chain (0026).
 import { and, eq } from 'drizzle-orm';
 import { claims, DECIDED_BY, resolutions, settlementOutbox } from '../db/schema.js';
 import { log } from '../log.js';
@@ -30,6 +31,7 @@ export async function confirmStakedVerdicts(
       slug: claims.slug,
       outcome: resolutions.outcome,
       decidedBy: resolutions.decidedBy,
+      matched: settlementOutbox.matched,
     })
     .from(settlementOutbox)
     .innerJoin(claims, eq(claims.id, settlementOutbox.claimId))
@@ -39,16 +41,28 @@ export async function confirmStakedVerdicts(
     );
 
   const result: Confirmed = { confirmed: 0, held: 0, skipped: 0 };
-  for (const row of due) {
+  // One second read per claim, however many networks it is on: the update below moves all its rows (FR-036d).
+  const claimsDue = [...new Map(due.map((row) => [row.claimId, row])).values()];
+  for (const row of claimsDue) {
     if (!row.outcome || !row.decidedBy || !SETTLES.has(row.decidedBy)) {
       result.skipped++;
       continue;
     }
+    // Until every network's worker has read the chain, wait; with no stake matched anywhere there is no money to
+    // protect, so no second read is paid for and the worker closes the rows as no_stake.
+    const rows = due.filter((d) => d.claimId === row.claimId);
+    if (rows.some((d) => d.matched === null)) {
+      result.skipped++;
+      continue;
+    }
+    const staked = rows.some((d) => d.matched);
     // A human's verdict is already the second look; anything else is read again from the source.
     let agrees: boolean;
     try {
       agrees =
-        row.decidedBy === 'human' || (await secondReadAgrees(deps, row.slug, now));
+        !staked ||
+        row.decidedBy === 'human' ||
+        (await secondReadAgrees(deps, row.slug, now));
     } catch (error) {
       // Either way the row stays open and is tried next run, and one bad claim never stops the others.
       // An outage is not a disagreement (INIT_SPEC §6.7); anything else is a defect, and reported as one.

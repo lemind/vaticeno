@@ -5,17 +5,9 @@ import { renderStatement } from '../contract/render.js';
 import { ContractSchema } from '../contract/schema.js';
 import type { Db } from '../db/client.js';
 import { claims, corrections, resolutions, settlementOutbox } from '../db/schema.js';
+import type { WagerNetwork } from '../wager/networks.js';
 import { wagerKind } from '../wager/terms.js';
 import { html, jsonData, layout, utc } from './html.js';
-
-export type WagerConfig = {
-  escrow: string;
-  token: string;
-  chainId: number;
-  chainName: string;
-  rpcUrls: string[];
-  explorer: string;
-};
 
 const POLICY_URL =
   'https://github.com/lemind/vaticeno/blob/main/docs/settlement-policy.md';
@@ -30,11 +22,15 @@ const SETTLEMENT_WORDS: Record<string, string> = {
   failed: 'not settled by the referee: matched wagers refund at the timeout',
 };
 
+// `market` picks the network and token (FR-036d): each has its own row, its own escrow and its own offers, and
+// the page shows one at a time. Only markets the claim has a row on are offered (rows are written at lock, so
+// one switched on later has none); an unknown or absent `market` shows the first of them.
 export async function wagerPage(
   db: Db,
   slug: string,
   now: Date,
-  config: WagerConfig | null,
+  networks: WagerNetwork[],
+  market?: string,
 ): Promise<string | null> {
   const [claim] = await db
     .select()
@@ -43,15 +39,18 @@ export async function wagerPage(
     .limit(1);
   if (!claim?.contract) return null;
   const contract = ContractSchema.parse(claim.contract);
-  const [[outbox], [resolution], [correction]] = await Promise.all([
-    db
-      .select()
-      .from(settlementOutbox)
-      .where(eq(settlementOutbox.claimId, claim.id))
-      .limit(1),
+  const [rows, [resolution], [correction]] = await Promise.all([
+    db.select().from(settlementOutbox).where(eq(settlementOutbox.claimId, claim.id)),
     db.select().from(resolutions).where(eq(resolutions.claimId, claim.id)).limit(1),
     db.select().from(corrections).where(eq(corrections.claimId, claim.id)).limit(1),
   ]);
+  const withRow = networks.filter((n) => rows.some((row) => row.network === n.key));
+  // Real money first: the bot's link names the mainnet, so a plain link opens on it, not on the testnet.
+  const shown = [...(withRow.length ? withRow : networks)].sort(
+    (a, b) => Number(a.testnet) - Number(b.testnet),
+  );
+  const config = shown.find((n) => n.key === market) ?? shown[0] ?? null;
+  const outbox = rows.find((row) => row.network === config?.key);
   const deadline = new Date(contract.deadline_at);
   // The same rule the bot answers by (src/wager/terms.ts).
   const kind = wagerKind({ ...claim, outbox: outbox ?? null }, now);
@@ -62,18 +61,21 @@ export async function wagerPage(
       <a href="/claim/${claim.slug}">#${claim.slug}</a> · wager
     </p>
     <h1>${statement}</h1>
-    <p class="notice">
-      <strong>Testnet only.</strong> Wagers use VTS, a test token with no value, on
-      the Base Sepolia test network. Nothing here is real money.
-    </p>`;
+    ${
+      !config || config.testnet
+        ? html`<p class="notice">
+            <strong>Testnet only.</strong> Wagers use a test token with no value, on
+            ${config ? `the ${config.name} test network` : 'a test network'}. Nothing
+            here is real money.
+          </p>`
+        : ''
+    }`;
 
   if (kind === 'not_price')
     return layout(
       `#${claim.slug} · wager`,
       html`${head}
-        <p>
-          This claim can't carry a wager: only claims decided by a price feed can.
-        </p>`,
+        <p>This claim can't carry a wager: it has no deadline.</p>`,
     );
   if (!config)
     return layout(
@@ -103,7 +105,27 @@ export async function wagerPage(
           : html`Wagering opens shortly: the referee is signing this claim's
             permission.`;
 
-  const body = html`${head}
+  // Each network is its own market: a link per network, the one shown marked (FR-036d).
+  const picker =
+    shown.length > 1
+      ? html`<nav class="networks" aria-label="Network">
+          <div class="seg">
+            ${shown.map((n) =>
+              n.key === config.key
+                ? html`<span class="on" aria-current="page">${marketLabel(n)}</span>`
+                : html`<a href="/claim/${claim.slug}/wager?network=${n.key}"
+                    >${marketLabel(n)}</a
+                  >`,
+            )}
+          </div>
+          <p class="muted">
+            Each market is its own: an offer is matched and settled only where it was
+            made.
+          </p>
+        </nav>`
+      : '';
+
+  const body = html`${head} ${picker}
     <h2>Terms</h2>
     <dl>
       <dt>HIT means</dt>
@@ -116,21 +138,24 @@ export async function wagerPage(
           href="${config.explorer}/address/${config.escrow}#code"
           rel="noopener"
           target="_blank"
-          >the escrow on Basescan</a
+          >the escrow on ${config.explorerName}</a
         >, source code verified ·
         <a
           href="${config.explorer}/token/${config.token}"
           rel="noopener"
           target="_blank"
-          >the VTS token</a
+          >the token</a
         >
+        on ${config.name}
         <br /><span class="muted"
           >Check any wager there: Read Contract → <code>stakes(number)</code>.
           Addresses in the table link to their own pages.</span
         >
       </dd>
       <dt>Decided by</dt>
-      <dd>${contract.source.name}, daily UTC close</dd>
+      <dd>
+        ${contract.source.name}${contract.resolution_method === 'price_feed' ? ', daily UTC close' : ''}
+      </dd>
       <dt>Deadline</dt>
       <dd>${utc(deadline)}</dd>
       <dt>Wagering closes</dt>
@@ -148,9 +173,28 @@ export async function wagerPage(
       <dd>
         <span id="hold">A fixed time</span> after the verdict reaches the chain.
         During it the referee can void its own mistake, which refunds both sides.
-        After it anyone can pay out.
+        After it the referee pays it out to the winner's wallet; anyone else can too.
         <a href="${POLICY_URL}" rel="noopener">Settlement policy</a>
       </dd>
+      ${
+        config.version === 2
+          ? html`<dt>How money comes back</dt>
+              <dd>
+                straight to your wallet when the hold ends; nobody has to press
+                anything. Only if ${config.symbol} has frozen your address does it
+                wait here, for you to withdraw once it is unfrozen
+              </dd>
+              <dt>Risks we cannot remove</dt>
+              <dd>
+                ${config.symbol}'s issuer can freeze an address: a frozen one cannot
+                withdraw while it lasts, and the other side is unaffected. If it
+                freezes the escrow itself or pauses ${config.symbol}, nobody can
+                withdraw until that lifts. If ${config.name} halts, nothing moves
+                until it restarts.
+                <a href="${POLICY_URL}" rel="noopener">Settlement policy</a>
+              </dd>`
+          : ''
+      }
       <dt>No settlement</dt>
       <dd>
         if no verdict reaches the chain within
@@ -186,7 +230,7 @@ export async function wagerPage(
       </p></noscript
     >
     <div class="scroll">
-      <table>
+      <table class="wagers">
         <thead>
           <tr>
             <th>Wager</th>
@@ -206,10 +250,11 @@ export async function wagerPage(
       <p>
         <button type="button" id="connect" class="primary">Connect wallet</button>
         <span id="balance" class="muted"></span>
+        <button type="button" id="withdraw" hidden>Withdraw</button>
       </p>
       <p class="muted">
-        Your own wallet signs every step and pays its network fee. Base Sepolia test
-        ETH comes from a faucet; VTS from the operator.
+        Your own wallet signs every step and pays its network fee in ${config.name}
+        ETH.${config.testnet ? ' Test ETH comes from a faucet; the test token from the operator.' : ''}
       </p>
       <form id="offer" class="offer" hidden>
         <fieldset class="side">
@@ -234,13 +279,13 @@ export async function wagerPage(
               autocomplete="off"
               required
             />
-            <span class="unit">VTS</span>
+            <span class="unit">${config.symbol}</span>
           </span>
         </label>
         <button type="submit" class="primary">Make an offer</button>
         <p class="muted hint">
-          Your wallet asks first to approve exactly this amount, if needed, then to
-          open the offer.
+          Your wallet approves exactly this amount, if needed, and opens the offer:
+          one confirmation where the wallet can batch, otherwise two.
         </p>
       </form>
       <p id="offer-closed" class="muted">${opening}</p>
@@ -250,7 +295,10 @@ export async function wagerPage(
       escrow: config.escrow,
       token: config.token,
       chainId: config.chainId,
-      chainName: config.chainName,
+      // The page's name for the token; USDT0 calls itself USD₮0 on chain.
+      symbol: config.symbol === 'tokens' ? null : config.symbol,
+      version: config.version,
+      chainName: config.name,
       rpcUrls: config.rpcUrls,
       explorer: config.explorer,
       claimHash: outbox?.claimHash ?? null,
@@ -263,3 +311,7 @@ export async function wagerPage(
     })}`;
   return layout(`#${claim.slug} · wager`, body, { script: '/assets/wallet.js' });
 }
+
+// A real-money market names its token, since one network can carry two: "Arbitrum One · USDT".
+const marketLabel = (n: WagerNetwork) =>
+  n.testnet ? n.name : `${n.name} · ${n.symbol}`;

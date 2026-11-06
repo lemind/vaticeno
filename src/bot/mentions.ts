@@ -1,7 +1,7 @@
 // X intake (Stage 1): each new mention of the bot becomes one engine call and at most one reply, in the same
 // thread (constitution IV). Mention and post text live in memory only — logs and DB get ids and lengths.
 import { and, arrayContains, desc, eq, or, sql } from 'drizzle-orm';
-import { claims, evidences, optOuts, resolutions } from '../db/schema.js';
+import { claims, evidences, optOuts, resolutions, xHandles } from '../db/schema.js';
 import {
   readIngestState,
   writeIngestState,
@@ -138,7 +138,16 @@ export async function routeMention(
     return { action: 'ignored_not_addressed', reply: null };
   }
 
-  if (command) return runCommand(deps, mention, command, now);
+  // "I wager BTC hits 100k" under no claim is a prediction to record, not a request for a wager link.
+  const wagerOutsideClaim =
+    command === 'wager' &&
+    /\d/.test(body) &&
+    !(await claimInThread(
+      deps,
+      mention,
+      mention.referenced_tweets?.find((ref) => ref.type === 'replied_to')?.id,
+    ));
+  if (command && !wagerOutsideClaim) return runCommand(deps, mention, command, now);
   // Tagging the bot again after STOP resumes (owner decision 2026-09-30, constitution IV).
   await deps.db.delete(optOuts).where(eq(optOuts.xUserId, mention.author_id));
   const repliedTo = mention.referenced_tweets?.find(
@@ -1167,6 +1176,24 @@ function capHit(
   return lastHour.length >= deps.caps.perAuthorPerHour ? 'per_author_hour' : null;
 }
 
+// The handles a mentions page already returned, kept as a display cache (INIT_SPEC §3); no extra read.
+async function rememberHandles(
+  db: BotDeps['db'],
+  users: ReadonlyArray<{ id: string; username: string }>,
+): Promise<void> {
+  const fresh = users.filter((u) => /^[A-Za-z0-9_]{1,15}$/.test(u.username));
+  if (fresh.length === 0) return;
+  const seenAt = new Date();
+  for (const user of fresh)
+    await db
+      .insert(xHandles)
+      .values({ xUserId: user.id, handle: user.username, seenAt })
+      .onConflictDoUpdate({
+        target: xHandles.xUserId,
+        set: { handle: user.username, seenAt },
+      });
+}
+
 async function fetchNewMentions(
   deps: BotDeps,
   sinceId: string | undefined,
@@ -1181,6 +1208,7 @@ async function fetchNewMentions(
       maxResults: sinceId ? PAGE_SIZE : FIRST_RUN_PAGE_SIZE,
     });
     mentions.push(...(result.data ?? []));
+    await rememberHandles(deps.db, result.includes?.users ?? []);
     await recordReads(deps, result.data?.length ?? 0, 'mentions.poll'); // a quiet poll returns nothing and costs nothing
     paginationToken = result.meta.next_token;
     if (!sinceId || !paginationToken) return mentions.reverse(); // oldest first

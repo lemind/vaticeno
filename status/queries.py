@@ -7,7 +7,7 @@ right (003 FR-003, deploy/status-role.md). Nothing in this module writes, retrie
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from psycopg import Connection
@@ -117,6 +117,34 @@ def feed_state(conn: Connection) -> dict[str, int]:
         "select status, count(*)::int as n from feed_posts where day = current_date group by status",
     )
     return {row["status"]: row["n"] for row in rows}
+
+
+@dataclass(frozen=True)
+class NetworkHealth:
+    """One network's row as its settlement worker last wrote it (003 FR-022c); the page reads no chain itself."""
+
+    network: str
+    oracle_gas_wei: int
+    escrow_usdc: int
+    owed_usdc: int
+    backlog: int
+    oldest_backlog_at: datetime | None
+    last_settled_at: datetime | None
+    read_at: datetime
+
+    @property
+    def underfunded(self) -> bool:
+        return self.escrow_usdc < self.owed_usdc
+
+    def unread(self, now: datetime) -> bool:
+        """The worker writes the row every minute; five without one means it is not reading that chain."""
+        return now - self.read_at > timedelta(minutes=5)
+
+
+def network_health(conn: Connection) -> list[NetworkHealth]:
+    rows = _rows(conn, "select * from network_health order by network")
+    return [NetworkHealth(**{**row, **{k: int(row[k]) for k in ("oracle_gas_wei", "escrow_usdc", "owed_usdc")}})
+            for row in rows]
 
 
 def settlement_queue(conn: Connection) -> dict[str, int]:

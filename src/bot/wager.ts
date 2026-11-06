@@ -17,11 +17,14 @@ import {
   wagerNotLockedReply,
   wagerNotPriceReply,
 } from '../replies/templates.js';
-import { wagerKind } from '../wager/terms.js';
+import { ACCEPTANCE_CLOSES_MS, wagerKind } from '../wager/terms.js';
+
+// A switched-on network, as far as the reply needs it (src/wager/networks.ts).
+type ReplyNetwork = { key: string; name: string; symbol: string; testnet: boolean };
 
 export type WagerDeps = {
   db: Db;
-  wager?: { host: string; linksPerDay: number };
+  wager?: { host: string; linksPerDay: number; networks: readonly ReplyNetwork[] };
 };
 
 export async function wagerReply(
@@ -43,11 +46,8 @@ export async function wagerReply(
       deadlineAt: claims.deadlineAt,
       lockAt: claims.lockAt,
       contract: claims.contract,
-      outboxId: settlementOutbox.id,
-      authorizedUntil: settlementOutbox.authorizedUntil,
     })
     .from(claims)
-    .leftJoin(settlementOutbox, eq(settlementOutbox.claimId, claims.id))
     .where(eq(claims.slug, slug))
     .limit(1);
   // A claim still asking for its prediction has nothing to wager on yet, and nothing to say about it.
@@ -57,8 +57,46 @@ export async function wagerReply(
     return { action: 'wager_not_configured', reply: null };
   }
 
-  const outbox = claim.outboxId ? { authorizedUntil: claim.authorizedUntil } : null;
-  const kind = wagerKind({ ...claim, outbox }, now);
+  // A claim locked before its networks were switched on gets its rows when first asked, while offers can
+  // still open (owner, 2026-11-02): the worker signs them on its next pass.
+  if (
+    claim.status === 'locked' &&
+    claim.deadlineAt &&
+    now.getTime() < claim.deadlineAt.getTime() - ACCEPTANCE_CLOSES_MS &&
+    deps.wager.networks.length
+  ) {
+    await deps.db
+      .insert(settlementOutbox)
+      .values(
+        deps.wager.networks.map((n) => ({
+          claimId: claim.id,
+          network: n.key,
+        })),
+      )
+      .onConflictDoNothing();
+  }
+
+  // Each network the claim has a row on and that is switched on now answers for itself (FR-036d): the
+  // link goes out if any of them can still take an offer, and names only those.
+  const rows = await deps.db
+    .select({
+      network: settlementOutbox.network,
+      authorizedUntil: settlementOutbox.authorizedUntil,
+    })
+    .from(settlementOutbox)
+    .where(eq(settlementOutbox.claimId, claim.id));
+  const answers = deps.wager.networks.flatMap((network) => {
+    const row = rows.find((r) => r.network === network.key);
+    return row ? [{ network, kind: wagerKind({ ...claim, outbox: row }, now) }] : [];
+  });
+  const open = answers.filter((a) => a.kind === 'link');
+  // No row on any switched-on network is a claim no worker will sign: the same answer as no row (terms.ts).
+  const kind = open.length
+    ? 'link'
+    : (answers[0]?.kind ?? wagerKind({ ...claim, outbox: null }, now));
+  const realMoney = open
+    .filter((a) => !a.network.testnet)
+    .map((a) => ({ name: a.network.name, symbol: a.network.symbol }));
   if (
     kind === 'link' &&
     (await linksToday(deps.db, now)) >= deps.wager.linksPerDay
@@ -83,7 +121,7 @@ export async function wagerReply(
   const [row] = spent;
   return {
     action: `wager_${kind}`,
-    reply: replyFor(kind, deps.wager.host, slug, claim.lockAt, now),
+    reply: replyFor(kind, deps.wager.host, realMoney, slug, claim.lockAt, now),
     slug,
     // A post that provably never left (PostNotSent) gives the link back; an uncertain one never does (§6.7).
     onNotSent: async () => {
@@ -95,13 +133,14 @@ export async function wagerReply(
 function replyFor(
   kind: WagerReplyKind,
   host: string,
+  realMoney: readonly { name: string; symbol: string }[],
   slug: string,
   lockAt: Date | null,
   now: Date,
 ): string {
   switch (kind) {
     case 'link':
-      return wagerLinkReply(host, slug);
+      return wagerLinkReply(host, slug, realMoney);
     case 'not_locked':
       return wagerNotLockedReply(slug, lockAt, now);
     case 'not_price':
