@@ -46,23 +46,23 @@ done by the owner in the X app; their drafts live in `specs/005-x-growth/content
 
 ## Phase 3: The queue on a calendar (US3)
 
-- [ ] T509 [US3] Migration `drizzle/0028_feed_calendar.sql` + `src/db/schema.ts`: `feed_queue.post_on date`,
+- [x] T509 [US3] Migration `drizzle/0027_feed_calendar.sql` + `src/db/schema.ts`: `feed_queue.post_on date`,
   `source_url text` (CHECK https), `checked_on date`, `missed_at timestamptz`; CHECK `source_url` needs `post_on`
   and `checked_on`. `feed_posts.cap_group`: `digest` and `record` join `original` (one original a day, whichever kind). Down
   migration as the repo does. Apply locally; prod with the allow-listed command when the code ships.
-- [ ] T510 [US3] `FEED_SHOW_AUTHOR_IDS` (comma-separated numeric X ids; the owner's alone) in `src/config.ts`,
+- [x] T510 [US3] `FEED_SHOW_AUTHOR_IDS` (comma-separated numeric X ids; the owner's alone) in `src/config.ts`,
   `.env.example`.
-- [ ] T511 [US3] `src/content/claim-guard.ts`: a post naming a claim (`#slug`) passes only if the claim's author is
+- [x] T511 [US3] `src/content/claim-guard.ts`: a post naming a claim (`#slug`) passes only if the claim's author is
   on `FEED_SHOW_AUTHOR_IDS`. One query, no other rule. Used by T512 and T513.
-- [ ] T512 [US3] `src/content/original-run.ts`: retire every past-dated unposted item (`missed_at`, one
+- [x] T512 [US3] `src/content/original-run.ts`: retire every past-dated unposted item (`missed_at`, one
   `feed.dated_missed` each); stop if the day's original slot is taken; post today's dated item, else the first
   undated publishable one; hold a stale radar item (`feed.radar_stale`) or a failed claim guard
   (`feed.claim_held`); Friday `feed.quiet_week` when fewer than three own posts went out in the past 7 days;
   `feed.queue_empty` becomes a log line.
-- [ ] T513 [US3] `src/cli/content-queue.ts`: `add "…" [--on YYYY-MM-DD] [--source https://… --checked YYYY-MM-DD]`;
+- [x] T513 [US3] `src/cli/content-queue.ts`: `add "…" [--on YYYY-MM-DD] [--source https://… --checked YYYY-MM-DD]`;
   refuse at once: a past date, a Monday or Friday date (the record's days), a source without a date or check
   date, a claim failing the guard. `list` shows date, source host, check date, held or missed.
-- [ ] T513a [US3] Tests in `tests/integration/content.test.ts`: dated today beats undated; a past-dated item is
+- [x] T513a [US3] Tests in `tests/integration/content.test.ts`: dated today beats undated; a past-dated item is
   retired and alerted once even after two days down; the digest's slot stops the original that day; stale radar
   held; a Friday after two own posts alerts, after three does not; the guard holds a claim
   whose author is not on the list, at `add` and at post time.
@@ -78,7 +78,7 @@ done by the owner in the X app; their drafts live in `specs/005-x-growth/content
 ## Phase 4: The week's record (US4)
 
 - [ ] T515 [US4] Build spec 002 T050–T055 as written there (deadline digest Monday morning, record counts Friday
-  afternoon), with their migration as `drizzle/0029_feed_digest.sql`; both take the day's original slot (T509);
+  afternoon), with no migration of their own (their kinds and `payload` are in 0027); both take the day's original slot (T509);
   002 FR-012a's money filter is not built (constitution VI: set aside for now). Mark them done in `specs/002-content-feed/tasks.md`.
 
 ---

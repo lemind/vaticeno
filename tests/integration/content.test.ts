@@ -578,3 +578,105 @@ test('a hand-run posts even when the day is used up, but never the same thing tw
     'empty_queue',
   );
 });
+
+// Spec 005 US3: the queue on a calendar. Alerts are log lines, so they are read back from stdout.
+async function alertsDuring(run: () => Promise<unknown>): Promise<string[]> {
+  const events: string[] = [];
+  const write = process.stdout.write.bind(process.stdout);
+  process.stdout.write = ((chunk: string | Uint8Array, ...rest: unknown[]) => {
+    const line = String(chunk);
+    if (line.includes('"alert":true')) events.push(JSON.parse(line).event as string);
+    return (write as (...a: unknown[]) => boolean)(chunk, ...rest);
+  }) as typeof process.stdout.write;
+  try {
+    await run();
+  } finally {
+    process.stdout.write = write;
+  }
+  return events;
+}
+
+const queue = (row: Record<string, unknown>) =>
+  t.sql`insert into feed_queue ${t.sql(row)}`;
+
+test("the queue: today's dated post first; a missed one retired once, even after days down", async () => {
+  await queue({ text: 'Undated one.', position: 1 });
+  await queue({ text: 'Dated for Tuesday.', position: 2, post_on: '2027-01-05' });
+  await queue({
+    text: 'Dated for a Sunday that passes.',
+    position: 3,
+    post_on: '2027-01-03',
+  });
+  const sent: string[] = [];
+  const deps = originalDeps({
+    postText: async (text) => {
+      sent.push(text);
+      return { id: `own${sent.length}` };
+    },
+  });
+
+  // Tuesday, after two days down: the Sunday post is retired and alerted, Tuesday's goes ahead of the undated.
+  const tuesday = await alertsDuring(() =>
+    runOriginalPost(deps, new Date('2027-01-05T13:41:00Z')),
+  );
+  assert.deepEqual(sent, ['Dated for Tuesday.']);
+  assert.deepEqual(tuesday.filter((e) => e === 'feed.dated_missed').length, 1);
+  const wednesday = await alertsDuring(() =>
+    runOriginalPost(deps, new Date('2027-01-06T13:41:00Z')),
+  );
+  assert.deepEqual(sent, ['Dated for Tuesday.', 'Undated one.']);
+  assert.ok(!wednesday.includes('feed.dated_missed'), 'a missed post alerts once');
+});
+
+test('the queue: the digest takes the day; a stale event post and a claim off the list are held', async () => {
+  await t.sql`insert into feed_posts ${t.sql({ kind: 'digest', day: '2027-01-04', slot: 1, status: 'posted', posted_id: 'd1' })}`;
+  await queue({ text: 'Undated one.', position: 1 });
+  const sent: string[] = [];
+  const deps = originalDeps({
+    showAuthorIds: ['200'],
+    postText: async (text) => {
+      sent.push(text);
+      return { id: `own${sent.length}` };
+    },
+  });
+  assert.equal(
+    (await runOriginalPost(deps, new Date('2027-01-04T13:41:00Z'))).done,
+    'cap_reached',
+  );
+  assert.deepEqual(sent, [], 'one own post a day, whichever kind');
+
+  const theirs = await insertClaim(t.sql, 'locked', { author_x_user_id: '999' });
+  await t.sql`delete from feed_queue`;
+  await queue({
+    text: 'Final scheduled for 12 Jan.',
+    position: 2,
+    post_on: '2027-01-12',
+    source_url: 'https://example.org/final',
+    checked_on: '2027-01-02',
+  });
+  await queue({ text: `Their call #${theirs.slug} is locked.`, position: 3 });
+  await queue({ text: 'Undated two.', position: 4 });
+  const held = await alertsDuring(() =>
+    runOriginalPost(deps, new Date('2027-01-12T13:41:00Z')),
+  );
+  assert.deepEqual(sent, ['Undated two.']);
+  assert.ok(held.includes('feed.radar_stale') && held.includes('feed.claim_held'));
+});
+
+test('the quiet-week alert: a Friday after two own posts alerts, after three it does not', async () => {
+  const friday = new Date('2027-01-08T13:41:00Z');
+  for (const [i, day] of ['2027-01-04', '2027-01-05'].entries())
+    await t.sql`insert into feed_posts ${t.sql({ kind: 'event', day, slot: 1, status: 'posted', posted_id: `e${i}`, created_at: `${day}T15:00:00Z` })}`;
+  const deps = originalDeps();
+  assert.ok(
+    (await alertsDuring(() => runOriginalPost(deps, friday))).includes(
+      'feed.quiet_week',
+    ),
+  );
+  await t.sql`insert into feed_posts ${t.sql({ kind: 'event', day: '2027-01-06', slot: 1, status: 'posted', posted_id: 'e3', created_at: '2027-01-06T15:00:00Z' })}`;
+  assert.ok(
+    !(await alertsDuring(() => runOriginalPost(deps, friday))).includes(
+      'feed.quiet_week',
+    ),
+  );
+});

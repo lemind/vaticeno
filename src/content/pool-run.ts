@@ -27,6 +27,8 @@ export type ContentDeps = QuoteDeps & {
   dryRun: boolean;
   dailyUsdCap: number;
   platformAccountId?: string;
+  // Authors whose claims an own post may name (constitution VI 2.9.0); empty = none.
+  showAuthorIds?: readonly string[];
   random?: () => number;
 };
 

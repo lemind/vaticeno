@@ -125,6 +125,17 @@ const CoreEnvSchema = z
         .regex(/^\d{1,19}$/)
         .optional(),
     ),
+    // Authors whose claims an own-feed post may show (constitution VI 2.9.0, 005 FR-014a): the owner alone for now.
+    FEED_SHOW_AUTHOR_IDS: z
+      .string()
+      .default('')
+      .transform((raw) =>
+        raw
+          .split(',')
+          .map((id) => id.trim())
+          .filter(Boolean),
+      )
+      .pipe(z.array(z.string().regex(/^\d{1,19}$/, 'a numeric X user id'))),
     // The feed stops for the day once its recorded X and model costs reach this. 0.15/day ≈ $4.5 a month,
     // the ceiling spec 002 SC-002 asks for; the planned run costs about $0.10 a day.
     FEED_DAILY_USD_CAP: z.preprocess(

@@ -34,7 +34,7 @@ service and never sees it. Go-live: the token into the server's `.env`, then a d
 
 ## The queue (US3)
 
-Migration `drizzle/0028_feed_calendar.sql` (0027 is reserved by 003 for wallet links) adds to `feed_queue`:
+Migration `drizzle/0027_feed_calendar.sql` (003's wallet links move to 0028) adds to `feed_queue`:
 
 | Column | Meaning |
 |---|---|
@@ -109,7 +109,7 @@ like every prompt.
 ## The week's record (US4)
 
 Spec 002 T050–T055 as written there, scheduled Monday (digest, morning) and Friday (record, afternoon). Their
-migration becomes `0029_feed_digest.sql`; 002 named 0016 before 003 took the numbers. Tasks stay in 002's
+kinds and `payload` are already in 0027, so they need no migration of their own. Tasks stay in 002's
 tasks.md and are marked there; 005 tracks them by reference.
 
 ## Weekly review (US6)
