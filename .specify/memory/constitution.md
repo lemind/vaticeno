@@ -1,6 +1,11 @@
 <!--
 Sync Impact Report
-- Version change: 2.7.1 → 2.8.0 (2026-10-19, MINOR): VI — replies carry no links, except one plain-text
+- Version change: 2.8.0 → 2.9.0 (2026-11-06, MINOR): VI — one exception to "the feed MUST NOT republish a
+  verdict": the terms and verdict of a claim whose author is on the owner's list (for now, the owner alone) may be
+  shown, as owner-approved text, no @mention, misses as well as hits. The 2026-10-09 money rule is superseded:
+  for now a claim carrying money is not excluded; revisited later. The deadline digest (slug and date, no result) is untouched. The owner has given it
+  (docs/decisions/008-x-growth.md, spec 005). CLAUDE.md version line updated.
+- Earlier: 2.7.1 → 2.8.0 (2026-10-19, MINOR): VI — replies carry no links, except one plain-text
   link to our own domain in the reply to a `wager` command, once per claim (owner decision, spec 003 Story 5).
   Model and web text still never carry one. CLAUDE.md version line updated.
 - Earlier: 2.7.0 → 2.7.1 (2026-10-14, PATCH): VII — a pointer to docs/decisions/003-redis-and-rabbitmq.md,
@@ -176,7 +181,14 @@ entire class of problems, and it is what X's terms require.
   decision 2026-10-04), through the same allowlist and caps; never to an author who sent STOP.
 - Own-feed posts are allowed (owner decision 2026-10-05, spec 002): reposts and quote posts of a fixed
   owner-chosen pool, and owner-written originals. The feed MUST NOT republish a verdict: it is told once,
-  in the claim's thread, because a hit or a miss belongs to its author (owner decision 2026-10-07). They MUST be capped
+  in the claim's thread, because a hit or a miss belongs to its author (owner decision 2026-10-07). One exception
+  (owner decision 2026-11-06, `docs/decisions/008-x-growth.md`): a claim whose author has given the account
+  permission — for now, an author on the owner's list in configuration, which holds the owner alone — MAY be
+  shown: its terms after the lock, its verdict after the deadline; a claim whose author is not on the list,
+  neither. How others give permission is decided later. The deadline digest, which names a claim by slug and
+  date and states no result, is not such a post (spec 002 US4). Such a post is text the owner approved, names the
+  claim by its slug and never @mentions the author, and shows every call of that author in the period, not only
+  the hits. They MUST be capped
   per day in code, MUST NOT contain @mentions, links or hashtags in text the bot adds — with one
   exception, the claim's own slug (`#ab12c`), which is an id, not a topic (owner decision 2026-10-06) —
   MUST NOT state a prediction of the bot's own, and default to dry-run (logged, not posted) until the owner switches
@@ -184,8 +196,9 @@ entire class of problems, and it is what X's terms require.
 - The feed MAY post counts drawn from the record — how many claims were recorded, came due, hit, missed
   or were void in a period — because a count with no claim named is not a verdict republished (owner
   decision 2026-10-09). It MUST NOT name, link or single out any claim whose result is in that count.
-- A claim that carries money MUST NOT be the subject of an own-feed post, in a count or by name (owner
-  decision 2026-10-09): the account does not advertise a wager it is also judging.
+- For now, a claim that carries money is not excluded from own-feed posts: the author list above is the only
+  claim-specific guard. This supersedes the 2026-10-09 rule that the account does not advertise a wager it is
+  also judging (owner decision 2026-11-06: the account's growth comes first; revisited later).
 - Replies carry no links, with one exception (owner decision 2026-10-19, spec 003): the reply to a
   `@vaticeno wager` command in a recorded claim's thread MAY carry one plain-text link to our own domain,
   once per claim, and only while the claim can be wagered. Text from a model or the web never carries a
@@ -254,4 +267,4 @@ Rationale: a one-person proto survives on code it can read in one sitting.
 - Every plan passes the Constitution Check before design and again after it. A justified violation
   is recorded in the plan's Complexity Tracking table; an unjustified one blocks the work.
 
-**Version**: 2.8.0 | **Ratified**: 2026-09-28 | **Last Amended**: 2026-10-19
+**Version**: 2.9.0 | **Ratified**: 2026-09-28 | **Last Amended**: 2026-11-06
