@@ -124,7 +124,9 @@ goes into the existing queue as an owner-written original (US2); the bot does no
   account of the previous run, reads only that account's latest posts (no replies, no reposts) and takes
   the latest eligible one (≤ 48 h old, not posted by us before). None → pick another account, at most 3
   tries per run.
-- **FR-003**: About 9 runs in 10 repost the latest post plainly; no AI call.
+- **FR-003**: About 9 runs in 10 repost the latest post plainly; no AI call. **Changed by spec 005 (FR-011,
+  2026-11-06)**: every run reposts, and a lite-model call picks the post that fits the repost policy among the
+  account's eligible ones; nothing fits → one other account → else no repost.
 - **FR-004**: **Blocked by X since 2026-10-05**: quoting a pool account's post is refused with 403
   ("You can only reply to or quote posts where you are mentioned or are the author"), so every pool run
   reposts plainly, and Vaticeno's own words appear only on posts it wrote itself. If X's access
@@ -132,7 +134,9 @@ goes into the existing queue as an owner-written original (US2); the bot does no
   checked source as the `quote` command, the AI only picks the topic), half the time with a short AI joke
   about the post. Our text: ≤ 200 characters, no tags, links or hashtags, no prediction of its own;
   anything that fails falls back to a plain repost.
-- **FR-005**: Caps: at most 2 pool posts and 1 original per day, never the same post twice.
+- **FR-005**: Caps: at most 2 pool posts and 1 original per day, never the same post twice. **Spec 005 (FR-008–
+  FR-010)**: the original slot is shared by queued posts, the digest, the record and event posts; a queued post
+  may carry a date, a missed one is retired with one alert, and Fridays alert a quiet week.
   The caps and the never-twice rule are enforced by the database (a post or a day's slot is reserved
   before posting; a second reservation fails), not only by code checks. A post X rejects is never tried
   again, but it frees its day's slot: only posts that went out (or are in flight) count toward a cap.
@@ -145,13 +149,13 @@ goes into the existing queue as an owner-written original (US2); the bot does no
   one; a daily spend cap stops the whole feed for the day when reached.
 - **FR-009**: Nothing is stored from other people's posts except their ids and the account handle.
 - **FR-010**: Own-feed posting requires a constitution amendment (VI) before it is switched on.
-- **FR-011**: Two kinds of post are written from Vaticeno's own record and from nothing else: the claims
+- **FR-011** (**built in spec 005 T515**: digest Monday 08:17, record Friday 09:47 UTC, in the shared own-post slot): Two kinds of post are written from Vaticeno's own record and from nothing else: the claims
   coming due in the next 7 days (by slug and date) and the past week's counts. Each may go out on up to
   five days a week, at most once a day, Monday to Friday (owner decision 2026-10-09). No AI call, no
   outside source, no link, and no author named — in either post.
 - **FR-012**: Neither post states the result of a single claim. Counts are allowed because a count with
   no claim named is not a verdict republished (owner decision 2026-10-09, constitution VI 2.6.0).
-- **FR-012a**: A claim that carries money is never the subject of an own-feed post — not by name in the
+- **FR-012a**: **Set aside by constitution VI 2.9.0 (2026-11-06)** until revisited; no money filter is built. A claim that carries money is never the subject of an own-feed post — not by name in the
   digest, not inside a count. The account does not advertise a wager it is also judging (owner decision
   2026-10-09). Until staking exists, no claim is excluded; the filter ships with the field that marks
   one.

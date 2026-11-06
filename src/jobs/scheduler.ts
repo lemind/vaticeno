@@ -20,6 +20,8 @@ import { withJobLock } from './lock.js';
 import { type BotDeps, pollMentions } from '../bot/mentions.js';
 import { runPoolPost } from '../content/pool-run.js';
 import { type OriginalDeps, runOriginalPost } from '../content/original-run.js';
+import { runDigest, runRecord } from '../content/record-run.js';
+import { runEventPost } from '../content/event-run.js';
 import { deliverVerdicts, postLockReplies } from '../bot/verdicts.js';
 
 export type SchedulerDeps = ClaimDeps &
@@ -39,6 +41,11 @@ export const SCHEDULES = {
   verdicts: '*/5 * * * *',
   pool: '23 9,18 * * *',
   original: '41 13 * * *',
+  // Before the queue on its day, so the record takes the own-post slot (005 FR-009).
+  digest: '17 8 * * 1',
+  record: '47 9 * * 5',
+  // After the queue run, only when the day's own-post slot is still free (005 US3a).
+  event: '11 15 * * 2-4',
   reconcile: '17 1-23/2 * * *',
   recheck: '31 4 * * 1',
 } as const;
@@ -53,6 +60,9 @@ const INTERVALS_SEC: Record<keyof typeof SCHEDULES, number> = {
   verdicts: 300,
   pool: 15 * 3600,
   original: 86_400,
+  digest: 7 * 86_400,
+  record: 7 * 86_400,
+  event: 5 * 86_400,
   reconcile: 7_200,
   recheck: 7 * 86_400,
 };
@@ -112,6 +122,11 @@ export async function startScheduler(
     // One owner-written post a day, from the queue; no AI (spec 002 US2).
     original: async () =>
       deps.content ? runOriginalPost(deps.content, now()) : null,
+    // Mondays: claims coming due; Fridays: the week's counts. From the database, no AI (005 US4).
+    digest: async () => (deps.content ? runDigest(deps.content, now()) : null),
+    record: async () => (deps.content ? runRecord(deps.content, now()) : null),
+    // Tue–Thu: an upcoming event two sites confirm, from a fixed template (005 US3a).
+    event: async () => (deps.content ? runEventPost(deps.content, now()) : null),
     // Every two hours: name the work that was owed and never done (src/lifecycle/reconcile.ts).
     reconcile: () => auditOwedWork(deps.db, now()),
     // Mondays: today's rules over last week's verdicts, from stored evidence — free, and it only

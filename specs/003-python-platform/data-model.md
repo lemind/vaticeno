@@ -284,7 +284,7 @@ authenticated roles stay with no policy at all, so the public API still sees not
 | `drizzle/0023_networks.sql` | Stage 4: `settlement_outbox.network` with the unique key widened to (claim_id, network); `network_health` with RLS and its `settle_rw` and `status_ro` policies |
 | `drizzle/0025_market_keys.sql` | Stage 4: `network` in `settlement_outbox` and `network_health` also takes `<chain id>-usdt`, a USDT0 market beside the network's USDC one |
 | `drizzle/0026_outbox_matched.sql` | `settlement_outbox.matched`: whether any stake on the claim was matched, written by the worker once the deadline has passed; Node pays for a second read only when it is true |
-| `drizzle/0027_wallet_links.sql` | `wallet_links` and `wallet_link_challenges`, the partial unique index on an active address |
+| `drizzle/0028_wallet_links.sql` | `wallet_links` and `wallet_link_challenges`, the partial unique index on an active address |
 
 Numbered in deploy order, not in the order the tables were designed: Stage 2 ships before Stage 3, so the
 settlement migrations come first and the verifier's cannot be dragged in by a Stage 2 deployment. The

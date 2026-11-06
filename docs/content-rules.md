@@ -1,60 +1,79 @@
 # Vaticeno account: content rules
 
-**Identity:** Vaticeno is the public referee for predictions. Other people predict; Vaticeno remembers.
-Every post should point back to prediction → contract → evidence → result.
+**Identity:** The world makes predictions. Vaticeno keeps score. Every post points back to prediction →
+contract → evidence → result. Spec: `specs/005-x-growth/spec.md`; decision: `docs/decisions/008-x-growth.md`.
 
-## Mix
+## Two channels
 
-| Content | Share | Purpose |
-|---|---|---|
-| Vaticeno originals | 55–65% | identity, how it works, prediction principles |
-| Receipts (real verdicts) | 15–25% | proof the machine does its job |
-| Curated reposts / quote posts | 15–20% | link to the wider forecasting world |
-| Jokes | ~5% | personality, not a meme account |
-
-Never let one outside source dominate the feed. A visitor must not mistake the account for a crypto,
-odds or betting feed.
-
-## Series
-
-- **ON THE RECORD**: a short principle. "Soon" is not a deadline. "A lot" is not a threshold.
-- **PREDICTION SPOTTED**: quote a concrete public prediction from elsewhere: "Prediction spotted. Not
-  recorded by Vaticeno. Yet." Pick it because the prediction is concrete, not because the author is famous.
-- **RECEIPT**: a real verdict: `RECEIPT · HIT · BTC-USD daily close above $100,000 · Deadline Oct 2 ·
-  Evidence: Coinbase`.
-- **HOW IT WORKS**: the product in one post, explained rather than advertised.
-
-## Rules
-
-- No gambling calls to action, odds tips or "bet now". Joke about confidence, deadlines and receipts.
-- No market-noise posts ("BTC up", "ETH news"). Post about predictions, not prices.
-- Never tag or @mention people in automated posts. Quote posts of others are made by hand.
-- No bulk, repetitive or duplicate posts. Vary the wording, and keep at most a few posts a day.
-- Never paste a stranger's post text into our own post. Quote-post it instead.
-- Attributed quotes only when verified (the bot's `quote` command checks the page).
-
-## What runs automatically now
-
-| Replies (only when someone tags the bot) | Own feed (spec 002, `ENABLE_FEED`) | Still by hand |
-|---|---|---|
-| record, fix, help, STOP, ping | 2 pool posts a day: a repost, or a quote post with our own line | the pinned intro |
-| `quote`: a verified quote about bets and predictions | 1 own post a day from the owner's queue (`content:queue`) | writing new queue items |
-| `selfpromo`: a motto and a joke | up to 2 RECEIPT quote posts a day from real verdicts | deleting a bad repost, changing a weight |
-
-Caps, "never the same post twice" and "never the same account twice in a row" are enforced by the
-database, so a restart or two runs at once cannot double-post. Nothing posts while `FEED_DRY_RUN=true`.
-
-## What can be automated later
-
-| Next | Needs |
+| The bot (automated) | The owner (by hand, in the X app) |
 |---|---|
-| A weekly stats post (profile opens, mentions) | one X call a week, about $0.03; not built |
-| Choosing new pool accounts | stays with the owner: a handle can change hands (see `@ESPNStatsInfo`) |
+| reposts that fit the repost policy, two a day | bio, pinned post, header |
+| the owner's queued posts, on their date | follows (5–10 a week) and three X Lists |
+| Monday: claims coming due; Friday: the week's counts | quote posts of other people's predictions ("Not recorded on Vaticeno — yet.") |
+| Tue–Thu: an upcoming event, confirmed by two sites, from a template | replies in conversations; any post with a link |
+
+One own post a day, whichever kind; reposts are on top.
+
+## A week
+
+| Day | Own post (one) | Reposts |
+|---|---|---|
+| Mon | claims coming due this week (08:17 UTC) | two |
+| Tue–Thu | a queued post, else an event post (13:41 / 15:11 UTC) | two |
+| Fri | the week's counts (09:47 UTC) | two |
+| Sat–Sun | a queued post, if any | two |
+
+## Repost policy
+
+Vaticeno is not a news aggregator. A post is reposted only if it is:
+
+- a public prediction or forecast — the best kind;
+- an official announcement of an upcoming event with a checkable outcome;
+- an official result that settles an event people predicted;
+- a significant development in sports, crypto, markets or politics.
+
+Never: highlights, routine results, memes, partisan argument, crypto hype, unrelated breaking news, giveaways, or
+anything promoting betting. A cheap model call sorts the candidates (`src/llm/instructions/repost.v1.md`); nothing
+fits, nothing is reposted. Following an account does not make its posts repostable.
+
+## Links
+
+The bot's posts carry no link: X bills Content: Create with URL at $0.20 against $0.015 for a plain post. An
+event post names the event and its date and stops. A post the owner makes by hand costs nothing and may link.
+
+## The owner's calls
+
+Only authors on `FEED_SHOW_AUTHOR_IDS` (the owner alone for now) may be shown in an own post: their terms after
+the lock, their verdict after the deadline, labelled as the author's call ("CALL · recorded on Vaticeno"), misses
+included, never only the hits. The owner records two predictions a week, writes the post once the fact exists,
+and queues it: `npm run content:queue -- add "…" [--on YYYY-MM-DD]`.
+
+## Voice
+
+Direct, a little playful, sceptical of vague predictions, neutral about teams, parties and market direction.
+Never a tip, odds, "bet now", "to the moon", fake urgency or a prediction of Vaticeno's own. English.
+
+## Event posts
+
+Topics: `src/content/topics.ts` — ten sports (football, American football, basketball, tennis, F1, horse racing,
+cricket, baseball, combat sports, golf) and eight others (crypto, central banks, economic data, earnings,
+politics, tech, space, awards), all alike. `npm run content:topic` draws one by hand. A poster image (an abstract
+picture of the sport, no text, no "Vaticeno") follows once the bot's X login can upload media.
+
+## Every Friday (20–30 minutes)
+
+1. Glance at what the bot posted this week; delete a bad one with `npm run post:delete -- <id>`.
+2. Look at the queue (`content:queue -- list`); re-check any event post's date, a fixture again on its day.
+3. Record two predictions of your own; queue the posts about earlier ones.
+4. `npm run growth:week -- --quotes N` (N = your hand-made quote posts this week, from X), then X's dashboard
+   and Cloudflare Web Analytics (host vaticeno.n30sk.cc).
+5. Follow the week's 5–10 accounts (`specs/005-x-growth/content/accounts.md`).
 
 ## Repost pool (spec 002)
 
-Twice a day the bot picks one account by weight, takes its latest eligible post (no replies or reposts,
-at most 48 h old, never posted by us before) and reposts it; 1 time in 10 it quote-posts it instead, with a verified quote or an AI joke (half and half).
+Twice a day the bot picks one account by weight, takes its eligible posts (no replies or reposts, at most 48 h
+old, never posted by us before) and reposts the one that best fits the repost policy above; nothing fits → one
+other account → else no repost. Quote posts of a pool account are refused by X's API (spec 002 FR-004).
 Never the same account twice in a row, never the same post twice. The bot follows all pool accounts.
 
 Score = popularity + virality + Vaticeno relevance (each 1–10, owner research 2026-10-05).

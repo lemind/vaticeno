@@ -5,7 +5,8 @@ stale instead of reading as current (003 FR-007). Only `## Stage
 
 - Live on X in testing: predictions recorded, locked, resolved, replied to in-thread
 - 003 Stages 1–3 shipped: this page, testnet wagers, the verifier in shadow
-- 003 Stage 4, real money, is the goal and is next
+- 003 Stage 4, real money: live on Base and Arbitrum One, USDC and USDT
+- 005, the account's own voice: in progress
 
 ## Done
 
@@ -22,11 +23,10 @@ stale instead of reading as current (003 FR-007). Only `## Stage
 
 ## Now
 
-- Stage 4 planned in spec 003 Phase 8: no fee at launch (decision 006)
+- Spec 005: curated reposts, the queue on a calendar, the weekly digest and record, the bot's own event posts —
+  built; site traffic counted by Cloudflare
+- Owner: check the 40 accounts, three X Lists, follows; two predictions a week
 
 ## Next
 
-- Built: contract v2 (pull withdrawals, native USDC, caps), two networks in the worker and the page, alerts,
-  the incident policy
-- Next: the mainnet wallets, a full run on Base Sepolia, then Base mainnet: deploy, the page, a 1 USDC smoke stake
-- No legal opinion or outside review before launch (owner, 2026-10-29)
+- Event posters (an abstract AI image per sport), after the bot's X login can upload media

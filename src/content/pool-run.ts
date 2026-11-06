@@ -5,10 +5,19 @@ import { log } from '../log.js';
 import { alert, captureError } from '../observe.js';
 import { XApiError, type UserPost } from '../x/client.js';
 import { X_POST_READ_USD, X_POST_CREATE_USD, X_REPOST_USD } from '../x/prices.js';
-import { latestEligible } from './eligible.js';
+import { eligiblePosts } from './eligible.js';
+import { bestFit } from './repost-fit.js';
 import { type PoolAccount, pickAccount, poolAccounts } from './pool.js';
 import { type QuoteDeps, type QuoteMode, ourLineFor } from './quote.js';
-import { logDryRun, markPosted, previousAccountId, recordPostFailure, reserveSlot, usedPostIds, utcDay } from './slots.js';
+import {
+  logDryRun,
+  markPosted,
+  previousAccountId,
+  recordPostFailure,
+  reserveSlot,
+  usedPostIds,
+  utcDay,
+} from './slots.js';
 import { overSpendCap, recordFeedPost, recordFeedRead } from './spend.js';
 
 export type ContentDeps = QuoteDeps & {
@@ -18,6 +27,8 @@ export type ContentDeps = QuoteDeps & {
   dryRun: boolean;
   dailyUsdCap: number;
   platformAccountId?: string;
+  // Authors whose claims an own post may name (constitution VI 2.9.0); empty = none.
+  showAuthorIds?: readonly string[];
   random?: () => number;
 };
 
@@ -30,42 +41,78 @@ export type ContentDeps = QuoteDeps & {
 const REPOST_SHARE = 1;
 export const HAND_RUN_SLOTS = 10; // room for a hand-run on top of the day's cap
 const MAX_TRIES = 3;
+// Accounts whose posts the repost policy may sort per run: one, then one other, then the slot is skipped.
+const MAX_SORTED = 2;
 
 export type PoolRunResult =
   | { done: 'spend_cap' | 'no_candidate' | 'cap_reached' }
   | { done: 'logged'; account: string; postId: string; mode: 'repost' | QuoteMode }
-  | { done: 'posted'; account: string; postId: string; kind: 'repost' | 'quote'; postedId: string | null };
+  | {
+      done: 'posted';
+      account: string;
+      postId: string;
+      kind: 'repost' | 'quote';
+      postedId: string | null;
+    };
 
 // A hand-run: past the day's caps, by the owner's choice, and optionally one chosen kind of post
 // instead of the 90/5/5 roll.
 export type RunOptions = { force?: boolean; mode?: 'repost' | QuoteMode };
 
-export async function runPoolPost(deps: ContentDeps, now: Date, options: RunOptions = {}): Promise<PoolRunResult> {
+export async function runPoolPost(
+  deps: ContentDeps,
+  now: Date,
+  options: RunOptions = {},
+): Promise<PoolRunResult> {
   const random = deps.random ?? Math.random;
-  if (!options.force && await overSpendCap(deps, now)) return { done: 'spend_cap' };
+  if (!options.force && (await overSpendCap(deps, now)))
+    return { done: 'spend_cap' };
 
   const found = await findCandidate(deps, now, random);
   if (!found) return { done: 'no_candidate' };
   const { account, post } = found;
 
   // The roll decides before anything is reserved, because a quote turn needs its line first.
-  const mode: 'repost' | QuoteMode = options.mode ?? (random() < REPOST_SHARE ? 'repost' : (random() < 0.5 ? 'quote' : 'joke'));
+  const mode: 'repost' | QuoteMode =
+    options.mode ??
+    (random() < REPOST_SHARE ? 'repost' : random() < 0.5 ? 'quote' : 'joke');
   const ourLine = mode === 'repost' ? null : await ourLineFor(deps, post.text, mode);
   const kind = ourLine ? 'quote' : 'repost';
   const day = utcDay(now);
 
   if (deps.dryRun) {
-    const row = await logDryRun(deps.db, { kind, day, sourcePostId: post.id, accountId: account.id });
+    const row = await logDryRun(deps.db, {
+      kind,
+      day,
+      sourcePostId: post.id,
+      accountId: account.id,
+    });
     log('info', 'feed dry run: would post', {
-      event: 'feed.dry_run', handle: account.handle, account_id: account.id, post_id: post.id, kind, mode, our_line: ourLine ?? null, recorded: Boolean(row),
+      event: 'feed.dry_run',
+      handle: account.handle,
+      account_id: account.id,
+      post_id: post.id,
+      kind,
+      mode,
+      our_line: ourLine ?? null,
+      recorded: Boolean(row),
     });
     return { done: 'logged', account: account.handle, postId: post.id, mode };
   }
 
   // Reserved before posting, and never retried afterwards (INIT_SPEC §6.7).
-  const slot = await reserveSlot(deps.db, { kind, day, sourcePostId: post.id, accountId: account.id }, options.force ? HAND_RUN_SLOTS : 0);
+  const slot = await reserveSlot(
+    deps.db,
+    { kind, day, sourcePostId: post.id, accountId: account.id },
+    options.force ? HAND_RUN_SLOTS : 0,
+  );
   if (!slot) {
-    log('info', 'feed slot not reserved; nothing posted', { event: 'feed.no_slot', handle: account.handle, post_id: post.id, kind });
+    log('info', 'feed slot not reserved; nothing posted', {
+      event: 'feed.no_slot',
+      handle: account.handle,
+      post_id: post.id,
+      kind,
+    });
     return { done: 'cap_reached' };
   }
 
@@ -80,24 +127,51 @@ export async function runPoolPost(deps: ContentDeps, now: Date, options: RunOpti
     // One attempt per post: the slot is freed, the post stays used, nothing is retried — unless the
     // request never left the machine, when neither the slot nor the post is spent.
     await recordPostFailure(deps.db, slot.id, error);
-    captureError(error, { event: 'feed.post_failed', handle: account.handle, post_id: post.id, kind });
+    captureError(error, {
+      event: 'feed.post_failed',
+      handle: account.handle,
+      post_id: post.id,
+      kind,
+    });
     return { done: 'cap_reached' };
   }
   await markPosted(deps.db, slot.id, postedId);
   await recordFeedPost(deps, kind === 'quote' ? X_POST_CREATE_USD : X_REPOST_USD);
-  log('info', 'feed posted', { event: 'feed.posted', handle: account.handle, account_id: account.id, post_id: post.id, kind, posted_id: postedId });
-  return { done: 'posted', account: account.handle, postId: post.id, kind, postedId };
+  log('info', 'feed posted', {
+    event: 'feed.posted',
+    handle: account.handle,
+    account_id: account.id,
+    post_id: post.id,
+    kind,
+    posted_id: postedId,
+  });
+  return {
+    done: 'posted',
+    account: account.handle,
+    postId: post.id,
+    kind,
+    postedId,
+  };
 }
 
 // Up to three accounts are tried: a quiet account, or one whose latest posts we have all used, costs a
-// read and yields nothing.
-async function findCandidate(deps: ContentDeps, now: Date, random: () => number): Promise<{ account: PoolAccount; post: UserPost } | null> {
+// read and yields nothing. At most two have their posts sorted by the repost policy (spec 005 FR-011).
+async function findCandidate(
+  deps: ContentDeps,
+  now: Date,
+  random: () => number,
+): Promise<{ account: PoolAccount; post: UserPost } | null> {
   const accounts = poolAccounts(deps.platformAccountId);
   const previous = await previousAccountId(deps.db);
   const tried = new Set<string>();
+  let sorted = 0;
 
   for (let attempt = 0; attempt < MAX_TRIES; attempt++) {
-    const account = pickAccount(accounts.filter((a) => !tried.has(a.id)), previous, random);
+    const account = pickAccount(
+      accounts.filter((a) => !tried.has(a.id)),
+      previous,
+      random,
+    );
     if (!account) return null;
     tried.add(account.id);
 
@@ -107,17 +181,45 @@ async function findCandidate(deps: ContentDeps, now: Date, random: () => number)
     } catch (error) {
       // A renamed, suspended or protected account: skip it, say so once, keep the rest of the pool.
       if (error instanceof XApiError && error.status >= 400 && error.status < 500) {
-        alert('feed.account_unreadable', { handle: account.handle, account_id: account.id, status: error.status });
+        alert('feed.account_unreadable', {
+          handle: account.handle,
+          account_id: account.id,
+          status: error.status,
+        });
         continue;
       }
       throw error; // an outage is not a verdict on the pool: fail the run and retry next slot
     }
-    await recordFeedRead(deps, posts.length * X_POST_READ_USD, Math.max(posts.length, 1));
+    await recordFeedRead(
+      deps,
+      posts.length * X_POST_READ_USD,
+      Math.max(posts.length, 1),
+    );
 
-    const post = latestEligible(posts, now, await usedPostIds(deps.db, posts.map((p) => p.id)));
+    const eligible = eligiblePosts(
+      posts,
+      now,
+      await usedPostIds(
+        deps.db,
+        posts.map((p) => p.id),
+      ),
+    );
+    if (eligible.length === 0) {
+      log('info', 'no eligible post from this account', {
+        event: 'feed.no_eligible',
+        handle: account.handle,
+        read: posts.length,
+      });
+      continue;
+    }
+    const post = await bestFit(deps, eligible);
     if (post) return { account, post };
-    log('info', 'no eligible post from this account', { event: 'feed.no_eligible', handle: account.handle, read: posts.length });
+    log('info', 'nothing from this account fits the repost policy', {
+      event: 'feed.no_fit',
+      handle: account.handle,
+      eligible: eligible.length,
+    });
+    if (++sorted >= MAX_SORTED) return null;
   }
   return null;
 }
-
