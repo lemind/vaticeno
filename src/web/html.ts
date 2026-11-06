@@ -79,6 +79,11 @@ export function layout(
             --miss: #b3261e;
             --void: #6b6a66;
           }
+          .privacy {
+            margin-top: 3rem;
+            color: var(--muted);
+            font-size: 0.8rem;
+          }
           @media (prefers-color-scheme: dark) {
             :root {
               --bg: #161615;

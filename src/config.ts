@@ -84,6 +84,13 @@ const CoreEnvSchema = z
     JUDGE_MODEL_B: modelId,
     ARBITER_MODEL: modelId,
     SENTRY_DSN: optionalText,
+    // Cloudflare Web Analytics site token (spec 005 FR-001): set, the public pages carry its beacon.
+    CF_ANALYTICS_TOKEN: z
+      .string()
+      .trim()
+      .regex(/^([0-9a-f]{32})?$/, 'a 32-character hex token')
+      .transform((v) => v || undefined)
+      .optional(),
     PORT: z.coerce.number().int().min(1).max(65535).default(3000),
     // Run the jobs (lock, expiry, resolver) inside the web server. Exactly one instance may set it.
     ENABLE_JOBS: z

@@ -164,7 +164,9 @@ connection string in the gitignored `.env.production`; apply migrations there wi
 `npx tsx --env-file=.env.production src/cli/db-migrate.ts` before deploying code that needs them.
 Claim pages are public through Caddy: `https://vaticeno.n30sk.cc/claim/<slug>` and its `/wager` page, which
 needs `ESCROW_ADDRESS` and `STAKE_TOKEN_ADDRESS` in the server's `.env`, or, from Stage 4, `WAGER_NETWORKS`
-naming every market (`?network=<market>` picks one: `8453`, `42161`, `42161-usdt`, `84532`).
+naming every market (`?network=<market>` picks one: `8453`, `42161`, `42161-usdt`, `84532`). With `CF_ANALYTICS_TOKEN` set,
+every public page carries Cloudflare Web Analytics' cookie-free beacon and a line saying so (spec 005); the
+numbers are on the owner's Cloudflare dashboard, filtered by host, and nothing is stored on the server.
 
 The settlement worker is a separate service, `vaticeno-settle`, with its own system user. Its env file and
 the oracle key live in `/etc/vaticeno-settle/` (owner `vaticeno-settle`, mode 600), copied by hand and
