@@ -10,8 +10,9 @@ import { overSpendCap, recordFeedPost } from './spend.js';
 import { X_POST_CREATE_USD } from '../x/prices.js';
 import { blockedSlugs } from './claim-guard.js';
 
+// `image`: an event post's poster (005 FR-024); a failed upload still posts the text.
 export type OriginalDeps = ContentDeps & {
-  postText: (text: string) => Promise<{ id: string }>;
+  postText: (text: string, image?: Buffer) => Promise<{ id: string }>;
 };
 
 export type OriginalRunResult =

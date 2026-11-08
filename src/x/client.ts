@@ -4,9 +4,14 @@ const X_API_BASE = 'https://api.x.com/2';
 
 // Field names are the long-standing v2 ones. The current docs page shows `post.fields` /
 // `referenced_posts`; if X rejects these, the 400 body names the valid values.
-const MENTION_TWEET_FIELDS = 'created_at,conversation_id,author_id,in_reply_to_user_id,referenced_tweets,edit_controls,edit_history_tweet_ids';
+const MENTION_TWEET_FIELDS =
+  'created_at,conversation_id,author_id,in_reply_to_user_id,referenced_tweets,edit_controls,edit_history_tweet_ids';
 
-const XUserSchema = z.object({ id: z.string(), username: z.string(), name: z.string().optional() });
+const XUserSchema = z.object({
+  id: z.string(),
+  username: z.string(),
+  name: z.string().optional(),
+});
 
 const MentionSchema = z.object({
   id: z.string(),
@@ -16,7 +21,12 @@ const MentionSchema = z.object({
   created_at: z.string().optional(),
   in_reply_to_user_id: z.string().optional(),
   referenced_tweets: z
-    .array(z.object({ type: z.enum(['replied_to', 'quoted', 'retweeted']), id: z.string() }))
+    .array(
+      z.object({
+        type: z.enum(['replied_to', 'quoted', 'retweeted']),
+        id: z.string(),
+      }),
+    )
     .optional(),
   edit_history_tweet_ids: z.array(z.string()).optional(),
   edit_controls: z
@@ -39,13 +49,21 @@ const UserByUsernameResponseSchema = z.object({ data: XUserSchema });
 
 // A suspended or deleted account answers 200 with `errors` and no `data`, so `data` is optional.
 const UserMetricsResponseSchema = z.object({
-  data: z.object({ public_metrics: z.object({ followers_count: z.number().int().nonnegative() }) }).optional(),
+  data: z
+    .object({
+      public_metrics: z.object({ followers_count: z.number().int().nonnegative() }),
+    })
+    .optional(),
 });
 
 // A pool account's latest posts (spec 002): own posts only, no replies or reposts, newest first.
 // Every field is optional on purpose: X omits requested fields on withheld posts, and a gone or
 // protected account answers 200 with `errors` and no `meta`. One odd post must not cost us the page.
-const UserPostSchema = z.object({ id: z.string(), text: z.string(), created_at: z.string().optional() });
+const UserPostSchema = z.object({
+  id: z.string(),
+  text: z.string(),
+  created_at: z.string().optional(),
+});
 const UserPostsResponseSchema = z.object({
   data: z.array(UserPostSchema).optional(),
   meta: z.object({ result_count: z.number() }).optional(),
@@ -54,15 +72,29 @@ const UserPostsResponseSchema = z.object({
 // Posts of one conversation, flat: what a person sees above a reply, which is not the same as its
 // ancestors — an answer from another account can sit directly above without being the parent.
 const ConversationResponseSchema = z.object({
-  data: z.array(z.object({ id: z.string(), text: z.string(), author_id: z.string().optional(), created_at: z.string().optional() })).optional(),
+  data: z
+    .array(
+      z.object({
+        id: z.string(),
+        text: z.string(),
+        author_id: z.string().optional(),
+        created_at: z.string().optional(),
+      }),
+    )
+    .optional(),
   meta: z.object({ result_count: z.number() }).optional(),
 });
 
 // One post with its edit history; the last id in edit_history_tweet_ids is the current version.
 const TweetResponseSchema = z.object({
   data: z.object({
-    id: z.string(), text: z.string(), author_id: z.string().optional(), edit_history_tweet_ids: z.array(z.string()).optional(),
-    referenced_tweets: z.array(z.object({ type: z.string(), id: z.string() })).optional(),
+    id: z.string(),
+    text: z.string(),
+    author_id: z.string().optional(),
+    edit_history_tweet_ids: z.array(z.string()).optional(),
+    referenced_tweets: z
+      .array(z.object({ type: z.string(), id: z.string() }))
+      .optional(),
   }),
 });
 
@@ -76,7 +108,9 @@ export type MentionsPage = z.infer<typeof MentionsResponseSchema>;
 // must never be retried (INIT_SPEC §6.7). Only provably pre-flight failures may use this.
 export class PostNotSent extends Error {
   constructor(readonly reason: unknown) {
-    super(`post not sent: ${reason instanceof Error ? reason.message : String(reason)}`);
+    super(
+      `post not sent: ${reason instanceof Error ? reason.message : String(reason)}`,
+    );
   }
 }
 
@@ -91,29 +125,47 @@ export class XApiError extends Error {
 }
 
 export function createXClient(bearerToken: string) {
-  async function getJson(path: string, params: Record<string, string>): Promise<unknown> {
+  async function getJson(
+    path: string,
+    params: Record<string, string>,
+  ): Promise<unknown> {
     const url = new URL(X_API_BASE + path);
-    for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
+    for (const [key, value] of Object.entries(params))
+      url.searchParams.set(key, value);
 
-    const res = await fetch(url, { headers: { Authorization: `Bearer ${bearerToken}` } });
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${bearerToken}` },
+    });
     const body = await res.text();
     if (!res.ok) {
       const reset = res.headers.get('x-rate-limit-reset');
-      throw new XApiError(res.status, body, reset ? new Date(Number(reset) * 1000).toISOString() : null);
+      throw new XApiError(
+        res.status,
+        body,
+        reset ? new Date(Number(reset) * 1000).toISOString() : null,
+      );
     }
     return JSON.parse(body);
   }
 
   return {
     async getUserByUsername(username: string): Promise<XUser> {
-      const json = await getJson(`/users/by/username/${encodeURIComponent(username)}`, {});
+      const json = await getJson(
+        `/users/by/username/${encodeURIComponent(username)}`,
+        {},
+      );
       return UserByUsernameResponseSchema.parse(json).data;
     },
 
     // The account's follower count now; null when X returns no such account (004 T420).
     async getFollowerCount(userId: string): Promise<number | null> {
-      const json = await getJson(`/users/${encodeURIComponent(userId)}`, { 'user.fields': 'public_metrics' });
-      return UserMetricsResponseSchema.parse(json).data?.public_metrics.followers_count ?? null;
+      const json = await getJson(`/users/${encodeURIComponent(userId)}`, {
+        'user.fields': 'public_metrics',
+      });
+      return (
+        UserMetricsResponseSchema.parse(json).data?.public_metrics.followers_count ??
+        null
+      );
     },
 
     // X's smallest timeline page is 5 posts, and billing is per post returned (src/x/prices.ts).
@@ -130,7 +182,12 @@ export function createXClient(bearerToken: string) {
     // this costs ~10 post reads: the caller only asks when the cheap walk up the parents found nothing.
     // `untilId` buys the 10 posts before that one instead of the 10 newest in the thread — in a busy
     // conversation the posts that explain a prediction are the ones just before it, not the latest.
-    async getConversation(conversationId: string, opts: { untilId?: string; maxResults?: number } = {}): Promise<Array<{ id: string; text: string; created_at?: string; author_id?: string }>> {
+    async getConversation(
+      conversationId: string,
+      opts: { untilId?: string; maxResults?: number } = {},
+    ): Promise<
+      Array<{ id: string; text: string; created_at?: string; author_id?: string }>
+    > {
       const params: Record<string, string> = {
         query: `conversation_id:${conversationId}`,
         max_results: String(opts.maxResults ?? 10),
@@ -141,8 +198,12 @@ export function createXClient(bearerToken: string) {
       return ConversationResponseSchema.parse(json).data ?? [];
     },
 
-    async getTweet(id: string): Promise<z.infer<typeof TweetResponseSchema>['data']> {
-      const json = await getJson(`/tweets/${encodeURIComponent(id)}`, { 'tweet.fields': 'author_id,edit_history_tweet_ids,referenced_tweets' });
+    async getTweet(
+      id: string,
+    ): Promise<z.infer<typeof TweetResponseSchema>['data']> {
+      const json = await getJson(`/tweets/${encodeURIComponent(id)}`, {
+        'tweet.fields': 'author_id,edit_history_tweet_ids,referenced_tweets',
+      });
       return TweetResponseSchema.parse(json).data;
     },
 
@@ -168,9 +229,16 @@ export function createXClient(bearerToken: string) {
 
 export type XClient = ReturnType<typeof createXClient>;
 
-const CreatePostResponseSchema = z.object({ data: z.object({ id: z.string(), text: z.string() }) });
+const CreatePostResponseSchema = z.object({
+  data: z.object({ id: z.string(), text: z.string() }),
+});
 
-async function sendUserRequest(accessToken: string, method: 'GET' | 'POST', path: string, payload?: unknown) {
+async function sendUserRequest(
+  accessToken: string,
+  method: 'GET' | 'POST',
+  path: string,
+  payload?: unknown,
+) {
   const res = await fetch(X_API_BASE + path, {
     method,
     headers: {
@@ -182,37 +250,99 @@ async function sendUserRequest(accessToken: string, method: 'GET' | 'POST', path
   const body = await res.text();
   if (!res.ok) {
     const reset = res.headers.get('x-rate-limit-reset');
-    throw new XApiError(res.status, body, reset ? new Date(Number(reset) * 1000).toISOString() : null);
+    throw new XApiError(
+      res.status,
+      body,
+      reset ? new Date(Number(reset) * 1000).toISOString() : null,
+    );
   }
   return JSON.parse(body) as unknown;
 }
 
 // User-context calls take an OAuth 2.0 user access token, not the app Bearer token.
 export async function getAuthenticatedUser(accessToken: string): Promise<XUser> {
-  return UserByUsernameResponseSchema.parse(await sendUserRequest(accessToken, 'GET', '/users/me')).data;
+  return UserByUsernameResponseSchema.parse(
+    await sendUserRequest(accessToken, 'GET', '/users/me'),
+  ).data;
 }
 
 // Own-feed posts (constitution VI 2.4.0, spec 002): only src/content/ may call these. Keep URLs out of
 // `text`: a post with a link costs far more (§9 surcharge).
-const RepostResponseSchema = z.object({ data: z.object({ retweeted: z.boolean() }) });
+const RepostResponseSchema = z.object({
+  data: z.object({ retweeted: z.boolean() }),
+});
 
 // A repost creates no post of ours, so X returns no id — only whether it took.
-export async function repost(accessToken: string, meUserId: string, postId: string): Promise<boolean> {
-  const json = await sendUserRequest(accessToken, 'POST', `/users/${encodeURIComponent(meUserId)}/retweets`, { tweet_id: postId });
+export async function repost(
+  accessToken: string,
+  meUserId: string,
+  postId: string,
+): Promise<boolean> {
+  const json = await sendUserRequest(
+    accessToken,
+    'POST',
+    `/users/${encodeURIComponent(meUserId)}/retweets`,
+    { tweet_id: postId },
+  );
   return RepostResponseSchema.parse(json).data.retweeted;
 }
 
-export async function quotePost(accessToken: string, quotedPostId: string, text: string) {
-  const json = await sendUserRequest(accessToken, 'POST', '/tweets', { text, quote_tweet_id: quotedPostId });
+export async function quotePost(
+  accessToken: string,
+  quotedPostId: string,
+  text: string,
+) {
+  const json = await sendUserRequest(accessToken, 'POST', '/tweets', {
+    text,
+    quote_tweet_id: quotedPostId,
+  });
   return CreatePostResponseSchema.parse(json).data;
 }
 
-export async function postStandalone(accessToken: string, text: string) {
-  return CreatePostResponseSchema.parse(await sendUserRequest(accessToken, 'POST', '/tweets', { text })).data;
+export async function postStandalone(
+  accessToken: string,
+  text: string,
+  mediaIds: string[] = [],
+) {
+  const payload =
+    mediaIds.length > 0 ? { text, media: { media_ids: mediaIds } } : { text };
+  return CreatePostResponseSchema.parse(
+    await sendUserRequest(accessToken, 'POST', '/tweets', payload),
+  ).data;
+}
+
+const MediaUploadResponseSchema = z.object({ data: z.object({ id: z.string() }) });
+
+// One image for an own post (spec 005 FR-024), on the user token with `media.write`. Returns the media id.
+// UNRECONCILED: X's v2 media upload has not been called with our token yet; the first event post with a poster is
+// the check. Any failure leaves the post as text (src/content/wire.ts).
+export async function uploadImage(
+  accessToken: string,
+  png: Buffer,
+): Promise<string> {
+  const form = new FormData();
+  form.append(
+    'media',
+    new Blob([new Uint8Array(png)], { type: 'image/png' }),
+    'poster.png',
+  );
+  form.append('media_category', 'tweet_image');
+  const res = await fetch(`${X_API_BASE}/media/upload`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: form,
+  });
+  const body = await res.text();
+  if (!res.ok) throw new XApiError(res.status, body, null);
+  return MediaUploadResponseSchema.parse(JSON.parse(body)).data.id;
 }
 
 // Always a reply in the thread, never a standalone post (INIT_SPEC §6.5). Keep URLs out: §9 surcharge.
-export async function postReply(accessToken: string, inReplyToTweetId: string, text: string) {
+export async function postReply(
+  accessToken: string,
+  inReplyToTweetId: string,
+  text: string,
+) {
   const json = await sendUserRequest(accessToken, 'POST', '/tweets', {
     text,
     reply: { in_reply_to_tweet_id: inReplyToTweetId },

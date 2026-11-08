@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { confirmedBy, keyWords } from './event-check.js';
 import { eventPostText } from './event-post.js';
+import { posterPrompt } from './event-image.js';
 
 const EVENT = {
   name: 'Crystal Palace vs Liverpool',
@@ -44,4 +45,12 @@ test('the event post is the template, and refuses a slot carrying a link or a ha
   );
   assert.equal(eventPostText({ ...EVENT, name: 'Final @UEFA' }), null);
   assert.equal(eventPostText({ ...EVENT, place: 'see bbc.com' }), null);
+});
+
+test('the poster prompt asks for a picture of the sport and never for text, logos or a real face', () => {
+  const prompt = posterPrompt('horse-racing');
+  assert.match(prompt, /racehorses/);
+  assert.match(prompt, /no text, letters, numbers, logos, crests/);
+  assert.match(prompt, /recognisable real person/);
+  assert.doesNotMatch(prompt, /Vaticeno/);
 });

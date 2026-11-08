@@ -7,9 +7,17 @@ import {
   postStandalone,
   quotePost,
   repost,
+  uploadImage,
   XApiError,
 } from '../x/client.js';
+import { recordCost } from '../db/costs.js';
+import { generateImage } from '../llm/image.js';
+import type { CallCost } from '../llm/client.js';
+import { X_MEDIA_UPLOAD_USD } from '../x/prices.js';
+import { posterPrompt } from './event-image.js';
+import { saveCosts } from './quote.js';
 import { accessToken } from '../bot/wire.js';
+import { tokenScopes } from '../x/oauth.js';
 import type { ContentDeps } from './pool-run.js';
 import type { QuoteDeps } from './quote.js';
 import type { PageFetcher } from '../resolve/fetch.js';
@@ -18,8 +26,9 @@ export function buildContentDeps(
   quoteDeps: QuoteDeps & { fetchPage: PageFetcher },
   core: CoreConfig,
 ): ContentDeps & {
-  postText: (text: string) => Promise<{ id: string }>;
+  postText: (text: string, image?: Buffer) => Promise<{ id: string }>;
   fetchPage: PageFetcher;
+  makePoster?: (topicId: string) => Promise<Buffer | null>;
 } {
   const config = loadConfig();
   if (!config.X_BOT_USER_ID)
@@ -64,12 +73,57 @@ export function buildContentDeps(
         (token) => quotePost(token, postId, text),
         'feed.quote_token_refresh',
       ),
-    postText: (text) =>
-      withToken((token) => postStandalone(token, text), 'feed.post_token_refresh'),
+    postText: (text, image) =>
+      withToken(async (token) => {
+        const mediaIds: string[] = [];
+        if (image) {
+          // A failed upload never stops the post: it goes out as text (005 FR-024). Without `media.write` on the
+          // token this fails until the owner logs the bot in again.
+          try {
+            mediaIds.push(await uploadImage(token, image));
+            await recordCost(quoteDeps.db, {
+              claimId: null,
+              provider: 'x',
+              operation: 'feed_post',
+              usdCost: X_MEDIA_UPLOAD_USD,
+            });
+          } catch (error) {
+            log('warn', 'poster upload failed; posting the text alone', {
+              event: 'feed.poster_upload_failed',
+              error: String(error),
+            });
+          }
+        }
+        return postStandalone(token, text, mediaIds);
+      }, 'feed.post_token_refresh'),
     dryRun: core.FEED_DRY_RUN,
     dailyUsdCap: core.FEED_DAILY_USD_CAP,
     platformAccountId: core.FEED_PLATFORM_ACCOUNT_ID,
     showAuthorIds: core.FEED_SHOW_AUTHOR_IDS,
     fetchPage: quoteDeps.fetchPage,
+    ...(core.LLM_MODE === 'live' && core.GEMINI_API_KEY
+      ? { makePoster: posterMaker(quoteDeps, core.GEMINI_API_KEY) }
+      : {}),
+  };
+}
+
+// The event poster: one image call, its cost recorded whether or not an image came back. Nothing is generated (or
+// paid for) until the bot's saved login can upload media.
+function posterMaker(deps: QuoteDeps, apiKey: string) {
+  return async (topicId: string): Promise<Buffer | null> => {
+    if (!(await tokenScopes()).includes('media.write')) {
+      log('info', 'no poster: the bot login lacks media.write', {
+        event: 'feed.poster_no_scope',
+      });
+      return null;
+    }
+    try {
+      const { png, costs } = await generateImage(apiKey, posterPrompt(topicId));
+      await saveCosts(deps, costs);
+      return png;
+    } catch (error) {
+      await saveCosts(deps, (error as { costs?: CallCost[] }).costs ?? []);
+      throw error;
+    }
   };
 }

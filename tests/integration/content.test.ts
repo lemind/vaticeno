@@ -788,3 +788,28 @@ test('a day whose own-post slot is taken costs no search', async () => {
   assert.equal((await runEventPost(deps, TUESDAY, () => 0)).done, 'slot_taken');
   assert.equal(deps.searches.length, 0);
 });
+
+test('an event post carries its poster; a failed poster still posts the text', async () => {
+  const sent: Array<{ text: string; image: boolean }> = [];
+  const postText = async (text: string, image?: Buffer) => {
+    sent.push({ text, image: Boolean(image) });
+    return { id: `ev${sent.length}` };
+  };
+  const withPoster = eventDeps(FOUND, TWO_SITES, {
+    postText,
+    makePoster: async () => Buffer.from('png'),
+  } as Partial<EventDeps>);
+  assert.equal((await runEventPost(withPoster, TUESDAY, () => 0)).done, 'posted');
+  await t.sql`delete from feed_posts`;
+  const broken = eventDeps(FOUND, TWO_SITES, {
+    postText,
+    makePoster: async () => {
+      throw new Error('image model down');
+    },
+  } as Partial<EventDeps>);
+  assert.equal((await runEventPost(broken, TUESDAY, () => 0)).done, 'posted');
+  assert.deepEqual(
+    sent.map((s) => s.image),
+    [true, false],
+  );
+});

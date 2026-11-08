@@ -18,7 +18,11 @@ import { markPosted, recordPostFailure, reserveSlot, utcDay } from './slots.js';
 import { overSpendCap, recordFeedPost } from './spend.js';
 import { TOPICS, type Topic } from './topics.js';
 
-export type EventDeps = OriginalDeps & { fetchPage: PageFetcher };
+export type EventDeps = OriginalDeps & {
+  fetchPage: PageFetcher;
+  // The poster (FR-024): null, or a throw, means the post goes out as text.
+  makePoster?: (topicId: string) => Promise<Buffer | null>;
+};
 export type EventRunResult = {
   done: 'cap_reached' | 'slot_taken' | 'no_event' | 'logged' | 'posted' | 'failed';
 };
@@ -183,9 +187,10 @@ async function publish(
     payload,
   });
   if (!slot) return { done: 'slot_taken' };
+  const image = await poster(deps, payload.topic);
   let postedId: string;
   try {
-    postedId = (await deps.postText(text)).id;
+    postedId = (await deps.postText(text, image ?? undefined)).id;
   } catch (error) {
     await recordPostFailure(deps.db, slot.id, error);
     captureError(error, { event: 'feed.event_failed', ...payload });
@@ -199,4 +204,17 @@ async function publish(
     ...payload,
   });
   return { done: 'posted' };
+}
+
+async function poster(deps: EventDeps, topicId: string): Promise<Buffer | null> {
+  if (!deps.makePoster) return null;
+  try {
+    return await deps.makePoster(topicId);
+  } catch (error) {
+    log('info', 'no poster; posting the text alone', {
+      event: 'feed.poster_failed',
+      error: String(error),
+    });
+    return null;
+  }
 }

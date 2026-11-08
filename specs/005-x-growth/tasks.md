@@ -99,10 +99,13 @@ done by the owner in the X app; their drafts live in `specs/005-x-growth/content
   few fixed closing lines), the usual own-feed text checks, and `src/content/event-run.ts`: free slot → up to three
   topics → post once, kind `event` with payload {topic, name, date} (migration in T509); the next run's last topic is the latest event post's, never the same event twice,
   costs logged, dry run respected. Scheduled Tue–Thu after the queue run.
-- [ ] T517c [US3a] Event poster (FR-024): `src/content/event-image.ts` — one Gemini 2.5 Flash Image call from a fixed
-  prompt per sport (abstract, no text, no logos, no "Vaticeno"), cost logged; X media upload in `src/x/client.ts`;
-  `media.write` added to `OAUTH_SCOPES` and the owner logs the bot in once more (`poc:auth`, as the vaticeno
-  user). A failed image or upload posts the text alone.
+- [x] T517c [US3a] Event poster (FR-024): `src/content/event-image.ts` (a prompt per topic: abstract, no text, no
+  logos, no "Vaticeno"), `src/llm/image.ts` (Gemini 2.5 Flash Image, 16:9, cost logged), `uploadImage` in
+  `src/x/client.ts`, `media.write` in `OAUTH_SCOPES`. No image is generated, or paid for, until the saved login
+  has `media.write`; a failed image or upload posts the text alone. `content:tick -- event` runs one by hand.
+- [ ] T517d **[owner]** Log the bot in once more so it can upload media: locally `npm run poc:auth`, open the URL
+  signed in as @vaticeno (not yourself), approve; then the new `.state/x-oauth.json` goes to the server with the
+  bot stopped, owned by the `vaticeno` user. Until then event posts go out as text.
 - [x] T517b [US3a] Tests: two agreeing pages post; one page, or disagreeing dates, do not; three failed topics post
   nothing; a repeat event is skipped; the text never carries a link, a handle or a hashtag.
 - [ ] T518 [US3] **[owner]** Record at least two predictions a week through the bot; after each lock or verdict,
