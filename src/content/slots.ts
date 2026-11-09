@@ -144,17 +144,6 @@ export async function usedPostIds(
   );
 }
 
-// The pool account of the last run, dry or live: the next run must not pick it again (FR-002).
-export async function previousAccountId(db: Db): Promise<string | null> {
-  const [row] = await db
-    .select({ accountId: feedPosts.accountId })
-    .from(feedPosts)
-    .where(inArray(feedPosts.kind, ['repost', 'quote']))
-    .orderBy(desc(feedPosts.createdAt))
-    .limit(1);
-  return row?.accountId ?? null;
-}
-
 // What the content jobs have spent today, from their own cost rows (FR-008).
 export async function feedSpentTodayUsd(db: Db, now: Date): Promise<number> {
   const since = new Date(`${utcDay(now)}T00:00:00Z`);

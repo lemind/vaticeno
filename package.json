@@ -26,7 +26,6 @@
     "content:tick": "tsx --env-file-if-exists=.env src/cli/content-tick.ts",
     "content:job": "tsx --env-file-if-exists=.env src/cli/content-job.ts",
     "content:queue": "tsx --env-file-if-exists=.env src/cli/content-queue.ts",
-    "content:pool-ids": "tsx --env-file-if-exists=.env src/cli/pool-ids.ts",
     "content:topic": "tsx src/cli/content-topic.ts",
     "growth:week": "tsx --env-file-if-exists=.env src/cli/growth-week.ts",
     "review:list": "tsx --env-file-if-exists=.env src/cli/review-list.ts",

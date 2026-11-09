@@ -76,7 +76,7 @@ export function buildContentDeps(
 
   return {
     ...quoteDeps,
-    readPosts: (accountId) => x.getUserPosts(accountId),
+    searchPosts: (query, since) => x.searchRecent(query, { since, maxResults: 10 }),
     repost: (postId) =>
       withToken(
         (token) => repost(token, botUserId, postId),
@@ -114,7 +114,6 @@ export function buildContentDeps(
       }, 'feed.post_token_refresh'),
     dryRun: core.FEED_DRY_RUN,
     dailyUsdCap: core.FEED_DAILY_USD_CAP,
-    platformAccountId: core.FEED_PLATFORM_ACCOUNT_ID,
     showAuthorIds: core.FEED_SHOW_AUTHOR_IDS,
     fetchPage: quoteDeps.fetchPage,
     ...(core.LLM_MODE === 'live' && core.GEMINI_API_KEY

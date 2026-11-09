@@ -122,14 +122,6 @@ const CoreEnvSchema = z
       .string()
       .regex(/^\w{1,15}$/)
       .default('vaticeno'),
-    // The pool account the owner keeps outside the repo; an empty line = that account is skipped.
-    FEED_PLATFORM_ACCOUNT_ID: z.preprocess(
-      blankIsUnset,
-      z
-        .string()
-        .regex(/^\d{1,19}$/)
-        .optional(),
-    ),
     // Authors whose claims an own-feed post may show (constitution VI 2.9.0, 005 FR-014a): the owner alone for now.
     FEED_SHOW_AUTHOR_IDS: z
       .string()

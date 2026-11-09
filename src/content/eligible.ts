@@ -16,11 +16,11 @@ export function latestEligible(
 }
 
 // Every post we may repost, newest first: the repost policy chooses among them (spec 005 FR-011).
-export function eligiblePosts(
-  posts: readonly UserPost[],
+export function eligiblePosts<T extends UserPost>(
+  posts: readonly T[],
   now: Date,
   usedIds: ReadonlySet<string>,
-): UserPost[] {
+): T[] {
   const fresh = posts.filter((post) => {
     // No timestamp (X omits fields on withheld posts) means we cannot prove it is recent: skip it.
     if (!post.created_at) return false;

@@ -228,8 +228,15 @@ best — and changes next week's mix from it.
   the best fit, tries one other account if nothing fits, and otherwise skips the slot. No fit, no repost.
   **Narrowed 2026-11-09 (owner)**: one repost a day, and only an upcoming event; no one else's predictions,
   results or developments. Cheaper, and the account stays about what is coming.
-- **FR-011a**: Following an account does not make its posts repostable; the pool is a smaller, owner-chosen set
-  of the accounts followed (spec 002 FR-001).
+  **Found by search, 2026-11-09 (owner)**: the commentators of the old pool almost never announce events (two
+  runs, six accounts, none). Each day one X search covers a group of fields by weekday — the accounts that do
+  announce events in them (organisers, insiders, promoters, fan and preview accounts), announcement words, the
+  last 48 hours, a floor of likes — and the most-liked event among the results is reposted; nothing → the next
+  day's group once; still nothing → no repost. A sponsor's tag on an announcement does not exclude it (owner:
+  our stakes are between friends, not a rival bookmaker); a post whose point is odds, tips or a betting offer
+  still does.
+- **FR-011a**: Following an account does not make its posts repostable; the repost sources are an owner-chosen
+  list, by field, kept in the repo (the old spec 002 FR-001 pool is retired).
 - **FR-012**: Spec 002 User Story 4 (deadline digest and record counts) is built as written, on Monday and
   Friday.
 - **FR-013**: Formats: Event Radar (a scheduled event with a public outcome, "scheduled for", never "will"),

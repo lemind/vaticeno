@@ -64,8 +64,13 @@ const UserPostSchema = z.object({
   text: z.string(),
   created_at: z.string().optional(),
 });
-const UserPostsResponseSchema = z.object({
-  data: z.array(UserPostSchema).optional(),
+// A search result for the event repost (spec 005 FR-011): its account and its likes and reposts come free with it.
+const SearchPostSchema = UserPostSchema.extend({
+  author_id: z.string(),
+  public_metrics: z.object({ like_count: z.number(), retweet_count: z.number() }),
+});
+const SearchResponseSchema = z.object({
+  data: z.array(SearchPostSchema).optional(),
   meta: z.object({ result_count: z.number() }).optional(),
 });
 
@@ -100,6 +105,7 @@ const TweetResponseSchema = z.object({
 
 export type Mention = z.infer<typeof MentionSchema>;
 export type UserPost = z.infer<typeof UserPostSchema>;
+export type SearchPost = z.infer<typeof SearchPostSchema>;
 export type XUser = z.infer<typeof XUserSchema>;
 export type MentionsPage = z.infer<typeof MentionsResponseSchema>;
 
@@ -169,13 +175,19 @@ export function createXClient(bearerToken: string) {
     },
 
     // X's smallest timeline page is 5 posts, and billing is per post returned (src/x/prices.ts).
-    async getUserPosts(userId: string): Promise<UserPost[]> {
-      const json = await getJson(`/users/${encodeURIComponent(userId)}/tweets`, {
-        max_results: '5',
-        exclude: 'replies,retweets',
-        'tweet.fields': 'created_at',
+    // Recent search, newest first; billed per post returned, so `maxResults` is the cost ($0.005 each).
+    async searchRecent(
+      query: string,
+      opts: { since: Date; maxResults: number },
+    ): Promise<SearchPost[]> {
+      const json = await getJson('/tweets/search/recent', {
+        query,
+        max_results: String(opts.maxResults),
+        start_time: opts.since.toISOString().replace(/\.\d+Z$/, 'Z'),
+        sort_order: 'recency',
+        'tweet.fields': 'created_at,author_id,public_metrics',
       });
-      return UserPostsResponseSchema.parse(json).data ?? [];
+      return SearchResponseSchema.parse(json).data ?? [];
     },
 
     // Recent search over one conversation. X's smallest page is 10 and billing is per post returned, so

@@ -66,41 +66,28 @@ picture of the sport, no text, no "Vaticeno") follows once the bot's X login can
    and Cloudflare Web Analytics (host vaticeno.n30sk.cc).
 5. Follow the week's 5–10 accounts (`specs/005-x-growth/content/accounts.md`).
 
-## Repost pool (spec 002)
+## Reposts (spec 005 FR-011)
 
-Once a day (09:23 UTC) the bot picks one account by weight, takes its eligible posts (no replies or reposts, at most 48 h
-old, never posted by us before) and reposts the one that best fits the repost policy above; nothing fits → one
-other account → else no repost. Quote posts of a pool account are refused by X's API (spec 002 FR-004).
-Never the same account twice in a row, never the same post twice. The bot follows all pool accounts.
+Once a day (09:23 UTC) one X search covers the weekday's group of fields: the accounts that announce events in
+them (organisers, insiders, promoters, fan and preview accounts), announcement words ("race week", "fight week",
+"kicks off", "launch window"…), the last 48 hours and a floor of likes, 10 posts at most ($0.05). The model keeps
+the upcoming events; the one with the most likes + 2 × reposts is reposted. None → the next day's group once;
+still none → no repost. Never the same post twice. The list lives in `src/content/repost-groups.ts`; the owner
+changes it there.
 
-Score = popularity + virality + Vaticeno relevance (each 1–10, owner research 2026-10-05).
-Weight = score − 15, so the top accounts come up about 5× as often as the weakest.
-Chance = weight / 144 per pick; picks per month at 60 picks.
+| Day (UTC) | Group | Min likes |
+|---|---|---:|
+| Mon | F1, MotoGP, space | 300 |
+| Tue | football | 1,000 |
+| Wed | combat sports (UFC, MMA, boxing) | 100 |
+| Thu | NFL, NBA, MLB | 500 |
+| Fri | cricket, tennis, golf, horse racing | 100 |
+| Sat | game and tech launches, awards | 500 |
+| Sun | central banks, economic data, earnings, crypto | 100 |
 
-| Account | Field | Score | Weight | Chance | Picks/month |
-|---|---|---:|---:|---:|---:|
-| @FabrizioRomano | sport | 30 | 15 | 10.4% | ~6.2 |
-| @AdamSchefter | sport | 30 | 15 | 10.4% | ~6.2 |
-| platform account kept by the owner outside the repo | forecasting | 29 | 14 | 9.7% | ~5.8 |
-| @NateSilver538 | statistics | 28 | 13 | 9.0% | ~5.4 |
-| @Kalshi | forecasting | 27 | 12 | 8.3% | ~5.0 |
-| @100trillionUSD | crypto | 27 | 12 | 8.3% | ~5.0 |
-| @RaoulGMI | crypto | 25 | 10 | 6.9% | ~4.2 |
-| @StatMuse | sport | 25 | 10 | 6.9% | ~4.2 |
-| @OptaJoe | sport | 25 | 10 | 6.9% | ~4.2 |
-| @OptaAnalyst | sport | 23 | 8 | 5.6% | ~3.3 |
-| @OurWorldInData | statistics | 21 | 6 | 4.2% | ~2.5 |
-| @gelliottmorris | statistics | 21 | 6 | 4.2% | ~2.5 |
-| @metaculus | forecasting | 20 | 5 | 3.5% | ~2.1 |
-| @Statsbomb | sport | 19 | 4 | 2.8% | ~1.7 |
-| @ManifoldMarkets | forecasting | 19 | 4 | 2.8% | ~1.7 |
-| **15 accounts** | | | **144** | 100% | 60 |
-
-Left out: `@CryptoHayes` (unavailable on X since 2026-07-07), `@ESPNStatsInfo` (the handle no longer
-belongs to ESPN — it now carries a betting brand, 2026-10-05), `@_1woonomic` (dormant, owner call
-2026-10-05), `@saylor`, `@PeterSchiff`. A handle can
-change hands: check an account before adding it, and the dry run's logged picks show who we would repost.
-Scores and weights live in config next to each account's numeric id; the owner can change them.
+A sponsor's tag on an announcement is fine (owner, 2026-11-09: our stakes are between friends, not a rival
+bookmaker); a post whose point is odds, tips or a betting offer is not. The old pool of 15 commentators (picked
+by weight: Romano, Schefter, Nate Silver…) is retired: they almost never announce events.
 
 ## Starter posts (before inviting anyone)
 

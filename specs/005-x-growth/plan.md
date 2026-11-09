@@ -103,12 +103,14 @@ measured.
 
 ## Curated reposts (FR-011)
 
-Twice a day as now (09:23 and 18:23 UTC). `src/content/pool-run.ts` already reads the picked account's latest
-posts; each eligible one (not a reply or repost, ≤ 48 h, never posted) goes to one lite-model call (`repost.v1`,
-structured output: `kind` ∈ prediction · event · development · result · none, plus a 1–10 fit). The best fit
-above `none` is reposted; none fits → one other account; still none → the slot is skipped and logged. Post text is
-read for the call and never stored (constitution V). Kinds and exclusions live in the instruction file, versioned
-like every prompt.
+Once a day at 09:23 UTC (owner, 2026-11-09). `src/content/repost-groups.ts` holds seven groups of fields, one per
+weekday, each with its accounts, announcement words and a floor of likes. `src/content/pool-run.ts` runs one X
+recent search for the day's group (`from:` each account, the words, `-is:retweet -is:reply`, `min_likes:N`, last
+48 h, 10 posts, newest first; `min_likes` checked by hand on 2026-11-09). Each eligible post (≤ 48 h, never
+posted) goes to one lite-model call (`repost.v2`); only `event` counts, and the one with the most likes + 2 ×
+reposts is reposted. None → the next day's group once; still none → no repost, logged. Search takes handles, so
+no paid id lookup; the post's `author_id` is its account. Post text is read for the call and never stored
+(constitution V).
 
 ## The week's record (US4)
 
@@ -142,7 +144,7 @@ URL $0.20, content management $0.005. Per week:
 | Post | Calls | Cost |
 |---|---|---|
 | 3 queued originals + digest + record | 5 × Post: Create | $0.075 |
-| 14 pool reposts | each: one or two timeline reads ($0.025 each) + one lite-model call per candidate (≈ $0.0005, UNRECONCILED) + the repost ($0.015) | ≈ $0.56–0.91 |
+| up to 7 event reposts | each: one or two searches of ≤ 10 posts ($0.05 each) + one lite-model call (≈ $0.001) + the repost ($0.015) | ≈ $0.45–0.80 |
 | up to 3 event posts | each: one grounded model call + 2–4 page reads (≈ $0.02–0.05, UNRECONCILED) + Post: Create | ≈ $0.10–0.20 |
 | **Total** | | **≈ $0.75–1.20/week**, against ~$0.60 now (curated reposts cost one extra read when the first account has nothing that fits) |
 

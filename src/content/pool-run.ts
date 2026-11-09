@@ -1,18 +1,17 @@
-// The pool run (spec 002 US1): twice a day, one account from the pool, one of its posts, reposted — or
-// quoted with a line of our own 1 time in 10. Dry-run by default: the pick is recorded, nothing is posted.
+// The pool run (spec 002 US1, spec 005 FR-011): once a day, one X search over the weekday's group of event
+// accounts, the most-liked upcoming event reposted. Dry-run by default: the pick is recorded, nothing is posted.
 // Nothing of anyone else's post is stored, only ids (constitution V).
 import { log } from '../log.js';
-import { alert, captureError } from '../observe.js';
-import { XApiError, type UserPost } from '../x/client.js';
+import { captureError } from '../observe.js';
+import type { SearchPost } from '../x/client.js';
 import { X_POST_READ_USD, X_POST_CREATE_USD, X_REPOST_USD } from '../x/prices.js';
 import { eligiblePosts } from './eligible.js';
-import { bestFit } from './repost-fit.js';
-import { type PoolAccount, pickAccount, poolAccounts } from './pool.js';
+import { upcomingEvents } from './repost-fit.js';
+import { type RepostGroup, groupFor, groupQuery } from './repost-groups.js';
 import { type QuoteDeps, type QuoteMode, ourLineFor } from './quote.js';
 import {
   logDryRun,
   markPosted,
-  previousAccountId,
   recordPostFailure,
   reserveSlot,
   usedPostIds,
@@ -21,12 +20,11 @@ import {
 import { overSpendCap, recordFeedPost, recordFeedRead } from './spend.js';
 
 export type ContentDeps = QuoteDeps & {
-  readPosts: (accountId: string) => Promise<UserPost[]>;
+  searchPosts: (query: string, since: Date) => Promise<SearchPost[]>;
   repost: (postId: string) => Promise<boolean>;
   quotePost: (postId: string, text: string) => Promise<{ id: string }>;
   dryRun: boolean;
   dailyUsdCap: number;
-  platformAccountId?: string;
   // Authors whose claims an own post may name (constitution VI 2.9.0); empty = none.
   showAuthorIds?: readonly string[];
   random?: () => number;
@@ -40,9 +38,9 @@ export type ContentDeps = QuoteDeps & {
 // to 0.9 and the 1-in-10 quote turn returns.
 const REPOST_SHARE = 1;
 export const HAND_RUN_SLOTS = 10; // room for a hand-run on top of the day's cap
-const MAX_TRIES = 3;
-// Accounts whose posts the repost policy may sort per run: one, then one other, then the slot is skipped.
-const MAX_SORTED = 2;
+const SEARCH_HOURS = 48; // eligiblePosts drops anything older anyway
+// The day's group, then the next day's once; still nothing → no repost (FR-011).
+const GROUP_OFFSETS = [0, 1];
 
 export type PoolRunResult =
   | { done: 'spend_cap' | 'no_candidate' | 'cap_reached' }
@@ -68,9 +66,10 @@ export async function runPoolPost(
   if (!options.force && (await overSpendCap(deps, now)))
     return { done: 'spend_cap' };
 
-  const found = await findCandidate(deps, now, random);
+  const found = await findCandidate(deps, now);
   if (!found) return { done: 'no_candidate' };
-  const { account, post } = found;
+  const { group, post } = found;
+  const account = { handle: group.name, id: post.author_id };
 
   // The roll decides before anything is reserved, because a quote turn needs its line first.
   const mode: 'repost' | QuoteMode =
@@ -154,48 +153,22 @@ export async function runPoolPost(
   };
 }
 
-// Up to three accounts are tried: a quiet account, or one whose latest posts we have all used, costs a
-// read and yields nothing. At most two have their posts sorted by the repost policy (spec 005 FR-011).
+// The day's group is searched; if no event comes back, the next day's group once (spec 005 FR-011).
 async function findCandidate(
   deps: ContentDeps,
   now: Date,
-  random: () => number,
-): Promise<{ account: PoolAccount; post: UserPost } | null> {
-  const accounts = poolAccounts(deps.platformAccountId);
-  const previous = await previousAccountId(deps.db);
-  const tried = new Set<string>();
-  let sorted = 0;
-
-  for (let attempt = 0; attempt < MAX_TRIES; attempt++) {
-    const account = pickAccount(
-      accounts.filter((a) => !tried.has(a.id)),
-      previous,
-      random,
+): Promise<{ group: RepostGroup; post: SearchPost } | null> {
+  for (const offset of GROUP_OFFSETS) {
+    const group = groupFor(now, offset);
+    const posts = await deps.searchPosts(
+      groupQuery(group),
+      new Date(now.getTime() - SEARCH_HOURS * 3_600_000),
     );
-    if (!account) return null;
-    tried.add(account.id);
-
-    let posts: UserPost[];
-    try {
-      posts = await deps.readPosts(account.id);
-    } catch (error) {
-      // A renamed, suspended or protected account: skip it, say so once, keep the rest of the pool.
-      if (error instanceof XApiError && error.status >= 400 && error.status < 500) {
-        alert('feed.account_unreadable', {
-          handle: account.handle,
-          account_id: account.id,
-          status: error.status,
-        });
-        continue;
-      }
-      throw error; // an outage is not a verdict on the pool: fail the run and retry next slot
-    }
     await recordFeedRead(
       deps,
       posts.length * X_POST_READ_USD,
       Math.max(posts.length, 1),
     );
-
     const eligible = eligiblePosts(
       posts,
       now,
@@ -204,22 +177,18 @@ async function findCandidate(
         posts.map((p) => p.id),
       ),
     );
-    if (eligible.length === 0) {
-      log('info', 'no eligible post from this account', {
-        event: 'feed.no_eligible',
-        handle: account.handle,
-        read: posts.length,
-      });
-      continue;
-    }
-    const post = await bestFit(deps, eligible);
-    if (post) return { account, post };
-    log('info', 'nothing from this account fits the repost policy', {
-      event: 'feed.no_fit',
-      handle: account.handle,
+    const events = await upcomingEvents(deps, eligible);
+    const best = events.sort((a, b) => engagement(b) - engagement(a))[0];
+    if (best) return { group, post: best };
+    log('info', 'no upcoming event in this group', {
+      event: 'feed.no_event_post',
+      group: group.name,
+      read: posts.length,
       eligible: eligible.length,
     });
-    if (++sorted >= MAX_SORTED) return null;
   }
   return null;
 }
+
+const engagement = (post: SearchPost) =>
+  post.public_metrics.like_count + 2 * post.public_metrics.retweet_count;

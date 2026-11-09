@@ -8,7 +8,6 @@ import {
   logDryRun,
   markFailed,
   markPosted,
-  previousAccountId,
   releaseSlot,
   reserveSlot,
   utcDay,
@@ -20,7 +19,7 @@ import {
   runOriginalPost,
   type OriginalDeps,
 } from '../../src/content/original-run.js';
-import { XApiError, type UserPost } from '../../src/x/client.js';
+import { XApiError, type SearchPost, type UserPost } from '../../src/x/client.js';
 import { insertClaim, insertEvidence, setupTestDb, type TestDb } from './helpers.js';
 
 let t: TestDb;
@@ -134,13 +133,11 @@ test('a dry-run pick holds no slot, but is not picked again, and names the previ
     null,
     'the same post is never picked twice',
   );
-  assert.equal(await previousAccountId(t.db), 'acc1');
   // The day's slot is still free: a dry run spends nothing.
   assert.equal(
     (await reserveSlot(t.db, { ...pool('p2'), accountId: 'acc2' }))?.slot,
     1,
   );
-  assert.equal(await previousAccountId(t.db), 'acc2');
 });
 
 test('an error path after a successful post cannot free the slot or re-post', async () => {
@@ -209,8 +206,14 @@ test("the daily spend counts the feed's own costs only", async () => {
 
 // The pool run end to end, with X and the model stubbed: a dry run records and posts nothing, a live run
 // posts once and marks the row, and a refusal from X frees the slot without a retry.
+type StubPost = UserPost & Partial<SearchPost>;
+const searched = (p: StubPost): SearchPost => ({
+  author_id: 'acc1',
+  public_metrics: { like_count: 100, retweet_count: 0 },
+  ...p,
+});
 function contentDeps(
-  over: Partial<ContentDeps> & { posts?: UserPost[] } = {},
+  over: Partial<ContentDeps> & { posts?: StubPost[] } = {},
 ): ContentDeps {
   const posts = over.posts ?? [
     {
@@ -229,7 +232,7 @@ function contentDeps(
       }: {
         instructionVersion: string;
       }) =>
-        instructionVersion === 'repost.v1'
+        instructionVersion === 'repost.v2'
           ? {
               data: { posts: [{ index: 0, kind: 'event', fit: 8 }] },
               costs: [],
@@ -240,12 +243,11 @@ function contentDeps(
       text: 'Prediction is very difficult.',
       by: 'Niels Bohr',
     }),
-    readPosts: async () => posts,
+    searchPosts: async () => posts.map(searched),
     repost: async () => true,
     quotePost: async () => ({ id: 'own1' }),
     dryRun: true,
     dailyUsdCap: 0.15,
-    platformAccountId: undefined,
     random: () => 0.5, // a plain repost
     ...over,
   } as unknown as ContentDeps;
@@ -297,11 +299,18 @@ test('a live run reposts once, marks the row, and records the cost', async () =>
   );
 });
 
-test('the repost policy: nothing that fits is never reposted, and a fitting older post beats a newer one', async () => {
+test('the repost policy: no event, no repost; of the events, the most-liked one', async () => {
   const reposted: string[] = [];
   const sortCalls: number[] = [];
+  const queries: string[] = [];
   const none = contentDeps({
     dryRun: false,
+    searchPosts: async (query: string) => {
+      queries.push(query);
+      return [
+        searched({ id: 'q1', text: 'What a goal!', created_at: NOW.toISOString() }),
+      ];
+    },
     repost: async (id: string) => {
       reposted.push(id);
       return true;
@@ -324,8 +333,10 @@ test('the repost policy: nothing that fits is never reposted, and a fitting olde
   assert.equal(
     sortCalls.length,
     2,
-    'one account, then one other, then the slot is skipped',
+    "the day's group, then the next day's, then no repost",
   );
+  assert.notEqual(queries[0], queries[1]);
+  assert.match(queries[0]!, /min_likes:\d+/);
 
   const older = new Date(NOW.getTime() - 3_600_000).toISOString();
   const picky = contentDeps({
@@ -335,11 +346,19 @@ test('the repost policy: nothing that fits is never reposted, and a fitting olde
         id: 'highlight',
         text: 'What a goal! Watch it again',
         created_at: NOW.toISOString(),
+        public_metrics: { like_count: 9000, retweet_count: 900 },
       },
       {
-        id: 'call',
+        id: 'quiet',
+        text: 'The draw is on Friday',
+        created_at: NOW.toISOString(),
+        public_metrics: { like_count: 300, retweet_count: 10 },
+      },
+      {
+        id: 'final',
         text: 'The Champions League final is on 30 May in Budapest',
         created_at: older,
+        public_metrics: { like_count: 200, retweet_count: 200 },
       },
     ],
     repost: async (id: string) => {
@@ -350,8 +369,9 @@ test('the repost policy: nothing that fits is never reposted, and a fitting olde
       generateJson: async () => ({
         data: {
           posts: [
-            { index: 0, kind: 'prediction', fit: 10 },
-            { index: 1, kind: 'event', fit: 7 },
+            { index: 0, kind: 'result', fit: 10 },
+            { index: 1, kind: 'event', fit: 9 },
+            { index: 2, kind: 'event', fit: 6 },
           ],
         },
         costs: [],
@@ -359,7 +379,7 @@ test('the repost policy: nothing that fits is never reposted, and a fitting olde
     },
   } as unknown as Partial<ContentDeps>);
   assert.equal((await runPoolPost(picky, NOW)).done, 'posted');
-  assert.deepEqual(reposted, ['call']);
+  assert.deepEqual(reposted, ['final'], '200 + 2 × 200 beats 300 + 2 × 10');
 });
 
 test('a quote turn adds our own line, and X refusing it frees the slot without a retry', async () => {
@@ -443,7 +463,7 @@ test('every posting job records what it spent', async () => {
   assert.ok((byOp['feed_read'] ?? 0) >= 1, 'the pool read');
 });
 
-test('the spend cap stops the day, and an unreadable account is skipped', async () => {
+test('the spend cap stops the day, and a failed search fails the run', async () => {
   await recordCost(t.db, {
     claimId: null,
     provider: 'x',
@@ -454,12 +474,12 @@ test('the spend cap stops the day, and an unreadable account is skipped', async 
   const capped = await runPoolPost(contentDeps({ dailyUsdCap: 0.15 }), new Date());
   assert.equal(capped.done, 'spend_cap');
 
-  const gone = contentDeps({
-    readPosts: async () => {
-      throw new XApiError(403, 'forbidden', null);
+  const refused = contentDeps({
+    searchPosts: async () => {
+      throw new XApiError(400, 'bad query', null);
     },
   });
-  assert.equal((await runPoolPost(gone, NOW)).done, 'no_candidate');
+  await assert.rejects(runPoolPost(refused, NOW), XApiError);
 });
 
 // The daily owner-written post (US2): in order, once each, and never twice even after a crash.

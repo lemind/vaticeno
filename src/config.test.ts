@@ -44,14 +44,8 @@ test('the content feed is off and dry-run by default', () => {
   assert.equal(config.ENABLE_FEED, false);
   assert.equal(config.FEED_DRY_RUN, true);
   assert.equal(config.FEED_DAILY_USD_CAP, 0.15);
-  assert.equal(config.FEED_PLATFORM_ACCOUNT_ID, undefined);
-  // `.env.example` ships both keys blank: an empty line must mean "unset", never 0 and never an error.
-  const blank = loadCoreConfig({
-    DATABASE_URL: DB,
-    FEED_PLATFORM_ACCOUNT_ID: '',
-    FEED_DAILY_USD_CAP: '',
-  });
-  assert.equal(blank.FEED_PLATFORM_ACCOUNT_ID, undefined);
+  // `.env.example` ships the cap blank: an empty line must mean "unset", never 0 and never an error.
+  const blank = loadCoreConfig({ DATABASE_URL: DB, FEED_DAILY_USD_CAP: '' });
   assert.equal(blank.FEED_DAILY_USD_CAP, 0.15);
   assert.equal(
     loadCoreConfig({ DATABASE_URL: DB, ENABLE_FEED: 'true', ENABLE_JOBS: 'true' })
@@ -62,9 +56,5 @@ test('the content feed is off and dry-run by default', () => {
   assert.equal(
     loadCoreConfig({ DATABASE_URL: DB, ENABLE_FEED: 'true' }).ENABLE_FEED,
     true,
-  );
-  assert.throws(
-    () => loadCoreConfig({ DATABASE_URL: DB, FEED_PLATFORM_ACCOUNT_ID: 'kalshi' }),
-    /FEED_PLATFORM_ACCOUNT_ID/,
   );
 });

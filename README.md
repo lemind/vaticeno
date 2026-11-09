@@ -137,7 +137,6 @@ the lite model that parses predictions; everything else stays on the lite model.
 | `npm run content:queue -- add "…" [--on YYYY-MM-DD] [--source https://… --checked YYYY-MM-DD]` / `list` / `remove <id>` | the owner's queue of own posts, optionally on a date (spec 005) |
 | `npm run content:topic [-- --last <id>]` | draw an event topic: random, in season, never the last |
 | `npm run growth:week [-- --quotes N]` | the Friday review from the database: claims, active and first-time authors, posts by kind (free) |
-| `npm run content:pool-ids` | one-off, paid: resolve new pool handles to numeric X ids |
 | `npm run verdict:recheck -- [--slug X] [--correct "why"] [--post]` | re-decide past verdicts from stored evidence (free); correcting one is deliberate |
 | `npm run verdict:recheck -- --slug X --outcome hit\|miss --correct "why" --deciding-evidence <id>` | decide a standing verdict by hand, naming the stored row it rests on |
 | `npm run verdict:recheck -- --slug X --post` | post a correction already written |
