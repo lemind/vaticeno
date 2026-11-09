@@ -115,6 +115,8 @@ done by the owner in the X app; their drafts live in `specs/005-x-growth/content
   group, then the next day's once, and reposts the most-liked event; `repost.v2.md` (sponsor tags allowed, odds and
   tips still not). The old pool goes: `src/content/pool.ts`, `pool-ids.ts`, `src/cli/pool-ids.ts`,
   `FEED_PLATFORM_ACCOUNT_ID`. Tests in `tests/integration/content.test.ts`.
+- [x] T517j The Monday digest names only claims of authors on `FEED_SHOW_AUTHOR_IDS` (FR-014); it named anyone's
+  before (found 2026-11-09, none posted yet).
 - [x] T517b [US3a] Tests: two agreeing pages post; one page, or disagreeing dates, do not; three failed topics post
   nothing; a repeat event is skipped; the text never carries a link, a handle or a hashtag.
 

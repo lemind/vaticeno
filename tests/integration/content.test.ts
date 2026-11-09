@@ -694,16 +694,26 @@ test('the quiet-week alert: a Friday after two own posts alerts, after three it 
   );
 });
 
-test('the Monday digest: one a day, its slugs kept, and a dry run reserves nothing', async () => {
+test('the Monday digest: listed authors only, one a day, its slugs kept, and a dry run reserves nothing', async () => {
   const monday = new Date('2027-01-04T08:17:00Z');
   const claim = await insertClaim(t.sql, 'locked', {
     deadline_at: '2027-01-07T23:59:59Z',
   });
+  const stranger = await insertClaim(t.sql, 'locked', {
+    deadline_at: '2027-01-06T23:59:59Z',
+    author_x_user_id: '300',
+  });
+  assert.equal(
+    (await runDigest(originalDeps({ showAuthorIds: [] }), monday)).done,
+    'nothing_new',
+    'an empty list names no one',
+  );
   const sent: string[] = [];
-  const dry = originalDeps({ dryRun: true });
+  const dry = originalDeps({ dryRun: true, showAuthorIds: ['200'] });
   assert.equal((await runDigest(dry, monday)).done, 'logged');
   assert.equal((await t.sql`select count(*)::int as n from feed_posts`)[0]!.n, 0);
   const deps = originalDeps({
+    showAuthorIds: ['200'],
     postText: async (text) => {
       sent.push(text);
       return { id: `d${sent.length}` };
@@ -711,6 +721,10 @@ test('the Monday digest: one a day, its slugs kept, and a dry run reserves nothi
   });
   assert.equal((await runDigest(deps, monday)).done, 'posted');
   assert.match(sent[0]!, new RegExp(`#${claim.slug} · 7 Jan`));
+  assert.ok(
+    !sent[0]!.includes(stranger.slug),
+    'an author not on the list is never named',
+  );
   assert.equal(
     (await runDigest(deps, monday)).done,
     'nothing_new',

@@ -23,12 +23,16 @@ export async function runDigest(
   now: Date,
 ): Promise<RecordRunResult> {
   if (await overSpendCap(deps, now)) return { done: 'cap_reached' };
+  // Only claims of authors on the list are named (constitution VI 2.9.0, 005 FR-014); an empty list names none.
+  const shown = deps.showAuthorIds ?? [];
+  if (shown.length === 0) return { done: 'nothing_new' };
   const due = await deps.db
     .select({ slug: claims.slug, deadlineAt: claims.deadlineAt })
     .from(claims)
     .where(
       and(
         eq(claims.status, 'locked'),
+        inArray(claims.authorXUserId, [...shown]),
         gte(claims.deadlineAt, now),
         lte(claims.deadlineAt, new Date(now.getTime() + WEEK_MS)),
       ),
