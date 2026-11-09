@@ -12,16 +12,17 @@ contract → evidence → result. Spec: `specs/005-x-growth/spec.md`; decision: 
 | Monday: claims coming due; Friday: the week's counts | quote posts of other people's predictions ("Not recorded on Vaticeno — yet.") |
 | Tue–Thu: an upcoming event, confirmed by two sites, from a template | replies in conversations; any post with a link |
 
-One own post a day, whichever kind; reposts are on top.
+One own post a day, whichever kind; reposts are on top. No queued one-liners any more (owner, 2026-11-09): the
+queue stays empty, and its 13:41 run only raises the Friday quiet-week alert.
 
 ## A week
 
 | Day | Own post (one) | Reposts |
 |---|---|---|
 | Mon | claims coming due this week (08:17 UTC) | two |
-| Tue–Thu | a queued post, else an event post (13:41 / 15:11 UTC) | two |
+| Tue–Thu | an event post with its poster (15:11 UTC), when two sites confirm one | two |
 | Fri | the week's counts (09:47 UTC) | two |
-| Sat–Sun | a queued post, if any | two |
+| Sat–Sun | none | two |
 
 ## Repost policy
 
@@ -63,8 +64,8 @@ picture of the sport, no text, no "Vaticeno") follows once the bot's X login can
 ## Every Friday (20–30 minutes)
 
 1. Glance at what the bot posted this week; delete a bad one with `npm run post:delete -- <id>`.
-2. Look at the queue (`content:queue -- list`); re-check any event post's date, a fixture again on its day.
-3. Record two predictions of your own; queue the posts about earlier ones.
+2. Re-check any event post's date, a fixture again on its day.
+3. Record two predictions of your own.
 4. `npm run growth:week -- --quotes N` (N = your hand-made quote posts this week, from X), then X's dashboard
    and Cloudflare Web Analytics (host vaticeno.n30sk.cc).
 5. Follow the week's 5–10 accounts (`specs/005-x-growth/content/accounts.md`).

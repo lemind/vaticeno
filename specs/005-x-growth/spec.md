@@ -67,7 +67,8 @@ coming up whose outcome will be public, a principle, the week's numbers. The own
 its date, and the bot posts it on that day.
 
 **Why this priority**: it is the account's voice; the queue ran dry on 19 Oct and nothing of its own has gone out
-since.
+since. **Dropped 2026-11-09 (owner)**: the one-liners said nothing; the queue stays empty and is not refilled. The
+code stays, and its daily run keeps only the Friday quiet-week alert.
 
 **Independent Test**: queue three posts dated Monday, Wednesday and Friday and one undated; over the week each
 dated post goes out on its day, the undated one on the first free day, and nothing posts twice.
