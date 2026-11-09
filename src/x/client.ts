@@ -174,7 +174,6 @@ export function createXClient(bearerToken: string) {
       );
     },
 
-    // X's smallest timeline page is 5 posts, and billing is per post returned (src/x/prices.ts).
     // Recent search, newest first; billed per post returned, so `maxResults` is the cost ($0.005 each).
     async searchRecent(
       query: string,
