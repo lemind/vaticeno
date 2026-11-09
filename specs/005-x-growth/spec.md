@@ -272,10 +272,11 @@ best — and changes next week's mix from it.
 - **FR-024**: Each event post may carry one AI-generated poster (owner, 2026-11-06; tried with the cheapest model,
   Gemini 2.5 Flash Image, ≈ $0.039 an image): an abstract picture of the event's sport — a ball, an abstract
   player, a track, a court — in the sport's or teams' colours. It is a poster for the event, not for Vaticeno: no
-  "Vaticeno" on it. The facts (event, date, place) stay in the post's text, because the model misspells names and
-  draws fake crests (trial 2026-11-06: "LIEVERPOOL", "NOTINGHIAM"); the prompt asks for no text and no logos. No
-  photo-like real person. Needs the bot's X login to gain `media.write` and the upload price measured. A failed
-  image never stops the post: it goes out as text.
+  "Vaticeno" on it. Its one text is the event's name, as the post names it — the teams or fighters (owner,
+  2026-11-09, accepting that the model may misspell a name: trial 2026-11-06 drew "LIEVERPOOL"); date and place stay
+  in the post's text. No logos, no photo-like real person. The upload signs with the bot's OAuth 1.0a keys, since the
+  browser login for `media.write` fails on X's side; its price is UNRECONCILED. A failed image never stops the post:
+  it goes out as text.
 
 - **FR-018**: A weekly review from three sources: X's own dashboard (read by the owner; no paid API read), the
   site report (US1), and the database (claims recorded; distinct authors who tagged the bot, owner excluded).

@@ -10,7 +10,12 @@ import { log } from '../log.js';
 import { captureError } from '../observe.js';
 import type { PageFetcher } from '../resolve/fetch.js';
 import { X_POST_CREATE_USD } from '../x/prices.js';
-import { confirmedBy, type FoundEvent, type ReadPage } from './event-check.js';
+import {
+  confirmedBy,
+  pageCheck,
+  type FoundEvent,
+  type ReadPage,
+} from './event-check.js';
 import { eventPostText } from './event-post.js';
 import type { OriginalDeps } from './original-run.js';
 import { saveCosts } from './quote.js';
@@ -21,7 +26,7 @@ import { TOPICS, type Topic } from './topics.js';
 export type EventDeps = OriginalDeps & {
   fetchPage: PageFetcher;
   // The poster (FR-024): null, or a throw, means the post goes out as text.
-  makePoster?: (topicId: string) => Promise<Buffer | null>;
+  makePoster?: (topicId: string, title: string) => Promise<Buffer | null>;
 };
 export type EventRunResult = {
   done: 'cap_reached' | 'slot_taken' | 'no_event' | 'logged' | 'posted' | 'failed';
@@ -89,13 +94,17 @@ export async function runEventPost(
     if (!found) continue;
     const { event, urls } = found;
     if (seen.has(`${event.name.toLowerCase()}|${event.date}`)) continue;
-    const hosts = confirmedBy(event, await readPages(deps, urls));
+    const { pages, unread } = await readPages(deps, urls);
+    const hosts = confirmedBy(event, pages);
     if (hosts.length < 2) {
       log('info', 'event not confirmed by two sites', {
         event: 'feed.event_unconfirmed',
         topic: topic.id,
         name: event.name,
+        date: event.date,
         hosts,
+        pages: pages.map((p) => pageCheck(event, p)),
+        unread,
       });
       continue;
     }
@@ -122,7 +131,7 @@ async function findEvent(
   const costs: CallCost[] = [];
   try {
     const answer = await deps.llm.groundedAnswer({
-      model: deps.normalizerModel,
+      model: deps.answerModel,
       instructionVersion: 'event.v1',
       system: loadInstruction('event.v1'),
       input: JSON.stringify({
@@ -142,7 +151,19 @@ async function findEvent(
     if (!parsed.success || !parsed.data.found) return null;
     const { name, date, place } = parsed.data;
     if (date < from || date > to) return null; // the window is the code's, not the model's
-    return { event: { name, date, place }, urls: answer.urls.slice(0, MAX_PAGES) };
+    let urls = answer.urls;
+    // The proposer often answers from memory with no links (2026-11-08), so the pages come from a search of our own.
+    if (urls.length < 2) {
+      const search = await deps.llm.groundedSearch({
+        model: deps.normalizerModel,
+        instructionVersion: 'event-sources.v1',
+        system: loadInstruction('event-sources.v1'),
+        input: JSON.stringify({ name, date, place }),
+      });
+      costs.push(...search.costs);
+      urls = [...new Set([...urls, ...search.urls])];
+    }
+    return { event: { name, date, place }, urls: urls.slice(0, MAX_PAGES) };
   } catch (error) {
     if (error instanceof SyntaxError || error instanceof LlmSchemaError) return null;
     throw error; // an outage fails the run; nothing is posted
@@ -154,17 +175,18 @@ async function findEvent(
 async function readPages(
   deps: EventDeps,
   urls: readonly string[],
-): Promise<ReadPage[]> {
+): Promise<{ pages: ReadPage[]; unread: string[] }> {
   const pages: ReadPage[] = [];
+  const unread: string[] = [];
   for (const url of urls) {
     try {
       const page = await deps.fetchPage(url);
       pages.push({ url: page.url, text: page.text });
-    } catch {
-      // A page that cannot be read does not count (FR-020).
+    } catch (error) {
+      unread.push(String(error).slice(0, 120)); // a page that cannot be read does not count (FR-020)
     }
   }
-  return pages;
+  return { pages, unread };
 }
 
 // Reserved before posting and never retried (INIT_SPEC §6.7), in the day's own-post slot.
@@ -187,7 +209,7 @@ async function publish(
     payload,
   });
   if (!slot) return { done: 'slot_taken' };
-  const image = await poster(deps, payload.topic);
+  const image = await poster(deps, payload.topic, payload.name);
   let postedId: string;
   try {
     postedId = (await deps.postText(text, image ?? undefined)).id;
@@ -206,10 +228,14 @@ async function publish(
   return { done: 'posted' };
 }
 
-async function poster(deps: EventDeps, topicId: string): Promise<Buffer | null> {
+async function poster(
+  deps: EventDeps,
+  topicId: string,
+  title: string,
+): Promise<Buffer | null> {
   if (!deps.makePoster) return null;
   try {
-    return await deps.makePoster(topicId);
+    return await deps.makePoster(topicId, title);
   } catch (error) {
     log('info', 'no poster; posting the text alone', {
       event: 'feed.poster_failed',

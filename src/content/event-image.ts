@@ -1,6 +1,5 @@
-// The event poster's prompt (spec 005 FR-024): an abstract picture of the sport, never facts. The model misspells
-// names and draws fake crests (trial 2026-11-06), so the picture carries no text and no logo; the post's text has
-// the event, date and place. It is a poster for the event, not for Vaticeno.
+// The event poster's prompt (spec 005 FR-024): an abstract picture of the sport with the event's name as its one
+// title (owner, 2026-11-09). No other text and no logo; the post's text has the date and place. Not for Vaticeno.
 const SCENES: Record<string, string> = {
   football: 'a football on a floodlit pitch, an abstract player in motion',
   'american-football':
@@ -25,11 +24,13 @@ const SCENES: Record<string, string> = {
   awards: 'an abstract golden statuette under a spotlight on a stage',
 };
 
-export function posterPrompt(topicId: string): string {
+export function posterPrompt(topicId: string, title: string): string {
   const scene = SCENES[topicId] ?? 'an abstract stage under a spotlight';
+  const name = title.replace(/["“”]/g, '').trim();
   return (
     `A bold, modern event poster illustration, 16:9: ${scene}. Flat vector style, strong colours, ` +
-    'dramatic light. Absolutely no text, letters, numbers, logos, crests, brand marks or watermarks, ' +
+    `dramatic light. Its one title, in large bold letters, spelled exactly: "${name}". ` +
+    'No other text, letters or numbers; no logos, crests, brand marks or watermarks, ' +
     "and no recognisable real person's face."
   );
 }

@@ -69,21 +69,33 @@ const host = (url: string) => {
   }
 };
 
+// Why one page does or does not confirm the event: the key words it lacks, and whether it gives the date.
+export function pageCheck(
+  event: FoundEvent,
+  page: ReadPage,
+): { host: string | null; missing: string[]; dated: boolean } {
+  const text = page.text
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '');
+  return {
+    host: host(page.url),
+    missing: keyWords(event.name).filter((w) => !text.includes(w)),
+    dated: dateForms(event.date).some((f) => f.test(page.text)),
+  };
+}
+
 // Two different hosts whose page carries every key word of the name and the date in some form.
 export function confirmedBy(
   event: FoundEvent,
   pages: readonly ReadPage[],
 ): string[] {
-  const words = keyWords(event.name);
-  if (words.length === 0) return [];
-  const forms = dateForms(event.date);
+  if (keyWords(event.name).length === 0) return [];
   const hosts = new Set<string>();
   for (const page of pages) {
-    const h = host(page.url);
-    if (!h || hosts.has(h)) continue;
-    const text = page.text.toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '');
-    if (words.every((w) => text.includes(w)) && forms.some((f) => f.test(page.text)))
-      hosts.add(h);
+    const check = pageCheck(event, page);
+    if (check.host && check.missing.length === 0 && check.dated)
+      hosts.add(check.host);
   }
   return [...hosts];
 }

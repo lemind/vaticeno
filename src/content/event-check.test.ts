@@ -47,10 +47,11 @@ test('the event post is the template, and refuses a slot carrying a link or a ha
   assert.equal(eventPostText({ ...EVENT, place: 'see bbc.com' }), null);
 });
 
-test('the poster prompt asks for a picture of the sport and never for text, logos or a real face', () => {
-  const prompt = posterPrompt('horse-racing');
+test('the poster prompt asks for the sport, the event name as its only text, no logos or real face', () => {
+  const prompt = posterPrompt('horse-racing', 'Breeders\' Cup "Classic"');
   assert.match(prompt, /racehorses/);
-  assert.match(prompt, /no text, letters, numbers, logos, crests/);
+  assert.match(prompt, /spelled exactly: "Breeders' Cup Classic"/);
+  assert.match(prompt, /No other text, letters or numbers; no logos, crests/);
   assert.match(prompt, /recognisable real person/);
   assert.doesNotMatch(prompt, /Vaticeno/);
 });

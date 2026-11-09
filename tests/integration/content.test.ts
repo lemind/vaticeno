@@ -724,6 +724,7 @@ function eventDeps(
         searches.push(1);
         return { text: JSON.stringify(answer), urls: Object.keys(pages), costs: [] };
       },
+      groundedSearch: async () => ({ queries: [], urls: [], costs: [] }),
     },
     fetchPage: async (url: string) => {
       if (!(url in pages)) throw new Error('unreadable');
@@ -780,6 +781,26 @@ test('one site, a date outside the window, or no event: nothing is posted after 
   assert.equal((await runEventPost(tooFar, TUESDAY, () => 0)).done, 'no_event');
   const none = eventDeps({ found: false }, {});
   assert.equal((await runEventPost(none, TUESDAY, () => 0)).done, 'no_event');
+});
+
+test('an answer without links: our own search finds the two pages', async () => {
+  const deps = eventDeps(FOUND, TWO_SITES);
+  const sourced = eventDeps(FOUND, {}, {
+    llm: {
+      groundedAnswer: async () => ({
+        text: JSON.stringify(FOUND),
+        urls: [],
+        costs: [],
+      }),
+      groundedSearch: async () => ({
+        queries: ['q'],
+        urls: Object.keys(TWO_SITES),
+        costs: [],
+      }),
+    },
+    fetchPage: deps.fetchPage,
+  } as unknown as Partial<EventDeps>);
+  assert.equal((await runEventPost(sourced, TUESDAY, () => 0)).done, 'posted');
 });
 
 test('a day whose own-post slot is taken costs no search', async () => {

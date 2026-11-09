@@ -7,9 +7,11 @@ import {
   postStandalone,
   quotePost,
   repost,
+  MEDIA_UPLOAD_URL,
   uploadImage,
   XApiError,
 } from '../x/client.js';
+import { oauth1Header, type OAuth1Keys } from '../x/oauth1.js';
 import { recordCost } from '../db/costs.js';
 import { generateImage } from '../llm/image.js';
 import type { CallCost } from '../llm/client.js';
@@ -28,13 +30,25 @@ export function buildContentDeps(
 ): ContentDeps & {
   postText: (text: string, image?: Buffer) => Promise<{ id: string }>;
   fetchPage: PageFetcher;
-  makePoster?: (topicId: string) => Promise<Buffer | null>;
+  makePoster?: (topicId: string, title: string) => Promise<Buffer | null>;
 } {
   const config = loadConfig();
   if (!config.X_BOT_USER_ID)
     throw new Error('X_BOT_USER_ID is missing. Run `npm run poc:whoami` first.');
   if (!config.X_OAUTH2_CLIENT_ID || !config.X_OAUTH2_CLIENT_SECRET)
     throw new Error('X_OAUTH2_CLIENT_ID/SECRET are needed to post');
+  const oauth1: OAuth1Keys | null =
+    config.X_API_KEY &&
+    config.X_API_KEY_SECRET &&
+    config.X_ACCESS_TOKEN &&
+    config.X_ACCESS_TOKEN_SECRET
+      ? {
+          consumerKey: config.X_API_KEY,
+          consumerSecret: config.X_API_KEY_SECRET,
+          token: config.X_ACCESS_TOKEN,
+          tokenSecret: config.X_ACCESS_TOKEN_SECRET,
+        }
+      : null;
   const creds = {
     clientId: config.X_OAUTH2_CLIENT_ID,
     clientSecret: config.X_OAUTH2_CLIENT_SECRET,
@@ -77,10 +91,12 @@ export function buildContentDeps(
       withToken(async (token) => {
         const mediaIds: string[] = [];
         if (image) {
-          // A failed upload never stops the post: it goes out as text (005 FR-024). Without `media.write` on the
-          // token this fails until the owner logs the bot in again.
+          // A failed upload never stops the post: it goes out as text (005 FR-024).
           try {
-            mediaIds.push(await uploadImage(token, image));
+            const authorization = oauth1
+              ? oauth1Header('POST', MEDIA_UPLOAD_URL, oauth1)
+              : `Bearer ${token}`;
+            mediaIds.push(await uploadImage(authorization, image));
             await recordCost(quoteDeps.db, {
               claimId: null,
               provider: 'x',
@@ -102,23 +118,26 @@ export function buildContentDeps(
     showAuthorIds: core.FEED_SHOW_AUTHOR_IDS,
     fetchPage: quoteDeps.fetchPage,
     ...(core.LLM_MODE === 'live' && core.GEMINI_API_KEY
-      ? { makePoster: posterMaker(quoteDeps, core.GEMINI_API_KEY) }
+      ? { makePoster: posterMaker(quoteDeps, core.GEMINI_API_KEY, oauth1 !== null) }
       : {}),
   };
 }
 
 // The event poster: one image call, its cost recorded whether or not an image came back. Nothing is generated (or
 // paid for) until the bot's saved login can upload media.
-function posterMaker(deps: QuoteDeps, apiKey: string) {
-  return async (topicId: string): Promise<Buffer | null> => {
-    if (!(await tokenScopes()).includes('media.write')) {
-      log('info', 'no poster: the bot login lacks media.write', {
+function posterMaker(deps: QuoteDeps, apiKey: string, hasOAuth1: boolean) {
+  return async (topicId: string, title: string): Promise<Buffer | null> => {
+    if (!hasOAuth1 && !(await tokenScopes()).includes('media.write')) {
+      log('info', 'no poster: no 1.0a keys and the bot login lacks media.write', {
         event: 'feed.poster_no_scope',
       });
       return null;
     }
     try {
-      const { png, costs } = await generateImage(apiKey, posterPrompt(topicId));
+      const { png, costs } = await generateImage(
+        apiKey,
+        posterPrompt(topicId, title),
+      );
       await saveCosts(deps, costs);
       return png;
     } catch (error) {

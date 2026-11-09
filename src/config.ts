@@ -16,6 +16,11 @@ const EnvSchema = z.object({
   X_OAUTH2_CLIENT_ID: z.string().optional(),
   X_OAUTH2_CLIENT_SECRET: z.string().optional(),
   X_OAUTH2_REDIRECT_URI: z.url().default('http://localhost:3033/callback'),
+  // OAuth 1.0a keys of the bot (console → Keys and tokens): only the poster upload uses them (005 FR-024).
+  X_API_KEY: z.string().optional(),
+  X_API_KEY_SECRET: z.string().optional(),
+  X_ACCESS_TOKEN: z.string().optional(),
+  X_ACCESS_TOKEN_SECRET: z.string().optional(),
   // Pre-approval test gate (INIT_SPEC §10): only these authors ever get a reply.
   REPLY_ALLOWLIST_USER_IDS: z
     .string()

@@ -313,11 +313,14 @@ export async function postStandalone(
 
 const MediaUploadResponseSchema = z.object({ data: z.object({ id: z.string() }) });
 
-// One image for an own post (spec 005 FR-024), on the user token with `media.write`. Returns the media id.
-// UNRECONCILED: X's v2 media upload has not been called with our token yet; the first event post with a poster is
-// the check. Any failure leaves the post as text (src/content/wire.ts).
+export const MEDIA_UPLOAD_URL = `${X_API_BASE}/media/upload`;
+
+// One image for an own post (spec 005 FR-024). `authorization` is the bot's OAuth 1.0a header for this URL, or
+// `Bearer <token>` for a 2.0 token with `media.write`. Returns the media id.
+// UNRECONCILED: not yet called with our keys; the first event post with a poster is the check. Any failure leaves
+// the post as text (src/content/wire.ts).
 export async function uploadImage(
-  accessToken: string,
+  authorization: string,
   png: Buffer,
 ): Promise<string> {
   const form = new FormData();
@@ -327,9 +330,9 @@ export async function uploadImage(
     'poster.png',
   );
   form.append('media_category', 'tweet_image');
-  const res = await fetch(`${X_API_BASE}/media/upload`, {
+  const res = await fetch(MEDIA_UPLOAD_URL, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${accessToken}` },
+    headers: { Authorization: authorization },
     body: form,
   });
   const body = await res.text();

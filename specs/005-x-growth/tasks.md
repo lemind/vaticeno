@@ -103,9 +103,10 @@ done by the owner in the X app; their drafts live in `specs/005-x-growth/content
   logos, no "Vaticeno"), `src/llm/image.ts` (Gemini 2.5 Flash Image, 16:9, cost logged), `uploadImage` in
   `src/x/client.ts`, `media.write` in `OAUTH_SCOPES`. No image is generated, or paid for, until the saved login
   has `media.write`; a failed image or upload posts the text alone. `content:tick -- event` runs one by hand.
-- [ ] T517d **[owner]** Log the bot in once more so it can upload media: locally `npm run poc:auth`, open the URL
-  signed in as @vaticeno (not yourself), approve; then the new `.state/x-oauth.json` goes to the server with the
-  bot stopped, owned by the `vaticeno` user. Until then event posts go out as text.
+- [x] T517d Poster upload signed with the bot's OAuth 1.0a keys (`src/x/oauth1.ts`, `X_API_KEY`/`_SECRET` +
+  `X_ACCESS_TOKEN`/`_SECRET`): the browser login for `media.write` fails on X's side (2026-11-08). First poster posted
+  2026-11-09. Event lookups with no links run a search of their own for the pages; an unconfirmed event logs why.
+- [x] T517e The poster carries the event's name as its one title (owner, 2026-11-09).
 - [x] T517b [US3a] Tests: two agreeing pages post; one page, or disagreeing dates, do not; three failed topics post
   nothing; a repeat event is skipped; the text never carries a link, a handle or a hashtag.
 - [ ] T518 [US3] **[owner]** Record at least two predictions a week through the bot; after each lock or verdict,
