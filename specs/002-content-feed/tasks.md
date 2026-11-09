@@ -225,7 +225,7 @@ becoming ten repetitions of the same three slugs.
   `src/content/record-run.ts`; kinds and `payload` came with 005's migration 0027, not a 0016; digest Monday 08:17
   and record Friday 09:47 UTC, both in the day's one own-post slot; the money filter (FR-012a) set aside by
   constitution VI 2.9.0.
-- [ ] T055 [US4] `docs/content-rules.md`: the editorial rule in one table — what the account posts (pool reposts, owner-written originals, the deadline digest, the record post) and what it never posts (news it has no edge on, AI-written originals, a single verdict, any link). An outcome post the owner wants goes into the existing queue, not a new path. Update `README.md` (status table, commands) and this spec's FR-011–FR-013.
+- [x] T055 [US4] `docs/content-rules.md`: the editorial rule in one table — what the account posts (pool reposts, owner-written originals, the deadline digest, the record post) and what it never posts (news it has no edge on, AI-written originals, a single verdict, any link). An outcome post the owner wants goes into the existing queue, not a new path. Update `README.md` (status table, commands) and this spec's FR-011–FR-013. **Done 2026-11-09 by 005 T520.**
 - [ ] T056 Two weeks after T053 ships (owner): read followers, profile visits and replies, and decide — keep five a week, cut the cadence, or drop it (SC-005). Also read how many of the ten weekly slots actually produced a post; if it is consistently two or three, the ceiling is wrong, not the idea. Write both numbers into this phase.
 
 **Checkpoint**: the feed is pool reposts, the owner's queue and up to ten posts a week written from the
