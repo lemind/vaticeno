@@ -226,6 +226,8 @@ best — and changes next week's mix from it.
   highlights, routine results, memes, partisan argument, crypto hype, unrelated breaking news, or anything
   promoting betting. A cheap model call sorts each candidate into one of those kinds or "none"; the bot reposts
   the best fit, tries one other account if nothing fits, and otherwise skips the slot. No fit, no repost.
+  **Narrowed 2026-11-09 (owner)**: one repost a day, and only an upcoming event; no one else's predictions,
+  results or developments. Cheaper, and the account stays about what is coming.
 - **FR-011a**: Following an account does not make its posts repostable; the pool is a smaller, owner-chosen set
   of the accounts followed (spec 002 FR-001).
 - **FR-012**: Spec 002 User Story 4 (deadline digest and record counts) is built as written, on Monday and

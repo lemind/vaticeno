@@ -27,7 +27,7 @@ export type SchedulerDeps = ClaimDeps &
     bot: BotDeps | null;
   };
 
-// The pool run twice a day at an off-the-hour minute, so the feed never looks like a clock (spec 002).
+// The pool run once a day at an off-the-hour minute, so the feed never looks like a clock (spec 002).
 // Every job's time is here; the feed jobs (TIMER_JOBS) run from systemd timers in deploy/, which must match.
 export const SCHEDULES = {
   mentions: '* * * * *',
@@ -35,7 +35,7 @@ export const SCHEDULES = {
   expire: '*/10 * * * *',
   resolve: '0 * * * *',
   verdicts: '*/5 * * * *',
-  pool: '23 9,18 * * *',
+  pool: '23 9 * * *',
   original: '41 13 * * *',
   // Before the queue on its day, so the record takes the own-post slot (005 FR-009).
   digest: '17 8 * * 1',
@@ -59,7 +59,7 @@ const INTERVALS_SEC: Record<keyof typeof SCHEDULES, number> = {
   expire: 600,
   resolve: 3600,
   verdicts: 300,
-  pool: 15 * 3600,
+  pool: 30 * 3600,
   original: 86_400,
   digest: 7 * 86_400,
   record: 7 * 86_400,

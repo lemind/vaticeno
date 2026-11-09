@@ -18,7 +18,7 @@ export type Reservation = {
 };
 
 // Daily caps per cap group (reposts and quote posts share the pool group).
-export const FEED_CAPS = { pool: 2, original: 1, receipt: 2 } as const;
+export const FEED_CAPS = { pool: 1, original: 1, receipt: 2 } as const;
 
 // Every own post — queued, digest, record, event — shares the one original slot a day (005 FR-009).
 export const capGroupOf = (kind: FeedKind): keyof typeof FEED_CAPS =>

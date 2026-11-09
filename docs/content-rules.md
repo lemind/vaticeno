@@ -7,7 +7,7 @@ contract → evidence → result. Spec: `specs/005-x-growth/spec.md`; decision: 
 
 | The bot (automated) | The owner (by hand, in the X app) |
 |---|---|
-| reposts that fit the repost policy, two a day | bio, pinned post, header |
+| one repost a day, an upcoming event only | bio, pinned post, header |
 | the owner's queued posts, on their date | follows (5–10 a week) and three X Lists |
 | Monday: claims coming due; Friday: the week's counts | quote posts of other people's predictions ("Not recorded on Vaticeno — yet.") |
 | Tue–Thu: an upcoming event, confirmed by two sites, from a template | replies in conversations; any post with a link |
@@ -19,23 +19,19 @@ queue stays empty, and its 13:41 run only raises the Friday quiet-week alert.
 
 | Day | Own post (one) | Reposts |
 |---|---|---|
-| Mon | claims coming due this week (08:17 UTC) | two |
-| Tue–Thu | an event post with its poster (15:11 UTC), when two sites confirm one | two |
-| Fri | the week's counts (09:47 UTC) | two |
-| Sat–Sun | none | two |
+| Mon | claims coming due this week (08:17 UTC) || one |
+| Tue–Thu | an event post with its poster (15:11 UTC), when two sites confirm one || one |
+| Fri | the week's counts (09:47 UTC) || one |
+| Sat–Sun | none || one |
 
 ## Repost policy
 
-Vaticeno is not a news aggregator. A post is reposted only if it is:
-
-- a public prediction or forecast — the best kind;
-- an official announcement of an upcoming event with a checkable outcome;
-- an official result that settles an event people predicted;
-- a significant development in sports, crypto, markets or politics.
+Vaticeno is not a news aggregator. A post is reposted only if it is an official announcement of an upcoming event
+with a checkable outcome (owner, 2026-11-09: no one else's predictions, results or developments).
 
 Never: highlights, routine results, memes, partisan argument, crypto hype, unrelated breaking news, giveaways, or
-anything promoting betting. A cheap model call sorts the candidates (`src/llm/instructions/repost.v1.md`); nothing
-fits, nothing is reposted. Following an account does not make its posts repostable.
+anything promoting betting. A cheap model call sorts the candidates (`src/llm/instructions/repost.v1.md`); only an
+`event` is reposted, and no event means no repost. Following an account does not make its posts repostable.
 
 ## Links
 
@@ -72,7 +68,7 @@ picture of the sport, no text, no "Vaticeno") follows once the bot's X login can
 
 ## Repost pool (spec 002)
 
-Twice a day the bot picks one account by weight, takes its eligible posts (no replies or reposts, at most 48 h
+Once a day (09:23 UTC) the bot picks one account by weight, takes its eligible posts (no replies or reposts, at most 48 h
 old, never posted by us before) and reposts the one that best fits the repost policy above; nothing fits → one
 other account → else no repost. Quote posts of a pool account are refused by X's API (spec 002 FR-004).
 Never the same account twice in a row, never the same post twice. The bot follows all pool accounts.

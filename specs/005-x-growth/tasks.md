@@ -107,6 +107,8 @@ done by the owner in the X app; their drafts live in `specs/005-x-growth/content
 - [x] T517g The whole server from the repo (owner, 2026-11-09): `deploy/setup.sh` adds Caddy, the log cap and the
   settlement user; `deploy/deploy.sh` installs the Caddyfile and every settlement worker; `deploy/move.sh` stops the old
   server and pipes the secrets to the new one; `docs/server.md` lists what runs and where the secrets live.
+- [x] T517h One repost a day, upcoming events only (owner, 2026-11-09): `bestFit` keeps only the `event` kind,
+  `FEED_CAPS.pool` 1, the pool timer at 09:23 alone; the queued one-liners dropped (the queue stays empty).
 - [x] T517b [US3a] Tests: two agreeing pages post; one page, or disagreeing dates, do not; three failed topics post
   nothing; a repeat event is skipped; the text never carries a link, a handle or a hashtag.
 

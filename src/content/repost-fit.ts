@@ -1,5 +1,5 @@
-// The repost policy (spec 005 FR-011): of an account's eligible posts, only one that is a prediction, an upcoming
-// event, a result or a significant development is reposted. One lite-model call sorts them; no fit, no repost.
+// The repost policy (spec 005 FR-011): of an account's eligible posts, only an upcoming event is reposted (owner,
+// 2026-11-09). One lite-model call sorts them; no event, no repost.
 import { z } from 'zod';
 import { type CallCost, LlmSchemaError } from '../llm/client.js';
 import { loadInstruction } from '../llm/instructions.js';
@@ -38,7 +38,7 @@ export async function bestFit(
     });
     costs.push(...c);
     const best = data.posts
-      .filter((p) => p.kind !== 'none' && posts[p.index])
+      .filter((p) => p.kind === 'event' && posts[p.index])
       .sort((a, b) => b.fit - a.fit)[0];
     log('info', 'repost policy sorted the candidates', {
       event: 'feed.repost_fit',

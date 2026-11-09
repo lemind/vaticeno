@@ -55,20 +55,17 @@ test('two runs reserving the same post at once: one wins, and it is never reserv
   assert.equal(rows[0]!.n, 1);
 });
 
-test('the daily cap holds: two pool posts, and reposts and quote posts share it', async () => {
+test('the daily cap holds: one pool post, and reposts and quote posts share it', async () => {
   assert.equal((await reserveSlot(t.db, pool('p1')))?.slot, 1);
   assert.equal(
-    (
-      await reserveSlot(t.db, {
-        kind: 'quote',
-        day: DAY,
-        sourcePostId: 'p2',
-        accountId: 'acc2',
-      })
-    )?.slot,
-    2,
+    await reserveSlot(t.db, {
+      kind: 'quote',
+      day: DAY,
+      sourcePostId: 'p2',
+      accountId: 'acc2',
+    }),
+    null,
   );
-  assert.equal(await reserveSlot(t.db, pool('p3')), null);
   // A different day starts fresh.
   assert.equal(
     (await reserveSlot(t.db, { ...pool('p4'), day: '2027-01-02' }))?.slot,
@@ -90,10 +87,8 @@ test('a post X refused frees its slot but is never retried', async () => {
 test('a post that never left the machine spends neither the slot nor the source', async () => {
   const neverSent = await reserveSlot(t.db, pool('p1'));
   assert.equal(await releaseSlot(t.db, neverSent!.id), true);
-  // Both the day's slots are free…
-  assert.equal((await reserveSlot(t.db, pool('p2')))?.slot, 1);
-  // …and the post nobody ever saw can still be posted.
-  assert.equal((await reserveSlot(t.db, pool('p1')))?.slot, 2);
+  // The day's slot is free again, and the post nobody ever saw can still be posted.
+  assert.equal((await reserveSlot(t.db, pool('p1')))?.slot, 1);
   // A reservation already marked is never released: that post may have landed.
   const landed = await reserveSlot(t.db, {
     kind: 'receipt',
@@ -107,9 +102,8 @@ test('a post that never left the machine spends neither the slot nor the source'
 test('a crash after posting keeps the slot taken, so nothing is posted twice', async () => {
   const reserved = await reserveSlot(t.db, pool('p1'));
   assert.equal(reserved?.slot, 1);
-  // No mark at all (the process died): slot 1 stays taken, only slot 2 is left.
-  assert.equal((await reserveSlot(t.db, pool('p2')))?.slot, 2);
-  assert.equal(await reserveSlot(t.db, pool('p3')), null);
+  // No mark at all (the process died): the day's one slot stays taken.
+  assert.equal(await reserveSlot(t.db, pool('p2')), null);
 });
 
 test('a posted repost keeps no post id of ours, a quote post does', async () => {
@@ -117,13 +111,13 @@ test('a posted repost keeps no post id of ours, a quote post does', async () => 
   await markPosted(t.db, reposted!.id, null);
   const quoted = await reserveSlot(t.db, {
     kind: 'quote',
-    day: DAY,
+    day: '2027-01-02',
     sourcePostId: 'p2',
     accountId: 'acc2',
   });
   await markPosted(t.db, quoted!.id, 'own99');
   const rows =
-    await t.sql`select kind, status, posted_id, cap_group from feed_posts order by slot`;
+    await t.sql`select kind, status, posted_id, cap_group from feed_posts order by day`;
   assert.deepEqual(
     rows.map((r) => [r.kind, r.status, r.posted_id, r.cap_group]),
     [
@@ -141,16 +135,12 @@ test('a dry-run pick holds no slot, but is not picked again, and names the previ
     'the same post is never picked twice',
   );
   assert.equal(await previousAccountId(t.db), 'acc1');
-  // The whole day's cap is still free: a dry run spends nothing.
+  // The day's slot is still free: a dry run spends nothing.
   assert.equal(
     (await reserveSlot(t.db, { ...pool('p2'), accountId: 'acc2' }))?.slot,
     1,
   );
-  assert.equal(
-    (await reserveSlot(t.db, { ...pool('p3'), accountId: 'acc3' }))?.slot,
-    2,
-  );
-  assert.equal(await previousAccountId(t.db), 'acc3');
+  assert.equal(await previousAccountId(t.db), 'acc2');
 });
 
 test('an error path after a successful post cannot free the slot or re-post', async () => {
@@ -159,8 +149,8 @@ test('an error path after a successful post cannot free the slot or re-post', as
   // The post is out; whatever throws afterwards, this must change nothing.
   assert.equal(await markFailed(t.db, live!.id), false);
   assert.equal(
-    (await reserveSlot(t.db, { ...pool('p2'), accountId: 'acc2' }))?.slot,
-    2,
+    await reserveSlot(t.db, { ...pool('p2'), accountId: 'acc2' }),
+    null,
     'slot 1 stays used',
   );
   const [row] =
@@ -241,7 +231,7 @@ function contentDeps(
       }) =>
         instructionVersion === 'repost.v1'
           ? {
-              data: { posts: [{ index: 0, kind: 'prediction', fit: 8 }] },
+              data: { posts: [{ index: 0, kind: 'event', fit: 8 }] },
               costs: [],
             }
           : { data: { line: 'That one is on the record now.' }, costs: [] },
@@ -348,7 +338,7 @@ test('the repost policy: nothing that fits is never reposted, and a fitting olde
       },
       {
         id: 'call',
-        text: 'I think Arsenal win the league by May',
+        text: 'The Champions League final is on 30 May in Budapest',
         created_at: older,
       },
     ],
@@ -360,8 +350,8 @@ test('the repost policy: nothing that fits is never reposted, and a fitting olde
       generateJson: async () => ({
         data: {
           posts: [
-            { index: 0, kind: 'none', fit: 1 },
-            { index: 1, kind: 'prediction', fit: 9 },
+            { index: 0, kind: 'prediction', fit: 10 },
+            { index: 1, kind: 'event', fit: 7 },
           ],
         },
         costs: [],
@@ -381,6 +371,7 @@ test('a quote turn adds our own line, and X refusing it frees the slot without a
       return { id: 'own1' };
     },
   });
+  const NEXT_DAY = new Date(NOW.getTime() + 86_400_000); // the quote took today's one slot
   // X refuses quoting a third party for now (REPOST_SHARE = 1), so the quote turn is asked for by hand.
   assert.equal((await runPoolPost(deps, NOW, { mode: 'joke' })).done, 'posted');
   assert.deepEqual(quoted, [{ id: 'src1', text: 'That one is on the record now.' }]);
@@ -391,14 +382,14 @@ test('a quote turn adds our own line, and X refusing it frees the slot without a
       {
         id: 'src2',
         text: 'Another prediction by Friday',
-        created_at: NOW.toISOString(),
+        created_at: NEXT_DAY.toISOString(),
       },
     ],
     repost: async () => {
       throw new Error('duplicate content');
     },
   });
-  assert.equal((await runPoolPost(refusing, NOW)).done, 'cap_reached');
+  assert.equal((await runPoolPost(refusing, NEXT_DAY)).done, 'cap_reached');
   const [failed] =
     await t.sql`select status, slot from feed_posts where source_post_id = 'src2'`;
   assert.deepEqual([failed!.status, failed!.slot], ['failed', null]);
