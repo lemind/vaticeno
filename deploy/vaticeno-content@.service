@@ -1,0 +1,19 @@
+# One own-feed run (spec 002/005), started by its timer (vaticeno-content-*.timer), never by the bot: the feed
+# keeps going when the bot is down. Installed by deploy/deploy.sh.
+[Unit]
+Description=Vaticeno feed run: %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=vaticeno
+WorkingDirectory=/opt/vaticeno
+ExecStart=/usr/bin/node --env-file=.env --import tsx src/cli/content-job.ts %i
+TimeoutStartSec=20min
+NoNewPrivileges=true
+ProtectSystem=strict
+# The X token rotates on refresh, so the run may rewrite it.
+ReadWritePaths=/opt/vaticeno/.state
+ProtectHome=true
+PrivateTmp=true

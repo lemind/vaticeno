@@ -265,3 +265,33 @@ describe('front page', () => {
     );
   });
 });
+
+describe('traffic analytics (spec 005)', () => {
+  test('with a token every HTML page carries the beacon and the privacy line; without one, neither', async () => {
+    const token = 'da15f0aab1a94bc2845074171f912a85';
+    const counted = await buildServer({
+      db: t.db,
+      now: () => NOW,
+      analyticsToken: token,
+    }).inject('/');
+    assert.match(
+      counted.body,
+      new RegExp(`data-cf-beacon='\\{"token": "${token}"\\}'></script></head>`),
+    );
+    assert.match(counted.body, /Cloudflare Web Analytics: cookie-free/);
+    const missing = await buildServer({
+      db: t.db,
+      now: () => NOW,
+      analyticsToken: token,
+    }).inject('/claim/nope1');
+    assert.match(missing.body, /beacon\.min\.js/, 'a 404 page is a public page too');
+    const health = await buildServer({
+      db: t.db,
+      now: () => NOW,
+      analyticsToken: token,
+    }).inject('/healthz');
+    assert.doesNotMatch(health.body, /beacon/);
+    const plain = await app().inject('/');
+    assert.doesNotMatch(plain.body, /beacon|cookie-free/);
+  });
+});

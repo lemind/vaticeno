@@ -6,7 +6,15 @@ import { z } from 'zod';
 // OAuth 2.0 Authorization Code + PKCE, confidential client (INIT_SPEC §2: user context for writes).
 const AUTHORIZE_URL = 'https://x.com/i/oauth2/authorize';
 const TOKEN_URL = 'https://api.x.com/2/oauth2/token';
-export const OAUTH_SCOPES = ['tweet.read', 'tweet.write', 'users.read', 'offline.access'];
+// media.write: event posters (spec 005 FR-024). A token granted before it lacks it; uploads then fail and the post
+// goes out as text until the owner logs the bot in again (`poc:auth`).
+export const OAUTH_SCOPES = [
+  'tweet.read',
+  'tweet.write',
+  'users.read',
+  'offline.access',
+  'media.write',
+];
 export const OAUTH_TOKEN_PATH = '.state/x-oauth.json';
 const REFRESH_MARGIN_MS = 5 * 60 * 1000;
 
@@ -38,7 +46,11 @@ export function createPkcePair() {
   return { verifier, challenge };
 }
 
-export function buildAuthorizeUrl(creds: OAuthClientCredentials, state: string, codeChallenge: string): string {
+export function buildAuthorizeUrl(
+  creds: OAuthClientCredentials,
+  state: string,
+  codeChallenge: string,
+): string {
   const url = new URL(AUTHORIZE_URL);
   url.searchParams.set('response_type', 'code');
   url.searchParams.set('client_id', creds.clientId);
@@ -51,18 +63,28 @@ export function buildAuthorizeUrl(creds: OAuthClientCredentials, state: string, 
   return url.toString().replaceAll('+', '%20');
 }
 
-async function requestToken(creds: OAuthClientCredentials, form: Record<string, string>): Promise<StoredToken> {
-  const basic = Buffer.from(`${creds.clientId}:${creds.clientSecret}`).toString('base64');
+async function requestToken(
+  creds: OAuthClientCredentials,
+  form: Record<string, string>,
+): Promise<StoredToken> {
+  const basic = Buffer.from(`${creds.clientId}:${creds.clientSecret}`).toString(
+    'base64',
+  );
   const res = await fetch(TOKEN_URL, {
     method: 'POST',
-    headers: { Authorization: `Basic ${basic}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+    headers: {
+      Authorization: `Basic ${basic}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
     body: new URLSearchParams(form),
   });
   const body = await res.text();
-  if (!res.ok) throw new Error(`X token endpoint ${res.status}: ${body.slice(0, 500)}`);
+  if (!res.ok)
+    throw new Error(`X token endpoint ${res.status}: ${body.slice(0, 500)}`);
 
   const token = TokenResponseSchema.parse(JSON.parse(body));
-  if (!token.refresh_token) throw new Error('No refresh_token returned — is offline.access in the scopes?');
+  if (!token.refresh_token)
+    throw new Error('No refresh_token returned — is offline.access in the scopes?');
   return {
     access_token: token.access_token,
     refresh_token: token.refresh_token,
@@ -71,7 +93,11 @@ async function requestToken(creds: OAuthClientCredentials, form: Record<string, 
   };
 }
 
-export function exchangeCodeForToken(creds: OAuthClientCredentials, code: string, codeVerifier: string) {
+export function exchangeCodeForToken(
+  creds: OAuthClientCredentials,
+  code: string,
+  codeVerifier: string,
+) {
   return requestToken(creds, {
     grant_type: 'authorization_code',
     code,
@@ -80,7 +106,10 @@ export function exchangeCodeForToken(creds: OAuthClientCredentials, code: string
   });
 }
 
-export async function saveToken(token: StoredToken, path = OAUTH_TOKEN_PATH): Promise<void> {
+export async function saveToken(
+  token: StoredToken,
+  path = OAUTH_TOKEN_PATH,
+): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
   const tmpPath = `${path}.tmp`;
   await writeFile(tmpPath, JSON.stringify(token, null, 2) + '\n', { mode: 0o600 });
@@ -92,22 +121,36 @@ async function loadToken(path = OAUTH_TOKEN_PATH): Promise<StoredToken> {
     return StoredTokenSchema.parse(JSON.parse(await readFile(path, 'utf8')));
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-      throw new Error(`No OAuth token at ${path}. Run \`npm run poc:auth\` signed in as the bot.`);
+      throw new Error(
+        `No OAuth token at ${path}. Run \`npm run poc:auth\` signed in as the bot.`,
+      );
     }
     throw error;
   }
+}
+
+// What the saved login allows. An old token without a recorded scope allows nothing extra.
+export async function tokenScopes(path = OAUTH_TOKEN_PATH): Promise<string[]> {
+  return (await loadToken(path)).scope?.split(' ').filter(Boolean) ?? [];
 }
 
 // Refresh tokens rotate on every use, so the new pair is saved before it is returned.
 // `forceRefresh`: the stored expiry can be wrong (e.g. a console-issued token), so a 401 forces one.
 export async function getValidAccessToken(
   creds: OAuthClientCredentials,
-  { forceRefresh = false, path = OAUTH_TOKEN_PATH }: { forceRefresh?: boolean; path?: string } = {},
+  {
+    forceRefresh = false,
+    path = OAUTH_TOKEN_PATH,
+  }: { forceRefresh?: boolean; path?: string } = {},
 ): Promise<string> {
   const token = await loadToken(path);
-  if (!forceRefresh && Date.parse(token.expires_at) - Date.now() > REFRESH_MARGIN_MS) return token.access_token;
+  if (!forceRefresh && Date.parse(token.expires_at) - Date.now() > REFRESH_MARGIN_MS)
+    return token.access_token;
 
-  const refreshed = await requestToken(creds, { grant_type: 'refresh_token', refresh_token: token.refresh_token });
+  const refreshed = await requestToken(creds, {
+    grant_type: 'refresh_token',
+    refresh_token: token.refresh_token,
+  });
   await saveToken(refreshed, path);
   return refreshed.access_token;
 }

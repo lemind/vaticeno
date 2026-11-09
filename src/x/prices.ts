@@ -7,3 +7,6 @@ export const X_POST_CREATE_USD = 0.015;
 // REVISIT: compare the first month's invoice with the recorded `feed_post` rows.
 export const X_REPOST_USD = X_POST_CREATE_USD;
 export const X_USER_READ_USD = 0.01;
+// Uploading an image for an own post (spec 005 FR-024): X's rate card lists content management at $0.005 a
+// request; whether media upload bills under it is not known. UNRECONCILED until the first invoice.
+export const X_MEDIA_UPLOAD_USD = 0.005;

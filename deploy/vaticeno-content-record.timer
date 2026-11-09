@@ -1,0 +1,11 @@
+# Times match SCHEDULES.record in src/jobs/scheduler.ts (UTC).
+[Unit]
+Description=Vaticeno feed: Friday record
+
+[Timer]
+OnCalendar=Fri *-*-* 09:47:00 UTC
+Unit=vaticeno-content@record.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target

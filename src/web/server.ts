@@ -5,7 +5,6 @@ import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import Fastify, { type FastifyReply } from 'fastify';
 import { type CoreConfig, loadCoreConfig } from '../config.js';
-import { buildContentDeps } from '../content/wire.js';
 import { buildBotDeps } from '../bot/wire.js';
 import { buildDeps } from '../deps.js';
 import { closeDb, type Db, getDb, getLockSql } from '../db/client.js';
@@ -46,9 +45,26 @@ export function buildServer(deps: {
   now?: () => Date;
   botHandle?: string;
   wager?: WagerNetwork[];
+  analyticsToken?: string;
 }) {
   const now = deps.now ?? (() => new Date());
   const app = Fastify({ logger: false });
+
+  // Aggregate, cookie-free traffic counts on every public page, and a line saying so (spec 005 FR-001, FR-002a).
+  // The status page is another service and never carries it.
+  if (deps.analyticsToken) {
+    const beacon = `<script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "${deps.analyticsToken}"}'></script>`;
+    const note =
+      '<p class="privacy">Traffic is counted by Cloudflare Web Analytics: cookie-free, aggregate, never joined to an account, a wallet or a prediction.</p>';
+    app.addHook('onSend', async (_request, reply, payload) => {
+      const type = String(reply.getHeader('content-type') ?? '');
+      if (!type.startsWith('text/html') || typeof payload !== 'string')
+        return payload;
+      return payload
+        .replace('</head>', `${beacon}</head>`)
+        .replace('</main>', `${note}</main>`);
+    });
+  }
 
   // The public front page: health, version and the counts. Nothing operational (003 FR-004).
   app.get('/', async (_request, reply) =>
@@ -168,12 +184,12 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     db: getDb(),
     botHandle: config.X_BOT_HANDLE,
     wager: wagerNetworks(config),
+    analyticsToken: config.CF_ANALYTICS_TOKEN,
   });
   // Caddy in front terminates HTTPS; the app is never reachable directly from outside.
   await app.listen({ port: config.PORT, host: '127.0.0.1' });
   const deps = buildDeps(config);
   const bot = config.ENABLE_X ? buildBotDeps(deps) : null;
-  const content = config.ENABLE_FEED ? buildContentDeps(deps, config) : null;
   // On X the lock job re-reads the real post; without X, the Stage 0 simulation file.
   const scheduler = config.ENABLE_JOBS
     ? await startScheduler({
@@ -182,7 +198,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
         reader: bot?.reader ?? createFileSourceReader(),
         sql: getLockSql(),
         bot,
-        content,
       })
     : null; // started only once the server is up
   log('info', 'web server listening', {
@@ -190,7 +205,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     port: config.PORT,
     jobs: config.ENABLE_JOBS,
     x: Boolean(bot),
-    feed: content ? (config.FEED_DRY_RUN ? 'dry_run' : 'live') : 'off',
+    feed: config.ENABLE_FEED ? (config.FEED_DRY_RUN ? 'dry_run' : 'live') : 'off',
   });
   const stop = async () => {
     try {
