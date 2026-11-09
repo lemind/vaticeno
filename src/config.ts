@@ -243,15 +243,6 @@ const CoreEnvSchema = z
         });
       }
     }
-    // The content jobs live in the scheduler, so ENABLE_FEED alone would silently do nothing.
-    if (env.ENABLE_FEED && !env.ENABLE_JOBS) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['ENABLE_FEED'],
-        message:
-          'ENABLE_FEED needs ENABLE_JOBS=true (the content jobs run in the scheduler)',
-      });
-    }
   });
 
 export type CoreConfig = z.infer<typeof CoreEnvSchema>;

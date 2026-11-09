@@ -153,11 +153,10 @@ listed in [contracts/cli.md](specs/001-stage0-contract-core/contracts/cli.md).
 ## Deploy (VPS)
 
 ```bash
-ssh root@HOST 'bash -s' < deploy/setup.sh     # once: Node 22, swap, service user
-scp .env root@HOST:/opt/vaticeno/             # once: secrets, never in git
-scp .state/* root@HOST:/opt/vaticeno/.state/  # once: cursor + OAuth token (stop local bot first)
-deploy/deploy.sh root@HOST                    # every update: sync, install, restart
+deploy/deploy.sh root@HOST                    # every update: sync, install, restart every unit
 ```
+
+What the server runs, where its secrets live and how to move it to another one: [docs/server.md](docs/server.md).
 
 Runs as systemd service `vaticeno` (`src/web/server.ts` with `ENABLE_JOBS=true ENABLE_X=true`). Logs:
 `journalctl -u vaticeno -f` on the server. Sentry (errors, logs, alerts) reports only from production:

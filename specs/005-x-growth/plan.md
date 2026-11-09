@@ -16,6 +16,10 @@ knows. Site traffic is Cloudflare's script on the public pages, already written.
 Node 22, TypeScript, Fastify, Drizzle on Postgres; `src/content/` (spec 002) and `src/cli/content-queue.ts`. No
 new dependency: Cloudflare's beacon is a script tag served by Cloudflare, not a package. One migration.
 
+The feed jobs (pool, original, digest, record, event) run from systemd timers since 2026-11-09 (owner: a stopped
+bot must not stop the feed): `deploy/vaticeno-content@.service` + one `vaticeno-content-<job>.timer` each, installed
+by `deploy/deploy.sh`, running `npm run content:job -- <job>`. Times stay in `SCHEDULES`; a test keeps the timers equal.
+
 ## Constitution Check
 
 | Principle | How this passes |

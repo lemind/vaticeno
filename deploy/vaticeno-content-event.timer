@@ -1,0 +1,11 @@
+# Times match SCHEDULES.event in src/jobs/scheduler.ts (UTC).
+[Unit]
+Description=Vaticeno feed: event post
+
+[Timer]
+OnCalendar=Tue..Thu *-*-* 15:11:00 UTC
+Unit=vaticeno-content@event.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target

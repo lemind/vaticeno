@@ -18,10 +18,6 @@ import { confirmBeforeResolving } from '../resolve/settlement.js';
 import type { ClaimDeps } from '../lifecycle/claims.js';
 import { withJobLock } from './lock.js';
 import { type BotDeps, pollMentions } from '../bot/mentions.js';
-import { runPoolPost } from '../content/pool-run.js';
-import { type OriginalDeps, runOriginalPost } from '../content/original-run.js';
-import { runDigest, runRecord } from '../content/record-run.js';
-import { runEventPost } from '../content/event-run.js';
 import { deliverVerdicts, postLockReplies } from '../bot/verdicts.js';
 
 export type SchedulerDeps = ClaimDeps &
@@ -29,10 +25,10 @@ export type SchedulerDeps = ClaimDeps &
     reader: SourceReader;
     sql: Sql;
     bot: BotDeps | null;
-    content: OriginalDeps | null;
   };
 
 // The pool run twice a day at an off-the-hour minute, so the feed never looks like a clock (spec 002).
+// Every job's time is here; the feed jobs (TIMER_JOBS) run from systemd timers in deploy/, which must match.
 export const SCHEDULES = {
   mentions: '* * * * *',
   lock: '* * * * *',
@@ -49,6 +45,11 @@ export const SCHEDULES = {
   reconcile: '17 1-23/2 * * *',
   recheck: '31 4 * * 1',
 } as const;
+
+// Own-feed jobs run from systemd timers (`npm run content:job`), so a stopped bot never stops the feed (owner,
+// 2026-11-09). The bot still seeds their state rows; the timer's run writes them.
+export const TIMER_JOBS = ['pool', 'original', 'digest', 'record', 'event'] as const;
+const onTimer = (name: string) => (TIMER_JOBS as readonly string[]).includes(name);
 
 // The longest a job may go between runs. Declared beside the schedule because the cron expression alone
 // does not give it: `23 9,18 * * *` has a fifteen-hour gap, not a twelve-hour one (003 FR-001, SC-002).
@@ -95,7 +96,10 @@ export async function startScheduler(
 ): Promise<{ stop: () => Promise<void> }> {
   const now = () => new Date();
   const running = new Set<Promise<void>>();
-  const jobs: Record<keyof typeof SCHEDULES, () => Promise<unknown>> = {
+  const jobs: Record<
+    Exclude<keyof typeof SCHEDULES, (typeof TIMER_JOBS)[number]>,
+    () => Promise<unknown>
+  > = {
     // X intake (ENABLE_X): new mentions → engine → one reply each.
     mentions: async () => (deps.bot ? pollMentions(deps.bot, now()) : null),
     // The lock job carries the free plan's one cron monitor: it runs every minute, so silence means down.
@@ -117,16 +121,6 @@ export async function startScheduler(
     },
     // Verdict replies on X (ENABLE_X): one per final verdict, in the claim's thread.
     verdicts: async () => (deps.bot ? deliverVerdicts(deps.bot, now()) : null),
-    // Own feed (ENABLE_FEED): one pool repost or quote post, or just a logged pick in dry run.
-    pool: async () => (deps.content ? runPoolPost(deps.content, now()) : null),
-    // One owner-written post a day, from the queue; no AI (spec 002 US2).
-    original: async () =>
-      deps.content ? runOriginalPost(deps.content, now()) : null,
-    // Mondays: claims coming due; Fridays: the week's counts. From the database, no AI (005 US4).
-    digest: async () => (deps.content ? runDigest(deps.content, now()) : null),
-    record: async () => (deps.content ? runRecord(deps.content, now()) : null),
-    // Tue–Thu: an upcoming event two sites confirm, from a fixed template (005 US3a).
-    event: async () => (deps.content ? runEventPost(deps.content, now()) : null),
     // Every two hours: name the work that was owed and never done (src/lifecycle/reconcile.ts).
     reconcile: () => auditOwedWork(deps.db, now()),
     // Mondays: today's rules over last week's verdicts, from stored evidence — free, and it only
@@ -141,20 +135,26 @@ export async function startScheduler(
   } catch (error) {
     captureError(error, { event: 'job.state_seed_failed' });
   }
-  const tasks = jobNames().map((name) =>
-    cron.schedule(
-      SCHEDULES[name],
-      () => {
-        const run = runJob(deps, name, jobs[name]).finally(() =>
-          running.delete(run),
-        );
-        running.add(run);
-        return run;
-      },
-      { name, timezone: 'Etc/UTC', noOverlap: true },
-    ),
-  );
-  log('info', 'scheduler started', { event: 'scheduler.started', jobs: SCHEDULES });
+  const tasks = jobNames()
+    .filter((name) => !onTimer(name))
+    .map((name) =>
+      cron.schedule(
+        SCHEDULES[name],
+        () => {
+          const run = runJob(deps, name, jobs[name as keyof typeof jobs]).finally(
+            () => running.delete(run),
+          );
+          running.add(run);
+          return run;
+        },
+        { name, timezone: 'Etc/UTC', noOverlap: true },
+      ),
+    );
+  log('info', 'scheduler started', {
+    event: 'scheduler.started',
+    jobs: SCHEDULES,
+    on_timers: TIMER_JOBS,
+  });
 
   return {
     // Stops future runs and waits for the ones in flight, so a resolver run is never cut off halfway.

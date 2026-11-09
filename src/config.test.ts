@@ -13,10 +13,24 @@ test('replay mode needs only DATABASE_URL', () => {
 
 test('live and record modes require the API key; model ids always have a default', () => {
   for (const mode of ['live', 'record']) {
-    assert.throws(() => loadCoreConfig({ DATABASE_URL: DB, LLM_MODE: mode }), /GEMINI_API_KEY/);
+    assert.throws(
+      () => loadCoreConfig({ DATABASE_URL: DB, LLM_MODE: mode }),
+      /GEMINI_API_KEY/,
+    );
   }
-  assert.equal(loadCoreConfig({ DATABASE_URL: DB, LLM_MODE: 'live', GEMINI_API_KEY: 'k', ARBITER_MODEL: 'd' }).ARBITER_MODEL, 'd');
-  assert.equal(loadCoreConfig({ DATABASE_URL: DB, NORMALIZER_MODEL: '' }).NORMALIZER_MODEL, 'gemini-3.1-flash-lite');
+  assert.equal(
+    loadCoreConfig({
+      DATABASE_URL: DB,
+      LLM_MODE: 'live',
+      GEMINI_API_KEY: 'k',
+      ARBITER_MODEL: 'd',
+    }).ARBITER_MODEL,
+    'd',
+  );
+  assert.equal(
+    loadCoreConfig({ DATABASE_URL: DB, NORMALIZER_MODEL: '' }).NORMALIZER_MODEL,
+    'gemini-3.1-flash-lite',
+  );
 });
 
 test('DATABASE_URL is required and must be postgres', () => {
@@ -32,10 +46,25 @@ test('the content feed is off and dry-run by default', () => {
   assert.equal(config.FEED_DAILY_USD_CAP, 0.15);
   assert.equal(config.FEED_PLATFORM_ACCOUNT_ID, undefined);
   // `.env.example` ships both keys blank: an empty line must mean "unset", never 0 and never an error.
-  const blank = loadCoreConfig({ DATABASE_URL: DB, FEED_PLATFORM_ACCOUNT_ID: '', FEED_DAILY_USD_CAP: '' });
+  const blank = loadCoreConfig({
+    DATABASE_URL: DB,
+    FEED_PLATFORM_ACCOUNT_ID: '',
+    FEED_DAILY_USD_CAP: '',
+  });
   assert.equal(blank.FEED_PLATFORM_ACCOUNT_ID, undefined);
   assert.equal(blank.FEED_DAILY_USD_CAP, 0.15);
-  assert.equal(loadCoreConfig({ DATABASE_URL: DB, ENABLE_FEED: 'true', ENABLE_JOBS: 'true' }).FEED_DRY_RUN, true);
-  assert.throws(() => loadCoreConfig({ DATABASE_URL: DB, ENABLE_FEED: 'true' }), /ENABLE_JOBS/);
-  assert.throws(() => loadCoreConfig({ DATABASE_URL: DB, FEED_PLATFORM_ACCOUNT_ID: 'kalshi' }), /FEED_PLATFORM_ACCOUNT_ID/);
+  assert.equal(
+    loadCoreConfig({ DATABASE_URL: DB, ENABLE_FEED: 'true', ENABLE_JOBS: 'true' })
+      .FEED_DRY_RUN,
+    true,
+  );
+  // The feed runs from systemd timers, not the bot's scheduler, so it no longer needs ENABLE_JOBS.
+  assert.equal(
+    loadCoreConfig({ DATABASE_URL: DB, ENABLE_FEED: 'true' }).ENABLE_FEED,
+    true,
+  );
+  assert.throws(
+    () => loadCoreConfig({ DATABASE_URL: DB, FEED_PLATFORM_ACCOUNT_ID: 'kalshi' }),
+    /FEED_PLATFORM_ACCOUNT_ID/,
+  );
 });

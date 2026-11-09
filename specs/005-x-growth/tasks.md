@@ -35,12 +35,7 @@ done by the owner in the X app; their drafts live in `specs/005-x-growth/content
 - [x] T505 [US2] **[owner]** Apply bio, pinned post and header in the X app.
 - [x] T506 [P] [US5] Research `content/accounts.md`: 35–40 candidates — sports 15, crypto and markets 10, politics
   7, forecasting 8 — ranked within category: name, exact handle, profile URL, audience where visible, why useful.
-  From web research only; no paid X lookup. Marked unconfirmed until T507.
-- [ ] T507 [US5] **[owner]** Open each profile URL: confirm the handle, a post in the last 14 days, nothing off-brand
-  (betting brands out, as `@ESPNStatsInfo` was). Strike what fails.
-- [ ] T508 [US5] **[owner]** Create three X Lists (Sports, Crypto & Markets, Politics & Public Affairs; forecasting
-  accounts in the closest one) and follow 5–10 confirmed accounts a week, by hand. Never mass-follow, follow back
-  or follow-unfollow.
+  From web research only; no paid X lookup. Marked unconfirmed until the owner checks them.
 
 ---
 
@@ -107,10 +102,13 @@ done by the owner in the X app; their drafts live in `specs/005-x-growth/content
   `X_ACCESS_TOKEN`/`_SECRET`): the browser login for `media.write` fails on X's side (2026-11-08). First poster posted
   2026-11-09. Event lookups with no links run a search of their own for the pages; an unconfirmed event logs why.
 - [x] T517e The poster carries the event's name as its one title (owner, 2026-11-09).
+- [x] T517f The feed jobs run from systemd timers, not the bot's scheduler (owner, 2026-11-09): `src/cli/content-job.ts`,
+  `deploy/vaticeno-content@.service` and five timers; `src/jobs/timers.test.ts` keeps their times equal to `SCHEDULES`.
+- [x] T517g The whole server from the repo (owner, 2026-11-09): `deploy/setup.sh` adds Caddy, the log cap and the
+  settlement user; `deploy/deploy.sh` installs the Caddyfile and every settlement worker; `deploy/move.sh` stops the old
+  server and pipes the secrets to the new one; `docs/server.md` lists what runs and where the secrets live.
 - [x] T517b [US3a] Tests: two agreeing pages post; one page, or disagreeing dates, do not; three failed topics post
   nothing; a repeat event is skipped; the text never carries a link, a handle or a hashtag.
-- [ ] T518 [US3] **[owner]** Record at least two predictions a week through the bot; after each lock or verdict,
-  write its post ("CALL · recorded on Vaticeno"), misses included, and queue it.
 
 ---
 
@@ -126,15 +124,14 @@ done by the owner in the X app; their drafts live in `specs/005-x-growth/content
 - [x] T520 [P] Rewrite `docs/content-rules.md`: the two channels, the formats, no links in the bot's posts (and why:
   $0.20 vs $0.015), the owner's calls, the weekly routine (review the next 7 days, re-check events — a sports fixture
   again on its day —, add posts, run `growth:week --quotes N`, read both dashboards). Update `README.md` (status table, commands) and `docs/progress.md`.
-- [ ] T521 **[owner]** Weekly, every Friday: the routine above. Four reviews by the end of week 4 (SC-004).
 
 ---
 
 ## Dependencies
 
-- T501 blocks T511's claim guard and T518. T502 → T503.
+- T501 blocks T511's claim guard. T502 → T503.
 - T509 → T510 → T511 → T512 → T513 → T513a; T514 any time. T515 after T509 (migration order). T520a with the code it describes.
-- T504 → T505; T506 → T507 → T508. T516 → T517 → T517a → T517b, after T509 (the `event` kind) and T512 (the
+- T504 → T505; T506 before the owner follows anyone. T516 → T517 → T517a → T517b, after T509 (the `event` kind) and T512 (the
   shared slot).
 - T519 any time after T509.
 
@@ -143,4 +140,4 @@ done by the owner in the X app; their drafts live in `specs/005-x-growth/content
 1. T503 when the owner says deploy (one line, already built).
 2. Editorial first, in parallel: T504, T506, T516 drafts — they need no code and are the account's voice.
 3. Code: Phase 3, then T515 and T519, one branch, one pull request.
-4. From then on, the owner's weekly routine (T518, T521).
+4. From then on, the owner's weekly routine (`docs/content-rules.md`): not a task, never ticked.

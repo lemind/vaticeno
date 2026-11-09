@@ -24,6 +24,7 @@
     "post:delete": "tsx --env-file-if-exists=.env src/cli/post-delete.ts",
     "jobs:tick": "tsx --env-file-if-exists=.env src/cli/jobs-tick.ts",
     "content:tick": "tsx --env-file-if-exists=.env src/cli/content-tick.ts",
+    "content:job": "tsx --env-file-if-exists=.env src/cli/content-job.ts",
     "content:queue": "tsx --env-file-if-exists=.env src/cli/content-queue.ts",
     "content:pool-ids": "tsx --env-file-if-exists=.env src/cli/pool-ids.ts",
     "content:topic": "tsx src/cli/content-topic.ts",

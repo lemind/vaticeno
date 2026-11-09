@@ -78,7 +78,7 @@ src/content/
   pool-run.ts      the pool run (dry run logs only)
   original-run.ts  the daily original
 src/cli/content-tick.ts, src/cli/content-queue.ts   run one job by hand; manage the originals queue
-src/jobs/scheduler.ts   pool (2×/day), original (daily), only with ENABLE_FEED
+src/jobs/scheduler.ts   the feed jobs' times (SCHEDULES); since 2026-11-09 they run from systemd timers (deploy/vaticeno-content-*.timer → npm run content:job), only with ENABLE_FEED
                         reconcile (every 2 h) names work that was owed and never done, feed or not
 src/lifecycle/reconcile.ts  the owed-work sweep: verdicts owed, claims never shown, posts in flight
 drizzle/0010_feed.sql, 0011_feed_dry_run.sql   feed_posts (kind, cap_group generated, status, day, slot,

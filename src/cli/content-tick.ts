@@ -20,7 +20,7 @@ await runCli('content-tick', async (config) => {
   const JOBS = ['pool', 'original', 'digest', 'record', 'event'] as const;
   if (!(JOBS as readonly string[]).includes(job))
     throw new Error(`unknown content job: ${job} (${JOBS.join(' | ')})`);
-  // No ENABLE_FEED check: that flag is for the scheduler. Typing this command is the intent.
+  // No ENABLE_FEED check: that flag is for the timers (content:job). Typing this command is the intent.
   // Run it on the server — it uses whatever DATABASE_URL and .state/ OAuth token the environment has.
 
   const now = nowFrom(values.now);

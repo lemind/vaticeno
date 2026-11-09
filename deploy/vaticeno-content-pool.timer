@@ -1,0 +1,12 @@
+# Times match SCHEDULES.pool in src/jobs/scheduler.ts (UTC).
+[Unit]
+Description=Vaticeno feed: pool repost, twice a day
+
+[Timer]
+OnCalendar=*-*-* 09:23:00 UTC
+OnCalendar=*-*-* 18:23:00 UTC
+Unit=vaticeno-content@pool.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target

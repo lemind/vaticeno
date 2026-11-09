@@ -1,0 +1,11 @@
+# Times match SCHEDULES.digest in src/jobs/scheduler.ts (UTC).
+[Unit]
+Description=Vaticeno feed: Monday digest
+
+[Timer]
+OnCalendar=Mon *-*-* 08:17:00 UTC
+Unit=vaticeno-content@digest.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target
