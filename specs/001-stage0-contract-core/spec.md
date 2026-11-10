@@ -532,8 +532,9 @@ shown but never count as a contradiction.
 - **FR-035**: A verdict that was wrong is corrected by a new record beside the frozen one, never by an
   edit: the claim shows what was said and what it is now. Once a week the last week's verdicts are
   re-decided from the evidence already stored, which costs nothing and catches a rule that was wrong when
-  the verdict was given; a HIT or MISS it reaches differently is corrected and posted by that run, with no
-  hand needed (owner decision 2026-11-10), and one it now finds VOID or unsettled is only reported. A fresh re-judge of one claim, with new searches, is a command run by hand (~$0.04). A
+  the verdict was given; a HIT or MISS it reaches differently is corrected by that run, and one it now finds
+  VOID or unsettled is only reported. Every correction, the run's or one written by hand, is posted on
+  its own once the verdict it corrects has gone out (owner decision 2026-11-10). A fresh re-judge of one claim, with new searches, is a command run by hand (~$0.04). A
   correction is told once, in the claim's own thread, and never retried (owner decision 2026-10-12).
 - **FR-033b**: Replies written to people run on a fuller model than the one that parses predictions, and
   may be as long as the platform allows. The model is configuration, not code. It answers from what it was

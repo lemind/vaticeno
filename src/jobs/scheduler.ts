@@ -19,8 +19,8 @@ import type { ClaimDeps } from '../lifecycle/claims.js';
 import { withJobLock } from './lock.js';
 import { type BotDeps, pollMentions } from '../bot/mentions.js';
 import {
+  deliverCorrections,
   deliverVerdicts,
-  postCorrection,
   postLockReplies,
 } from '../bot/verdicts.js';
 
@@ -123,18 +123,19 @@ export async function startScheduler(
       await confirmBeforeResolving(deps, now());
       return resolveDueClaims(deps, now());
     },
-    // Verdict replies on X (ENABLE_X): one per final verdict, in the claim's thread.
-    verdicts: async () => (deps.bot ? deliverVerdicts(deps.bot, now()) : null),
+    // Verdict replies on X (ENABLE_X): one per final verdict, in the claim's thread; then any correction.
+    verdicts: async () =>
+      deps.bot
+        ? {
+            ...(await deliverVerdicts(deps.bot, now())),
+            corrections: (await deliverCorrections(deps.bot, now())).posted,
+          }
+        : null,
     // Every two hours: name the work that was owed and never done (src/lifecycle/reconcile.ts).
     reconcile: () => auditOwedWork(deps.db, now()),
-    // Mondays: today's rules over last week's verdicts, from stored evidence — free. A verdict they
-    // decide differently is corrected and the correction posted in its thread (001 FR-035, owner 2026-11-10).
-    recheck: async () => {
-      const corrected = await correctRecent(deps.db, now());
-      if (deps.bot)
-        for (const slug of corrected) await postCorrection(deps.bot, slug, now());
-      return corrected;
-    },
+    // Mondays: today's rules over last week's verdicts, from stored evidence — free. A verdict they decide
+    // differently is corrected; the verdicts job posts it (001 FR-035, owner 2026-11-10).
+    recheck: () => correctRecent(deps.db, now()),
   };
 
   // Reported, never fatal: the database being briefly unreachable at boot is an outage, and an outage is
