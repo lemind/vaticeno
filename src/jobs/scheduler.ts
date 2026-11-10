@@ -6,7 +6,7 @@ import type { PgUpdateSetSource } from 'drizzle-orm/pg-core';
 import type { Sql } from 'postgres';
 import { expireNeedsInfo, expireWithheldDrafts } from '../lifecycle/expire.js';
 import { auditOwedWork } from '../lifecycle/reconcile.js';
-import { recheckRecent } from '../resolve/recheck.js';
+import { correctRecent } from '../resolve/recheck.js';
 import { lockDueDrafts } from '../lifecycle/lock.js';
 import type { SourceReader } from '../lifecycle/source-reader.js';
 import type { Db } from '../db/client.js';
@@ -18,7 +18,11 @@ import { confirmBeforeResolving } from '../resolve/settlement.js';
 import type { ClaimDeps } from '../lifecycle/claims.js';
 import { withJobLock } from './lock.js';
 import { type BotDeps, pollMentions } from '../bot/mentions.js';
-import { deliverVerdicts, postLockReplies } from '../bot/verdicts.js';
+import {
+  deliverVerdicts,
+  postCorrection,
+  postLockReplies,
+} from '../bot/verdicts.js';
 
 export type SchedulerDeps = ClaimDeps &
   ResolverDeps & {
@@ -123,9 +127,14 @@ export async function startScheduler(
     verdicts: async () => (deps.bot ? deliverVerdicts(deps.bot, now()) : null),
     // Every two hours: name the work that was owed and never done (src/lifecycle/reconcile.ts).
     reconcile: () => auditOwedWork(deps.db, now()),
-    // Mondays: today's rules over last week's verdicts, from stored evidence — free, and it only
-    // reports. Correcting one is a deliberate command (001 FR-035).
-    recheck: () => recheckRecent(deps.db, now()),
+    // Mondays: today's rules over last week's verdicts, from stored evidence — free. A verdict they
+    // decide differently is corrected and the correction posted in its thread (001 FR-035, owner 2026-11-10).
+    recheck: async () => {
+      const corrected = await correctRecent(deps.db, now());
+      if (deps.bot)
+        for (const slug of corrected) await postCorrection(deps.bot, slug, now());
+      return corrected;
+    },
   };
 
   // Reported, never fatal: the database being briefly unreachable at boot is an outage, and an outage is

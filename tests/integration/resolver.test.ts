@@ -20,6 +20,7 @@ import { VERIFIER_MODEL } from '../../src/resolve/fast-path.js';
 import { SHADOW_CANDIDATE } from '../../src/resolve/shadow.js';
 import { readFileSync } from 'node:fs';
 import {
+  correctRecent,
   recheckClaim,
   recheckRecent,
   rejudgeClaim,
@@ -719,7 +720,7 @@ describe('rechecking a verdict already given (001 FR-035)', () => {
     );
   });
 
-  test('the weekly sweep reports and never writes, and skips what it already corrected', async () => {
+  test('the recheck itself reports and never writes, and skips what it already corrected', async () => {
     const { claim } = await wrongMiss();
     const found = await recheckRecent(t.db, AFTER, 7);
     assert.deepEqual(
@@ -729,7 +730,7 @@ describe('rechecking a verdict already given (001 FR-035)', () => {
     assert.equal(
       (await t.sql`select count(*)::int as n from corrections`)[0]!.n,
       0,
-      'a sweep never corrects on its own',
+      'recheckRecent only reports; correctRecent writes',
     );
 
     // The finding outlives the sweep's window, so a verdict known to be wrong keeps saying so (003 FR-007a).
@@ -755,6 +756,28 @@ describe('rechecking a verdict already given (001 FR-035)', () => {
     const [answered] =
       await t.sql`select cleared_at from recheck_findings where claim_id = ${claim.id}`;
     assert.ok(answered?.cleared_at, 'a correction answers the finding');
+  });
+
+  test('the Monday run corrects what the rules now decide differently, once', async () => {
+    const { claim, guardian } = await wrongMiss();
+    assert.deepEqual(await correctRecent(t.db, AFTER, 7), [claim.slug]);
+    const [correction] =
+      await t.sql`select from_outcome, to_outcome, decided_by, deciding_evidence_id from corrections where claim_id = ${claim.id}`;
+    assert.deepEqual(
+      [
+        correction!.from_outcome,
+        correction!.to_outcome,
+        correction!.decided_by,
+        correction!.deciding_evidence_id,
+      ],
+      ['miss', 'hit', 'evidence', guardian],
+    );
+    assert.equal(
+      (await resolutionRow(claim.id))!.outcome,
+      'miss',
+      'the verdict stays frozen',
+    );
+    assert.deepEqual(await correctRecent(t.db, AFTER, 7), [], 'never twice');
   });
 
   // 004 T415a. A free recheck re-reads stored answers, so it can only catch a rule that was wrong. The

@@ -530,10 +530,10 @@ shown but never count as a contradiction.
   2026-10-12, after a 3-0 win was published as a MISS because one fixtures page that had not listed the
   match outranked three outlets reporting the score.)
 - **FR-035**: A verdict that was wrong is corrected by a new record beside the frozen one, never by an
-  edit: the claim shows what was said and what it is now. Finding one and correcting it are separate
-  steps — a scheduled sweep only reports. Once a week the last week's verdicts are re-decided from the
-  evidence already stored, which costs nothing and catches a rule that was wrong when the verdict was
-  given; a fresh re-judge of one claim, with new searches, is a command run by hand (~$0.04). A
+  edit: the claim shows what was said and what it is now. Once a week the last week's verdicts are
+  re-decided from the evidence already stored, which costs nothing and catches a rule that was wrong when
+  the verdict was given; a HIT or MISS it reaches differently is corrected and posted by that run, with no
+  hand needed (owner decision 2026-11-10), and one it now finds VOID or unsettled is only reported. A fresh re-judge of one claim, with new searches, is a command run by hand (~$0.04). A
   correction is told once, in the claim's own thread, and never retried (owner decision 2026-10-12).
 - **FR-033b**: Replies written to people run on a fuller model than the one that parses predictions, and
   may be as long as the platform allows. The model is configuration, not code. It answers from what it was
