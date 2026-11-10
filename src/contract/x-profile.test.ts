@@ -208,6 +208,14 @@ test('no account in the post: the profile the source names is read (ymjep)', asy
     source: { ...YMJEP.source, locator: 'https://x.com/author' },
   };
   assert.equal(profileHandle(atAuthor), null, 'the model’s word is no handle');
+  const intent = {
+    ...YMJEP,
+    source: {
+      ...YMJEP.source,
+      locator: 'https://x.com/intent/user?screen_name=gusto',
+    },
+  };
+  assert.equal(profileHandle(intent), 'gusto', 'cgc9k’s form');
 
   const costs: CallCost[] = [];
   const out = await resolveFollowerContract(

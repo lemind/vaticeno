@@ -124,13 +124,18 @@ function asFollowerContract(
   return valid.success ? valid.data : contract;
 }
 
-// The handle in the source's profile URL (https://x.com/Bhoomi1021), or null.
+// The handle in the source's profile URL (x.com/Bhoomi1021, x.com/intent/user?screen_name=gusto), or null.
 export function profileHandle(contract: Contract): string | null {
   try {
     const url = new URL(contract.source.locator);
     if (!X_HOSTS.test(url.hostname)) return null;
-    const handle = PROFILE_PATH.exec(url.pathname)?.[1];
-    return handle && !NOT_HANDLES.test(handle) ? handle : null;
+    const handle =
+      url.pathname.replace(/\/$/, '') === '/intent/user'
+        ? url.searchParams.get('screen_name') // cgc9k's form
+        : PROFILE_PATH.exec(url.pathname)?.[1];
+    return handle && /^\w{1,15}$/.test(handle) && !NOT_HANDLES.test(handle)
+      ? handle
+      : null;
   } catch {
     return null;
   }
