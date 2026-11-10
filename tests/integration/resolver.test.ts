@@ -1299,3 +1299,51 @@ describe('shadow mode: the local verifier is asked, recorded and ignored (003 FR
     );
   });
 });
+
+describe('follower claims locked as web claims', () => {
+  // ymjep (2026-11-06): the account only in the source's profile URL; a web search would have found nothing.
+  const YMJEP = {
+    ...WEB_CONTRACT,
+    criterion: 'Bhoomi reaches 1000 followers on X',
+    source: {
+      ...WEB_CONTRACT.source,
+      name: 'X',
+      kind: 'social_media',
+      locator: 'https://x.com/Bhoomi1021',
+      entity_id: 'Bhoomi1021',
+    },
+  };
+
+  test('the profile in the source is read from the X API, never searched', async () => {
+    const claim = await lockedClaim(YMJEP);
+    const d = deps();
+    d.deps.x = {
+      getUserByUsername: async (username) => ({ id: '777', username }),
+      getFollowerCount: async (id) => (id === '777' ? 1043 : 0),
+    };
+    assert.equal((await resolveDueClaims(d.deps, AFTER)).final, 1);
+    assert.equal((await resolutionRow(claim.id))!.outcome, 'hit');
+    assert.equal(d.calls.web, 0, 'no web search, no judge');
+    const locked = (
+      await t.sql`select contract from claims where id = ${claim.id}`
+    )[0]!;
+    assert.equal(
+      locked.contract.source.locator,
+      'https://x.com/Bhoomi1021',
+      'the lock stands',
+    );
+  });
+
+  test('a failed handle lookup is an outage: the claim waits, no VOID', async () => {
+    const claim = await lockedClaim(YMJEP);
+    const d = deps();
+    d.deps.x = {
+      getUserByUsername: async () => {
+        throw new Error('503');
+      },
+    };
+    assert.equal((await resolveDueClaims(d.deps, AFTER)).outage, 1);
+    assert.equal(await resolutionRow(claim.id), undefined);
+    assert.equal(d.calls.web, 0);
+  });
+});

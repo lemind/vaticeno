@@ -1,18 +1,22 @@
 // Follower-count predictions on X: the account comes from the post text, never from the contract, which
 // said "author" for the account the post replied to (004 T419).
 import type { CallCost } from '../llm/client.js';
+import { SourceUnavailable } from '../resolve/fetch.js';
 import { X_USER_READ_USD } from '../x/prices.js';
 import { type Contract, ContractSchema, X_PROFILE_KIND } from './schema.js';
 
 const X_HOSTS = /(^|\.)(x|twitter)\.com$/i;
 const X_NAMES = /^(x|x\.com|twitter|twitter\.com)$/i;
-const FOLLOWERS = /(\d[\d,.]*)\s*([km])?\s+followers\b/i;
+const FOLLOWERS = /(\d[\d,.]*)\s*([km])?\+?\s*followers?\b/i; // "1000+ followers", "1k follower"
+// A profile URL names its account: x.com/Bhoomi1021, never x.com/i/… or a status (004 T432).
+const PROFILE_PATH = /^\/(\w{1,15})\/?$/;
+const NOT_HANDLES = /^(i|home|search|explore|intent|share|author)$/i;
 const BELOW = /\b(below|under|fewer than|less than)\b/i;
 const HANDLE = /@(\w{1,15})\b/g;
 const FIRST_PERSON = /\b(i|i'll|i'm|i will|my|me|mine)\b/i;
 
 export type FollowerAccount =
-  { kind: 'poster' } | { kind: 'handle'; handle: string };
+  { kind: 'poster' } | { kind: 'unnamed' } | { kind: 'handle'; handle: string };
 export type UserLookup = {
   getUserByUsername(username: string): Promise<{ id: string; username: string }>;
 };
@@ -53,8 +57,8 @@ function isFollowerPrediction(contract: Contract): boolean {
   );
 }
 
-// Whose count the post predicts: the last @handle before "N followers", or the poster when it names
-// nobody or speaks in the first person. Null when there is no follower phrase.
+// Whose count the post predicts: the last @handle before "N followers", the poster when it speaks in the
+// first person, `unnamed` when it names nobody. Null when there is no follower phrase.
 export function followerAccount(
   text: string,
   botHandle: string,
@@ -66,7 +70,8 @@ export function followerAccount(
     (m) => m[1]!.toLowerCase() !== botHandle.toLowerCase(),
   );
   const last = handles.at(-1);
-  if (!last) return { kind: 'poster' };
+  if (!last)
+    return FIRST_PERSON.test(before) ? { kind: 'poster' } : { kind: 'unnamed' };
   const between = before.slice(last.index! + last[0].length);
   return FIRST_PERSON.test(between)
     ? { kind: 'poster' }
@@ -119,8 +124,36 @@ function asFollowerContract(
   return valid.success ? valid.data : contract;
 }
 
+// The handle in the source's profile URL (https://x.com/Bhoomi1021), or null.
+export function profileHandle(contract: Contract): string | null {
+  try {
+    const url = new URL(contract.source.locator);
+    if (!X_HOSTS.test(url.hostname)) return null;
+    const handle = PROFILE_PATH.exec(url.pathname)?.[1];
+    return handle && !NOT_HANDLES.test(handle) ? handle : null;
+  } catch {
+    return null;
+  }
+}
+
+async function lookUpHandle(
+  x: UserLookup,
+  handle: string,
+  costs: CallCost[],
+): Promise<{ id: string; username: string }> {
+  const user = await x.getUserByUsername(handle);
+  costs.push({
+    provider: 'x',
+    operation: 'fetch',
+    units: 1,
+    usdCost: X_USER_READ_USD,
+  });
+  return user;
+}
+
 // Resolved to a real account, or the contract unchanged when it is not certain (unknown handle, no X
-// client, no follower phrase). A handle lookup is paid and recorded.
+// client, no account anywhere). The post names it; when the post names nobody or the prediction came from the
+// thread (ymjep), the profile the source names does (004 T432).
 export async function resolveFollowerContract(
   x: UserLookup | undefined,
   botHandle: string,
@@ -131,19 +164,39 @@ export async function resolveFollowerContract(
 ): Promise<Contract> {
   if (!isFollowerPrediction(contract)) return contract;
   const account = followerAccount(postText, botHandle);
-  if (!account) return contract;
-  if (account.kind === 'poster') return asFollowerContract(contract, posterId, null);
+  if (account?.kind === 'poster')
+    return asFollowerContract(contract, posterId, null);
+  const handle =
+    account?.kind === 'handle' ? account.handle : profileHandle(contract);
+  if (!handle)
+    return account?.kind === 'unnamed'
+      ? asFollowerContract(contract, posterId, null)
+      : contract;
   if (!x) return contract;
   try {
-    const user = await x.getUserByUsername(account.handle);
-    costs.push({
-      provider: 'x',
-      operation: 'fetch',
-      units: 1,
-      usdCost: X_USER_READ_USD,
-    });
+    const user = await lookUpHandle(x, handle, costs);
     return asFollowerContract(contract, user.id, user.username);
   } catch {
     return contract;
   }
+}
+
+// A follower claim locked as a web claim, its account in the source's profile URL: read as an X follower
+// count, in memory only (INIT_SPEC §4). A failed lookup is an outage, never a web search (004 T432).
+export async function followerReadFromProfile(
+  x: UserLookup | undefined,
+  contract: Contract,
+  costs: CallCost[],
+): Promise<Contract> {
+  if (contract.followers || !isFollowerPrediction(contract)) return contract;
+  const handle = profileHandle(contract);
+  if (!handle) return contract;
+  if (!x) throw new SourceUnavailable('no X client configured for follower counts');
+  let user: { id: string; username: string };
+  try {
+    user = await lookUpHandle(x, handle, costs);
+  } catch (error) {
+    throw new SourceUnavailable('X handle lookup failed', { cause: error });
+  }
+  return asFollowerContract(contract, user.id, user.username);
 }

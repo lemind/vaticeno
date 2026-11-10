@@ -27,7 +27,7 @@ import { type PageFetcher, SourceUnavailable } from './fetch.js';
 import { runGates } from './gates.js';
 import { recordShadow } from './shadow.js';
 import type { ScoreEvidence } from './verifier.js';
-import type { UserLookup } from '../contract/x-profile.js';
+import { type UserLookup, followerReadFromProfile } from '../contract/x-profile.js';
 import { type FollowerReader, gatherFollowerEvidence } from './follower-evidence.js';
 import { gatherPriceEvidence } from './price-evidence.js';
 import { knownSources, recordSourceStanding } from './sources.js';
@@ -302,8 +302,11 @@ export async function resolveClaim(
 
   const costs: CallCost[] = [];
   let items: GatheredItem[];
+  let read = contract; // what is read; the locked contract still speaks in the verdict
   try {
-    items = await gatherEvidence(deps, contract, window, now, costs);
+    const lookup = deps.x?.getUserByUsername ? (deps.x as UserLookup) : undefined;
+    read = await followerReadFromProfile(lookup, contract, costs);
+    items = await gatherEvidence(deps, read, window, now, costs);
   } catch (error) {
     if (!isOutage(error)) throw error;
     if (error instanceof LlmSchemaError) costs.push(...error.costs);
@@ -340,7 +343,7 @@ export async function resolveClaim(
     byId,
     now,
   );
-  if (deps.verifier && outcome !== 'outage' && isWebContract(contract)) {
+  if (deps.verifier && outcome !== 'outage' && isWebContract(read)) {
     try {
       await recordShadow(db, deps.verifier, claim.id, contract, items);
     } catch (error) {
