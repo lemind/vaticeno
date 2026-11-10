@@ -1,6 +1,8 @@
 // Paid-tier list prices (USD), from ai.google.dev/gemini-api/docs/pricing on 2026-09-30.
 // UNRECONCILED: not yet checked against a real invoice. Unknown models cost 0 and log `llm.price_unknown`.
-export const MODEL_PRICES_PER_MTOK: Readonly<Record<string, { input: number; output: number }>> = {
+export const MODEL_PRICES_PER_MTOK: Readonly<
+  Record<string, { input: number; output: number }>
+> = {
   'gemini-3.1-flash-lite': { input: 0.25, output: 1.5 },
   'gemini-3.5-flash-lite': { input: 0.3, output: 2.5 },
   'gemini-2.5-flash': { input: 0.3, output: 2.5 },
@@ -9,13 +11,22 @@ export const MODEL_PRICES_PER_MTOK: Readonly<Record<string, { input: number; out
   'gemini-3.1-pro-preview': { input: 2, output: 12 },
 };
 
+// One 1024px image from Gemini 2.5 Flash Image: 1,290 output tokens at $30/Mtok ≈ $0.039 (third-party pages,
+// 2026-11-06; 1,290 tokens measured on our own three trial images). UNRECONCILED.
+export const IMAGE_MODEL = 'gemini-2.5-flash-image';
+export const IMAGE_USD = 0.039;
+
 // Google Search grounding on Gemini 3.x: 5,000 free requests/month, then $14 per 1,000. UNRECONCILED.
 export const SEARCH_QUERY_USD = 0.014;
 
 // Constitution: above $0.30 spent on one claim, stop and investigate (resolver alert, corpus and seeds gates).
 export const CLAIM_BUDGET_USD = 0.3;
 
-export function modelCostUsd(model: string, inputTokens: number, outputTokens: number): number | undefined {
+export function modelCostUsd(
+  model: string,
+  inputTokens: number,
+  outputTokens: number,
+): number | undefined {
   const price = MODEL_PRICES_PER_MTOK[model];
   if (!price) return undefined;
   return (inputTokens * price.input + outputTokens * price.output) / 1_000_000;

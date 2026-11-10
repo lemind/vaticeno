@@ -90,7 +90,15 @@ export const FEED_COST_OPERATIONS = [
   'feed_post',
   'feed_model',
 ] as const;
-export const FEED_KINDS = ['repost', 'quote', 'original', 'receipt'] as const;
+export const FEED_KINDS = [
+  'repost',
+  'quote',
+  'original',
+  'receipt',
+  'digest',
+  'record',
+  'event',
+] as const;
 // dry_run: the pick the owner reviews before posting is switched on — recorded, but it holds no slot.
 export const FEED_STATUSES = ['reserved', 'posted', 'failed', 'dry_run'] as const;
 
@@ -332,23 +340,40 @@ export const optOuts = pgTable('opt_outs', {
 
 // Own-feed posts (spec 002, constitution VI 2.4.0). A row is inserted BEFORE the post goes out: it both
 // reserves the day's slot and records that this source post is used, so nothing is ever posted twice.
-export const feedQueue = pgTable('feed_queue', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  // Our own writing, queued by the owner — never anyone else's post text (constitution V).
-  text: text('text').notNull(),
-  position: integer('position').notNull().unique(),
-  postedAt: utc('posted_at'),
-  createdAt: utc('created_at').notNull().defaultNow(),
-});
+export const feedQueue = pgTable(
+  'feed_queue',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    // Our own writing, queued by the owner — never anyone else's post text (constitution V).
+    text: text('text').notNull(),
+    position: integer('position').notNull().unique(),
+    postedAt: utc('posted_at'),
+    createdAt: utc('created_at').notNull().defaultNow(),
+    // The day it goes out (005 FR-008); null = any free day, in position order.
+    postOn: date('post_on'),
+    // An event post's source and when the owner last checked it, never posted (005 FR-008a).
+    sourceUrl: text('source_url'),
+    checkedOn: date('checked_on'),
+    // Its day passed unposted and the owner was alerted; it is never picked again.
+    missedAt: utc('missed_at'),
+  },
+  (t) => [
+    check(
+      'feed_queue_source_check',
+      sql`${t.sourceUrl} is null or (${t.sourceUrl} like 'https://%' and ${t.postOn} is not null and ${t.checkedOn} is not null)`,
+    ),
+  ],
+);
 
 export const feedPosts = pgTable(
   'feed_posts',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     kind: text('kind', { enum: FEED_KINDS }).notNull(),
-    // Reposts and quote posts share one daily cap (FR-005), so the group owns the slot, not the kind.
+    // Reposts and quote posts share one daily cap (FR-005), and every own post shares one more (005 FR-009),
+    // so the group owns the slot, not the kind.
     capGroup: text('cap_group').generatedAlwaysAs(
-      sql`case when kind in ('repost', 'quote') then 'pool' else kind end`,
+      sql`case when kind in ('repost', 'quote') then 'pool' when kind in ('original', 'digest', 'record', 'event') then 'original' else kind end`,
     ),
     status: text('status', { enum: FEED_STATUSES }).notNull().default('reserved'),
     day: date('day').notNull(),
@@ -357,6 +382,8 @@ export const feedPosts = pgTable(
     accountId: text('account_id'),
     queueItemId: uuid('queue_item_id').references(() => feedQueue.id),
     postedId: text('posted_id'),
+    // Our own derived data about the post, never page or post text: an event's topic, name and date (005 FR-022).
+    payload: jsonb('payload'),
     createdAt: utc('created_at').notNull().defaultNow(),
   },
   (t) => [

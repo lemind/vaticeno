@@ -6,7 +6,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 # Its own user: the oracle key is readable by this process alone, never by the bot that reads posts from
-# strangers (003 FR-028, FR-028a). Created once by hand: useradd --system --no-create-home vaticeno-settle.
+# strangers (003 FR-028, FR-028a). Created by deploy/setup.sh.
 User=vaticeno-settle
 WorkingDirectory=/opt/vaticeno
 ExecStart=/opt/vaticeno/.venv/bin/python -m settle.worker

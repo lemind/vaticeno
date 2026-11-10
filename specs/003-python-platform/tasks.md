@@ -150,11 +150,11 @@ timeout refund from the page with the worker stopped (SC-020).
 
 ### Linking a wallet, optional
 
-- [ ] T338 [US4] Migration `drizzle/0027_wallet_links.sql` (0024 is `x_handles`, 0025 `market_keys`, 0026 `outbox_matched`) + `src/db/schema.ts` per data-model.md: both wallet tables, no read policy on either (FR-032)
-- [ ] T339 [US4] The link flow: the page resolves the named account, issues the code, shows what is public; the post binds it; confirmation, then the private signature, through the script the wager page shares (FR-033–035c, FR-045)
-- [ ] T339a [US4] `link` and `unlink` as commands, routed before claim parsing, one capped reply each, no address in it (FR-035a, FR-035d)
-- [ ] T339b [US4] Before building: decide what an X compliance event does to a link (FR-035g, owner's), and approve the EVM library for signature checks (constitution VII)
-- [ ] T340 [US4] Test: a link needs both halves; another account's post binds and consumes nothing; a post read twice binds once; RPC down refuses; no code in logs; revoking keeps the row; a stake works with no link (SC-015, SC-016)
+- [ ] T338 [US4] Migration `drizzle/0028_wallet_links.sql` (0027 went to 005's `feed_calendar`; 0024 is `x_handles`, 0025 `market_keys`, 0026 `outbox_matched`) + `src/db/schema.ts` per data-model.md: both wallet tables, no read policy on either (FR-032) **Parked 2026-11-09 (owner)**
+- [ ] T339 [US4] The link flow: the page resolves the named account, issues the code, shows what is public; the post binds it; confirmation, then the private signature, through the script the wager page shares (FR-033–035c, FR-045) **Parked 2026-11-09 (owner)**
+- [ ] T339a [US4] `link` and `unlink` as commands, routed before claim parsing, one capped reply each, no address in it (FR-035a, FR-035d) **Parked 2026-11-09 (owner)**
+- [ ] T339b [US4] Before building: decide what an X compliance event does to a link (FR-035g, owner's), and approve the EVM library for signature checks (constitution VII) **Parked 2026-11-09 (owner)**
+- [ ] T340 [US4] Test: a link needs both halves; another account's post binds and consumes nothing; a post read twice binds once; RPC down refuses; no code in logs; revoking keeps the row; a stake works with no link (SC-015, SC-016) **Parked 2026-11-09 (owner)**
 
 **Checkpoint**: a verdict settles a contract on a testnet, the timeout refund works with nothing of ours
 running, and two people can do all of it from the wager page.

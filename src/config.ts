@@ -16,6 +16,11 @@ const EnvSchema = z.object({
   X_OAUTH2_CLIENT_ID: z.string().optional(),
   X_OAUTH2_CLIENT_SECRET: z.string().optional(),
   X_OAUTH2_REDIRECT_URI: z.url().default('http://localhost:3033/callback'),
+  // OAuth 1.0a keys of the bot (console → Keys and tokens): only the poster upload uses them (005 FR-024).
+  X_API_KEY: z.string().optional(),
+  X_API_KEY_SECRET: z.string().optional(),
+  X_ACCESS_TOKEN: z.string().optional(),
+  X_ACCESS_TOKEN_SECRET: z.string().optional(),
   // Pre-approval test gate (INIT_SPEC §10): only these authors ever get a reply.
   REPLY_ALLOWLIST_USER_IDS: z
     .string()
@@ -84,6 +89,13 @@ const CoreEnvSchema = z
     JUDGE_MODEL_B: modelId,
     ARBITER_MODEL: modelId,
     SENTRY_DSN: optionalText,
+    // Cloudflare Web Analytics site token (spec 005 FR-001): set, the public pages carry its beacon.
+    CF_ANALYTICS_TOKEN: z
+      .string()
+      .trim()
+      .regex(/^([0-9a-f]{32})?$/, 'a 32-character hex token')
+      .transform((v) => v || undefined)
+      .optional(),
     PORT: z.coerce.number().int().min(1).max(65535).default(3000),
     // Run the jobs (lock, expiry, resolver) inside the web server. Exactly one instance may set it.
     ENABLE_JOBS: z
@@ -110,14 +122,17 @@ const CoreEnvSchema = z
       .string()
       .regex(/^\w{1,15}$/)
       .default('vaticeno'),
-    // The pool account the owner keeps outside the repo; an empty line = that account is skipped.
-    FEED_PLATFORM_ACCOUNT_ID: z.preprocess(
-      blankIsUnset,
-      z
-        .string()
-        .regex(/^\d{1,19}$/)
-        .optional(),
-    ),
+    // Authors whose claims an own-feed post may show (constitution VI 2.9.0, 005 FR-014a): the owner alone for now.
+    FEED_SHOW_AUTHOR_IDS: z
+      .string()
+      .default('')
+      .transform((raw) =>
+        raw
+          .split(',')
+          .map((id) => id.trim())
+          .filter(Boolean),
+      )
+      .pipe(z.array(z.string().regex(/^\d{1,19}$/, 'a numeric X user id'))),
     // The feed stops for the day once its recorded X and model costs reach this. 0.15/day ≈ $4.5 a month,
     // the ceiling spec 002 SC-002 asks for; the planned run costs about $0.10 a day.
     FEED_DAILY_USD_CAP: z.preprocess(
@@ -219,15 +234,6 @@ const CoreEnvSchema = z
           message: (error as Error).message,
         });
       }
-    }
-    // The content jobs live in the scheduler, so ENABLE_FEED alone would silently do nothing.
-    if (env.ENABLE_FEED && !env.ENABLE_JOBS) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['ENABLE_FEED'],
-        message:
-          'ENABLE_FEED needs ENABLE_JOBS=true (the content jobs run in the scheduler)',
-      });
     }
   });
 
