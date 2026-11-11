@@ -1,6 +1,7 @@
 import { type Proposal, ProposalSchema } from '../contract/proposal.js';
 import { type CallCost, type LlmClient, LlmSchemaError } from './client.js';
 import { loadInstruction } from './instructions.js';
+import { log } from '../log.js';
 
 export const NORMALIZE_VERSION = 'normalize.v6';
 // The fixture corpus was recorded with v2; it replays with it — no paid re-record.
@@ -48,6 +49,12 @@ export async function proposeContract(
     } catch (error) {
       if (!(error instanceof LlmSchemaError)) throw error;
       costs.push(...error.costs);
+      // Which field failed, never the post: a silent failure here hid kzhj7's cause (004 T434).
+      log('warn', 'proposal failed validation', {
+        event: 'normalize.malformed',
+        attempt,
+        error: error.message,
+      });
     }
   }
   return { kind: 'malformed', modelId, costs };
