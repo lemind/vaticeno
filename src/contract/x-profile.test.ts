@@ -297,6 +297,11 @@ test('"won\'t reach" is a call that the count stays below, never "reaches" (kzhj
     '@sly will not reach 500 followers on X',
     '@sly does not reach 500 followers on X',
     '@sly fails to reach 500 followers on X',
+    '@sly won’t reach 500 followers on X',
+    '@sly wont reach 500 followers on X',
+    '@sly want reach 500 followers on X',
+    "@sly can't reach 500 followers on X",
+    '@sly never reaches 500 followers on X',
   ]) {
     const out = await resolveFollowerContract(
       bhoomi,
@@ -310,4 +315,16 @@ test('"won\'t reach" is a call that the count stays below, never "reaches" (kzhj
     assert.equal(out.followers?.threshold, 500);
     assert.equal(out.criterion, '@sly has fewer than 500 followers on X', criterion);
   }
+});
+
+test('"wants to reach" is still reaching', async () => {
+  const out = await resolveFollowerContract(
+    bhoomi,
+    'vaticeno',
+    { ...YMJEP, criterion: '@sly wants to reach 500 followers on X' },
+    '@sly wants to reach 500 followers',
+    POSTER,
+    [],
+  );
+  assert.equal(out.followers?.comparison, 'AT_LEAST');
 });
