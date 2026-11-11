@@ -539,7 +539,9 @@ shown but never count as a contradiction.
 - **FR-033b**: Replies written to people run on a fuller model than the one that parses predictions, and
   may be as long as the platform allows. The model is configuration, not code. It answers from what it was
   given — the conversation, and Vaticeno's own line about the prediction — and says it does not know
-  rather than guessing at a recent result it has no live source for.
+  rather than guessing at a recent result it has no live source for. Every question is looked up on the
+  web once and answered from that, the conversation alongside; the quick answer is used only when the
+  lookup fails (owner decision 2026-11-11: it guessed at odds and events).
 
 ### Key Entities
 

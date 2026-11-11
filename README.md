@@ -101,9 +101,9 @@ and decides whether it is the command or a prediction. Anything else unclear
 or a reply under one it has already judged — it works out what you wanted and answers in the thread. It
 reads the conversation around your post first (ten posts, its own replies included, and the prediction's
 own statement and verdict when there is one); it reads ten older posts if the answer looks further up; and
-if the answer is a fact no post could contain — who won, what something closed at — it looks it up on the
-web and answers from that. One reply, no links, and it says it could not confirm something rather than
-inventing it.
+every question is then looked up on the web and answered from that (owner, 2026-11-11): what an event is,
+who won, what bookmakers quote. One reply, no links, never a pick of its own, and it says it could not
+confirm something rather than inventing it.
 
 **It answers only where it was addressed.** X puts the handles of everyone in a thread at the front of every
 reply there, so once the bot has answered once, later replies arrive looking tagged even when two other people

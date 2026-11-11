@@ -312,9 +312,7 @@ const llm = {
   groundedAnswer: async ({ input }: { input: string }) => {
     const { question } = JSON.parse(input) as { question: string };
     return {
-      text: question.includes('who won')
-        ? 'Oklahoma beat Texas 27-24.'
-        : 'I could not confirm that.',
+      text: question.includes('who won') ? 'Oklahoma beat Texas 27-24.' : '', // nothing found: the assessment's own answer stands
       urls: ['https://example.com/x'],
       costs: [],
     };
@@ -1612,6 +1610,8 @@ describe('a refusal is not a dead end (FR-033)', () => {
       ...deps,
       llm: {
         ...deps.llm,
+        // The lookup finds nothing, so the assessment's own answer is what is judged here.
+        groundedAnswer: async () => ({ text: '', urls: [], costs: [] }),
         generateJson: async (a: { input: string; instructionVersion: string }) => {
           if (a.instructionVersion.startsWith('intent.'))
             return {
@@ -1867,7 +1867,8 @@ describe('a refusal is not a dead end (FR-033)', () => {
       1,
       'one page: scrolling up cannot supply a fact no post contains',
     );
-    assert.match(replies[0]!.text, /no live source/);
+    // Every question is looked up (owner, 2026-11-11): the model's "no live source" is not the answer.
+    assert.match(replies[0]!.text, /Oklahoma beat Texas/);
   });
 
   test('a question the thread cannot answer is looked up and answered, without links', async () => {

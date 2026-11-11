@@ -416,8 +416,8 @@ async function liveAnswer(
   try {
     const result = await deps.llm.groundedAnswer({
       model: deps.answerModel,
-      instructionVersion: 'answer-live.v1',
-      system: loadInstruction('answer-live.v1'),
+      instructionVersion: 'answer-live.v2',
+      system: loadInstruction('answer-live.v2'),
       input: JSON.stringify({
         question: body,
         conversation: thread.map((post) => `${post.from}: ${post.text}`),
@@ -540,14 +540,13 @@ async function assess(
   let intent: Intent;
   let answer: string | null;
   let wantsOlder: boolean;
-  let needsLive: boolean;
   const ask = async () => {
     const assessed = await classifyIntent(deps.llm, deps.answerModel, body, thread);
     await saveCosts(deps, assessed.costs);
     return assessed;
   };
   try {
-    ({ intent, answer, wantsOlder, needsLive } = await ask());
+    ({ intent, answer, wantsOlder } = await ask());
     // A second page only when the model says the answer is further up. At most one (FR-033a).
     if (intent === 'question' && wantsOlder && first.oldest) {
       const older = await contextAround(deps, mention, repliedTo, first.oldest);
@@ -561,7 +560,7 @@ async function assess(
         });
         const again = await ask();
         // A worse second answer never costs us the first: the page was bought to improve the answer.
-        ({ intent, needsLive } = again);
+        ({ intent } = again);
         answer = again.answer ?? answer;
       }
     }
@@ -586,14 +585,11 @@ async function assess(
   if (intent === 'question') {
     // Our own posts are context, not injection: quoting the prediction we stated is the answer (FR-033a).
     const written = [...above, ...pages].filter((post) => post.from === 'user');
-    // A question about the world that nothing in the thread can settle: look it up once, then answer.
-    if (needsLive && !answerProblem(answer, body, written, opts.about?.slug)) {
-      // The model could answer anyway — take that, and keep the money.
-    } else if (needsLive) {
-      const live = await liveAnswer(deps, mention, body, thread);
-      if (live && !answerProblem(live, body, written, opts.about?.slug))
-        return { action: 'answer_live', reply: live };
-    }
+    // Every question is looked up once and answered from that (owner decision 2026-11-11): the quick answer
+    // the assessment writes guessed at odds and events. It stands only if the lookup fails.
+    const live = await liveAnswer(deps, mention, body, thread);
+    if (live && !answerProblem(live, body, written, opts.about?.slug))
+      return { action: 'answer_live', reply: live };
     const problem = answerProblem(answer, body, written, opts.about?.slug);
     if (!problem) return { action: 'answer', reply: answer as string };
     // Why an answer was thrown away used to be invisible, so a bad reply could not be told from a bad
