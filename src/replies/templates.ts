@@ -48,7 +48,7 @@ const X_LINK_CHARS = 23; // X counts every link as 23 characters
 
 export function recordedReply(slug: string, statement: string): string {
   return assertReplyFits(
-    `RECORDED · #${slug}\n"${statement}"\nEdits accepted for 15 min.`,
+    `RECORDED · #${slug}\n"${statement}"\nTo fix it, reply with @vaticeno within 15 min.`,
   );
 }
 
@@ -62,7 +62,7 @@ export function fallbackExample(now: Date): string {
 export function needsInfoReply(explanation: string, checkedExample: string): string {
   const why = explanation.trim() || 'Something essential is missing.';
   return assertReplyFits(
-    `NOT RECORDED — I can't judge this as written.\n\n${why}\n\nReply with the prediction and a date, e.g.\n${checkedExample}`,
+    `NOT RECORDED — I can't judge this as written.\n\n${why}\n\nReply with @vaticeno, the prediction and a date, e.g.\n${checkedExample}`,
   );
 }
 
@@ -82,7 +82,7 @@ const REJECT_WORDS: Record<
 export const HELP_REPLY = assertReplyFits(
   'I record predictions and check them at the deadline.\n' +
     '• Tag me under your prediction → recorded\n' +
-    '• Reply with a fix (15 min) → updated\n' +
+    '• Tag me with a fix (15 min) → updated\n' +
     '• quote → a quote about bets\n' +
     '• selfpromo → who I am\n' +
     '• STOP → I go quiet (tag me to resume)\n' +
@@ -146,7 +146,7 @@ export function refusedReply(reason: RefusalReason, slug: string): string {
 // A fix to a needs-info claim that is still not recordable; the 24 h clock keeps running.
 export function stillNotRecordedReply(why: string): string {
   return assertReplyFits(
-    `STILL NOT RECORDED — ${why.trim() || 'Something essential is still missing.'}\nReply with the prediction and a date.`,
+    `STILL NOT RECORDED — ${why.trim() || 'Something essential is still missing.'}\nReply with @vaticeno, the prediction and a date.`,
   );
 }
 

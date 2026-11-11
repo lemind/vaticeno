@@ -4,7 +4,7 @@ An X bot that puts predictions **on the record** and checks them automatically o
 
 ```
 @vaticeno BTC above $150,000 by 2026-12-31
-  → RECORDED · #slug + the exact statement it will judge (fix it within 15 min by replying)
+  → RECORDED · #slug + the exact statement it will judge (fix it within 15 min: reply with @vaticeno)
   → after the deadline: HIT / MISS / VOID as a reply in the same thread
 ```
 
@@ -14,7 +14,7 @@ what version; `/status` is the owner's page, behind a password. On X: [@vaticeno
 ## Status
 
 **Live on X (testing):** tag the bot under your prediction (or put it in the mention): it records it and
-answers once in the thread; reply under its answer to fix it within 15 min. After the deadline the verdict
+answers once in the thread; reply under its answer with @vaticeno to fix it within 15 min. After the deadline the verdict
 (HIT / MISS / VOID) is posted as a reply in the same thread, with the result it was decided on — the
 closing price, or the score in one line. Ask it something in that thread and it answers.
 Spec and tasks: [spec](specs/001-stage0-contract-core/spec.md),
@@ -62,7 +62,7 @@ the model may look, so it would save nothing (spec SC-006). It runs as a private
 
 | Done | Next |
 |---|---|
-| X: mentions → one reply each; fixes by replying under the bot's answer; STOP; help; verdict replies carrying the result; questions answered from the conversation, or from the web when nothing in the thread can settle them | |
+| X: mentions → one reply each; fixes by replying under the bot's answer with the bot tagged; STOP; help; verdict replies carrying the result; questions answered from the conversation, or from the web when nothing in the thread can settle them | |
 | Predictions → contracts by AI, checked in code; price + date = daily close; unclear ones get a checked example | |
 | Sports: the event and its competitor must exist (web search), competition filled in, recordable until the start | |
 | Database: lock and verdict rules enforced by Postgres, locally and on Supabase | Backups: scripts in `deploy/`, not installed (owner's call) |
@@ -83,7 +83,7 @@ the model may look, so it would save nothing (spec SC-006). It runs as a private
 |---|---|
 | `@vaticeno <prediction with a date>` | RECORDED · #slug, or NOT RECORDED with what's missing and an example |
 | `@vaticeno` as a reply to your own post | records that post |
-| a reply under the bot's answer | a fix (within 15 min of RECORDED; anytime within 24 h of NOT RECORDED) |
+| a reply under the bot's answer, with `@vaticeno` typed in it | a fix (within 15 min of RECORDED; anytime within 24 h of NOT RECORDED) |
 | `@vaticeno help` | the list of actions |
 | a question, anywhere it is tagged | an answer — see below |
 | `@vaticeno quote` | a sourced quote from Wikiquote about bets, luck, risk, sport, bitcoin |
@@ -107,10 +107,10 @@ inventing it.
 
 **It answers only where it was addressed.** X puts the handles of everyone in a thread at the front of every
 reply there, so once the bot has answered once, later replies arrive looking tagged even when two other people
-are talking to each other. Those get nothing. A post reaches the bot when it answers one of the bot's own
-posts, when `@vaticeno` sits under a post of your own, when it pulls the bot into a thread it was not in, or
-when the handle is in the words you typed rather than only in the prefix X added. STOP is recorded wherever it
-appears, addressed or not.
+are talking to each other. Those get nothing. **No tag, no answer** (owner, 2026-11-11): under the bot's own
+post or in a thread it is in, a reply reaches it only when you typed `@vaticeno` yourself, a fix included; X's
+prefix alone is not a tag. A post of your own naming it, `@vaticeno` under your own post, and a tag that pulls it
+into a thread it was not in still reach it. STOP is recorded wherever it appears, addressed or not.
 
 ## Run locally
 

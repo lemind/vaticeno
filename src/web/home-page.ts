@@ -75,7 +75,8 @@ export async function homePage(
         </li>
         <li>
           It replies <strong>RECORDED</strong> with the terms it extracted. You have
-          15 minutes to correct them: reply in the thread with the correction.
+          15 minutes to correct them: reply in the thread with @vaticeno and the
+          correction.
         </li>
         <li>
           Then the terms lock. Nobody can change them after that, the bot included.

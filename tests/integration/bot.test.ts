@@ -767,7 +767,7 @@ describe('fixes from X', () => {
     const summon = mention('50', '@vaticeno vague BTC to the moon');
     const fix = mention(
       '52',
-      '@vaticeno BTC daily close above $150,000 by 2026-12-31',
+      '@vaticeno @vaticeno BTC daily close above $150,000 by 2026-12-31',
       {
         conversation_id: '50',
         in_reply_to_user_id: BOT,
@@ -816,14 +816,14 @@ describe('fixes from X', () => {
           under(
             '56',
             'r-55',
-            '@vaticeno BTC daily close above $150,000 by 2026-12-31',
+            '@vaticeno @vaticeno BTC daily close above $150,000 by 2026-12-31',
           ),
         ],
         [
           under(
             '57',
             'r-56',
-            '@vaticeno BTC daily close above $160,000 by 2026-12-31',
+            '@vaticeno @vaticeno BTC daily close above $160,000 by 2026-12-31',
           ),
         ],
       ],
@@ -852,7 +852,7 @@ describe('fixes from X', () => {
       '58',
       '@vaticeno BTC daily close above $150,000 by 2026-12-31',
     );
-    const stranger = mention('59', '@vaticeno lol no way', {
+    const stranger = mention('59', '@vaticeno @vaticeno lol no way', {
       author_id: '300',
       conversation_id: '58',
       in_reply_to_user_id: BOT,
@@ -1048,7 +1048,7 @@ describe('unclear mentions: the model reads the thread', () => {
   test('"so?" under the bot\'s quote gets a new quote', async () => {
     const { deps, replies } = await bot([
       [
-        mention('130', '@vaticeno so?', {
+        mention('130', '@vaticeno @vaticeno so?', {
           in_reply_to_user_id: BOT,
           referenced_tweets: [{ type: 'replied_to', id: 'q-bot' }],
         }),
@@ -1303,7 +1303,7 @@ describe('a refusal is not a dead end (FR-033)', () => {
     assert.match(replies[0]!.text, /24 hours/);
 
     // The author asks why, under the bot's own answer: today that was recorded as a fresh prediction.
-    const asking = mention('901', '@vaticeno why?', {
+    const asking = mention('901', '@vaticeno @vaticeno why?', {
       in_reply_to_user_id: BOT,
       referenced_tweets: [{ type: 'replied_to', id: 'r-900' }],
     });
@@ -1346,7 +1346,7 @@ describe('a refusal is not a dead end (FR-033)', () => {
 
     const predicting = mention(
       '911',
-      '@vaticeno BTC daily close above $150,000 by 2026-12-31',
+      '@vaticeno @vaticeno BTC daily close above $150,000 by 2026-12-31',
       {
         in_reply_to_user_id: BOT,
         referenced_tweets: [{ type: 'replied_to', id: 'r-910' }],
@@ -1390,7 +1390,7 @@ describe('a refusal is not a dead end (FR-033)', () => {
     await lockDueDrafts(deps, new Date(NOW.getTime() + 16 * 60_000));
     assert.equal((await t.sql`select status from claims`)[0]!.status, 'locked');
 
-    const asking = mention('801', '@vaticeno what is this?', {
+    const asking = mention('801', '@vaticeno @vaticeno what is this?', {
       in_reply_to_user_id: BOT,
       referenced_tweets: [{ type: 'replied_to', id: 'r-800' }],
     });
@@ -1447,10 +1447,14 @@ describe('a refusal is not a dead end (FR-033)', () => {
     } as unknown as BotDeps;
 
     // A number keeps it from being a bare command, so the model decides.
-    const asking = mention('821', '@vaticeno quote me something about 2026', {
-      in_reply_to_user_id: BOT,
-      referenced_tweets: [{ type: 'replied_to', id: 'r-820' }],
-    });
+    const asking = mention(
+      '821',
+      '@vaticeno @vaticeno quote me something about 2026',
+      {
+        in_reply_to_user_id: BOT,
+        referenced_tweets: [{ type: 'replied_to', id: 'r-820' }],
+      },
+    );
     const next = await bot([[asking]]);
     await pollMentions(
       {
@@ -1482,7 +1486,7 @@ describe('a refusal is not a dead end (FR-033)', () => {
       'the claim is still open',
     );
 
-    const asking = mention('841', '@vaticeno what does this mean?', {
+    const asking = mention('841', '@vaticeno @vaticeno what does this mean?', {
       in_reply_to_user_id: BOT,
       referenced_tweets: [{ type: 'replied_to', id: 'r-840' }],
     });
