@@ -74,8 +74,7 @@ export function addressesBot(
 ): boolean {
   if (!mention.referenced_tweets?.some((ref) => ref.type === 'replied_to'))
     return true; // its own post, naming us
-  if (mention.in_reply_to_user_id === mention.author_id) return true; // "@vaticeno" under their own post
-  // Tagged into someone else's thread: deliberate, nothing to carry.
+  // "@vaticeno" under their own post, or tagged into someone else's thread: deliberate, nothing carried.
   if (mention.in_reply_to_user_id !== botUserId && !weRepliedInThread) return true;
   // Under our post or in a thread we are in, X puts our handle in front of every reply: only a handle they
   // typed is a tag. No tag, no answer, a fix included (owner decision 2026-11-11).

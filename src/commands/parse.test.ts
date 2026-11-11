@@ -124,6 +124,12 @@ const addressed: Array<
     'a reply under their own post',
     true,
     reply('@vaticeno this, by next month', 'author'),
+    false,
+  ],
+  [
+    'under their own post in a thread we are in, our handle only carried: no answer',
+    false,
+    reply('@vaticeno lol', 'author'),
     true,
   ],
   [
