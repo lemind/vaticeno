@@ -62,4 +62,10 @@ test('the poster sells the event: its name, date and place, flags or colours, no
   assert.match(prompt, /no club crests, logos/);
   assert.match(prompt, /recognisable real person/);
   assert.doesNotMatch(prompt, /Vaticeno/);
+  const event = { name: 'England vs Serbia', date: '2026-11-14', place: 'Wembley' };
+  assert.notEqual(
+    posterPrompt('football', event, () => 0),
+    posterPrompt('football', event, () => 0.99),
+    'a different style and colour scheme each time',
+  );
 });

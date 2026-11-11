@@ -282,7 +282,7 @@ best — and changes next week's mix from it.
 - **FR-024**: Each event post may carry one AI-generated poster (owner, 2026-11-06; tried with the cheapest model,
   Gemini 2.5 Flash Image, ≈ $0.039 an image). It sells the event (owner, 2026-11-11): the event's name as its title,
   then its date ("SAT 14 NOV") and place, in large bold text; when two sides meet, they face off, each in its
-  national flag or team colours. The model may misspell a name (trial 2026-11-06 drew "LIEVERPOOL"; accepted,
+  national flag or team colours. Each poster draws its style and colour scheme at random. The model may misspell a name (trial 2026-11-06 drew "LIEVERPOOL"; accepted,
   owner 2026-11-09). It is a poster for the event, not for Vaticeno: no "Vaticeno" on it. No club crests or brand
   logos (trademarks, and the model draws them garbled), no photo-like real person. The upload signs with the bot's
   OAuth 1.0a keys, since the browser login for `media.write` fails on X's side; its price is UNRECONCILED. A failed

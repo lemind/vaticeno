@@ -118,7 +118,8 @@ done by the owner in the X app; their drafts live in `specs/005-x-growth/content
 - [x] T517j The Monday digest names only claims of authors on `FEED_SHOW_AUTHOR_IDS` (FR-014); it named anyone's
   before (found 2026-11-09, none posted yet).
 - [x] T517k The poster sells the event (owner, 2026-11-11): the name, the date and the place on it, the two sides in
-  their flags or team colours; still no crest, logo or real face (`src/content/event-image.ts`, FR-024).
+  their flags or team colours, each in one of eight styles and eight colour schemes drawn at random; still no crest,
+  logo or real face (`src/content/event-image.ts`, FR-024).
 - [x] T517b [US3a] Tests: two agreeing pages post; one page, or disagreeing dates, do not; three failed topics post
   nothing; a repeat event is skipped; the text never carries a link, a handle or a hashtag.
 
