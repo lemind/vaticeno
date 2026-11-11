@@ -13,7 +13,8 @@ const PROFILE_PATH = /^\/(\w{1,15})\/?$/;
 const NOT_HANDLES = /^(i|home|search|explore|intent|share|author)$/i;
 const BELOW = /\b(below|under|fewer than|less than)\b/i;
 // "won't reach 500 followers" is a call that the count stays below 500, not that it gets there (kzhj7, 004 T435).
-const NEGATED = /\b(not|never|cannot|wont|fails? to|want(?!\s+to\b))\b|n['’]?t\b/i; // "want reach" is a misspelt won't
+const NEGATED =
+  /\b(not|never|cannot|wont|cant|dont|doesnt|isnt|fails? to|want(?!\s+to\b))\b|n['’]t\b/i; // "want reach" is a misspelt won't
 const HANDLE = /@(\w{1,15})\b/g;
 const FIRST_PERSON = /\b(i|i'll|i'm|i will|my|me|mine)\b/i;
 
