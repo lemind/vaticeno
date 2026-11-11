@@ -221,6 +221,19 @@ export async function recheckRecent(db: Db, at: Date, days = 7): Promise<Recheck
   return out;
 }
 
+// Monday's run corrects what it finds from the stored evidence alone, no hand needed (owner decision
+// 2026-11-10). A verdict that now reads VOID is only reported: writeCorrection never writes one.
+export const WEEKLY_REASON =
+  "Re-decided by the weekly recheck from the evidence already stored: today's rules give a different verdict.";
+
+export async function correctRecent(db: Db, at: Date, days = 7): Promise<string[]> {
+  const corrected: string[] = [];
+  for (const check of await recheckRecent(db, at, days))
+    if (await writeCorrection(db, check.slug, check, WEEKLY_REASON))
+      corrected.push(check.slug);
+  return corrected;
+}
+
 // A finding outlives the seven-day window the recheck looks at, so a verdict known to be wrong keeps
 // saying so until a correction answers it (003 FR-007a). The log line is not the record.
 async function recordFindings(

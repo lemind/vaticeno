@@ -1,6 +1,6 @@
 // Verdict replies on X (owner decision 2026-10-04, constitution VI 2.3.0): when a claim gets its final
 // verdict, the bot replies once in the claim's thread, under the author's summon. Never retried.
-import { and, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
+import { and, eq, gt, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import { ContractSchema } from '../contract/schema.js';
 import { renderStatement } from '../contract/render.js';
 import {
@@ -261,6 +261,30 @@ export async function postLockReplies(
       captureError(error, { event: 'lock.reply_failed', slug: result.slug });
     }
   }
+}
+
+// Every correction posts itself, whoever wrote it: the weekly recheck or a command (owner decision 2026-11-10).
+// Only after the verdict it corrects went out, and only recent ones: older ones stay as they were.
+export async function deliverCorrections(
+  deps: BotDeps,
+  now: Date,
+): Promise<{ posted: number }> {
+  const due = await deps.db
+    .select({ slug: claims.slug })
+    .from(corrections)
+    .innerJoin(claims, eq(claims.id, corrections.claimId))
+    .where(
+      and(
+        isNull(corrections.postedAt),
+        gt(corrections.createdAt, new Date(now.getTime() - RECENT_MS)),
+        isNotNull(claims.verdictReplyAt),
+      ),
+    )
+    .limit(MAX_PER_RUN);
+  let posted = 0;
+  for (const { slug } of due)
+    if ((await postCorrection(deps, slug, now)).posted) posted++;
+  return { posted };
 }
 
 // A correction is told where the verdict was told: once, in the claim's thread, naming what it was and

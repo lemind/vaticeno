@@ -18,14 +18,19 @@ answers once in the thread; reply under its answer to fix it within 15 min. Afte
 (HIT / MISS / VOID) is posted as a reply in the same thread, with the result it was decided on — the
 closing price, or the score in one line. Ask it something in that thread and it answers.
 Spec and tasks: [spec](specs/001-stage0-contract-core/spec.md),
-[tasks](specs/001-stage0-contract-core/tasks.md). How it runs: one service with nine timed jobs (mentions
-and lock every minute, expire every 10 min, resolve hourly, verdicts every 5 min, reconcile every other
-hour, a weekly recheck of the last week's verdicts, and the two feed jobs at fixed times).
+[tasks](specs/001-stage0-contract-core/tasks.md). How it runs: one service with seven timed jobs (mentions
+and lock every minute, expire every 10 min, resolve hourly, verdicts and their corrections every 5 min,
+reconcile every other hour, a Monday recheck of the last week's verdicts), and five feed jobs on systemd
+timers of their own, so the feed keeps going when the bot is down ([docs/server.md](docs/server.md)).
+A follower-count prediction is decided by reading the account's count from X at the deadline.
 
-**Own feed (spec 002):** [spec](specs/002-content-feed/spec.md), [tasks](specs/002-content-feed/tasks.md).
-Built, and off until `ENABLE_FEED=true`: twice a day the bot picks one account from a fixed pool by weight
-and reposts its latest post, or quotes it with a line of its own (1 in 10); one owner-written post a day
-from a queue. The feed never republishes a verdict: a hit or a miss is told once, in its author's thread.
+**Own feed (specs 002 and 005):** [spec 002](specs/002-content-feed/spec.md),
+[spec 005](specs/005-x-growth/spec.md), [tasks](specs/005-x-growth/tasks.md), [rules](docs/content-rules.md).
+Live on the server. Once a day it reposts the most-liked announcement of an upcoming event, found by one X
+search over that weekday's group of event accounts. Tuesday to Thursday it posts an event of its own, with a
+poster, once two sites confirm it. Monday: the predictions coming due this week, only from authors on the
+owner's list; Friday: the week's record in counts. The owner can queue own posts on a date. The feed never
+republishes a verdict: a hit or a miss is told once, in its author's thread. `ENABLE_FEED` switches it on;
 `FEED_DRY_RUN=true` (the default) records the picks and posts nothing.
 
 **Wagers in real money (spec 003, Stages 2 and 4):** [spec](specs/003-python-platform/spec.md),
@@ -57,17 +62,18 @@ the model may look, so it would save nothing (spec SC-006). It runs as a private
 
 | Done | Next |
 |---|---|
-| X: mentions → one reply each; fixes by replying under the bot's answer; STOP; help; verdict replies carrying the result; questions answered from the conversation, or from the web when nothing in the thread can settle them | Per-claim AI budget in the live resolver |
+| X: mentions → one reply each; fixes by replying under the bot's answer; STOP; help; verdict replies carrying the result; questions answered from the conversation, or from the web when nothing in the thread can settle them | |
 | Predictions → contracts by AI, checked in code; price + date = daily close; unclear ones get a checked example | |
 | Sports: the event and its competitor must exist (web search), competition filled in, recordable until the start | |
-| Database: lock and verdict rules enforced by Postgres, locally and on Supabase | Nightly backups (scripts in `deploy/`, not installed) |
-| Verdicts after the deadline: Coinbase daily close, or AI reading web pages behind code gates; human review | |
-| Own feed (spec 002): 2 pool posts a day (repost, or a quote post with our own line), 1 owner-written post a day from a queue; caps and "never twice" enforced by Postgres; off until `ENABLE_FEED=true` | Switch the feed on the server; a weekly stats post |
+| Database: lock and verdict rules enforced by Postgres, locally and on Supabase | Backups: scripts in `deploy/`, not installed (owner's call) |
+| Verdicts after the deadline: Coinbase daily close, the account's follower count from X, or AI reading web pages behind code gates; human review; a per-claim spending ceiling with an alert | |
+| Own feed (specs 002, 005), live: one event repost a day found by search, own event posts with a poster Tue–Thu, the Monday list and the Friday record, the owner's dated queue; caps and "never twice" enforced by Postgres; run by systemd timers | |
+| Site visits counted with Cloudflare Web Analytics, cookie-free (spec 005) | |
 | Claim and author pages, public on [vaticeno.n30sk.cc](https://vaticeno.n30sk.cc) at `/claim/<slug>` (old `/c/` links forward) | |
 | Testnet wagers (spec 003): escrow contract on Base Sepolia, source verified; the worker that signs and settles; `wager` on X → one link per claim → a page where your own wallet offers, accepts, pays out or refunds; a browser wager settled and paid out (2026-10-26) | |
-| **Real money (Stage 4)**: contract v2, no fee, in USDC on Base and Arbitrum One and USDT0 on Arbitrum One, sources verified; one worker per market; testnet runs on both networks first; the first real wager paid out (2026-11-06) | Wallet links (one X account, one wallet) |
+| **Real money (Stage 4)**: contract v2, no fee, in USDC on Base and Arbitrum One and USDT0 on Arbitrum One, sources verified; one worker per market; testnet runs on both networks first; the first real wager paid out (2026-11-06) | Parked: wallet links (one X account, one wallet) |
 | Verdicts decide on the right event (spec 004): a page must name the event the contract does before it counts, a site speaks through its best page rather than its first, silence proves nothing, and no verdict contradicts its own evidence | |
-| A verdict that was wrong is corrected (spec 004): the original is never edited, the correction is a separate record posted once in the claim's thread, and a match nobody can place in time is refused rather than recorded | |
+| A verdict that was wrong is corrected (spec 004): the original is never edited, the correction is a separate record posted once in the claim's thread on its own; the Monday recheck writes one when today's rules decide a HIT or MISS differently; a match nobody can place in time is refused rather than recorded | |
 | Local verifier (spec 003): our own model, published on Hugging Face, reads each web verdict's pages in shadow and records what it would conclude; person-confirmed outcomes counted on the status page | Parked: going live saves no paid call |
 | Error tracking, logs and alerts (Sentry, production only); tests on every pull request | |
 
@@ -133,13 +139,13 @@ the lite model that parses predictions; everything else stays on the lite model.
 | `npm run poc:whoami` / `poc:auth` | bot user ID / one-time browser login for posting |
 | `npm run dev` | public pages on `PORT` (default 3000): `/claim/<slug>`, `/claim/<slug>/wager`, `/u/<x_user_id>`, `/healthz` |
 | `npm run db:migrate` | apply database migrations (uses `DATABASE_URL`) |
-| `npm run content:tick -- pool|original|digest|record` | run one feed job by hand |
+| `npm run content:tick -- pool\|original\|digest\|record\|event` | run one feed job by hand (`content:job` is what the timers run) |
 | `npm run content:queue -- add "…" [--on YYYY-MM-DD] [--source https://… --checked YYYY-MM-DD]` / `list` / `remove <id>` | the owner's queue of own posts, optionally on a date (spec 005) |
 | `npm run content:topic [-- --last <id>]` | draw an event topic: random, in season, never the last |
 | `npm run growth:week [-- --quotes N]` | the Friday review from the database: claims, active and first-time authors, posts by kind (free) |
-| `npm run verdict:recheck -- [--slug X] [--correct "why"] [--post]` | re-decide past verdicts from stored evidence (free); correcting one is deliberate |
+| `npm run verdict:recheck -- [--slug X] [--rejudge] [--correct "why"]` | re-decide past verdicts from stored evidence (free; `--rejudge` reads the pages again, paid); `--correct` writes the correction, which then posts itself |
 | `npm run verdict:recheck -- --slug X --outcome hit\|miss --correct "why" --deciding-evidence <id>` | decide a standing verdict by hand, naming the stored row it rests on |
-| `npm run verdict:recheck -- --slug X --post` | post a correction already written |
+| `npm run verdict:recheck -- --slug X --post` | post a correction already written, without waiting for the verdicts job |
 | `npm run review:confirm -- --list` | shadow claims the verifier would have finalised and nobody has checked |
 | `npm run review:confirm -- --slug X --outcome hit\|miss\|void --event "…"` | confirm one's real outcome and name its event, for the go-live count |
 | `npm run db:generate` / `db:studio` | new migration from schema changes / browse tables |
@@ -242,7 +248,8 @@ requests are 404s and the latency numbers come out flattering.
 ```
 src/
   web/server.ts  the service entry point: pages + scheduler
-  jobs/       scheduler (mentions, lock, expire, resolve) and the job lock
+  jobs/       scheduler (mentions, lock, expire, resolve, verdicts, reconcile, recheck) and the job lock
+  content/    the own feed: event reposts, event posts and posters, the queue, Monday list, Friday record
   bot/        X intake: mentions → route → one reply; X post reader
   lifecycle/  record, fix, lock, expire a claim
   contract/   contract schema, checks, statement template, slugs (pure)
@@ -263,7 +270,7 @@ contracts/    the escrows (Solidity, Foundry): v1 on the testnet, v2 for real mo
 settle/       the settlement worker (Python): signs open authorizations, settles stakes
 verifier/     the local verifier (Python): eval and training (offline), serve (the Cloud Run service)
 tests/        database tests against real Postgres
-deploy/       systemd unit + VPS scripts
+deploy/       systemd units and feed timers, Caddyfile, server setup, deploy and move scripts
 specs/        what we build and why (spec, plan, tasks)
 ```
 
@@ -273,7 +280,8 @@ Code follows a light "pure core, I/O at the edges" structure — see
 ## Stack
 
 Node 22 · TypeScript (strict) · Zod · PostgreSQL (Supabase) + Drizzle · Gemini · Sentry · X API v2.
-Fastify (server-rendered pages; one browser script, for the wallet) · node-cron (jobs in the same process).
+Fastify (server-rendered pages; one browser script, for the wallet) · node-cron (jobs in the same process;
+the feed's on systemd timers).
 Python 3.12 · FastAPI + Jinja2 (the status page) · ONNX Runtime on Cloud Run (the verifier; trained
 with PyTorch and Transformers on Colab). Solidity + Foundry on Base and Arbitrum One (the escrows,
 [settlement policy](docs/settlement-policy.md)). Planned, not in yet: Redis and RabbitMQ, each when its

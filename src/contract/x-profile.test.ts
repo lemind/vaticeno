@@ -2,9 +2,12 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { CallCost } from '../llm/client.js';
 import type { Contract } from './schema.js';
+import { SourceUnavailable } from '../resolve/fetch.js';
 import {
   followerAccount,
+  followerReadFromProfile,
   parseCount,
+  profileHandle,
   resolveFollowerContract,
 } from './x-profile.js';
 
@@ -171,4 +174,119 @@ test('"below" compares the other way, and counts read like people write them', a
     'a fraction of a follower is not a count',
   );
   assert.equal(parseCount('1.1', 'k'), 1100, 'no floating-point leftovers');
+});
+
+// Claim ymjep (2026-11-06): read from the thread, the post itself said nothing about followers. The model put
+// the account in the source; it was locked as a web claim and would have gone VOID at the deadline.
+const YMJEP: Contract = {
+  subject: "Bhoomi's X account",
+  criterion: 'Bhoomi reaches 1000 followers on X',
+  deadline_at: '2026-12-06T23:59:59Z',
+  source: {
+    name: 'X',
+    kind: 'social_media',
+    locator: 'https://x.com/Bhoomi1021',
+    scope: 'Follower count on the profile of Bhoomi1021',
+    entity_id: 'Bhoomi1021',
+    absence_is_meaningful: false,
+    fallback: 'same_issuer_only',
+  },
+  negative_condition: 'Bhoomi has fewer than 1000 followers on X by the deadline',
+  resolution_method: 'model',
+};
+const YMJEP_POST =
+  '@Bhoomi1021 @vaticeno @X This is my predictions project. \n@vaticeno selfpromo';
+const bhoomi = {
+  getUserByUsername: async (username: string) => ({ id: '777', username }),
+};
+
+test('no account in the post: the profile the source names is read (ymjep)', async () => {
+  assert.equal(profileHandle(YMJEP), 'Bhoomi1021');
+  assert.equal(profileHandle(GZRT3), null, 'an API path is no profile');
+  const atAuthor = {
+    ...YMJEP,
+    source: { ...YMJEP.source, locator: 'https://x.com/author' },
+  };
+  assert.equal(profileHandle(atAuthor), null, 'the model’s word is no handle');
+  const intent = {
+    ...YMJEP,
+    source: {
+      ...YMJEP.source,
+      locator: 'https://x.com/intent/user?screen_name=gusto',
+    },
+  };
+  assert.equal(profileHandle(intent), 'gusto', 'cgc9k’s form');
+
+  const costs: CallCost[] = [];
+  const out = await resolveFollowerContract(
+    bhoomi,
+    'vaticeno',
+    YMJEP,
+    YMJEP_POST,
+    POSTER,
+    costs,
+  );
+  assert.deepEqual(out.followers, {
+    user_id: '777',
+    comparison: 'AT_LEAST',
+    threshold: 1000,
+  });
+  assert.equal(out.criterion, '@Bhoomi1021 reaches 1,000 followers on X');
+  assert.equal(costs.length, 1);
+
+  const unnamed = await resolveFollowerContract(
+    bhoomi,
+    'vaticeno',
+    YMJEP,
+    'reaches 1k+ followers by December',
+    POSTER,
+    [],
+  );
+  assert.equal(
+    unnamed.followers?.user_id,
+    '777',
+    'names nobody: the profile, not the poster',
+  );
+  const mine = await resolveFollowerContract(
+    bhoomi,
+    'vaticeno',
+    YMJEP,
+    'I will reach 1000 followers',
+    POSTER,
+    [],
+  );
+  assert.equal(mine.followers?.user_id, POSTER, 'first person is still the poster');
+});
+
+test('a follower claim locked as a web claim is read from the profile at the deadline, or waits', async () => {
+  const costs: CallCost[] = [];
+  const read = await followerReadFromProfile(bhoomi, YMJEP, costs);
+  assert.equal(read.followers?.user_id, '777');
+  assert.equal(read.source.locator, 'https://x.com/i/user/777');
+  assert.equal(costs.length, 1);
+
+  const down = {
+    getUserByUsername: async () => {
+      throw new Error('503');
+    },
+  };
+  await assert.rejects(
+    followerReadFromProfile(down, YMJEP, []),
+    SourceUnavailable,
+    'an outage, never a web search',
+  );
+  await assert.rejects(
+    followerReadFromProfile(undefined, YMJEP, []),
+    SourceUnavailable,
+  );
+  assert.equal(
+    await followerReadFromProfile(bhoomi, GZRT3, []),
+    GZRT3,
+    'no profile in the source: unchanged',
+  );
+  assert.equal(
+    await followerReadFromProfile(down, read, []),
+    read,
+    'already a follower read: no lookup',
+  );
 });

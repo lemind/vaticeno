@@ -20,6 +20,7 @@ import { VERIFIER_MODEL } from '../../src/resolve/fast-path.js';
 import { SHADOW_CANDIDATE } from '../../src/resolve/shadow.js';
 import { readFileSync } from 'node:fs';
 import {
+  correctRecent,
   recheckClaim,
   recheckRecent,
   rejudgeClaim,
@@ -719,7 +720,7 @@ describe('rechecking a verdict already given (001 FR-035)', () => {
     );
   });
 
-  test('the weekly sweep reports and never writes, and skips what it already corrected', async () => {
+  test('the recheck itself reports and never writes, and skips what it already corrected', async () => {
     const { claim } = await wrongMiss();
     const found = await recheckRecent(t.db, AFTER, 7);
     assert.deepEqual(
@@ -729,7 +730,7 @@ describe('rechecking a verdict already given (001 FR-035)', () => {
     assert.equal(
       (await t.sql`select count(*)::int as n from corrections`)[0]!.n,
       0,
-      'a sweep never corrects on its own',
+      'recheckRecent only reports; correctRecent writes',
     );
 
     // The finding outlives the sweep's window, so a verdict known to be wrong keeps saying so (003 FR-007a).
@@ -755,6 +756,28 @@ describe('rechecking a verdict already given (001 FR-035)', () => {
     const [answered] =
       await t.sql`select cleared_at from recheck_findings where claim_id = ${claim.id}`;
     assert.ok(answered?.cleared_at, 'a correction answers the finding');
+  });
+
+  test('the Monday run corrects what the rules now decide differently, once', async () => {
+    const { claim, guardian } = await wrongMiss();
+    assert.deepEqual(await correctRecent(t.db, AFTER, 7), [claim.slug]);
+    const [correction] =
+      await t.sql`select from_outcome, to_outcome, decided_by, deciding_evidence_id from corrections where claim_id = ${claim.id}`;
+    assert.deepEqual(
+      [
+        correction!.from_outcome,
+        correction!.to_outcome,
+        correction!.decided_by,
+        correction!.deciding_evidence_id,
+      ],
+      ['miss', 'hit', 'evidence', guardian],
+    );
+    assert.equal(
+      (await resolutionRow(claim.id))!.outcome,
+      'miss',
+      'the verdict stays frozen',
+    );
+    assert.deepEqual(await correctRecent(t.db, AFTER, 7), [], 'never twice');
   });
 
   // 004 T415a. A free recheck re-reads stored answers, so it can only catch a rule that was wrong. The
@@ -1297,5 +1320,53 @@ describe('shadow mode: the local verifier is asked, recorded and ignored (003 FR
         },
       ],
     );
+  });
+});
+
+describe('follower claims locked as web claims', () => {
+  // ymjep (2026-11-06): the account only in the source's profile URL; a web search would have found nothing.
+  const YMJEP = {
+    ...WEB_CONTRACT,
+    criterion: 'Bhoomi reaches 1000 followers on X',
+    source: {
+      ...WEB_CONTRACT.source,
+      name: 'X',
+      kind: 'social_media',
+      locator: 'https://x.com/Bhoomi1021',
+      entity_id: 'Bhoomi1021',
+    },
+  };
+
+  test('the profile in the source is read from the X API, never searched', async () => {
+    const claim = await lockedClaim(YMJEP);
+    const d = deps();
+    d.deps.x = {
+      getUserByUsername: async (username) => ({ id: '777', username }),
+      getFollowerCount: async (id) => (id === '777' ? 1043 : 0),
+    };
+    assert.equal((await resolveDueClaims(d.deps, AFTER)).final, 1);
+    assert.equal((await resolutionRow(claim.id))!.outcome, 'hit');
+    assert.equal(d.calls.web, 0, 'no web search, no judge');
+    const locked = (
+      await t.sql`select contract from claims where id = ${claim.id}`
+    )[0]!;
+    assert.equal(
+      locked.contract.source.locator,
+      'https://x.com/Bhoomi1021',
+      'the lock stands',
+    );
+  });
+
+  test('a failed handle lookup is an outage: the claim waits, no VOID', async () => {
+    const claim = await lockedClaim(YMJEP);
+    const d = deps();
+    d.deps.x = {
+      getUserByUsername: async () => {
+        throw new Error('503');
+      },
+    };
+    assert.equal((await resolveDueClaims(d.deps, AFTER)).outage, 1);
+    assert.equal(await resolutionRow(claim.id), undefined);
+    assert.equal(d.calls.web, 0);
   });
 });

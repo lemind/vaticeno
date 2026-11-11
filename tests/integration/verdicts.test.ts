@@ -4,6 +4,7 @@ import { after, before, beforeEach, test } from 'node:test';
 import type { BotDeps } from '../../src/bot/mentions.js';
 import {
   deliverVerdicts,
+  deliverCorrections,
   postCorrection,
   postLockReplies,
 } from '../../src/bot/verdicts.js';
@@ -306,4 +307,28 @@ test('a correction too long with its result line still goes out without it', asy
     'the result line is dropped',
   );
   assert.match(posts[0]!, /^CORRECTED · #\w+[\s\S]*Was MISS, is HIT$/);
+});
+
+test('every recent correction posts itself once, after its verdict went out; older ones are left', async () => {
+  const claim = await resolvedClaim('miss');
+  await t.sql`insert into corrections ${t.sql({ claim_id: claim.id, from_outcome: 'miss', to_outcome: 'hit', reason: 'weekly recheck', decided_by: 'evidence', created_at: '2027-01-01T01:30:00Z' })}`;
+  const old = await resolvedClaim('hit');
+  await t.sql`update claims set verdict_reply_at = '2026-12-01T00:00:00Z' where id = ${old.id}`;
+  await t.sql`insert into corrections ${t.sql({ claim_id: old.id, from_outcome: 'hit', to_outcome: 'miss', reason: 'by hand', decided_by: 'human', created_at: '2026-12-01T00:00:00Z' })}`;
+  const posts: string[] = [];
+  const deps = bot(async (_to, text) => {
+    posts.push(text);
+    return { id: `p${posts.length}` };
+  });
+
+  assert.deepEqual(
+    await deliverCorrections(deps, NOW),
+    { posted: 0 },
+    'not before the verdict it corrects',
+  );
+  await t.sql`update claims set verdict_reply_at = ${NOW.toISOString()} where id = ${claim.id}`;
+  assert.deepEqual(await deliverCorrections(deps, NOW), { posted: 1 });
+  assert.deepEqual(await deliverCorrections(deps, NOW), { posted: 0 }, 'once');
+  assert.equal(posts.length, 1);
+  assert.match(posts[0]!, new RegExp(`^CORRECTED · #${claim.slug}`));
 });
