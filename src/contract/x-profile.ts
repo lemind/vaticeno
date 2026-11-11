@@ -12,6 +12,8 @@ const FOLLOWERS = /(\d[\d,.]*)\s*([km])?\+?\s*followers?\b/i; // "1000+ follower
 const PROFILE_PATH = /^\/(\w{1,15})\/?$/;
 const NOT_HANDLES = /^(i|home|search|explore|intent|share|author)$/i;
 const BELOW = /\b(below|under|fewer than|less than)\b/i;
+// "won't reach 500 followers" is a call that the count stays below 500, not that it gets there (kzhj7, 004 T435).
+const NEGATED = /\b(not|never|won'?t|wont|doesn'?t|fails? to)\b|n't\b/i;
 const HANDLE = /@(\w{1,15})\b/g;
 const FIRST_PERSON = /\b(i|i'll|i'm|i will|my|me|mine)\b/i;
 
@@ -87,7 +89,7 @@ function asFollowerContract(
   const match = FOLLOWERS.exec(contract.criterion);
   const threshold = match ? parseCount(match[1]!, match[2]) : null;
   if (threshold === null || !/^\d{1,25}$/.test(userId)) return contract;
-  const below = BELOW.test(contract.criterion);
+  const below = BELOW.test(contract.criterion) || NEGATED.test(contract.criterion);
   const count = threshold.toLocaleString('en-US');
   // A named account is said by name: the model's "Author" read as the poster or the bot (2m7px, 004 T431).
   const named = handle
