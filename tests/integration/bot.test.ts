@@ -1867,7 +1867,52 @@ describe('a refusal is not a dead end (FR-033)', () => {
       1,
       'one page: scrolling up cannot supply a fact no post contains',
     );
-    // Every question is looked up (owner, 2026-11-11): the model's "no live source" is not the answer.
+    assert.match(replies[0]!.text, /no live source/);
+  });
+
+  test('asked again under our answer: looked up, whatever the model says (owner, 2026-11-11)', async () => {
+    threadPosts['a-bot'] = {
+      id: 'a-bot',
+      text: 'It is a big game.',
+      author_id: BOT,
+      referenced_tweets: [{ type: 'replied_to', id: 'a-q' }],
+    };
+    threadPosts['a-q'] = {
+      id: 'a-q',
+      text: '@vaticeno who plays tonight?',
+      author_id: ME,
+    };
+    const asking = mention('a-2', '@vaticeno @vaticeno no, who won tonight?', {
+      in_reply_to_user_id: BOT,
+      referenced_tweets: [{ type: 'replied_to', id: 'a-bot' }],
+    });
+    const { deps, replies } = await bot([[asking]]);
+    const spy = deps.llm as unknown as {
+      generateJson: (a: {
+        input: string;
+        instructionVersion: string;
+      }) => Promise<unknown>;
+    };
+    const inner = spy.generateJson.bind(spy);
+    const watched = {
+      ...deps,
+      llm: {
+        ...deps.llm,
+        generateJson: async (a: { input: string; instructionVersion: string }) => {
+          if (!a.instructionVersion.startsWith('intent.')) return inner(a);
+          return {
+            data: {
+              intent: 'question',
+              answer: 'It is a big game.',
+              older_posts_would_help: false,
+              needs_live_source: false,
+            },
+            costs: [],
+          };
+        },
+      },
+    } as unknown as BotDeps;
+    await pollMentions(watched, NOW);
     assert.match(replies[0]!.text, /Oklahoma beat Texas/);
   });
 

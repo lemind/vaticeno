@@ -533,22 +533,29 @@ async function assess(
     undefined,
     opts.readAbove,
   );
-  // Nearest first, then the conversation oldest to newest, which is the order intent.v4 is told to expect.
+  // Nearest first, then the conversation oldest to newest, which is the order intent.v5 is told to expect.
   const above = first.posts.filter((post) => !first.conversation.includes(post));
   let pages = first.conversation;
   let thread = [...ours, ...above, ...pages];
+  // Asked again: a reply to our answer to a question. That answer missed, so the whole thread is read and the
+  // question looked up, whatever the model says (owner decision 2026-11-11).
+  const asksAgain =
+    above[0]?.from === 'bot' &&
+    above[1]?.from === 'user' &&
+    above[1].text.includes('?');
   let intent: Intent;
   let answer: string | null;
   let wantsOlder: boolean;
+  let needsLive: boolean;
   const ask = async () => {
     const assessed = await classifyIntent(deps.llm, deps.answerModel, body, thread);
     await saveCosts(deps, assessed.costs);
     return assessed;
   };
   try {
-    ({ intent, answer, wantsOlder } = await ask());
+    ({ intent, answer, wantsOlder, needsLive } = await ask());
     // A second page only when the model says the answer is further up. At most one (FR-033a).
-    if (intent === 'question' && wantsOlder && first.oldest) {
+    if (intent === 'question' && (wantsOlder || asksAgain) && first.oldest) {
       const older = await contextAround(deps, mention, repliedTo, first.oldest);
       if (older.conversation.length > 0) {
         pages = [...older.conversation, ...pages];
@@ -560,7 +567,7 @@ async function assess(
         });
         const again = await ask();
         // A worse second answer never costs us the first: the page was bought to improve the answer.
-        ({ intent } = again);
+        ({ intent, needsLive } = again);
         answer = again.answer ?? answer;
       }
     }
@@ -575,6 +582,7 @@ async function assess(
     event: 'mention.assessed',
     tweet_id: mention.id,
     intent,
+    asks_again: asksAgain,
     thread_posts: thread.length,
     ours: thread.filter((post) => post.from === 'bot').length,
     theirs: thread.filter((post) => post.from === 'user').length,
@@ -585,11 +593,13 @@ async function assess(
   if (intent === 'question') {
     // Our own posts are context, not injection: quoting the prediction we stated is the answer (FR-033a).
     const written = [...above, ...pages].filter((post) => post.from === 'user');
-    // Every question is looked up once and answered from that (owner decision 2026-11-11): the quick answer
-    // the assessment writes guessed at odds and events. It stands only if the lookup fails.
-    const live = await liveAnswer(deps, mention, body, thread);
-    if (live && !answerProblem(live, body, written, opts.about?.slug))
-      return { action: 'answer_live', reply: live };
+    // The thread or the claim answers it: the quick answer. A fact about the world (odds, where and when an
+    // event is): always looked up, the quick answer only if that fails — it guessed (owner decision 2026-11-11).
+    if (needsLive || asksAgain) {
+      const live = await liveAnswer(deps, mention, body, thread);
+      if (live && !answerProblem(live, body, written, opts.about?.slug))
+        return { action: 'answer_live', reply: live };
+    }
     const problem = answerProblem(answer, body, written, opts.about?.slug);
     if (!problem) return { action: 'answer', reply: answer as string };
     // Why an answer was thrown away used to be invisible, so a bad reply could not be told from a bad
