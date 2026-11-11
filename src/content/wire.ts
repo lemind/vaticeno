@@ -17,6 +17,7 @@ import { generateImage } from '../llm/image.js';
 import type { CallCost } from '../llm/client.js';
 import { X_MEDIA_UPLOAD_USD } from '../x/prices.js';
 import { posterPrompt } from './event-image.js';
+import type { FoundEvent } from './event-check.js';
 import { saveCosts } from './quote.js';
 import { accessToken } from '../bot/wire.js';
 import { tokenScopes } from '../x/oauth.js';
@@ -30,7 +31,7 @@ export function buildContentDeps(
 ): ContentDeps & {
   postText: (text: string, image?: Buffer) => Promise<{ id: string }>;
   fetchPage: PageFetcher;
-  makePoster?: (topicId: string, title: string) => Promise<Buffer | null>;
+  makePoster?: (topicId: string, event: FoundEvent) => Promise<Buffer | null>;
 } {
   const config = loadConfig();
   if (!config.X_BOT_USER_ID)
@@ -125,7 +126,7 @@ export function buildContentDeps(
 // The event poster: one image call, its cost recorded whether or not an image came back. Nothing is generated (or
 // paid for) until the bot's saved login can upload media.
 function posterMaker(deps: QuoteDeps, apiKey: string, hasOAuth1: boolean) {
-  return async (topicId: string, title: string): Promise<Buffer | null> => {
+  return async (topicId: string, event: FoundEvent): Promise<Buffer | null> => {
     if (!hasOAuth1 && !(await tokenScopes()).includes('media.write')) {
       log('info', 'no poster: no 1.0a keys and the bot login lacks media.write', {
         event: 'feed.poster_no_scope',
@@ -135,7 +136,7 @@ function posterMaker(deps: QuoteDeps, apiKey: string, hasOAuth1: boolean) {
     try {
       const { png, costs } = await generateImage(
         apiKey,
-        posterPrompt(topicId, title),
+        posterPrompt(topicId, event),
       );
       await saveCosts(deps, costs);
       return png;

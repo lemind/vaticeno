@@ -26,7 +26,7 @@ import { TOPICS, type Topic } from './topics.js';
 export type EventDeps = OriginalDeps & {
   fetchPage: PageFetcher;
   // The poster (FR-024): null, or a throw, means the post goes out as text.
-  makePoster?: (topicId: string, title: string) => Promise<Buffer | null>;
+  makePoster?: (topicId: string, event: FoundEvent) => Promise<Buffer | null>;
 };
 export type EventRunResult = {
   done: 'cap_reached' | 'slot_taken' | 'no_event' | 'logged' | 'posted' | 'failed';
@@ -110,7 +110,7 @@ export async function runEventPost(
     }
     const text = eventPostText(event, random);
     if (!text) continue;
-    return publish(deps, now, text, {
+    return publish(deps, now, text, event, {
       topic: topic.id,
       name: event.name,
       date: event.date,
@@ -194,6 +194,7 @@ async function publish(
   deps: EventDeps,
   now: Date,
   text: string,
+  event: FoundEvent,
   payload: EventPayload,
 ): Promise<EventRunResult> {
   if (deps.dryRun) {
@@ -209,7 +210,7 @@ async function publish(
     payload,
   });
   if (!slot) return { done: 'slot_taken' };
-  const image = await poster(deps, payload.topic, payload.name);
+  const image = await poster(deps, payload.topic, event);
   let postedId: string;
   try {
     postedId = (await deps.postText(text, image ?? undefined)).id;
@@ -231,11 +232,11 @@ async function publish(
 async function poster(
   deps: EventDeps,
   topicId: string,
-  title: string,
+  event: FoundEvent,
 ): Promise<Buffer | null> {
   if (!deps.makePoster) return null;
   try {
-    return await deps.makePoster(topicId, title);
+    return await deps.makePoster(topicId, event);
   } catch (error) {
     log('info', 'no poster; posting the text alone', {
       event: 'feed.poster_failed',
