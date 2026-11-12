@@ -290,3 +290,41 @@ test('a follower claim locked as a web claim is read from the profile at the dea
     'already a follower read: no lookup',
   );
 });
+
+test('"won\'t reach" is a call that the count stays below, never "reaches" (kzhj7)', async () => {
+  for (const criterion of [
+    "@sly won't reach 500 followers on X",
+    '@sly will not reach 500 followers on X',
+    '@sly does not reach 500 followers on X',
+    '@sly fails to reach 500 followers on X',
+    '@sly won’t reach 500 followers on X',
+    '@sly wont reach 500 followers on X',
+    '@sly want reach 500 followers on X',
+    "@sly can't reach 500 followers on X",
+    '@sly never reaches 500 followers on X',
+  ]) {
+    const out = await resolveFollowerContract(
+      bhoomi,
+      'vaticeno',
+      { ...YMJEP, criterion },
+      "@sly won't reach 500 followers by tomorrow",
+      POSTER,
+      [],
+    );
+    assert.equal(out.followers?.comparison, 'BELOW', criterion);
+    assert.equal(out.followers?.threshold, 500);
+    assert.equal(out.criterion, '@sly has fewer than 500 followers on X', criterion);
+  }
+});
+
+test('"wants to reach" is still reaching', async () => {
+  const out = await resolveFollowerContract(
+    bhoomi,
+    'vaticeno',
+    { ...YMJEP, criterion: '@sly wants to reach 500 followers on X' },
+    '@sly wants to reach 500 followers',
+    POSTER,
+    [],
+  );
+  assert.equal(out.followers?.comparison, 'AT_LEAST');
+});
