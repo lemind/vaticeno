@@ -98,11 +98,10 @@ async function bot(
   return { deps, replies };
 }
 
-// A `wager` from someone who is not the author, replying to the bot's RECORDED reply (7000): once we are in a
-// thread, a reply to us is what addresses us, not a handle X carries along (src/commands/parse.ts).
+// A `wager` from someone who is not the author, replying to the bot's RECORDED reply (7000), with the bot tagged.
 const wager = (id: string, parent = BOT_REPLY, author = STRANGER): Mention => ({
   id,
-  text: '@vaticeno wager',
+  text: '@vaticeno @vaticeno wager', // X's prefix plus the tag they typed: no tag, no answer
   author_id: author,
   conversation_id: '5000',
   in_reply_to_user_id: BOT,
@@ -236,7 +235,7 @@ describe('the wager command', () => {
   test('"wager" with any words is the command, never a new claim (live 2026-11-02, "wager do!")', async () => {
     await lockedPriceClaim();
     const { deps, replies } = await bot([
-      [{ ...wager('10'), text: '@vaticeno wager do!' }],
+      [{ ...wager('10'), text: '@vaticeno @vaticeno wager do!' }],
     ]);
     await pollMentions(deps, NOW);
     assert.match(replies[0]!.text, /^WAGER · /);

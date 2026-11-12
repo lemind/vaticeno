@@ -539,7 +539,11 @@ shown but never count as a contradiction.
 - **FR-033b**: Replies written to people run on a fuller model than the one that parses predictions, and
   may be as long as the platform allows. The model is configuration, not code. It answers from what it was
   given — the conversation, and Vaticeno's own line about the prediction — and says it does not know
-  rather than guessing at a recent result it has no live source for.
+  rather than guessing at a recent result it has no live source for. A question about the world (odds, what
+  an event is, where and when, a result, a price) is always looked up on the web and answered from that, even
+  when the model thinks it knows; one the conversation or the prediction answers is answered from them. A
+  question asked again under the bot's answer reads further up and is looked up regardless (owner decision
+  2026-11-11: the quick answer guessed at odds and events).
 
 ### Key Entities
 

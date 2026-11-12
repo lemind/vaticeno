@@ -416,8 +416,8 @@ async function liveAnswer(
   try {
     const result = await deps.llm.groundedAnswer({
       model: deps.answerModel,
-      instructionVersion: 'answer-live.v1',
-      system: loadInstruction('answer-live.v1'),
+      instructionVersion: 'answer-live.v2',
+      system: loadInstruction('answer-live.v2'),
       input: JSON.stringify({
         question: body,
         conversation: thread.map((post) => `${post.from}: ${post.text}`),
@@ -533,10 +533,16 @@ async function assess(
     undefined,
     opts.readAbove,
   );
-  // Nearest first, then the conversation oldest to newest, which is the order intent.v4 is told to expect.
+  // Nearest first, then the conversation oldest to newest, which is the order intent.v5 is told to expect.
   const above = first.posts.filter((post) => !first.conversation.includes(post));
   let pages = first.conversation;
   let thread = [...ours, ...above, ...pages];
+  // Asked again: a reply to our answer to a question. That answer missed, so the whole thread is read and the
+  // question looked up, whatever the model says (owner decision 2026-11-11).
+  const asksAgain =
+    above[0]?.from === 'bot' &&
+    above[1]?.from === 'user' &&
+    above[1].text.includes('?');
   let intent: Intent;
   let answer: string | null;
   let wantsOlder: boolean;
@@ -549,7 +555,7 @@ async function assess(
   try {
     ({ intent, answer, wantsOlder, needsLive } = await ask());
     // A second page only when the model says the answer is further up. At most one (FR-033a).
-    if (intent === 'question' && wantsOlder && first.oldest) {
+    if (intent === 'question' && (wantsOlder || asksAgain) && first.oldest) {
       const older = await contextAround(deps, mention, repliedTo, first.oldest);
       if (older.conversation.length > 0) {
         pages = [...older.conversation, ...pages];
@@ -576,6 +582,7 @@ async function assess(
     event: 'mention.assessed',
     tweet_id: mention.id,
     intent,
+    asks_again: asksAgain,
     thread_posts: thread.length,
     ours: thread.filter((post) => post.from === 'bot').length,
     theirs: thread.filter((post) => post.from === 'user').length,
@@ -586,10 +593,9 @@ async function assess(
   if (intent === 'question') {
     // Our own posts are context, not injection: quoting the prediction we stated is the answer (FR-033a).
     const written = [...above, ...pages].filter((post) => post.from === 'user');
-    // A question about the world that nothing in the thread can settle: look it up once, then answer.
-    if (needsLive && !answerProblem(answer, body, written, opts.about?.slug)) {
-      // The model could answer anyway — take that, and keep the money.
-    } else if (needsLive) {
+    // The thread or the claim answers it: the quick answer. A fact about the world (odds, where and when an
+    // event is): always looked up, the quick answer only if that fails — it guessed (owner decision 2026-11-11).
+    if (needsLive || asksAgain) {
       const live = await liveAnswer(deps, mention, body, thread);
       if (live && !answerProblem(live, body, written, opts.about?.slug))
         return { action: 'answer_live', reply: live };

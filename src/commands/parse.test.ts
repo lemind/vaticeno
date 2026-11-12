@@ -103,15 +103,33 @@ const addressed: Array<
     false,
   ],
   [
-    'a reply to one of our posts (a fix)',
-    true,
+    'a reply to one of our posts with no tag of its own: no answer (owner, 2026-11-11)',
+    false,
     reply('@vaticeno make it the daily close', 'bot'),
     true,
+  ],
+  [
+    'a reply to one of our posts that tags us (a fix)',
+    true,
+    reply('@vaticeno @vaticeno make it the daily close', 'bot'),
+    true,
+  ],
+  [
+    'a reply to one of our posts, the tag in their words',
+    true,
+    reply('@vaticeno make it the daily close @vaticeno', 'bot'),
+    false,
   ],
   [
     'a reply under their own post',
     true,
     reply('@vaticeno this, by next month', 'author'),
+    false,
+  ],
+  [
+    'under their own post in a thread we are in, our handle only carried: no answer',
+    false,
+    reply('@vaticeno lol', 'author'),
     true,
   ],
   [

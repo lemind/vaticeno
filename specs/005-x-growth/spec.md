@@ -280,13 +280,13 @@ best — and changes next week's mix from it.
 - **FR-023**: Every model, search and page read is cost-logged; the feed's daily spend cap covers them. Event posts
   respect `FEED_DRY_RUN`. A wrong post is deleted by hand (`post:delete`).
 - **FR-024**: Each event post may carry one AI-generated poster (owner, 2026-11-06; tried with the cheapest model,
-  Gemini 2.5 Flash Image, ≈ $0.039 an image): an abstract picture of the event's sport — a ball, an abstract
-  player, a track, a court — in the sport's or teams' colours. It is a poster for the event, not for Vaticeno: no
-  "Vaticeno" on it. Its one text is the event's name, as the post names it — the teams or fighters (owner,
-  2026-11-09, accepting that the model may misspell a name: trial 2026-11-06 drew "LIEVERPOOL"); date and place stay
-  in the post's text. No logos, no photo-like real person. The upload signs with the bot's OAuth 1.0a keys, since the
-  browser login for `media.write` fails on X's side; its price is UNRECONCILED. A failed image never stops the post:
-  it goes out as text.
+  Gemini 2.5 Flash Image, ≈ $0.039 an image). It sells the event (owner, 2026-11-11): the event's name as its title,
+  then its date ("SAT 14 NOV") and place, in large bold text; when two sides meet, they face off, each in its
+  national flag or team colours. Each poster draws its style and colour scheme at random. The model may misspell a name (trial 2026-11-06 drew "LIEVERPOOL"; accepted,
+  owner 2026-11-09). It is a poster for the event, not for Vaticeno: no "Vaticeno" on it. No club crests or brand
+  logos (trademarks, and the model draws them garbled), no photo-like real person. The upload signs with the bot's
+  OAuth 1.0a keys, since the browser login for `media.write` fails on X's side; its price is UNRECONCILED. A failed
+  image never stops the post: it goes out as text.
 
 - **FR-018**: A weekly review from three sources: X's own dashboard (read by the owner; no paid API read), the
   site report (US1), and the database (claims recorded; distinct authors who tagged the bot, owner excluded).
