@@ -80,12 +80,12 @@ export async function runRacePost(
   const { race, urls } = found;
   const field = priced(race.runners);
   const event = { name: race.name, date: race.date, place: race.course };
-  // Two sites give the race and its day; the five named horses each appear on a page the code read.
+  // Two sites (or the organiser) give the race and its day; the five named horses each appear on a page the code read.
   const read = await readPages(deps, urls);
   let pages = read.pages;
   const unread = read.unread;
   const settled = () =>
-    confirmedBy(event, pages).length >= 2 &&
+    confirmed(confirmedBy(event, pages)) &&
     field.slice(0, TOP).every((r) => onAPage(r.horse, pages));
   // The search's own links often redirect or miss the card (2026-11-13): one search of ours for more pages.
   if (!settled()) {
@@ -96,7 +96,7 @@ export async function runRacePost(
   }
   const hosts = confirmedBy(event, pages);
   const unseen = field.slice(0, TOP).filter((r) => !onAPage(r.horse, pages));
-  if (hosts.length < 2 || field.length < TOP || unseen.length)
+  if (!confirmed(hosts) || field.length < TOP || unseen.length)
     return noRace('race not confirmed', {
       name: race.name,
       date: race.date,
@@ -119,6 +119,12 @@ export async function runRacePost(
     date: race.date,
   });
 }
+
+// Two sites, or the Jockey Club's own card alone: it runs the race, and other racing sites answer the bot with 403
+// (2026-11-13, owner: post every week).
+const confirmed = (hosts: readonly string[]) =>
+  hosts.length >= 2 ||
+  hosts.some((h) => h === 'hkjc.com' || h.endsWith('.hkjc.com'));
 
 const onAPage = (horse: string, pages: readonly ReadPage[]) =>
   pages.some((p) => p.text.toLowerCase().includes(horse.toLowerCase()));
