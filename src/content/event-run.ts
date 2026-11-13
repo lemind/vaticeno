@@ -185,7 +185,7 @@ export async function readPages(
       const page = await deps.fetchPage(url);
       pages.push({ url: page.url, text: page.text });
     } catch (error) {
-      unread.push(String(error).slice(0, 120)); // a page that cannot be read does not count (FR-020)
+      unread.push(String(error).slice(-100)); // the end carries the status; a page that cannot be read does not count (FR-020)
     }
   }
   return { pages, unread };
