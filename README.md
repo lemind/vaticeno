@@ -28,7 +28,8 @@ A follower-count prediction is decided by reading the account's count from X at 
 [spec 005](specs/005-x-growth/spec.md), [tasks](specs/005-x-growth/tasks.md), [rules](docs/content-rules.md).
 Live on the server. Once a day it reposts the most-liked announcement of an upcoming event, found by one X
 search over that weekday's group of event accounts. Tuesday to Thursday it posts an event of its own, with a
-poster, once two sites confirm it. Monday: the predictions coming due this week, only from authors on the
+poster, once two sites confirm it. Every weekend's biggest Hong Kong race goes out on Friday (Saturday if
+Friday found none): the race, day and course, the five shortest prices and a range for the rest, on a poster. Monday: the predictions coming due this week, only from authors on the
 owner's list; Friday: the week's record in counts. The owner can queue own posts on a date. The feed never
 republishes a verdict: a hit or a miss is told once, in its author's thread. `ENABLE_FEED` switches it on;
 `FEED_DRY_RUN=true` (the default) records the picks and posts nothing.
@@ -67,7 +68,7 @@ the model may look, so it would save nothing (spec SC-006). It runs as a private
 | Sports: the event and its competitor must exist (web search), competition filled in, recordable until the start | |
 | Database: lock and verdict rules enforced by Postgres, locally and on Supabase | Backups: scripts in `deploy/`, not installed (owner's call) |
 | Verdicts after the deadline: Coinbase daily close, the account's follower count from X, or AI reading web pages behind code gates; human review; a per-claim spending ceiling with an alert | |
-| Own feed (specs 002, 005), live: one event repost a day found by search, own event posts with a poster Tue–Thu, the Monday list and the Friday record, the owner's dated queue; caps and "never twice" enforced by Postgres; run by systemd timers | |
+| Own feed (specs 002, 005), live: one event repost a day found by search, own event posts with a poster Tue–Thu, the weekend's Hong Kong race with its odds on Fridays, the Monday list and the Friday record, the owner's dated queue; caps and "never twice" enforced by Postgres; run by systemd timers | |
 | Site visits counted with Cloudflare Web Analytics, cookie-free (spec 005) | |
 | Claim and author pages, public on [vaticeno.n30sk.cc](https://vaticeno.n30sk.cc) at `/claim/<slug>` (old `/c/` links forward) | |
 | Testnet wagers (spec 003): escrow contract on Base Sepolia, source verified; the worker that signs and settles; `wager` on X → one link per claim → a page where your own wallet offers, accepts, pays out or refunds; a browser wager settled and paid out (2026-10-26) | |

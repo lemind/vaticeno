@@ -1,0 +1,11 @@
+# Times match SCHEDULES.race in src/jobs/scheduler.ts (UTC).
+[Unit]
+Description=Vaticeno feed: the weekend's Hong Kong race
+
+[Timer]
+OnCalendar=Fri..Sat *-*-* 11:13:00 UTC
+Unit=vaticeno-content@race.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target

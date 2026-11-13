@@ -172,7 +172,7 @@ async function findEvent(
   }
 }
 
-async function readPages(
+export async function readPages(
   deps: EventDeps,
   urls: readonly string[],
 ): Promise<{ pages: ReadPage[]; unread: string[] }> {

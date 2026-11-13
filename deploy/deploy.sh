@@ -20,7 +20,7 @@ ssh "$HOST" 'cd /opt/vaticeno && chown -R vaticeno:vaticeno . && sudo -u vaticen
   && cp deploy/vaticeno.service /etc/systemd/system/ && systemctl daemon-reload && systemctl restart vaticeno'
 # The own feed runs from systemd timers, not from the bot (owner, 2026-11-09): copied and enabled on every deploy.
 ssh "$HOST" 'cd /opt/vaticeno && cp deploy/vaticeno-content@.service deploy/vaticeno-content-*.timer /etc/systemd/system/ \
-  && systemctl daemon-reload && systemctl enable --now vaticeno-content-{pool,original,digest,record,event}.timer'
+  && systemctl daemon-reload && systemctl enable --now vaticeno-content-{pool,original,digest,record,event,race}.timer'
 
 # The status page: its own virtualenv on the server, never rsynced, and localhost only (003 FR-004).
 ssh "$HOST" 'cd /opt/vaticeno && test -x .venv/bin/pip || sudo -u vaticeno python3 -m venv --clear .venv; \

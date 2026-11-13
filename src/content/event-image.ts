@@ -73,3 +73,24 @@ export function posterPrompt(
     "and no recognisable real person's face."
   );
 }
+
+// The weekly Hong Kong race poster (FR-025): the race, its day and course, the five shortest prices and the rest's
+// range, spelled exactly; racehorses in invented silks, nothing anyone owns.
+export function racePosterPrompt(
+  race: { name: string; date: string; course: string },
+  lines: readonly string[],
+  random: () => number = Math.random,
+): string {
+  const pick = <T>(list: readonly T[]) => list[Math.floor(random() * list.length)]!;
+  const clean = (text: string) => text.replace(/["“”]/g, '').trim();
+  return (
+    'A bold, modern race-day poster, 16:9, made to sell the race: racehorses at full gallop on a Hong Kong ' +
+    'racecourse, jockeys in invented bright silks. ' +
+    `Style: ${pick(STYLES)}. Colour scheme: ${pick(PALETTES)}. ` +
+    `Large bold title, spelled exactly: "${clean(race.name)}"; under it "${posterDate(race.date)}" and ` +
+    `"${clean(race.course).toUpperCase()}". Then a clear odds board, one row each, spelled exactly: ` +
+    `${lines.map((l) => `"${clean(l)}"`).join(', ')}. ` +
+    'No other text; no logos, brand marks, sponsor names or watermarks, ' +
+    "and no recognisable real person's face."
+  );
+}
