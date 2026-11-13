@@ -23,6 +23,8 @@ import { markPosted, recordPostFailure, reserveSlot, utcDay } from './slots.js';
 import { overSpendCap, recordFeedPost } from './spend.js';
 import { TOPICS, type Topic } from './topics.js';
 
+const RACE_TOPIC = 'hk-racing'; // src/content/race-run.ts; not imported, since race-run imports this file
+
 export type EventDeps = OriginalDeps & {
   fetchPage: PageFetcher;
   // The poster (FR-024): null, or a throw, means the post goes out as text.
@@ -79,7 +81,7 @@ export async function runEventPost(
     .orderBy(desc(feedPosts.createdAt));
   const posted = past
     .map((r) => r.payload as EventPayload | null)
-    .filter((p): p is EventPayload => !!p);
+    .filter((p): p is EventPayload => !!p && p.topic !== RACE_TOPIC); // the weekly race is not a drawn topic
   const seen = new Set(posted.map((p) => `${p.name.toLowerCase()}|${p.date}`));
   const tried = new Set<string>(posted[0] ? [posted[0].topic] : []); // never the last topic again
 

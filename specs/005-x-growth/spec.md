@@ -287,6 +287,15 @@ best — and changes next week's mix from it.
   logos (trademarks, and the model draws them garbled), no photo-like real person. The upload signs with the bot's
   OAuth 1.0a keys, since the browser login for `media.write` fails on X's side; its price is UNRECONCILED. A failed
   image never stops the post: it goes out as text.
+- **FR-025**: Every weekend, one post on the biggest Hong Kong race (owner, 2026-11-13). The code reads the Hong
+  Kong Jockey Club's own race cards for the coming Saturday and Sunday at Sha Tin and Happy Valley and takes the
+  race with the richest prize, with its name, day, course and runners from the card. A model with web search only
+  prices those runners, as one source quotes them; a horse the card does not name is dropped, and fewer than five
+  prices means no post. The poster gives the race, day and course, the five shortest prices ("5:1",
+  "13:8"; a quoted fraction is shown as quoted) and one range for the rest ("Rest 14:1–33:1"); never a price of
+  our own. The post's text names the race, day and course; the odds are told once, on the poster, and in the
+  text only when no poster came back. Friday, with Saturday as the retry; once a weekend, after the owner's queued post, in a second slot when
+  that one is taken.
 
 - **FR-018**: A weekly review from three sources: X's own dashboard (read by the owner; no paid API read), the
   site report (US1), and the database (claims recorded; distinct authors who tagged the bot, owner excluded).

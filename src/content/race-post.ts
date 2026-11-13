@@ -1,0 +1,112 @@
+// The weekly Hong Kong race post (spec 005 FR-025): the weekend's main race, its date and course, the five shortest
+// prices as quoted and one range for the rest. A fixed template; the model fills slots, never writes the sentence.
+import {
+  hasTagsOrLinks,
+  weightedLength,
+  X_MAX_CHARS,
+} from '../replies/templates.js';
+
+export type Runner = { horse: string; odds: string };
+export type FoundRace = {
+  name: string;
+  date: string;
+  course: string;
+  runners: Runner[];
+};
+export type PricedRunner = { horse: string; ratio: number; odds: string };
+
+export const TOP = 5;
+
+// "13/8" → "13:8": a quoted fraction is shown as quoted, never rounded into a price no source gave (FR-025).
+export function quotedFraction(odds: string): string | null {
+  const fraction = odds.trim().match(/^(\d+)\s*[/:-]\s*(\d+)$/);
+  return fraction && Number(fraction[2]) > 0
+    ? `${fraction[1]}:${fraction[2]}`
+    : null;
+}
+
+// "5/1", "9-2", "5:1", "evens", or a decimal price ("6.0", the pool's way) → the profit per unit staked.
+export function oddsRatio(odds: string): number | null {
+  const text = odds.trim().toLowerCase();
+  if (/^(evs|evens|even)$/.test(text)) return 1;
+  const fraction = text.match(/^(\d+(?:\.\d+)?)\s*[/:-]\s*(\d+(?:\.\d+)?)$/);
+  if (fraction) {
+    const ratio = Number(fraction[1]) / Number(fraction[2]);
+    return Number.isFinite(ratio) && ratio > 0 ? ratio : null;
+  }
+  const decimal = Number(text);
+  return Number.isFinite(decimal) && decimal > 1 ? decimal - 1 : null;
+}
+
+// A decimal price's ratio: 5 → "5:1", 3.5 → "7:2", 2.7 → "27:10"; anything finer to the nearest whole "N:1".
+export function oddsText(ratio: number): string {
+  for (const den of [1, 2, 4, 5, 10]) {
+    const num = ratio * den;
+    if (Math.abs(num - Math.round(num)) < 0.01) return `${Math.round(num)}:${den}`;
+  }
+  return `${Math.max(1, Math.round(ratio))}:1`;
+}
+
+// Shortest first; a runner whose price can't be read is dropped.
+export function priced(runners: readonly Runner[]): PricedRunner[] {
+  return runners
+    .map((r) => ({
+      horse: r.horse.trim(),
+      quoted: r.odds,
+      ratio: oddsRatio(r.odds),
+    }))
+    .filter(
+      (r): r is { horse: string; quoted: string; ratio: number } =>
+        !!r.horse && r.ratio !== null,
+    )
+    .map(({ horse, quoted, ratio }) => ({
+      horse,
+      ratio,
+      odds: quotedFraction(quoted) ?? oddsText(ratio),
+    }))
+    .sort((a, b) => a.ratio - b.ratio);
+}
+
+// "Rest 14:1–99:1", or null when nobody is left after the top five.
+export function restLine(field: readonly PricedRunner[]): string | null {
+  const rest = field.slice(TOP);
+  if (!rest.length) return null;
+  const low = rest[0]!.odds;
+  const high = rest[rest.length - 1]!.odds;
+  return low === high ? `Rest ${low}` : `Rest ${low}–${high}`;
+}
+
+const longDay = (iso: string) =>
+  new Date(`${iso}T12:00:00Z`).toLocaleDateString('en-GB', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    timeZone: 'UTC',
+  });
+
+// null when it does not fit or carries anything an own post may not (constitution VI). With a poster the odds are
+// on the poster alone, so they are told once (owner, 2026-11-13); without one, the text carries them.
+export function racePostText(
+  race: FoundRace,
+  field: readonly PricedRunner[],
+  withOdds = true,
+): string | null {
+  const name = race.name.trim();
+  const course = race.course.trim();
+  if (!name || name.length > 60 || course.length > 30 || field.length < TOP)
+    return null;
+  const rest = restLine(field);
+  const lines = withOdds
+    ? [
+        `${name} · ${course}`,
+        `${longDay(race.date)}, early odds:`,
+        ...field.slice(0, TOP).map((r) => `${r.horse} ${r.odds}`),
+        ...(rest ? [rest] : []),
+      ]
+    : [`${name} · ${course}`, `${longDay(race.date)}. Early odds on the poster.`];
+  const withClosing = `${lines.join('\n')}\n\nYour pick? Tag Vaticeno before the off.`;
+  const bare = lines.join('\n');
+  for (const text of [withClosing, bare])
+    if (weightedLength(text) <= X_MAX_CHARS && !hasTagsOrLinks(text)) return text;
+  return null;
+}
