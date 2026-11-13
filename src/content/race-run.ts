@@ -79,10 +79,22 @@ export async function runRacePost(
   if (!found) return noRace('no race found', {});
   const { race, urls } = found;
   const field = priced(race.runners);
-  const { pages, unread } = await readPages(deps, urls);
   const event = { name: race.name, date: race.date, place: race.course };
-  const hosts = confirmedBy(event, pages);
   // Two sites give the race and its day; the five named horses each appear on a page the code read.
+  const read = await readPages(deps, urls);
+  let pages = read.pages;
+  const unread = read.unread;
+  const settled = () =>
+    confirmedBy(event, pages).length >= 2 &&
+    field.slice(0, TOP).every((r) => onAPage(r.horse, pages));
+  // The search's own links often redirect or miss the card (2026-11-13): one search of ours for more pages.
+  if (!settled()) {
+    const more = (await moreSources(deps, race)).filter((u) => !urls.includes(u));
+    const extra = await readPages(deps, more.slice(0, MAX_PAGES));
+    pages = [...pages, ...extra.pages];
+    unread.push(...extra.unread);
+  }
+  const hosts = confirmedBy(event, pages);
   const unseen = field.slice(0, TOP).filter((r) => !onAPage(r.horse, pages));
   if (hosts.length < 2 || field.length < TOP || unseen.length)
     return noRace('race not confirmed', {
@@ -116,7 +128,7 @@ function noRace(message: string, fields: Record<string, unknown>): RaceRunResult
   return { done: 'no_race' };
 }
 
-// One grounded call; the pages are the search's own, topped up by a search of ours when it gave fewer than two.
+// One grounded call; the pages are the search's own.
 async function findRace(
   deps: RaceDeps,
   now: Date,
@@ -139,28 +151,29 @@ async function findRace(
     if (!parsed.success || !parsed.data.found) return null;
     const { found: _, ...race } = parsed.data;
     if (!days.includes(race.date)) return null; // the weekend is the code's, not the model's
-    let urls = answer.urls;
-    if (urls.length < 2) {
-      const search = await deps.llm.groundedSearch({
-        model: deps.normalizerModel,
-        instructionVersion: 'event-sources.v1',
-        system: loadInstruction('event-sources.v1'),
-        input: JSON.stringify({
-          name: race.name,
-          date: race.date,
-          place: race.course,
-        }),
-      });
-      costs.push(...search.costs);
-      urls = [...new Set([...urls, ...search.urls])];
-    }
-    return { race, urls: urls.slice(0, MAX_PAGES) };
+    return { race, urls: answer.urls.slice(0, MAX_PAGES) };
   } catch (error) {
     if (error instanceof SyntaxError || error instanceof LlmSchemaError) return null;
     throw error; // an outage fails the run; nothing is posted
   } finally {
     await saveCosts(deps, costs);
   }
+}
+
+// Pages that name the race, from a search of ours (the event post's source search).
+async function moreSources(deps: RaceDeps, race: FoundRace): Promise<string[]> {
+  const search = await deps.llm.groundedSearch({
+    model: deps.normalizerModel,
+    instructionVersion: 'event-sources.v1',
+    system: loadInstruction('event-sources.v1'),
+    input: JSON.stringify({
+      name: `${race.name}, Hong Kong horse race, runners and odds`,
+      date: race.date,
+      place: race.course,
+    }),
+  });
+  await saveCosts(deps, search.costs);
+  return search.urls;
 }
 
 // A second slot when the day's own post is taken, so the weekly post is never crowded out (owner: every week);
