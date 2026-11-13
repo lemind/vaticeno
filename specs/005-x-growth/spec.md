@@ -291,9 +291,10 @@ best — and changes next week's mix from it.
   Kong Jockey Club's own race cards for the coming Saturday and Sunday at Sha Tin and Happy Valley and takes the
   race with the richest prize, with its name, day, course and runners from the card. A model with web search only
   prices those runners, as one source quotes them; a horse the card does not name is dropped, and fewer than five
-  prices means no post. The post and its poster give the race, day and course, the five shortest prices ("5:1",
+  prices means no post. The poster gives the race, day and course, the five shortest prices ("5:1",
   "13:8"; a quoted fraction is shown as quoted) and one range for the rest ("Rest 14:1–33:1"); never a price of
-  our own. Friday, with Saturday as the retry; once a weekend, after the owner's queued post, in a second slot when
+  our own. The post's text names the race, day and course; the odds are told once, on the poster, and in the
+  text only when no poster came back. Friday, with Saturday as the retry; once a weekend, after the owner's queued post, in a second slot when
   that one is taken.
 
 - **FR-018**: A weekly review from three sources: X's own dashboard (read by the owner; no paid API read), the

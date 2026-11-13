@@ -84,22 +84,26 @@ const longDay = (iso: string) =>
     timeZone: 'UTC',
   });
 
-// null when it does not fit or carries anything an own post may not (constitution VI).
+// null when it does not fit or carries anything an own post may not (constitution VI). With a poster the odds are
+// on the poster alone, so they are told once (owner, 2026-11-13); without one, the text carries them.
 export function racePostText(
   race: FoundRace,
   field: readonly PricedRunner[],
+  withOdds = true,
 ): string | null {
   const name = race.name.trim();
   const course = race.course.trim();
   if (!name || name.length > 60 || course.length > 30 || field.length < TOP)
     return null;
   const rest = restLine(field);
-  const lines = [
-    `${name} · ${course}`,
-    `${longDay(race.date)}, early odds:`,
-    ...field.slice(0, TOP).map((r) => `${r.horse} ${r.odds}`),
-    ...(rest ? [rest] : []),
-  ];
+  const lines = withOdds
+    ? [
+        `${name} · ${course}`,
+        `${longDay(race.date)}, early odds:`,
+        ...field.slice(0, TOP).map((r) => `${r.horse} ${r.odds}`),
+        ...(rest ? [rest] : []),
+      ]
+    : [`${name} · ${course}`, `${longDay(race.date)}. Early odds on the poster.`];
   const withClosing = `${lines.join('\n')}\n\nYour pick? Tag Vaticeno before the off.`;
   const bare = lines.join('\n');
   for (const text of [withClosing, bare])

@@ -58,6 +58,11 @@ test('the five shortest prices are named and the rest is one range', () => {
   );
   assert.match(text, /Rest 12:1–33:1\n\nYour pick\? Tag Vaticeno before the off\.$/);
   assert.doesNotMatch(text, /[@#]|https?:/);
+  // With a poster the odds are on it alone.
+  assert.equal(
+    racePostText(RACE, field, false),
+    'Hong Kong Gold Cup · Sha Tin\nSun 15 Nov. Early odds on the poster.\n\nYour pick? Tag Vaticeno before the off.',
+  );
   // Fewer than five priced runners: no post.
   assert.equal(racePostText(RACE, field.slice(0, 4)), null);
 });

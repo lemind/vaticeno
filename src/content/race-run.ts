@@ -22,6 +22,7 @@ import {
   restLine,
   TOP,
   type FoundRace,
+  type PricedRunner,
   type Runner,
 } from './race-post.js';
 import { saveCosts } from './quote.js';
@@ -89,14 +90,14 @@ export async function runRacePost(
       date: race.date,
       priced: field.length,
     });
-  const text = racePostText(race, field);
-  if (!text) return noRace('race post does not fit', { name: race.name });
+  if (!racePostText(race, field))
+    return noRace('race post does not fit', { name: race.name });
   const rest = restLine(field);
   const board = [
     ...field.slice(0, TOP).map((r) => `${r.horse} ${r.odds}`),
     ...(rest ? [rest] : []),
   ];
-  return publish(deps, now, text, racePosterPrompt(race, board, random), {
+  return publish(deps, now, race, field, racePosterPrompt(race, board, random), {
     topic: RACE_TOPIC,
     name: race.name,
     date: race.date,
@@ -152,7 +153,8 @@ async function priceRace(deps: RaceDeps, card: CardRace): Promise<Runner[]> {
 async function publish(
   deps: RaceDeps,
   now: Date,
-  text: string,
+  race: FoundRace,
+  field: readonly PricedRunner[],
   prompt: string,
   payload: { topic: string; name: string; date: string },
 ): Promise<RaceRunResult> {
@@ -170,6 +172,8 @@ async function publish(
   );
   if (!slot) return { done: 'already_posted' };
   const image = await poster(deps, prompt);
+  // Checked above with the odds; the short text, for a post that carries the poster, fits whenever that one does.
+  const text = racePostText(race, field, !image)!;
   let postedId: string;
   try {
     postedId = (await deps.postText(text, image ?? undefined)).id;

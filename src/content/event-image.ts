@@ -88,9 +88,9 @@ export function racePosterPrompt(
     'racecourse, jockeys in invented bright silks. ' +
     `Style: ${pick(STYLES)}. Colour scheme: ${pick(PALETTES)}. ` +
     `Large bold title, spelled exactly: "${clean(race.name)}"; under it "${posterDate(race.date)}" and ` +
-    `"${clean(race.course).toUpperCase()}". Then a clear odds board, one row each, spelled exactly: ` +
+    `"${clean(race.course).toUpperCase()}". Then one clear odds board, shown once, one row each, spelled exactly: ` +
     `${lines.map((l) => `"${clean(l)}"`).join(', ')}. ` +
-    'No other text; no logos, brand marks, sponsor names or watermarks, ' +
+    'No other text, and nothing repeated; no logos, brand marks, sponsor names or watermarks, ' +
     "and no recognisable real person's face."
   );
 }
