@@ -9,7 +9,7 @@ const RACE = {
   date: '2026-11-15',
   course: 'Sha Tin',
   runners: [
-    { horse: 'Romantic Warrior', odds: '6/4' },
+    { horse: 'Romantic Warrior', odds: '13/8' },
     { horse: 'Voyage Bubble', odds: '5.0' },
     { horse: 'Ka Ying Rising', odds: '9-2' },
     { horse: 'Golden Sixty', odds: '7/1' },
@@ -30,7 +30,8 @@ test('prices are read in any common form and written as N:M', () => {
   assert.equal(oddsText(3.5), '7:2');
   assert.equal(oddsText(1.5), '3:2');
   assert.equal(oddsText(2.75), '11:4');
-  assert.equal(oddsText(6.3), '6:1');
+  assert.equal(oddsText(2.7), '27:10');
+  assert.equal(oddsText(6.33), '6:1');
 });
 
 test('the five shortest prices are named and the rest is one range', () => {
@@ -38,7 +39,7 @@ test('the five shortest prices are named and the rest is one range', () => {
   assert.deepEqual(
     field.map((r) => `${r.horse} ${r.odds}`),
     [
-      'Romantic Warrior 3:2',
+      'Romantic Warrior 13:8',
       'Voyage Bubble 4:1',
       'Ka Ying Rising 9:2',
       'Golden Sixty 7:1',
@@ -52,7 +53,7 @@ test('the five shortest prices are named and the rest is one range', () => {
   const text = racePostText(RACE, field)!;
   assert.match(
     text,
-    /^Hong Kong Gold Cup · Sha Tin\nSun 15 Nov, early odds:\nRomantic Warrior 3:2\n/,
+    /^Hong Kong Gold Cup · Sha Tin\nSun 15 Nov, early odds:\nRomantic Warrior 13:8\n/,
   );
   assert.match(text, /Rest 12:1–33:1\n\nYour pick\? Tag Vaticeno before the off\.$/);
   assert.doesNotMatch(text, /[@#]|https?:/);
@@ -63,17 +64,17 @@ test('the five shortest prices are named and the rest is one range', () => {
 test('the poster spells the race, the day, the course and the board', () => {
   const prompt = racePosterPrompt(
     RACE,
-    ['Romantic Warrior 3:2', 'Rest 12:1–33:1'],
+    ['Romantic Warrior 13:8', 'Rest 12:1–33:1'],
     () => 0,
   );
   assert.match(prompt, /"Hong Kong Gold Cup"/);
   assert.match(prompt, /"SUN 15 NOV"/);
   assert.match(prompt, /"SHA TIN"/);
-  assert.match(prompt, /"Romantic Warrior 3:2", "Rest 12:1–33:1"/);
+  assert.match(prompt, /"Romantic Warrior 13:8", "Rest 12:1–33:1"/);
 });
 
 test('the weekend is the coming Saturday and Sunday', () => {
-  assert.deepEqual(weekendDays(new Date('2026-11-13T11:13:00Z')), [
+  assert.deepEqual(weekendDays(new Date('2026-11-13T14:13:00Z')), [
     '2026-11-14',
     '2026-11-15',
   ]); // Friday

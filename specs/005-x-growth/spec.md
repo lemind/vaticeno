@@ -290,9 +290,9 @@ best — and changes next week's mix from it.
 - **FR-025**: Every weekend, one post on the biggest Hong Kong race (owner, 2026-11-13): the race at Sha Tin or
   Happy Valley on the coming Saturday or Sunday the racing press leads with, found by a model with web search. The
   post and its poster give the race's name, day and course, the five shortest win prices as one source quotes them
-  ("5:1", "7:2"), and one range for the rest ("Rest 14:1–33:1"). It counts only when two sites the code reads give the
+  ("5:1", "13:8"; a quoted fraction is shown as quoted), and one range for the rest ("Rest 14:1–33:1"). It counts only when two sites the code reads give the
   race and its day and each of the five horses appears on a page the code read; never a price of our own. Friday,
-  with Saturday as the retry; once a weekend, in its own slot beyond the day's own-post cap, so nothing crowds it out.
+  with Saturday as the retry; once a weekend, after the owner's queued post, in a second slot when that one is taken.
 
 - **FR-018**: A weekly review from three sources: X's own dashboard (read by the owner; no paid API read), the
   site report (US1), and the database (claims recorded; distinct authors who tagged the bot, owner excluded).

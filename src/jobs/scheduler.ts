@@ -46,8 +46,9 @@ export const SCHEDULES = {
   record: '47 9 * * 5',
   // After the queue run, only when the day's own-post slot is still free (005 US3a).
   event: '11 15 * * 2-4',
-  // The weekend's Hong Kong race: Friday, once fields and early prices are out; Saturday retries (005 FR-025).
-  race: '13 11 * * 5-6',
+  // The weekend's Hong Kong race: Friday, once fields and early prices are out; Saturday retries. After the
+  // queue run, so a free own-post slot goes to the owner's post first (005 FR-025).
+  race: '13 14 * * 5-6',
   reconcile: '17 1-23/2 * * *',
   recheck: '31 4 * * 1',
 } as const;

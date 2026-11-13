@@ -163,7 +163,7 @@ async function findRace(
   }
 }
 
-// Its own slot beyond the day's own-post cap, so the weekly post is never crowded out (owner: every week);
+// A second slot when the day's own post is taken, so the weekly post is never crowded out (owner: every week);
 // reserved before posting and never retried (INIT_SPEC §6.7).
 async function publish(
   deps: RaceDeps,

@@ -17,6 +17,14 @@ export type PricedRunner = { horse: string; ratio: number; odds: string };
 
 export const TOP = 5;
 
+// "13/8" → "13:8": a quoted fraction is shown as quoted, never rounded into a price no source gave (FR-025).
+export function quotedFraction(odds: string): string | null {
+  const fraction = odds.trim().match(/^(\d+)\s*[/:-]\s*(\d+)$/);
+  return fraction && Number(fraction[2]) > 0
+    ? `${fraction[1]}:${fraction[2]}`
+    : null;
+}
+
 // "5/1", "9-2", "5:1", "evens", or a decimal price ("6.0", the pool's way) → the profit per unit staked.
 export function oddsRatio(odds: string): number | null {
   const text = odds.trim().toLowerCase();
@@ -30,9 +38,9 @@ export function oddsRatio(odds: string): number | null {
   return Number.isFinite(decimal) && decimal > 1 ? decimal - 1 : null;
 }
 
-// 5 → "5:1", 3.5 → "7:2", 2.75 → "11:4", 0.8 → "4:5"; anything else to the nearest whole "N:1".
+// A decimal price's ratio: 5 → "5:1", 3.5 → "7:2", 2.7 → "27:10"; anything finer to the nearest whole "N:1".
 export function oddsText(ratio: number): string {
-  for (const den of [1, 2, 4, 5]) {
+  for (const den of [1, 2, 4, 5, 10]) {
     const num = ratio * den;
     if (Math.abs(num - Math.round(num)) < 0.01) return `${Math.round(num)}:${den}`;
   }
@@ -42,11 +50,20 @@ export function oddsText(ratio: number): string {
 // Shortest first; a runner whose price can't be read is dropped.
 export function priced(runners: readonly Runner[]): PricedRunner[] {
   return runners
-    .map((r) => ({ horse: r.horse.trim(), ratio: oddsRatio(r.odds) }))
+    .map((r) => ({
+      horse: r.horse.trim(),
+      quoted: r.odds,
+      ratio: oddsRatio(r.odds),
+    }))
     .filter(
-      (r): r is { horse: string; ratio: number } => !!r.horse && r.ratio !== null,
+      (r): r is { horse: string; quoted: string; ratio: number } =>
+        !!r.horse && r.ratio !== null,
     )
-    .map((r) => ({ ...r, odds: oddsText(r.ratio) }))
+    .map(({ horse, quoted, ratio }) => ({
+      horse,
+      ratio,
+      odds: quotedFraction(quoted) ?? oddsText(ratio),
+    }))
     .sort((a, b) => a.ratio - b.ratio);
 }
 

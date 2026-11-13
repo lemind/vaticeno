@@ -124,7 +124,7 @@ done by the owner in the X app; their drafts live in `specs/005-x-growth/content
   nothing; a repeat event is skipped; the text never carries a link, a handle or a hashtag.
 - [x] T517l The weekend's Hong Kong race (FR-025, owner 2026-11-13): `src/llm/instructions/race.v1.md`,
   `src/content/race-post.ts` (prices, the top five, the rest's range, the template), `src/content/race-run.ts`,
-  `racePosterPrompt` in `src/content/event-image.ts`; the `race` feed job, Fri–Sat 11:13 UTC
+  `racePosterPrompt` in `src/content/event-image.ts`; the `race` feed job, Fri–Sat 14:13 UTC
   (`deploy/vaticeno-content-race.timer`). Tests: `src/content/race-post.test.ts`.
 
 ---
