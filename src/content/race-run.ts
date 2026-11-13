@@ -8,10 +8,22 @@ import { loadInstruction } from '../llm/instructions.js';
 import { log } from '../log.js';
 import { captureError } from '../observe.js';
 import { X_POST_CREATE_USD } from '../x/prices.js';
-import { confirmedBy, pageCheck, type ReadPage } from './event-check.js';
 import { racePosterPrompt } from './event-image.js';
-import { readPages, type EventDeps } from './event-run.js';
-import { priced, racePostText, restLine, TOP, type FoundRace } from './race-post.js';
+import type { EventDeps } from './event-run.js';
+import {
+  biggestRace,
+  readHtml,
+  type CardRace,
+  type HtmlReader,
+} from './race-card.js';
+import {
+  priced,
+  racePostText,
+  restLine,
+  TOP,
+  type FoundRace,
+  type Runner,
+} from './race-post.js';
 import { saveCosts } from './quote.js';
 import { markPosted, recordPostFailure, reserveSlot, utcDay } from './slots.js';
 import { overSpendCap, recordFeedPost } from './spend.js';
@@ -19,6 +31,7 @@ import { overSpendCap, recordFeedPost } from './spend.js';
 export type RaceDeps = EventDeps & {
   // The poster from a finished prompt: null, or a throw, means the post goes out as text.
   drawPoster?: (prompt: string) => Promise<Buffer | null>;
+  readHtml?: HtmlReader; // the race cards; tests pass their own
 };
 export type RaceRunResult = {
   done:
@@ -26,23 +39,13 @@ export type RaceRunResult = {
 };
 
 export const RACE_TOPIC = 'hk-racing';
-const MAX_PAGES = 4;
 const DAY_MS = 86_400_000;
 
-const Answer = z.union([
-  z.object({ found: z.literal(false) }),
-  z.object({
-    found: z.literal(true),
-    name: z.string().min(3).max(60),
-    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    course: z.string().max(30),
-    runners: z
-      .array(
-        z.object({ horse: z.string().min(2).max(30), odds: z.string().max(12) }),
-      )
-      .max(20),
-  }),
-]);
+const Answer = z.object({
+  runners: z
+    .array(z.object({ horse: z.string().max(40), odds: z.string().max(12) }))
+    .max(20),
+});
 
 // The coming Saturday and Sunday, at most three days ahead: Friday → both, Saturday → Sunday.
 export function weekendDays(now: Date): string[] {
@@ -75,36 +78,16 @@ export async function runRacePost(
     .limit(1);
   if (posted || !days.length) return { done: 'already_posted' };
 
-  const found = await findRace(deps, now, days);
-  if (!found) return noRace('no race found', {});
-  const { race, urls } = found;
+  // The race and its horses come from the Jockey Club's own card, read by the code; the model only prices them.
+  const card = await biggestRace(deps.readHtml ?? readHtml, days);
+  if (!card) return noRace('no race card for the weekend', { days });
+  const race: FoundRace = { ...card, runners: await priceRace(deps, card) };
   const field = priced(race.runners);
-  const event = { name: race.name, date: race.date, place: race.course };
-  // Two sites (or the organiser) give the race and its day; the five named horses each appear on a page the code read.
-  const read = await readPages(deps, urls);
-  let pages = read.pages;
-  const unread = read.unread;
-  const settled = () =>
-    confirmed(confirmedBy(event, pages)) &&
-    field.slice(0, TOP).every((r) => onAPage(r.horse, pages));
-  // The search's own links often redirect or miss the card (2026-11-13): one search of ours for more pages.
-  if (!settled()) {
-    const more = (await moreSources(deps, race)).filter((u) => !urls.includes(u));
-    const extra = await readPages(deps, more.slice(0, MAX_PAGES));
-    pages = [...pages, ...extra.pages];
-    unread.push(...extra.unread);
-  }
-  const hosts = confirmedBy(event, pages);
-  const unseen = field.slice(0, TOP).filter((r) => !onAPage(r.horse, pages));
-  if (!confirmed(hosts) || field.length < TOP || unseen.length)
-    return noRace('race not confirmed', {
+  if (field.length < TOP)
+    return noRace('race not priced', {
       name: race.name,
       date: race.date,
-      hosts,
       priced: field.length,
-      unseen: unseen.map((r) => r.horse),
-      pages: pages.map((p) => pageCheck(event, p)),
-      unread,
     });
   const text = racePostText(race, field);
   if (!text) return noRace('race post does not fit', { name: race.name });
@@ -120,33 +103,26 @@ export async function runRacePost(
   });
 }
 
-// Two sites, or the Jockey Club's own card alone: it runs the race, and other racing sites answer the bot with 403
-// (2026-11-13, owner: post every week).
-const confirmed = (hosts: readonly string[]) =>
-  hosts.length >= 2 ||
-  hosts.some((h) => h === 'hkjc.com' || h.endsWith('.hkjc.com'));
-
-const onAPage = (horse: string, pages: readonly ReadPage[]) =>
-  pages.some((p) => p.text.toLowerCase().includes(horse.toLowerCase()));
-
 function noRace(message: string, fields: Record<string, unknown>): RaceRunResult {
   log('info', message, { event: 'feed.no_race', ...fields });
   return { done: 'no_race' };
 }
 
-// One grounded call; the pages are the search's own.
-async function findRace(
-  deps: RaceDeps,
-  now: Date,
-  days: string[],
-): Promise<{ race: FoundRace; urls: string[] } | null> {
+// One grounded call for the card's horses; a horse the card does not name is dropped.
+async function priceRace(deps: RaceDeps, card: CardRace): Promise<Runner[]> {
   const costs: CallCost[] = [];
   try {
     const answer = await deps.llm.groundedAnswer({
       model: deps.answerModel,
-      instructionVersion: 'race.v1',
-      system: loadInstruction('race.v1'),
-      input: JSON.stringify({ today: utcDay(now), days }),
+      instructionVersion: 'race.v2',
+      system: loadInstruction('race.v2'),
+      input: JSON.stringify({
+        race: card.name,
+        date: card.date,
+        course: card.course,
+        race_no: card.raceNo,
+        horses: card.horses,
+      }),
     });
     costs.push(...answer.costs);
     const start = answer.text.indexOf('{');
@@ -154,32 +130,21 @@ async function findRace(
     const parsed = Answer.safeParse(
       start >= 0 ? JSON.parse(answer.text.slice(start, end + 1)) : null,
     );
-    if (!parsed.success || !parsed.data.found) return null;
-    const { found: _, ...race } = parsed.data;
-    if (!days.includes(race.date)) return null; // the weekend is the code's, not the model's
-    return { race, urls: answer.urls.slice(0, MAX_PAGES) };
+    if (!parsed.success) return [];
+    const byName = new Map(card.horses.map((h) => [h.toLowerCase(), h]));
+    const seen = new Set<string>();
+    return parsed.data.runners.flatMap((r) => {
+      const horse = byName.get(r.horse.trim().toLowerCase());
+      if (!horse || seen.has(horse)) return [];
+      seen.add(horse);
+      return [{ horse, odds: r.odds }];
+    });
   } catch (error) {
-    if (error instanceof SyntaxError || error instanceof LlmSchemaError) return null;
+    if (error instanceof SyntaxError || error instanceof LlmSchemaError) return [];
     throw error; // an outage fails the run; nothing is posted
   } finally {
     await saveCosts(deps, costs);
   }
-}
-
-// Pages that name the race, from a search of ours (the event post's source search).
-async function moreSources(deps: RaceDeps, race: FoundRace): Promise<string[]> {
-  const search = await deps.llm.groundedSearch({
-    model: deps.normalizerModel,
-    instructionVersion: 'event-sources.v1',
-    system: loadInstruction('event-sources.v1'),
-    input: JSON.stringify({
-      name: `${race.name}, Hong Kong horse race, runners and odds`,
-      date: race.date,
-      place: race.course,
-    }),
-  });
-  await saveCosts(deps, search.costs);
-  return search.urls;
 }
 
 // A second slot when the day's own post is taken, so the weekly post is never crowded out (owner: every week);

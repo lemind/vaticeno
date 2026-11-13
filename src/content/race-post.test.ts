@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { racePosterPrompt } from './event-image.js';
 import { oddsRatio, oddsText, priced, racePostText, restLine } from './race-post.js';
 import { weekendDays } from './race-run.js';
+import { parseCard } from './race-card.js';
 
 const RACE = {
   name: 'Hong Kong Gold Cup',
@@ -80,4 +81,21 @@ test('the weekend is the coming Saturday and Sunday', () => {
   ]); // Friday
   assert.deepEqual(weekendDays(new Date('2026-11-14T11:13:00Z')), ['2026-11-15']); // Saturday
   assert.deepEqual(weekendDays(new Date('2026-11-10T11:13:00Z')), []); // Tuesday
+});
+
+test('a race card gives the race, its prize and its horses; another day gives nothing', () => {
+  const html =
+    '<td>Race 7 - THE PANASONIC CUP (HANDICAP)</td> <td>Saturday, November 14, 2026, Sha Tin, 16:00</td>' +
+    '<td>Prize Money: $2,840,000, Rating: 100-80, Class 2</td>' +
+    '<a href="Horse.aspx?horseid=HK_1" onclick="x">BEAUTY WAVES</a><a href="Horse.aspx?horseid=HK_2">ON THE WAY</a>';
+  assert.deepEqual(parseCard(html, '2026-11-14', 'ST'), {
+    name: 'The Panasonic Cup',
+    date: '2026-11-14',
+    course: 'Sha Tin',
+    raceNo: 7,
+    prize: 2_840_000,
+    horses: ['Beauty Waves', 'On The Way'],
+  });
+  assert.equal(parseCard(html, '2026-11-15', 'ST'), null);
+  assert.equal(parseCard(html, '2026-11-14', 'HV'), null);
 });
