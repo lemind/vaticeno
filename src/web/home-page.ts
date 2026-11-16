@@ -6,6 +6,8 @@ import { claims, jobState, resolutions } from '../db/schema.js';
 import { VERSION } from '../version.js';
 import { html, layout, safeHref, utc } from './html.js';
 
+const CHANGELOG_URL = 'https://github.com/lemind/vaticeno/blob/main/CHANGELOG.md';
+
 export type Health = { ok: boolean };
 
 // Red when a job has missed its own window or its last run failed. A job that has never run is not red:
@@ -154,7 +156,9 @@ export async function homePage(
           >
         </dd>
         <dt>Version</dt>
-        <dd>${VERSION}</dd>
+        <dd>
+          <a href="${CHANGELOG_URL}">${VERSION}</a>
+        </dd>
       </dl>
 
       <h2>Recorded</h2>

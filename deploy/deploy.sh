@@ -5,15 +5,23 @@ set -euo pipefail
 HOST="${1:?usage: deploy/deploy.sh root@HOST}"
 cd "$(dirname "$0")/.."
 
+# Every deploy of new code carries a new version and its CHANGELOG.md entry (owner, 2026-11-16).
+VERSION="$(node -p 'require("./package.json").version')"
+COMMIT="$(git rev-parse HEAD)"
+grep -q "^## $VERSION " CHANGELOG.md || { echo "CHANGELOG.md has no entry for $VERSION" >&2; exit 1; }
+LIVE="$(ssh "$HOST" 'cat /opt/vaticeno/.build-info.json 2>/dev/null' || true)"
+if [[ "$LIVE" == *"\"version\":\"$VERSION\""* && "$LIVE" != *"\"commit\":\"$COMMIT\""* ]]; then
+  echo "$VERSION is already live from another commit: raise it in package.json and CHANGELOG.md" >&2
+  exit 1
+fi
+
 rsync -az --delete \
   --exclude node_modules --exclude .git --exclude .state --exclude '.env*' --exclude INIT_SPEC.md \
   --exclude .build-info.json --exclude .venv --exclude __pycache__ \
   ./ "$HOST:/opt/vaticeno/"
 # What is running, written here and never inferred at runtime (003 FR-002). The node version is the
 # server's, so it is read there; the commit and the time are this machine's.
-COMMIT="$(git rev-parse HEAD)"
 DEPLOYED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-VERSION="$(node -p 'require("./package.json").version')"
 ssh "$HOST" "cd /opt/vaticeno && printf '{\"commit\":\"%s\",\"deployed_at\":\"%s\",\"node\":\"%s\",\"version\":\"%s\"}\n' \
   '$COMMIT' '$DEPLOYED_AT' \"\$(node --version)\" '$VERSION' > .build-info.json"
 ssh "$HOST" 'cd /opt/vaticeno && chown -R vaticeno:vaticeno . && sudo -u vaticeno npm ci --no-audit --no-fund \
