@@ -8,7 +8,8 @@ import type { CallCost, LlmClient } from './client.js';
 import { loadInstruction } from './instructions.js';
 
 export const SEARCH_VERSION = 'search.v2';
-export const JUDGE_VERSION = 'judge.v5';
+// judge.v6: a predicted entrant who did not take part makes the page irrelevant, never a miss (owner, 2026-11-16).
+export const JUDGE_VERSION = 'judge.v6';
 // The seeded claims were recorded with v2 (no event_start); they replay with it — no paid re-record.
 export const SEEDS_JUDGE_VERSION = 'judge.v2';
 export const ARBITRATE_VERSION = 'arbitrate.v1';

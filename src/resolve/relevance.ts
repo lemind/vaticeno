@@ -20,7 +20,8 @@ export type EventKey = {
   roundHint: number | null; // named anywhere: the page may contradict it, but need not state it
 };
 
-const ROUND = /\b(?:race|round|week|matchday|leg|game|heat)\s*(?:no\.?\s*)?(\d{1,3})\b/i;
+// "R11" is how racing writes Race 11 (7d35g, 2026-11-14: a Race 1 page decided a claim about R11).
+const ROUND = /\b(?:race|round|week|matchday|leg|game|heat|r(?=\d))\s*(?:no\.?\s*)?(\d{1,3})\b/i;
 const ISO_DATE = /\b(\d{4}-\d{2}-\d{2})\b/;
 const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
 const WRITTEN_DATE = new RegExp(`\\b(${MONTHS.join('|')})\\s+(\\d{1,2})(?:st|nd|rd|th)?,?\\s+(\\d{4})\\b`, 'i');

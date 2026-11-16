@@ -78,3 +78,12 @@ test('a day named by the entity must be the page day', () => {
   assert.equal(matchEvent(contractEventKey(race), identity({ round: 'Race 5', date: '2026-10-12' })), 'no');
   assert.equal(matchEvent(contractEventKey(race), identity({ round: 'Race 5', date: '2026-10-11' })), 'yes');
 });
+
+test('"R11" names Race 11, so a page about Race 1 of the meeting is another event', () => {
+  const r11 = contract('Sha Tin', 'Complete Unknown wins R11 Panasonic System Kitchen Hcp at Sha Tin');
+  const key = contractEventKey(r11);
+  assert.equal(key.roundHint, 11);
+  assert.equal(matchEvent(key, identity({ round: 'Race 1', participants: ['Secret Hedge'] })), 'no');
+  // A horse name that starts with R and a digit-free word is not a round.
+  assert.equal(contractEventKey(contract('Sha Tin', 'Romantic Warrior wins at Sha Tin')).roundHint, null);
+});
