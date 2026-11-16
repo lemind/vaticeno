@@ -1,38 +1,38 @@
 # Changelog
 
 What changed for people using Vaticeno, newest first. The version on the site's front page is the top entry.
-A new feature raises the middle number, a fix the last one; real money raised the first.
+A new feature raises the middle number, a fix the last one.
 
-## 2.5.0 — 2026-11-16
+## 1.11.0 — 2026-11-16
 
 - Every weekend's biggest Hong Kong race goes out on a poster: the race, day, course and early odds.
 - A horse that never ran makes the prediction void, never a miss.
 - The account posts an event of its own on every free day, not only Tuesday to Thursday.
 
-## 2.4.0 — 2026-11-12
+## 1.10.0 — 2026-11-12
 
 - Tag the account to get an answer; answers are researched before they are given.
 - Better posters.
 
-## 2.3.1 — 2026-11-12
+## 1.9.1 — 2026-11-12
 
 - Follower predictions are no longer turned away as unreadable.
 
-## 2.3.0 — 2026-11-11
+## 1.9.0 — 2026-11-11
 
 - Follower predictions are read from X.
 - The weekly recheck posts its corrections by itself.
 
-## 2.2.0 — 2026-11-09
+## 1.8.0 — 2026-11-09
 
 - The account's own voice: chosen reposts, event posts and a weekly record.
 - Site visits are counted.
 
-## 2.1.0 — 2026-11-06
+## 1.7.0 — 2026-11-06
 
 - Commands inside a thread: self-promotion is judged by the model, help is answered.
 
-## 2.0.0 — 2026-11-06
+## 1.6.0 — 2026-11-06
 
 - Real money: wagers on Base and Arbitrum One, in USDC and USDT.
 
