@@ -86,7 +86,7 @@ owner after the lock or the verdict and queued like any other.
 
 ## Event posts by the bot (US3a, FR-019–FR-024)
 
-`src/content/event-run.ts`, Tue–Thu after the queue run, only when the day's original slot is still free:
+`src/content/event-run.ts`, every day after the queue run, only when the day's original slot is still free:
 
 1. `drawTopic(month, lastEventTopic)` from `src/content/topics.ts`.
 2. One grounded model call (`event.v1`, the search the resolver already uses): the nearest major scheduled event

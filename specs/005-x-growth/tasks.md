@@ -93,7 +93,7 @@ done by the owner in the X app; their drafts live in `specs/005-x-growth/content
 - [x] T517a [US3a] `src/content/event-post.ts`: the template (event · scheduled for · date · place, plus one of a
   few fixed closing lines), the usual own-feed text checks, and `src/content/event-run.ts`: free slot → up to three
   topics → post once, kind `event` with payload {topic, name, date} (migration in T509); the next run's last topic is the latest event post's, never the same event twice,
-  costs logged, dry run respected. Scheduled Tue–Thu after the queue run.
+  costs logged, dry run respected. Scheduled daily after the queue run (owner 2026-11-16; was Tue–Thu).
 - [x] T517c [US3a] Event poster (FR-024): `src/content/event-image.ts` (a prompt per topic: abstract, no text, no
   logos, no "Vaticeno"), `src/llm/image.ts` (Gemini 2.5 Flash Image, 16:9, cost logged), `uploadImage` in
   `src/x/client.ts`, `media.write` in `OAUTH_SCOPES`. No image is generated, or paid for, until the saved login

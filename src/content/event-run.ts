@@ -1,5 +1,5 @@
 // The bot's own event post (spec 005 US3a): a random topic in season, a model with web search proposes the nearest
-// big event, two pages the code reads confirm it, and a fixed template says it. Tue–Thu, only in a free own-post
+// big event, two pages the code reads confirm it, and a fixed template says it. Every day, only in a free own-post
 // slot; at most three topics, then nothing that day.
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import { z } from 'zod';

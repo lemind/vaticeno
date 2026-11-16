@@ -95,7 +95,7 @@ dated post goes out on its day, the undated one on the first free day, and nothi
 
 ### User Story 3a - Event posts by the bot (Priority: P1)
 
-Three days a week, with nothing else to post, the bot announces a major event coming up in a random topic —
+Every day, with nothing else to post (owner, 2026-11-16: no queue to fill), the bot announces a major event coming up in a random topic —
 "Wimbledon final is scheduled for 12 Jul in London. Have a call? Tag Vaticeno before it starts." — having found it
 with a web search and confirmed it in two independent sources itself. The owner does nothing.
 

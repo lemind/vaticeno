@@ -45,7 +45,7 @@ export const SCHEDULES = {
   digest: '17 8 * * 1',
   record: '47 9 * * 5',
   // After the queue run, only when the day's own-post slot is still free (005 US3a).
-  event: '11 15 * * 2-4',
+  event: '11 15 * * *',
   // The weekend's Hong Kong race: Friday, once fields and early prices are out; Saturday retries. After the
   // queue run, so a free own-post slot goes to the owner's post first (005 FR-025).
   race: '13 14 * * 5-6',
@@ -77,7 +77,7 @@ const INTERVALS_SEC: Record<keyof typeof SCHEDULES, number> = {
   original: 86_400,
   digest: 7 * 86_400,
   record: 7 * 86_400,
-  event: 5 * 86_400,
+  event: 86_400,
   race: 6 * 86_400,
   reconcile: 7_200,
   recheck: 7 * 86_400,
