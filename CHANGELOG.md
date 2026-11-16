@@ -3,6 +3,10 @@
 What changed for people using Vaticeno, newest first. The version on the site's front page is the top entry.
 A new feature raises the middle number, a fix the last one.
 
+## 1.11.1 — 2026-11-16
+
+- The version on the front page opens the changelog of the code that is running.
+
 ## 1.11.0 — 2026-11-16
 
 - Every weekend's biggest Hong Kong race goes out on a poster: the race, day, course and early odds.

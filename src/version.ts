@@ -7,3 +7,18 @@ const pkg = JSON.parse(
 ) as { version: string };
 
 export const VERSION = pkg.version;
+
+// The commit deploy/deploy.sh wrote into .build-info.json; null where nothing was deployed (a laptop, tests).
+function deployedCommit(): string | null {
+  let text: string;
+  try {
+    text = readFileSync(new URL('../.build-info.json', import.meta.url), 'utf8');
+  } catch {
+    return null; // no deploy here: the file only exists on the server
+  }
+  const commit = (JSON.parse(text) as { commit?: unknown }).commit;
+  return typeof commit === 'string' && /^[0-9a-f]{40}$/.test(commit) ? commit : null;
+}
+
+// The changelog as of the running commit, so the live version's entry is there before the PR is merged.
+export const CHANGELOG_URL = `https://github.com/lemind/vaticeno/blob/${deployedCommit() ?? 'main'}/CHANGELOG.md`;

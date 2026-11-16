@@ -3,10 +3,8 @@
 import { count, eq, isNotNull } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
 import { claims, jobState, resolutions } from '../db/schema.js';
-import { VERSION } from '../version.js';
+import { CHANGELOG_URL, VERSION } from '../version.js';
 import { html, layout, safeHref, utc } from './html.js';
-
-const CHANGELOG_URL = 'https://github.com/lemind/vaticeno/blob/main/CHANGELOG.md';
 
 export type Health = { ok: boolean };
 
