@@ -125,7 +125,7 @@ done by the owner in the X app; their drafts live in `specs/005-x-growth/content
 - [x] T517l The weekend's Hong Kong race (FR-025, owner 2026-11-13): `src/content/race-card.ts` (the Jockey Club's cards, read by the code),
   `src/llm/instructions/race.v2.md` (prices only), `src/content/race-post.ts` (prices, the top five, the rest's range, the template), `src/content/race-run.ts`,
   `racePosterPrompt` in `src/content/event-image.ts`; the `race` feed job, Fri–Sat 14:13 UTC
-  (`deploy/vaticeno-content-race.timer`). Tests: `src/content/race-post.test.ts`.
+  (`deploy/vaticeno-content-race.timer`). Stand-by horses are not runners; the short text is checked first, so a long field never stops the post (review). Tests: `src/content/race-post.test.ts`.
 
 ---
 

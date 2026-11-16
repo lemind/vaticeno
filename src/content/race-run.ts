@@ -90,7 +90,7 @@ export async function runRacePost(
       date: race.date,
       priced: field.length,
     });
-  if (!racePostText(race, field))
+  if (!racePostText(race, field, false))
     return noRace('race post does not fit', { name: race.name });
   const rest = restLine(field);
   const board = [
@@ -172,8 +172,9 @@ async function publish(
   );
   if (!slot) return { done: 'already_posted' };
   const image = await poster(deps, prompt);
-  // Checked above with the odds; the short text, for a post that carries the poster, fits whenever that one does.
-  const text = racePostText(race, field, !image)!;
+  // With no poster the odds go in the text; if that does not fit, the short text goes out alone.
+  const text =
+    (!image && racePostText(race, field)) || racePostText(race, field, false)!;
   let postedId: string;
   try {
     postedId = (await deps.postText(text, image ?? undefined)).id;

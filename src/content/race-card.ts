@@ -47,7 +47,7 @@ const textOf = (html: string) =>
     .replace(/\s+/g, ' ');
 
 // HACK(hkjc): OBSERVED 2026-11-13 — a card heads "Race 7 - THE PANASONIC CUP (HANDICAP) Saturday, November 14,
-// 2026, Sha Tin, … Prize Money: $2,840,000", horses link with horseid=. See specs/005-x-growth/spec.md FR-025.
+// 2026, Sha Tin, … Prize Money: $2,840,000", horses link with horseid=, stand-bys after a standbylist block. See specs/005-x-growth/spec.md FR-025.
 // REVISIT: when the Jockey Club changes its race card page, or a weekend reads no meeting.
 export function parseCard(
   html: string,
@@ -63,9 +63,10 @@ export function parseCard(
   );
   const prize = text.match(/Prize Money: \$([\d,]+)/);
   if (!head || !prize) return null; // another day's card: the site shows the next meeting instead
+  const starters = html.split('standbylist"')[0]!; // stand-by horses follow the field and may never start
   const horses = [
     ...new Set(
-      [...html.matchAll(/horseid=[^"]*"[^>]*>([^<]+)</gi)].map((h) =>
+      [...starters.matchAll(/horseid=[^"]*"[^>]*>([^<]+)</gi)].map((h) =>
         titleCase(h[1]!),
       ),
     ),

@@ -9,7 +9,8 @@ import { loadInstruction } from './instructions.js';
 
 export const SEARCH_VERSION = 'search.v2';
 // judge.v6: a predicted entrant who did not take part makes the page irrelevant, never a miss (owner, 2026-11-16).
-export const JUDGE_VERSION = 'judge.v6';
+// judge.v7: "absent" counts only from a page listing the whole field; one naming the winner alone still shows a miss.
+export const JUDGE_VERSION = 'judge.v7';
 // The seeded claims were recorded with v2 (no event_start); they replay with it — no paid re-record.
 export const SEEDS_JUDGE_VERSION = 'judge.v2';
 export const ARBITRATE_VERSION = 'arbitrate.v1';
@@ -22,20 +23,34 @@ const contractInput = (contract: Contract, window: Window) => ({
   deadline: window.deadlineAt.toISOString(),
 });
 
-export async function searchSources(llm: LlmClient, model: string, contract: Contract, window: Window, pass: number, knownSources: readonly string[]) {
+export async function searchSources(
+  llm: LlmClient,
+  model: string,
+  contract: Contract,
+  window: Window,
+  pass: number,
+  knownSources: readonly string[],
+) {
   // pass is part of the input so two passes are two recorded calls, even with the same model.
   return llm.groundedSearch({
     model,
     instructionVersion: SEARCH_VERSION,
     system: loadInstruction(SEARCH_VERSION),
-    input: JSON.stringify({ ...contractInput(contract, window), pass, known_sources: knownSources }),
+    input: JSON.stringify({
+      ...contractInput(contract, window),
+      pass,
+      known_sources: knownSources,
+    }),
   });
 }
 
 const DATE = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 // judge.v5: which event the page itself reports. Code checks it against the contract (004 FR-001); rows
 // judged before v5 carry none, so relevance cannot be re-examined over them for free.
-const ObservedResultShape = z.object({ winner: z.string().max(80).nullable(), score: z.string().max(60).nullable() });
+const ObservedResultShape = z.object({
+  winner: z.string().max(80).nullable(),
+  score: z.string().max(60).nullable(),
+});
 const EventIdentityShape = z.object({
   date: DATE.nullable(),
   competition: z.string().max(80).nullable(),
@@ -58,20 +73,45 @@ const JudgeFields = {
   original_source: z.string().max(80).nullable(),
   reasoning: z.string().max(400),
 };
-const JudgeSchema = z.object({ ...JudgeFields, quote: z.string().max(600).nullable() });
+const JudgeSchema = z.object({
+  ...JudgeFields,
+  quote: z.string().max(600).nullable(),
+});
 // Recorded shape: no quote field at all (the replay store refuses one), only its hash and whether it was on the page.
-const JudgeRecordedSchema = z.object({ ...JudgeFields, quote_sha256: z.string().nullable(), quote_found: z.boolean() });
+const JudgeRecordedSchema = z.object({
+  ...JudgeFields,
+  quote_sha256: z.string().nullable(),
+  quote_found: z.boolean(),
+});
 
 // judge.v4 requires this field in the schema itself: a `.refine()` never reaches the provider, and
 // discarding a page over a missing line would cost a verdict (001 FR-032).
 const V4_FIELDS = { ...JudgeFields, result: z.string().max(80).nullable() };
-const JudgeSchemaV4 = z.object({ ...V4_FIELDS, quote: z.string().max(600).nullable() });
-const JudgeRecordedSchemaV4 = z.object({ ...V4_FIELDS, quote_sha256: z.string().nullable(), quote_found: z.boolean() });
+const JudgeSchemaV4 = z.object({
+  ...V4_FIELDS,
+  quote: z.string().max(600).nullable(),
+});
+const JudgeRecordedSchemaV4 = z.object({
+  ...V4_FIELDS,
+  quote_sha256: z.string().nullable(),
+  quote_found: z.boolean(),
+});
 const BEFORE_V4 = ['judge.v1', 'judge.v2', 'judge.v3'];
 
-const V5_FIELDS = { ...V4_FIELDS, event_identity: EventIdentityShape.nullable(), observed_result: ObservedResultShape.nullable() };
-const JudgeSchemaV5 = z.object({ ...V5_FIELDS, quote: z.string().max(600).nullable() });
-const JudgeRecordedSchemaV5 = z.object({ ...V5_FIELDS, quote_sha256: z.string().nullable(), quote_found: z.boolean() });
+const V5_FIELDS = {
+  ...V4_FIELDS,
+  event_identity: EventIdentityShape.nullable(),
+  observed_result: ObservedResultShape.nullable(),
+};
+const JudgeSchemaV5 = z.object({
+  ...V5_FIELDS,
+  quote: z.string().max(600).nullable(),
+});
+const JudgeRecordedSchemaV5 = z.object({
+  ...V5_FIELDS,
+  quote_sha256: z.string().nullable(),
+  quote_found: z.boolean(),
+});
 const BEFORE_V5 = [...BEFORE_V4, 'judge.v4'];
 
 // What a judge call hands back. A live answer carries the quote, a recorded one its hash and whether it
@@ -92,12 +132,17 @@ function replaySchemaFor(version: string): z.ZodType<JudgeData> {
   return BEFORE_V5.includes(version) ? JudgeRecordedSchemaV4 : JudgeRecordedSchemaV5;
 }
 
-export type Judgement = Omit<z.infer<typeof JudgeSchema>, 'quote'> & { quoteFound: boolean | null };
+export type Judgement = Omit<z.infer<typeof JudgeSchema>, 'quote'> & {
+  quoteFound: boolean | null;
+};
 
 // v3 also gets when the claim was last set (lock − 15 min): a match that began after it counts (gates.ts).
 function judgeInput(contract: Contract, window: Window, version: string) {
   if (version === 'judge.v2') return contractInput(contract, window);
-  return { ...contractInput(contract, window), claim_set: new Date(window.lockAt.getTime() - 15 * 60 * 1000).toISOString() };
+  return {
+    ...contractInput(contract, window),
+    claim_set: new Date(window.lockAt.getTime() - 15 * 60 * 1000).toISOString(),
+  };
 }
 
 export async function judgePage(
@@ -113,19 +158,37 @@ export async function judgePage(
     instructionVersion: version,
     operation: 'judge',
     system: loadInstruction(version),
-    input: JSON.stringify({ ...judgeInput(contract, window, version), page: { url: page.url, text: page.text } }),
-    replayIdentity: { ...judgeInput(contract, window, version), url: page.url, sha256: page.sha256 },
+    input: JSON.stringify({
+      ...judgeInput(contract, window, version),
+      page: { url: page.url, text: page.text },
+    }),
+    replayIdentity: {
+      ...judgeInput(contract, window, version),
+      url: page.url,
+      sha256: page.sha256,
+    },
     schema: judgeSchemaFor(version),
     replaySchema: replaySchemaFor(version),
     recordAs: (raw) => redactQuote(raw, page.text),
   });
   // Live: check the quote against the page now. Replay: use the check made when it was recorded.
-  const quoteFound = data.quote_found ?? (data.quote ? quoteInText(data.quote, page.text) : null);
+  const quoteFound =
+    data.quote_found ?? (data.quote ? quoteInText(data.quote, page.text) : null);
   const judgement: Judgement = {
-    says: data.says, basis: data.basis, event_date: data.event_date, event_start: data.event_start ?? null, result: data.result ?? null, is_final_result: data.is_final_result,
-    from_contract_source: data.from_contract_source, source_trust: data.source_trust, trust_reason: data.trust_reason,
-    event_identity: data.event_identity ?? null, observed_result: data.observed_result ?? null,
-    original_source: data.original_source, reasoning: data.reasoning, quoteFound,
+    says: data.says,
+    basis: data.basis,
+    event_date: data.event_date,
+    event_start: data.event_start ?? null,
+    result: data.result ?? null,
+    is_final_result: data.is_final_result,
+    from_contract_source: data.from_contract_source,
+    source_trust: data.source_trust,
+    trust_reason: data.trust_reason,
+    event_identity: data.event_identity ?? null,
+    observed_result: data.observed_result ?? null,
+    original_source: data.original_source,
+    reasoning: data.reasoning,
+    quoteFound,
   };
   return { judgement, costs }; // the quote goes no further than this function
 }
@@ -134,7 +197,11 @@ function redactQuote(raw: unknown, text: string): unknown {
   if (raw === null || typeof raw !== 'object' || !('quote' in raw)) return raw;
   const { quote, ...rest } = raw as { quote: unknown };
   const q = typeof quote === 'string' ? quote : null;
-  return { ...rest, quote_sha256: q ? createHash('sha256').update(q).digest('hex') : null, quote_found: q ? quoteInText(q, text) : false };
+  return {
+    ...rest,
+    quote_sha256: q ? createHash('sha256').update(q).digest('hex') : null,
+    quote_found: q ? quoteInText(q, text) : false,
+  };
 }
 
 const ArbiterSchema = z.object({
@@ -145,9 +212,23 @@ const ArbiterSchema = z.object({
 });
 export type ArbiterAnswer = z.infer<typeof ArbiterSchema>;
 
-export type ArbiterItem = { sourceName: string; trustLevel: string; says: string; eventDate: string | null; url: string; sha256: string; text: string };
+export type ArbiterItem = {
+  sourceName: string;
+  trustLevel: string;
+  says: string;
+  eventDate: string | null;
+  url: string;
+  sha256: string;
+  text: string;
+};
 
-export async function arbitrate(llm: LlmClient, model: string, contract: Contract, window: Window, items: ArbiterItem[]) {
+export async function arbitrate(
+  llm: LlmClient,
+  model: string,
+  contract: Contract,
+  window: Window,
+  items: ArbiterItem[],
+) {
   const { data, costs } = await llm.generateJson({
     model,
     instructionVersion: ARBITRATE_VERSION,
@@ -155,13 +236,42 @@ export async function arbitrate(llm: LlmClient, model: string, contract: Contrac
     system: loadInstruction(ARBITRATE_VERSION),
     input: JSON.stringify({
       ...contractInput(contract, window),
-      items: items.map((item, index) => ({ index, source: item.sourceName, trust: item.trustLevel, says: item.says, event_date: item.eventDate, url: item.url, text: item.text })),
+      items: items.map((item, index) => ({
+        index,
+        source: item.sourceName,
+        trust: item.trustLevel,
+        says: item.says,
+        event_date: item.eventDate,
+        url: item.url,
+        text: item.text,
+      })),
     }),
-    replayIdentity: { ...contractInput(contract, window), items: items.map((item) => ({ url: item.url, sha256: item.sha256, says: item.says })) },
+    replayIdentity: {
+      ...contractInput(contract, window),
+      items: items.map((item) => ({
+        url: item.url,
+        sha256: item.sha256,
+        says: item.says,
+      })),
+    },
     schema: ArbiterSchema,
   });
   // The arbiter may only side with one of the given items, with that item's own answer.
-  const chosen = data.deciding_index === null ? undefined : items[data.deciding_index];
-  const valid = data.decision === 'decided' && chosen !== undefined && data.outcome === chosen.says;
-  return { answer: valid ? data : { ...data, decision: 'cannot_decide' as const, deciding_index: null, outcome: null }, costs };
+  const chosen =
+    data.deciding_index === null ? undefined : items[data.deciding_index];
+  const valid =
+    data.decision === 'decided' &&
+    chosen !== undefined &&
+    data.outcome === chosen.says;
+  return {
+    answer: valid
+      ? data
+      : {
+          ...data,
+          decision: 'cannot_decide' as const,
+          deciding_index: null,
+          outcome: null,
+        },
+    costs,
+  };
 }

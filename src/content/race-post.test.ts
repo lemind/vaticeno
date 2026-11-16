@@ -92,7 +92,8 @@ test('a race card gives the race, its prize and its horses; another day gives no
   const html =
     '<td>Race 7 - THE PANASONIC CUP (HANDICAP)</td> <td>Saturday, November 14, 2026, Sha Tin, 16:00</td>' +
     '<td>Prize Money: $2,840,000, Rating: 100-80, Class 2</td>' +
-    '<a href="Horse.aspx?horseid=HK_1" onclick="x">BEAUTY WAVES</a><a href="Horse.aspx?horseid=HK_2">ON THE WAY</a>';
+    '<a href="Horse.aspx?horseid=HK_1" onclick="x">BEAUTY WAVES</a><a href="Horse.aspx?horseid=HK_2">ON THE WAY</a>' +
+    '<div class="standbylist">Stand-by Starter<a href="Horse.aspx?horseid=HK_3">KOLACHI</a></div>';
   assert.deepEqual(parseCard(html, '2026-11-14', 'ST'), {
     name: 'The Panasonic Cup',
     date: '2026-11-14',
