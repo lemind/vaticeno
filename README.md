@@ -9,7 +9,8 @@ An X bot that puts predictions **on the record** and checks them automatically o
 ```
 
 **Live at [vaticeno.n30sk.cc](https://vaticeno.n30sk.cc)** — the front page says whether it is running and
-what version; `/status` is the owner's page, behind a password. On X: [@vaticeno](https://x.com/vaticeno).
+what version, linked to [CHANGELOG.md](CHANGELOG.md) as of the running commit; `/status` is the owner's page,
+behind a password. On X: [@vaticeno](https://x.com/vaticeno).
 
 ## Status
 
@@ -162,6 +163,12 @@ listed in [contracts/cli.md](specs/001-stage0-contract-core/contracts/cli.md).
 ```bash
 deploy/deploy.sh root@HOST                    # every update: sync, install, restart every unit
 ```
+
+Every deploy of new code raises the version in `package.json` (a feature the minor, a fix the patch) and adds
+its dated [CHANGELOG.md](CHANGELOG.md) entry. The script refuses uncommitted or unpushed code and a new commit
+under a version already live. Where this machine's traffic goes out through the server itself, direct SSH to it
+loops: run the script with an `ssh` on `PATH` that goes through the open tunnel
+(`-o "ProxyCommand=nc -X 5 -x 127.0.0.1:1080 127.0.0.1 22"`).
 
 What the server runs, where its secrets live and how to move it to another one: [docs/server.md](docs/server.md).
 
