@@ -32,7 +32,9 @@ model-decided) proven on seeded claims, public pages. Where INIT_SPEC (v1.1.1) i
 - **Checkable by construction** (constitution II): any topic, but every contract names criterion, deadline, source and how "no" is shown. Evidence from several sources must pass code gates; one resolution per claim (agree / LLM arbiter / human review flag). No evidence = VOID, never MISS.
 - **Outage ≠ verdict**: source down → retry next run, no void, no `undecided_count` bump (§6.7).
 - **One reply per inbound interaction**; never a standalone `@mention` post (§6.1, §6.5).
-- **Lease writes are `worker_token`-guarded**; 0 rows updated → no side effects (§6.1).
+- **A mention is answered once** (§6.1): the cursor and answered ids live in `.state/ingest.json` (atomic rename),
+  a claim is unique per source post in Postgres, one job run at a time under an advisory lock. INIT_SPEC's
+  `worker_token` lease table was never built; keep this list true to the code.
 - **Never retry a post after a failed existence check** — that is how duplicates happen (§6.7).
 - **No post text stored**, IDs only (§6.9). `x_user_id` is identity; handle is a display cache (§3).
 - **Replies only where mentioned** (constitution VI): one reply per mention, in that thread; no unsolicited replies. The final verdict is posted once in the claim's thread (constitution VI 2.3.0).
