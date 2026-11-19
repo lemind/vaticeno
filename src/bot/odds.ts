@@ -3,6 +3,7 @@
 import { z } from 'zod';
 import type { CallCost } from '../llm/client.js';
 import { loadInstruction } from '../llm/instructions.js';
+import { log } from '../log.js';
 import { averaged, oddsText } from './odds-format.js';
 
 // Lenient on purpose: one odd row (a price as "2.5", a null, a long name) is dropped, never the whole answer.
@@ -31,7 +32,12 @@ export type OddsDeps = {
       instructionVersion: string;
       system: string;
       input: string;
-    }) => Promise<{ text: string; urls: string[]; costs: CallCost[] }>;
+    }) => Promise<{
+      text: string;
+      urls: string[];
+      sites?: string[];
+      costs: CallCost[];
+    }>;
   };
 };
 
@@ -49,8 +55,8 @@ export async function lookUpOdds(
   // LlmUnavailable propagates: the mention is retried next run, never answered "no prices" (INIT_SPEC §6.7).
   const answer = await deps.llm.groundedAnswer({
     model: deps.answerModel,
-    instructionVersion: 'odds.v1',
-    system: loadInstruction('odds.v1'),
+    instructionVersion: 'odds.v2',
+    system: loadInstruction('odds.v2'),
     input: JSON.stringify(input),
   });
   const costs = answer.costs.map((cost) => ({
@@ -69,6 +75,13 @@ export async function lookUpOdds(
   if (!parsed.success) return { outcome: 'no_prices', text: null, costs };
   if (!parsed.data.found) return { outcome: 'no_event', text: null, costs };
   const outcomes = parsed.data.outcomes.filter((o) => o !== null);
+  // Every price the search gave and the sites it read: why our odds differ from someone else's is answered here.
+  log('info', 'odds looked up', {
+    event: 'odds.lookup',
+    match: parsed.data.event,
+    outcomes: outcomes.map((o) => ({ name: o.name, prices: o.prices })),
+    sources: answer.sites ?? [],
+  });
   const text = oddsText(parsed.data.event, averaged(outcomes));
   return text
     ? { outcome: 'odds', text, costs }

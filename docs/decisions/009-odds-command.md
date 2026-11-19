@@ -15,9 +15,11 @@ say, and its rules forbid odds anywhere ("never a tip, odds…", 005 FR-016).
    for the event the post or its prediction is about. Nothing else is needed in the mention.
 2. **Two formats.** Classic fractional odds — `2:1`, `1:2`, `5:2`, rounded to the nearest common price — each with its
    decimal odds beside it (`2:1 (3.00)`, `1:4 (1.25)`). No American odds: readers convert if they want them.
-3. **An average of at least two bookmakers.** One web search through the model asks for the current prices of the
-   event's outcomes at two or more bookmakers. Code requires two prices per outcome and averages them; with fewer,
-   the reply says no bookmaker prices it.
+3. **The range of at least two bookmakers.** One web search through the model asks for the current prices of the
+   event's outcomes at two or more bookmakers. Code requires two prices per outcome and shows their range, shortest
+   to longest (`2:9–2:7 (1.22–1.29)`; one price when they agree); with fewer, the reply says no bookmaker prices it.
+   Amended 2026-11-19: a range, not an average, as other answers give it (owner); every lookup's prices and source
+   sites are logged, so a difference from another answer can be explained.
 4. **No names, no links.** The reply says "about, from N bookmakers" and never names a bookmaker: we refer, we do not
    promote. No link, as for every reply (constitution VI).
 5. **Races.** The five shortest prices, then one range for the rest (the same shape as the weekly race post, 005 FR-025).
@@ -28,7 +30,7 @@ say, and its rules forbid odds anywhere ("never a tip, odds…", 005 FR-016).
 ## What we give up
 
 Verdicts rest on pages our code reads itself. These odds do not: bookmaker sites block servers and draw their prices
-with scripts, so the numbers come from the search's answer. That is why the reply says "about" and averages several
+with scripts, so the numbers come from the search's answer. That is why the reply says "about" and shows the range of several
 bookmakers, and why these odds never touch a verdict, a wager or the own feed (the weekly race post keeps its
 own odds, read from the Jockey Club's cards and priced as 005 FR-025 says).
 

@@ -56,7 +56,7 @@ test('a race: the five shortest named, then one range on the ladder, within one 
   const text = oddsText('Hong Kong Cup', averaged(runners))!;
   assert.match(
     text,
-    /Horse Number 5 \S+ \(\d+\.\d\d\) · rest \d+:\d+–\d+:\d+ — about, from 2 bookmakers$/,
+    /Horse Number 5 [\d:–]+ \(\d+\.\d\d–\d+\.\d\d\) · rest \d+:\d+–\d+:\d+ — about, from 2 bookmakers$/,
   );
   assert.ok(!text.includes('Horse Number 6 '), 'the sixth is in the range');
   assert.ok(weightedLength(text) <= 280);
@@ -91,4 +91,18 @@ test('review 2026-11-19: no bare domain, no empty head, long shots, and too long
   )!;
   assert.ok(text && weightedLength(text) <= 280, 'shortened to fit, not refused');
   assert.match(text, /rest \d+:\d+–\d+:\d+ — about, from 2 bookmakers$/);
+});
+
+test("each outcome shows the bookmakers' range; one price when they agree", () => {
+  const text = oddsText(
+    'Kabayel v Hysa',
+    averaged([
+      { name: 'Kabayel', prices: [1.25, 1.29, 1.22] },
+      { name: 'Hysa', prices: [4.0, 4.0] },
+    ]),
+  );
+  assert.equal(
+    text,
+    'Kabayel v Hysa: Kabayel 2:9–2:7 (1.22–1.29) · Hysa 3:1 (4.00) — about, from 2 bookmakers',
+  );
 });

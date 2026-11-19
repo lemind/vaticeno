@@ -1,5 +1,5 @@
-// The odds reply (spec 006): bookmakers' decimal prices averaged, shown as the nearest common fractional price with
-// the decimal beside it ("2:1 (3.00)"). A race: the five shortest, then one range. Pure: no I/O.
+// The odds reply (spec 006): each outcome's range across bookmakers, as the nearest common fractional prices with
+// the decimals beside them ("2:1–9:4 (3.00–3.25)"). A race: the five shortest, then one range. Pure: no I/O.
 import { weightedLength, X_MAX_CHARS } from '../replies/templates.js';
 
 // The usual fractional ladder.
@@ -15,7 +15,14 @@ export const MIN_BOOKMAKERS = 2;
 const TOP = 5; // a race's named runners, as the weekly race post (005 FR-025)
 
 export type PricedOutcome = { name: string; prices: number[] };
-export type OddsLine = { name: string; decimal: number; bookmakers: number };
+// `decimal`: the mean, which orders the outcomes; `low`/`high`: the shortest and longest price, which are shown.
+export type OddsLine = {
+  name: string;
+  decimal: number;
+  low: number;
+  high: number;
+  bookmakers: number;
+};
 
 // The nearest ladder price to a decimal price (decimal = fraction + 1).
 export function fractional(decimal: number): string {
@@ -32,7 +39,7 @@ export function fractional(decimal: number): string {
 
 const isPrice = (p: number) => Number.isFinite(p) && p > 1 && p <= 1001;
 
-// Outcomes priced by at least two bookmakers, each the mean of its prices; shortest first.
+// Outcomes priced by at least two bookmakers, with their range and mean; shortest first.
 export function averaged(outcomes: readonly PricedOutcome[]): OddsLine[] {
   return outcomes
     .map((o) => ({ name: o.name, prices: o.prices.filter(isPrice) }))
@@ -40,6 +47,8 @@ export function averaged(outcomes: readonly PricedOutcome[]): OddsLine[] {
     .map((o) => ({
       name: o.name,
       decimal: o.prices.reduce((a, b) => a + b, 0) / o.prices.length,
+      low: Math.min(...o.prices),
+      high: Math.max(...o.prices),
       bookmakers: o.prices.length,
     }))
     .sort((a, b) => a.decimal - b.decimal);
@@ -56,8 +65,18 @@ const clean = (text: string, max: number) =>
     .slice(0, max)
     .trim();
 
+// The bookmakers' range, as Grok and the tipsters give it (owner 2026-11-19): "2:1–9:4 (3.00–3.25)", one price if
+// they agree.
+function span(low: number, high: number, decimals: boolean): string {
+  const [a, b] = [fractional(low), fractional(high)];
+  const frac = a === b ? a : `${a}–${b}`;
+  if (!decimals) return frac;
+  const [x, y] = [low.toFixed(2), high.toFixed(2)];
+  return `${frac} (${x === y ? x : `${x}–${y}`})`;
+}
+
 const priced = (line: OddsLine, max: number) =>
-  `${clean(line.name, max)} ${fractional(line.decimal)} (${line.decimal.toFixed(2)})`;
+  `${clean(line.name, max)} ${span(line.low, line.high, true)}`;
 
 // The reply text, or null when fewer than two outcomes are priced by two bookmakers. Too long never means
 // "not priced": names are cut shorter, then a race names fewer runners, until it fits one post (FR-005).
@@ -75,10 +94,9 @@ export function oddsText(event: string, found: readonly OddsLine[]): string | nu
       const rest = lines.slice(count);
       const parts = named.map((line) => priced(line, max));
       if (rest.length > 0) {
-        const [low, high] = [rest[0]!, rest[rest.length - 1]!].map((l) =>
-          fractional(l.decimal),
-        );
-        parts.push(low === high ? `rest ${low}` : `rest ${low}–${high}`);
+        const low = Math.min(...rest.map((l) => l.low));
+        const high = Math.max(...rest.map((l) => l.high));
+        parts.push(`rest ${span(low, high, false)}`);
       }
       const body = parts.join(' · ');
       const head = clean(event, 60);

@@ -1,7 +1,7 @@
 <!--
 Sync Impact Report
 - Version change: 2.10.0 → 2.11.0 (2026-11-19, MINOR): VI — a reply to the `odds` command may give approximate
-  bookmaker odds: the average of two or more bookmakers, none named, no link; nowhere else, and the own feed never
+  bookmaker odds: the range of two or more bookmakers, none named, no link; nowhere else, and the own feed never
   carries such odds (the weekly race post keeps its own, spec 005 FR-025). Owner decision, docs/decisions/009-odds-command.md,
   spec 006. CLAUDE.md version line updated.
 - Earlier: 2.9.0 → 2.10.0 (2026-11-19, MINOR): VI — the owner's list may hold accounts the owner names
@@ -217,7 +217,7 @@ entire class of problems, and it is what X's terms require.
   once per claim, and only while the claim can be wagered. Text from a model or the web never carries a
   link, in any reply.
 - A reply to an explicit `odds` command MAY give approximate bookmaker odds for the event the thread is about
-  (owner decision 2026-11-19, `docs/decisions/009-odds-command.md`): the average of two or more bookmakers, none
+  (owner decision 2026-11-19, `docs/decisions/009-odds-command.md`): the range of two or more bookmakers, none
   named, no link, marked "about". These are the bookmakers' prices, not a prediction of the bot's own; they never
   appear in an own-feed post, a verdict or a wager page. The weekly race post's odds (spec 005 FR-025) are unchanged.
 - There are no topic exclusions, but content the bot republishes MUST comply with X's rules. X allows

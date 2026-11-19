@@ -3,6 +3,11 @@
 What changed for people using Vaticeno, newest first. The version on the site's front page is the top entry.
 A new feature raises the middle number, a fix the last one.
 
+## 1.15.0 — 2026-11-19
+
+- `@vaticeno odds` now shows each outcome's range across bookmakers, shortest to longest, like 2:9–2:7
+  (1.22–1.29), and looks only at the main market and the latest prices.
+
 ## 1.14.0 — 2026-11-19
 
 - New command: `@vaticeno odds` under a post about a match or a race. The bot replies once with about what

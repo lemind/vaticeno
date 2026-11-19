@@ -5,7 +5,7 @@
 ## Summary
 
 A new bot command. The mention path already matches commands and replies once; `odds` adds one grounded model call
-that returns bookmaker prices as JSON, code that averages and rounds them, and a reply template. The race shape reuses
+that returns bookmaker prices as JSON, code that takes their range and rounds it, and a reply template. The race shape reuses
 the weekly race post's top-five-and-range code.
 
 ## Constitution check
@@ -28,7 +28,9 @@ the weekly race post's top-five-and-range code.
   instruction `odds.v1`. Its answer is text: the JSON is cut out and `safeParse`d against `{ event, outcomes: [{ name,
   prices: number[] }] }` (decimal prices), as `src/content/race-run.ts` does. A parse or schema failure → "no prices";
   an outage (`LlmUnavailable`) is thrown, so the mention is retried and never answered with a guess.
-  Keep outcomes with ≥2 prices, average, show fractional with decimal beside it.
+  Keep outcomes with ≥2 prices; show their range (fractional, decimals beside); log the prices and source sites
+  (`groundedAnswer` returns the sources' site names, since its URLs are search redirects). Instruction `odds.v2`:
+  the main market and the latest prices only.
 - `src/bot/odds-format.ts` (new, pure): decimal → nearest price on the common fractional ladder (its own ladder, not
   race-post's `oddsText`, which keeps prices like 27:10), plus the decimal to two places; the reply text; the race
   shape (five shortest + a range, both ends on the ladder), with its own `TOP = 5`; names are shortened, then a race names fewer runners, until the reply fits.

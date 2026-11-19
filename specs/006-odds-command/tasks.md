@@ -40,6 +40,8 @@
 - [ ] T609a The cost per reply read from `cost_events` (operation `odds`) after the first week live (SC-003).
 - [x] T610 A quote post is read with the post it quotes (001 FR-033c, owner 2026-11-19): `postsAbove` in
   `src/bot/mentions.ts`; test in `tests/integration/bot.test.ts`.
+- [x] T612 The bookmakers' range instead of the average; every lookup's prices and source sites logged; `odds.v2`:
+  main market, latest prices (owner 2026-11-19, after an answer differed from Grok's).
 - [x] T611 Review fixes: no bare domain in a reply; too long shortens, never "no prices"; past 100:1 as N:1; no
   posts read under a recorded prediction; a lenient answer schema.
 

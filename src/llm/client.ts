@@ -143,15 +143,16 @@ export function createLlmClient(options: { mode: LlmMode; apiKey?: string; store
   }
 
   // A grounded answer: the same search tool, but we want the model's words, not its links (001 FR-033b).
-  async function groundedAnswer(call: { model: string; instructionVersion: string; system: string; input: string }): Promise<{ text: string; urls: string[]; costs: CallCost[] }> {
+  async function groundedAnswer(call: { model: string; instructionVersion: string; system: string; input: string }): Promise<{ text: string; urls: string[]; sites: string[]; costs: CallCost[] }> {
     const identity = { model: call.model, instruction: call.instructionVersion, input: call.input };
     if (mode === 'replay') {
       const entry = await store.get('search', identity);
       if (entry.kind !== 'search') throw new LlmSchemaError('replay entry is not a search result');
-      return { text: '', urls: entry.urls, costs: [] };
+      return { text: '', urls: entry.urls, sites: [], costs: [] };
     }
     let text: string;
     let urls: string[];
+    let sites: string[]; // the sources' site names: the URLs are search redirects that hide them
     let usage: Usage;
     try {
       const response = await live().models.generateContent({
@@ -162,13 +163,14 @@ export function createLlmClient(options: { mode: LlmMode; apiKey?: string; store
       const grounding = response.candidates?.[0]?.groundingMetadata;
       text = (response.text ?? '').trim();
       urls = [...new Set((grounding?.groundingChunks ?? []).map((chunk) => chunk.web?.uri).filter((uri): uri is string => !!uri))];
+      sites = [...new Set((grounding?.groundingChunks ?? []).map((chunk) => chunk.web?.title).filter((title): title is string => !!title))];
       usage = usageOf(response.usageMetadata);
     } catch (error) {
       throw new LlmUnavailable(`grounded answer failed: ${String(error)}`, { cause: error });
     }
     const costs: CallCost[] = [modelCost(call.model, 'search', usage)];
     costs.push({ provider: 'google_search', operation: 'search', units: 1, usdCost: SEARCH_QUERY_USD });
-    return { text, urls, costs };
+    return { text, urls, sites, costs };
   }
 
   return { mode, generateJson, groundedSearch, groundedAnswer };
