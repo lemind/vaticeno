@@ -11,14 +11,15 @@ export type FeedKind =
 export type Reservation = {
   kind: FeedKind;
   day: string; // UTC date, YYYY-MM-DD
-  sourcePostId?: string; // the post we repost, quote, or the verdict reply a receipt quotes
+  sourcePostId?: string; // the post we repost or quote, or the verdict reply a receipt reposts
   accountId?: string; // the pool account (pool kinds only)
   queueItemId?: string; // the owner's queue item (originals only)
   payload?: unknown; // our own derived data: a digest's slugs, a record's counts, an event (005 FR-022)
 };
 
 // Daily caps per cap group (reposts and quote posts share the pool group).
-export const FEED_CAPS = { pool: 1, original: 1, receipt: 2 } as const;
+// One verdict repost a day (005 FR-014b).
+export const FEED_CAPS = { pool: 1, original: 1, receipt: 1 } as const;
 
 // Every own post — queued, digest, record, event — shares the one original slot a day (005 FR-009).
 export const capGroupOf = (kind: FeedKind): keyof typeof FEED_CAPS =>

@@ -3,6 +3,11 @@
 What changed for people using Vaticeno, newest first. The version on the site's front page is the top entry.
 A new feature raises the middle number, a fix the last one.
 
+## 1.12.0 — 2026-11-19
+
+- Once a day the account reposts a fresh verdict on a prediction by an author who agreed to be shown (for now
+  @lemind and @NeonSkeld), hits and misses alike.
+
 ## 1.11.1 — 2026-11-16
 
 - The version on the front page opens the changelog of the code that is running.

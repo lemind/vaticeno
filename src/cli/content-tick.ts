@@ -1,4 +1,4 @@
-// npm run content:tick -- pool|original|digest|record|event|race [--mode repost|quote|joke] [--respect-caps] [--now <ISO>] — one content run by hand, under the advisory lock the
+// npm run content:tick -- pool|original|digest|record|event|race|verdict [--mode repost|quote|joke] [--respect-caps] [--now <ISO>] — one content run by hand, under the advisory lock the
 // scheduler uses. It obeys FEED_DRY_RUN: with the default (true) it only records and logs the pick.
 // Reading a pool account's posts costs money even in a dry run (spec 002: ~$0.025 per account read).
 import { getLockSql } from '../db/client.js';
@@ -8,6 +8,7 @@ import { runOriginalPost } from '../content/original-run.js';
 import { runDigest, runRecord } from '../content/record-run.js';
 import { runEventPost } from '../content/event-run.js';
 import { runRacePost } from '../content/race-run.js';
+import { runVerdictRepost } from '../content/verdict-run.js';
 import { buildContentDeps } from '../content/wire.js';
 import { buildDeps, cliArgs, nowFrom, printJson, runCli } from './run.js';
 
@@ -18,7 +19,15 @@ await runCli('content-tick', async (config) => {
     mode: { type: 'string' },
   });
   const job = positionals[0] ?? 'pool';
-  const JOBS = ['pool', 'original', 'digest', 'record', 'event', 'race'] as const;
+  const JOBS = [
+    'pool',
+    'original',
+    'digest',
+    'record',
+    'event',
+    'race',
+    'verdict',
+  ] as const;
   if (!(JOBS as readonly string[]).includes(job))
     throw new Error(`unknown content job: ${job} (${JOBS.join(' | ')})`);
   // No ENABLE_FEED check: that flag is for the timers (content:job). Typing this command is the intent.
@@ -45,6 +54,8 @@ await runCli('content-tick', async (config) => {
         return runRecord(content, now);
       case 'race':
         return runRacePost(content, now);
+      case 'verdict':
+        return runVerdictRepost(content, now);
       default:
         return runEventPost(content, now);
     }

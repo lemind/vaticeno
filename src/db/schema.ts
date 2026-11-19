@@ -395,10 +395,10 @@ export const feedPosts = pgTable(
       'feed_posts_slot_check',
       sql`(${t.status} in ('failed', 'dry_run')) = (${t.slot} is null) and (${t.slot} is null or ${t.slot} >= 1)`,
     ),
-    // A repost creates no post of ours, so it has no posted id; everything else must have one.
+    // A repost (a pool one, or a receipt of our verdict reply) creates no post of ours, so it has no posted id.
     check(
       'feed_posts_posted_id_check',
-      sql`${t.status} <> 'posted' or ${t.kind} = 'repost' or ${t.postedId} is not null`,
+      sql`${t.status} <> 'posted' or ${t.kind} in ('repost', 'receipt') or ${t.postedId} is not null`,
     ),
     check(
       'feed_posts_pool_check',

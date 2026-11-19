@@ -141,6 +141,9 @@ done by the owner in the X app; their drafts live in `specs/005-x-growth/content
 - [x] T520 [P] Rewrite `docs/content-rules.md`: the two channels, the formats, no links in the bot's posts (and why:
   $0.20 vs $0.015), the owner's calls, the weekly routine (review the next 7 days, re-check events — a sports fixture
   again on its day —, add posts, run `growth:week --quotes N`, read both dashboards). Update `README.md` (status table, commands) and `docs/progress.md`.
+- [x] T521 Verdict reposts (FR-014b, owner 2026-11-19; constitution VI 2.10.0): `src/content/verdict-run.ts`, the `verdict`
+  feed job daily at 16:29 UTC (`deploy/vaticeno-content-verdict.timer`), the receipt cap one a day, migration
+  `drizzle/0028_receipt_repost.sql`. Tests: `tests/integration/content.test.ts`.
 
 ---
 

@@ -122,7 +122,7 @@ const CoreEnvSchema = z
       .string()
       .regex(/^\w{1,15}$/)
       .default('vaticeno'),
-    // Authors whose claims an own-feed post may show (constitution VI 2.9.0, 005 FR-014a): the owner alone for now.
+    // Authors whose claims an own-feed post may show (constitution VI 2.10.0, 005 FR-014a/b).
     FEED_SHOW_AUTHOR_IDS: z
       .string()
       .default('')

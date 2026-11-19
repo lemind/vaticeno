@@ -49,6 +49,8 @@ export const SCHEDULES = {
   // The weekend's Hong Kong race: Friday, once fields and early prices are out; Saturday retries. After the
   // queue run, so a free own-post slot goes to the owner's post first (005 FR-025).
   race: '13 14 * * 5-6',
+  // One verdict reply of a listed author reposted, after the day's verdicts are out (005 FR-014b).
+  verdict: '29 16 * * *',
   reconcile: '17 1-23/2 * * *',
   recheck: '31 4 * * 1',
 } as const;
@@ -62,6 +64,7 @@ export const TIMER_JOBS = [
   'record',
   'event',
   'race',
+  'verdict',
 ] as const;
 const onTimer = (name: string) => (TIMER_JOBS as readonly string[]).includes(name);
 
@@ -79,6 +82,7 @@ const INTERVALS_SEC: Record<keyof typeof SCHEDULES, number> = {
   record: 7 * 86_400,
   event: 86_400,
   race: 6 * 86_400,
+  verdict: 86_400,
   reconcile: 7_200,
   recheck: 7 * 86_400,
 };

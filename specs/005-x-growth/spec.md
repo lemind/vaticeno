@@ -249,10 +249,14 @@ best — and changes next week's mix from it.
   otherwise. Each post is written and approved by the owner once that fact exists, then queued; it names the
   claim by its slug, never @mentions the author, and reads as the author's call recorded on Vaticeno ("CALL ·
   recorded on Vaticeno"). Every call of that author in a period is shown, misses included, never only the hits.
-- **FR-014a**: The list is configuration and holds the owner's X user id alone for now; checked when a post is
+- **FR-014a**: The list is configuration and holds the X user ids of the accounts the owner names (FR-014b); checked when a post is
   queued and again when it goes out. Removing an id holds that author's queued posts and deletes nothing already
   out. How anyone else gets on the list is decided later. Whether a claim carries money is not checked for now
   (constitution VI: the money rule is set aside while the account grows).
+- **FR-014b**: Verdict reposts (owner, 2026-11-19; constitution VI 2.10.0): once a day the account reposts one of
+  its own verdict replies whose author is on the list — the newest not yet reposted, from the last seven days,
+  whatever the outcome; never a verdict since corrected, never the same reply twice. One a day, on its own daily
+  cap. The list now holds the owner and @NeonSkeld (by X user id).
 
 **Voice**
 

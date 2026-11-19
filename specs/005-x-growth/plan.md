@@ -26,7 +26,7 @@ by `deploy/deploy.sh`, running `npm run content:job -- <job>`. Times stay in `SC
 |---|---|
 | IV Speak only when spoken to | the bot adds no reply, no follow, no mention; follows, Lists, quote posts and replies are the owner's, by hand |
 | V IDs, not text | the queue is the owner's own text, already allowed (spec 002); its new source link is a link, not content; nothing from X is stored |
-| VI Platform policy | 2.9.0: a claim's terms and verdict are shown only for an author on the owner's list (the owner alone for now); the digest's slug-and-date line is not such a post; the money rule set aside for now; no @mention, no link, no hashtag but the slug in feed text; caps unchanged |
+| VI Platform policy | 2.10.0: a claim's terms and verdict are shown only for an author on the owner's list (the owner and @NeonSkeld for now), and a listed author's verdict reply is reposted, one a day; the digest's slug-and-date line is not such a post; the money rule set aside for now; no @mention, no link, no hashtag but the slug in feed text; caps unchanged |
 | VII Boring | one migration, one config list, one CLI; no new package; the beacon is the pages' second script, loaded async, off unless configured |
 
 ## Site traffic (done, not deployed)
@@ -80,9 +80,16 @@ date and a check date, a named claim whose author is not on the list. `list` sho
 
 ## The owner's calls (FR-014, FR-014a)
 
-`FEED_SHOW_AUTHOR_IDS` in config, the owner's id alone. That is the whole permission mechanism for now; how others give permission is
+`FEED_SHOW_AUTHOR_IDS` in config: the owner's id and @NeonSkeld's. That is the whole permission mechanism for now; how others give permission is
 decided later. The owner records predictions through the bot like anyone; the post about one is written by the
 owner after the lock or the verdict and queued like any other.
+
+## Verdict reposts (FR-014b)
+
+`src/content/verdict-run.ts`, the `verdict` feed job, daily at 16:29 UTC (`deploy/vaticeno-content-verdict.timer`):
+the newest verdict reply of a listed author from the last seven days, not corrected, not reposted before, reposted
+plainly as a `receipt` row on its own cap group (one a day). Migration `0028_receipt_repost` lets a receipt carry no
+posted id, like a pool repost.
 
 ## Event posts by the bot (US3a, FR-019–FR-024)
 

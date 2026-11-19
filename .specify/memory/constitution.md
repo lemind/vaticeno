@@ -1,6 +1,10 @@
 <!--
 Sync Impact Report
-- Version change: 2.8.0 → 2.9.0 (2026-11-06, MINOR): VI — one exception to "the feed MUST NOT republish a
+- Version change: 2.9.0 → 2.10.0 (2026-11-19, MINOR): VI — the owner's list may hold accounts the owner names
+  (the owner and @NeonSkeld for now), and a listed author's verdict may be shown automatically: our own verdict
+  reply, reposted plainly, at most one a day, newest first and outcome-blind, never a corrected one (owner decision,
+  spec 005 FR-014b). CLAUDE.md version line updated.
+- Earlier: 2.8.0 → 2.9.0 (2026-11-06, MINOR): VI — one exception to "the feed MUST NOT republish a
   verdict": the terms and verdict of a claim whose author is on the owner's list (for now, the owner alone) may be
   shown, as owner-approved text, no @mention, misses as well as hits. And automated event posts: a scheduled
   event with a public outcome, confirmed by two independent sources the code reads, from a fixed template. The 2026-10-09 money rule is superseded:
@@ -187,12 +191,13 @@ entire class of problems, and it is what X's terms require.
   fixed template — the model fills slots (event, date, place), never free text. The feed MUST NOT republish a verdict: it is told once,
   in the claim's thread, because a hit or a miss belongs to its author (owner decision 2026-10-07). One exception
   (owner decision 2026-11-06, `docs/decisions/008-x-growth.md`): a claim whose author has given the account
-  permission — for now, an author on the owner's list in configuration, which holds the owner alone — MAY be
+  permission — for now, an author on the owner's list in configuration, which holds the accounts the owner names — MAY be
   shown: its terms after the lock, its verdict after the deadline; a claim whose author is not on the list,
   neither. How others give permission is decided later. The deadline digest, which names a claim by slug and
   date and states no result, is not such a post (spec 002 US4). Such a post is text the owner approved, names the
   claim by its slug and never @mentions the author, and shows every call of that author in the period, not only
-  the hits. They MUST be capped
+  the hits. One more form needs no approval (owner decision 2026-11-19): a plain repost of our own verdict reply for
+  a listed author, at most one a day, chosen without regard to the outcome, never a verdict since corrected. They MUST be capped
   per day in code, MUST NOT contain @mentions, links or hashtags in text the bot adds — with one
   exception, the claim's own slug (`#ab12c`), which is an id, not a topic (owner decision 2026-10-06) —
   MUST NOT state a prediction of the bot's own, and default to dry-run (logged, not posted) until the owner switches
@@ -272,4 +277,4 @@ Rationale: a one-person proto survives on code it can read in one sitting.
 - Every plan passes the Constitution Check before design and again after it. A justified violation
   is recorded in the plan's Complexity Tracking table; an unjustified one blocks the work.
 
-**Version**: 2.9.0 | **Ratified**: 2026-09-28 | **Last Amended**: 2026-11-06
+**Version**: 2.10.0 | **Ratified**: 2026-09-28 | **Last Amended**: 2026-11-19

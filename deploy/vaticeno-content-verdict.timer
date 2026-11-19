@@ -1,0 +1,11 @@
+# Times match SCHEDULES.verdict in src/jobs/scheduler.ts (UTC).
+[Unit]
+Description=Vaticeno feed: daily verdict repost
+
+[Timer]
+OnCalendar=*-*-* 16:29:00 UTC
+Unit=vaticeno-content@verdict.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target
