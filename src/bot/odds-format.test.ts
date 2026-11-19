@@ -7,6 +7,8 @@ test('decimal prices land on the common fractional ladder', () => {
   assert.equal(fractional(3.0), '2:1');
   assert.equal(fractional(1.5), '1:2');
   assert.equal(fractional(1.25), '1:4');
+  assert.equal(fractional(1.06), '1:16', 'a heavy favourite, as Grok gave Kabayel');
+  assert.equal(fractional(1.01), '1:100');
   assert.equal(fractional(6.0), '5:1');
   assert.equal(fractional(3.7), '11:4', 'never 27:10');
   assert.equal(fractional(2.0), '1:1');

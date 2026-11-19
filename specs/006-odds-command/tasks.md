@@ -40,6 +40,7 @@
 - [ ] T609a The cost per reply read from `cost_events` (operation `odds`) after the first week live (SC-003).
 - [x] T610 A quote post is read with the post it quotes (001 FR-033c, owner 2026-11-19): `postsAbove` in
   `src/bot/mentions.ts`; test in `tests/integration/bot.test.ts`.
+- [x] T614 The ladder reaches heavy favourites (1/12 … 1/100): Kabayel's 1.06 read "1:10" beside Grok's 1/16.
 - [x] T613 Live 2026-11-19: the reply is the odds alone, without "about, from N bookmakers"; the search asks for three
   bookmakers, at least two. And a handle carried into a thread that named us gets no reply (Grok's answer got the
   help reply): every conversation the bot is named in is remembered like one it replied in (`src/bot/mentions.ts`).

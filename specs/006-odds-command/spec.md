@@ -93,4 +93,4 @@ Under a post about a race, `@vaticeno odds` gets the five shortest prices and on
 ## Assumptions
 
 - Bookmakers' own pages are not read by our code; the prices come from the search's answer (ADR 009).
-- "Common prices" are the usual fractional ladder (1:5 … 1:1 … 5:2 … 100:1).
+- "Common prices" are the usual fractional ladder (1:100 … 1:16 … 1:1 … 5:2 … 100:1).
