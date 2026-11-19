@@ -63,14 +63,15 @@ Reply with the prediction and a date.
 **REJECTED**
 - deadline out of range: `NOT RECORDED — {reason_in_words}.`
 - not a prediction (e.g. "@vaticeno cancel"): the help reply, same as `@vaticeno help` (no model call for
-  `help`) — no other commands exist yet
+  `help`); the text is `HELP_REPLY` in `src/replies/templates.ts` (spec 006 added `odds`)
   ```
   I record predictions and check them at the deadline.
-  • Tag me under your prediction → recorded
-  • Reply with a fix (15 min) → updated
-  • quote → a quote about bets
+  • Tag me under a prediction → recorded
+  • Tag a fix in 15 min → updated
+  • odds → bookmakers' odds
+  • quote → a quote
   • selfpromo → who I am
-  • STOP → I go quiet (tag me to resume)
+  • STOP → I go quiet till you tag me
   • * → nobody knows what to expect :)
   ```
 - X rules: `NOT RECORDED — I can't record this one.` (no quote, no explanation)

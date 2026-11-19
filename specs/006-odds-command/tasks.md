@@ -30,13 +30,18 @@
 ## Phase 3: Races (US2)
 
 - [x] T607 [US2] Race shape in `src/bot/odds-format.ts`: five shortest prices and one range, both on the ladder,
-  within one post; reuse only `priced()` and `TOP` from `src/content/race-post.ts`. Tests.
+  within one post (own `TOP = 5`; names shortened, then fewer runners, until it fits). Tests.
 
 ## Phase 4: Help and site (US3)
 
 - [x] T608 [P] [US3] `src/replies/templates.ts`: `odds` in `HELP_REPLY` (still fits); `src/web/home-page.ts`: a row in
   the command table; `README.md` commands.
-- [x] T609 Version 1.14.0 in `package.json`, `CHANGELOG.md` entry; the cost per reply is read from `cost_events` (operation `odds`) in the first week (SC-003).
+- [x] T609 Version 1.14.0 in `package.json`, `CHANGELOG.md` entry.
+- [ ] T609a The cost per reply read from `cost_events` (operation `odds`) after the first week live (SC-003).
+- [x] T610 A quote post is read with the post it quotes (001 FR-033c, owner 2026-11-19): `postsAbove` in
+  `src/bot/mentions.ts`; test in `tests/integration/bot.test.ts`.
+- [x] T611 Review fixes: no bare domain in a reply; too long shortens, never "no prices"; past 100:1 as N:1; no
+  posts read under a recorded prediction; a lenient answer schema.
 
 ## Dependencies
 

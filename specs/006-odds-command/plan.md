@@ -22,15 +22,16 @@ the weekly race post's top-five-and-range code.
 
 - `src/bot/commands.ts`: `odds` joins `Command` and `ANY_WORDS`: matched as the first word with no number after it
   (the existing first-word path), plus the phrase "what are the odds". Not anywhere in a post, unlike `wager`.
-- `src/bot/odds.ts` (new): `oddsReply(deps, mention)` — the event from the thread's claim, else the post and the whole
-  conversation (`threadAbove` and the conversation read in `src/bot/mentions.ts`); one `groundedAnswer` with
+- `src/bot/mentions.ts` `runCommand`: the event from the thread's claim (then no posts are read), else the post, the
+  post it quotes and the whole conversation (`contextAround`).
+- `src/bot/odds.ts` (new): `lookUpOdds(deps, input)` — one `groundedAnswer` with
   instruction `odds.v1`. Its answer is text: the JSON is cut out and `safeParse`d against `{ event, outcomes: [{ name,
   prices: number[] }] }` (decimal prices), as `src/content/race-run.ts` does. A parse or schema failure → "no prices";
   an outage (`LlmUnavailable`) is thrown, so the mention is retried and never answered with a guess.
   Keep outcomes with ≥2 prices, average, show fractional with decimal beside it.
 - `src/bot/odds-format.ts` (new, pure): decimal → nearest price on the common fractional ladder (its own ladder, not
   race-post's `oddsText`, which keeps prices like 27:10), plus the decimal to two places; the reply text; the race
-  shape (five shortest + a range, both ends on the ladder), reusing only `priced()` and `TOP` from `race-post.ts`.
+  shape (five shortest + a range, both ends on the ladder), with its own `TOP = 5`; names are shortened, then a race names fewer runners, until the reply fits.
 - `src/llm/instructions/odds.v1.md` (new): asks for prices at two or more bookmakers, decimal, JSON only.
 - `src/bot/mentions.ts`: `runCommand` routes `odds`.
 - `src/replies/templates.ts`: help line `• odds → about what bookmakers give`; the "no prices" and "name the event"

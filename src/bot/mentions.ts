@@ -359,11 +359,17 @@ async function runCommand(
     // The event is inferred: the thread's prediction, else the whole conversation, read once (spec 006 FR-002).
     const claim = await claimInThread(deps, mention, repliedTo);
     const contract = claim ? ContractSchema.safeParse(claim.contract) : null;
-    const { posts } = await contextAround(deps, mention, repliedTo, undefined, () =>
-      postsAbove(deps, repliedTo, quotedId(mention)),
-    );
+    const prediction = contract?.success ? renderStatement(contract.data) : null;
+    // The recorded prediction names the event: no paid reads then (FR-002).
+    const posts = prediction
+      ? []
+      : (
+          await contextAround(deps, mention, repliedTo, undefined, () =>
+            postsAbove(deps, repliedTo, quotedId(mention)),
+          )
+        ).posts;
     const found = await lookUpOdds(deps, {
-      prediction: contract?.success ? renderStatement(contract.data) : null,
+      prediction,
       conversation: posts.map((post) => `${post.from}: ${post.text}`),
       request: cleanBody(mention.text),
     });
@@ -807,7 +813,7 @@ async function conversationBefore(
 }
 
 // A quote post's subject is the post it quotes ("which Jake?" while the quoted post named him, 2026-11-19): it is
-// read first, with the posts above it, then the posts above the mention itself.
+// read with the posts above it, after the posts above the mention itself.
 const quotedId = (mention: Mention) =>
   mention.referenced_tweets?.find((ref) => ref.type === 'quoted')?.id;
 
@@ -816,8 +822,9 @@ async function postsAbove(
   repliedTo: string | undefined,
   quoted: string | undefined,
 ): Promise<ThreadPost[]> {
-  const fromQuote = quoted ? await threadAbove(deps, quoted) : [];
-  return [...fromQuote, ...(await threadAbove(deps, repliedTo))];
+  // Nearest first: the direct parent's chain, then the quoted post's (assess() reads above[0] as the parent).
+  const above = await threadAbove(deps, repliedTo);
+  return [...above, ...(quoted ? await threadAbove(deps, quoted) : [])];
 }
 
 async function threadAbove(

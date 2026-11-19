@@ -159,7 +159,8 @@ export function commandWordIn(body: string): Command | null {
     words[0] === 'self' && words.length > 1 ? `self${words[1]}` : words[0];
   const command = first ? (ALIASES[first] ?? null) : null;
   // The model has no wager intent: "Wager: BTC above 100k" is a prediction, not a paid detour (review 2026-10-20).
-  // Nor an odds intent: "Odds are BTC hits 100k" is a prediction (spec 006).
+  // Nor an odds intent: with a number ("Odds are BTC hits 100k") it is a prediction; without one, resolveCommand
+  // already took it as the command, like every command word first (spec 006, owner 2026-11-19).
   if (command) return command === 'wager' || command === 'odds' ? null : command;
   // A main command word further on ("This is my project. @vaticeno selfpromo"): the model reads the thread and
   // decides. #ymjep was recorded as a prediction instead (2026-11-06).

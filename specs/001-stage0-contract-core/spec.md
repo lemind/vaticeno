@@ -536,6 +536,8 @@ shown but never count as a contradiction.
   VOID or unsettled is only reported. Every correction, the run's or one written by hand, is posted on
   its own once the verdict it corrects has gone out (owner decision 2026-11-10). A fresh re-judge of one claim, with new searches, is a command run by hand (~$0.04). A
   correction is told once, in the claim's own thread, and never retried (owner decision 2026-10-12).
+- **FR-033c**: A quote post is read with the post it quotes, and the posts above that, after the posts above the
+  mention itself (owner 2026-11-19: "which Jake?" while the quoted post named him). Spec 006 T610.
 - **FR-033b**: Replies written to people run on a fuller model than the one that parses predictions, and
   may be as long as the platform allows. The model is configuration, not code. It answers from what it was
   given — the conversation, and Vaticeno's own line about the prediction — and says it does not know

@@ -5,16 +5,21 @@ import type { CallCost } from '../llm/client.js';
 import { loadInstruction } from '../llm/instructions.js';
 import { averaged, oddsText } from './odds-format.js';
 
+// Lenient on purpose: one odd row (a price as "2.5", a null, a long name) is dropped, never the whole answer.
 const Answer = z.union([
   z.object({ found: z.literal(false) }),
   z.object({
     found: z.literal(true),
-    event: z.string().max(120),
-    outcomes: z
-      .array(
-        z.object({ name: z.string().min(1).max(80), prices: z.array(z.number()) }),
-      )
-      .max(40),
+    event: z.string().catch(''),
+    outcomes: z.array(
+      z
+        .object({
+          name: z.string(),
+          prices: z.array(z.coerce.number().catch(Number.NaN)),
+        })
+        .nullable()
+        .catch(null),
+    ),
   }),
 ]);
 
@@ -63,7 +68,8 @@ export async function lookUpOdds(
   const parsed = Answer.safeParse(raw);
   if (!parsed.success) return { outcome: 'no_prices', text: null, costs };
   if (!parsed.data.found) return { outcome: 'no_event', text: null, costs };
-  const text = oddsText(parsed.data.event, averaged(parsed.data.outcomes));
+  const outcomes = parsed.data.outcomes.filter((o) => o !== null);
+  const text = oddsText(parsed.data.event, averaged(outcomes));
   return text
     ? { outcome: 'odds', text, costs }
     : { outcome: 'no_prices', text: null, costs };

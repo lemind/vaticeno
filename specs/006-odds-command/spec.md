@@ -67,7 +67,8 @@ Under a post about a race, `@vaticeno odds` gets the five shortest prices and on
   answer is structured and validated; code keeps outcomes priced by at least two bookmakers and averages them.
 - **FR-004**: Each price is shown in classic fractional form, rounded to the nearest common price, with its decimal
   odds beside it to two places (`2:1 (3.00)`); the race's range is fractional only. No American odds.
-- **FR-005**: A race shows the five shortest prices and one range for the rest; the reply fits one post.
+- **FR-005**: A race (more than six outcomes) shows the five shortest prices and one range for the rest; the reply
+  fits one post — names are shortened, then fewer runners named, never "no prices" for being too long.
 - **FR-006**: The reply names no bookmaker, carries no link, says "about, from N bookmakers", never a tip or
   "bet now"; these odds appear nowhere else — not in the feed, a verdict or a wager page. The weekly race post's
   own odds (005 FR-025) are unchanged.

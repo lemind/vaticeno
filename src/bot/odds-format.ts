@@ -19,6 +19,7 @@ export type OddsLine = { name: string; decimal: number; bookmakers: number };
 
 // The nearest ladder price to a decimal price (decimal = fraction + 1).
 export function fractional(decimal: number): string {
+  if (decimal - 1 > 100) return `${Math.round(decimal - 1)}:1`; // past the ladder's end, as bookmakers write it
   let best = LADDER[0]!;
   for (const step of LADDER)
     if (
@@ -44,33 +45,47 @@ export function averaged(outcomes: readonly PricedOutcome[]): OddsLine[] {
     .sort((a, b) => a.decimal - b.decimal);
 }
 
-// Our reply carries no handle, link or hashtag (constitution VI): model text is stripped of all three.
-const clean = (text: string) =>
+// Our reply carries no handle, link, hashtag or bare domain (constitution VI): a bookmaker's "bet365.com" is dropped
+// with the rest. The same name.tld test as hasTagsOrLinks in src/replies/templates.ts.
+const clean = (text: string, max: number) =>
   text
-    .replace(/https?:\/\/\S+/g, '')
+    .replace(/https?:\/\/\S+|www\.\S+|\b[\w-]+\.[a-z]{2,24}\b/gi, '')
     .replace(/[@#]/g, '')
     .replace(/\s+/g, ' ')
     .trim()
-    .slice(0, 40);
+    .slice(0, max)
+    .trim();
 
-const priced = (line: OddsLine) =>
-  `${clean(line.name)} ${fractional(line.decimal)} (${line.decimal.toFixed(2)})`;
+const priced = (line: OddsLine, max: number) =>
+  `${clean(line.name, max)} ${fractional(line.decimal)} (${line.decimal.toFixed(2)})`;
 
-// The reply text, or null when fewer than two outcomes are priced by two bookmakers.
-export function oddsText(event: string, lines: readonly OddsLine[]): string | null {
+// The reply text, or null when fewer than two outcomes are priced by two bookmakers. Too long never means
+// "not priced": names are cut shorter, then a race names fewer runners, until it fits one post (FR-005).
+export function oddsText(event: string, found: readonly OddsLine[]): string | null {
+  const lines = found.filter((line) => clean(line.name, 40)); // a name that was only a link says nothing
   if (lines.length < 2) return null;
   const bookmakers = Math.min(...lines.map((l) => l.bookmakers));
   const tail = ` — about, from ${bookmakers} bookmakers`;
-  const named = lines.length > TOP + 1 ? lines.slice(0, TOP) : lines;
-  const rest = lines.slice(named.length);
-  const parts = named.map(priced);
-  if (rest.length > 0)
-    parts.push(
-      `rest ${fractional(rest[0]!.decimal)}–${fractional(rest[rest.length - 1]!.decimal)}`,
-    );
-  const body = parts.join(' · ');
-  const head = clean(event);
-  for (const text of [`${head}: ${body}${tail}`, `${body}${tail}`])
-    if (weightedLength(text) <= X_MAX_CHARS) return text;
-  return null;
+  const race = lines.length > TOP + 1; // more than six outcomes: five named, a range for the rest
+  const counts = race ? [TOP, 4, 3, 2] : [lines.length];
+  let text = '';
+  for (const max of [40, 20, 12])
+    for (const count of counts) {
+      const named = lines.slice(0, count);
+      const rest = lines.slice(count);
+      const parts = named.map((line) => priced(line, max));
+      if (rest.length > 0) {
+        const [low, high] = [rest[0]!, rest[rest.length - 1]!].map((l) =>
+          fractional(l.decimal),
+        );
+        parts.push(low === high ? `rest ${low}` : `rest ${low}–${high}`);
+      }
+      const body = parts.join(' · ');
+      const head = clean(event, 60);
+      for (text of head
+        ? [`${head}: ${body}${tail}`, `${body}${tail}`]
+        : [`${body}${tail}`])
+        if (weightedLength(text) <= X_MAX_CHARS) return text;
+    }
+  return text; // twelve-letter names and two runners always fit; kept for the type
 }

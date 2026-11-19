@@ -2132,6 +2132,37 @@ describe('odds', () => {
     assert.match(thin.replies[0]!.text, /^No odds from two bookmakers/);
   });
 
+  test('under a recorded prediction its contract names the event: no posts are read', async () => {
+    const claim =
+      await t.sql`insert into claims ${t.sql({ slug: 'odds1', source_tweet_id: '150', summon_tweet_id: '151', source_version: 'v1', author_x_user_id: ME, status: 'draft', contract: JSON.stringify(VALID_CONTRACT), resolution_method: 'price_feed', deadline_at: VALID_CONTRACT.deadline_at })} returning id`;
+    assert.ok(claim[0]);
+    const { deps, replies, conversationReads } = await bot([
+      [
+        mention('152', '@vaticeno odds', {
+          conversation_id: 'conv-odds',
+          referenced_tweets: [{ type: 'replied_to', id: '151' }],
+        }),
+      ],
+    ]);
+    let input = '';
+    deps.llm = {
+      ...deps.llm,
+      groundedAnswer: async (call: { input: string }) => {
+        input = call.input;
+        return { text: '{"found": false}', urls: [], costs: [] };
+      },
+    } as unknown as BotDeps['llm'];
+    await pollMentions(deps, NOW);
+    assert.equal(replies.length, 1);
+    assert.deepEqual(conversationReads, [], 'no conversation bought');
+    const sent = JSON.parse(input) as {
+      prediction: string | null;
+      conversation: string[];
+    };
+    assert.ok(sent.prediction, 'the contract is the event');
+    assert.deepEqual(sent.conversation, []);
+  });
+
   test('a search outage is never answered: the mention waits for the next poll', async () => {
     const { deps, replies } = await bot([[mention('143', '@vaticeno odds')], []]);
     answering(deps, async () => {
