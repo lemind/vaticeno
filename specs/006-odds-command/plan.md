@@ -1,0 +1,41 @@
+# Implementation Plan: `@vaticeno odds`
+
+**Branch**: `odds-command` | **Date**: 2026-11-19 | **Spec**: `specs/006-odds-command/spec.md` | **ADR**: `docs/decisions/009-odds-command.md`
+
+## Summary
+
+A new bot command. The mention path already matches commands and replies once; `odds` adds one grounded model call
+that returns bookmaker prices as JSON, code that averages and rounds them, and a reply template. The race shape reuses
+the weekly race post's top-five-and-range code.
+
+## Constitution check
+
+| Principle | How it holds |
+|---|---|
+| II Checkable by construction | odds touch no verdict, contract or wager; the model's answer is validated by Zod and filtered by code (two bookmakers per outcome) |
+| IV Opt-out | STOP applies as to any reply |
+| V IDs, not text | nothing stored but the cost row and the answered mention id |
+| VI Platform policy | **amended (2.11.0)**: odds only in a reply to the `odds` command, no bookmaker named, no link, never in the feed; replies only where mentioned |
+| VII Simplicity | no new table, no dependency, no new runtime |
+
+## Design
+
+- `src/bot/commands.ts`: `odds` joins `Command`; matched on the bare word like `wager`, with the same "a prediction
+  with numbers is a prediction" guard.
+- `src/bot/odds.ts` (new): `oddsReply(deps, mention)` — the event from the thread's claim or the post (the existing
+  thread reader), one `groundedAnswer` with instruction `odds.v1`, Zod schema `{ event, outcomes: [{ name, prices:
+  number[] }] }` (decimal prices), keep outcomes with ≥2 prices, average, convert to fractional.
+- `src/bot/odds-format.ts` (new, pure): decimal → nearest common fractional price; the reply text; the race shape
+  (five shortest + range) reusing `src/content/race-post.ts` helpers where they fit.
+- `src/llm/instructions/odds.v1.md` (new): asks for prices at two or more bookmakers, decimal, JSON only.
+- `src/bot/mentions.ts`: `runCommand` routes `odds`.
+- `src/replies/templates.ts`: help line `• odds → about what bookmakers give`; the "no prices" and "name the event"
+  replies.
+- `src/web/home-page.ts`: a row in the command table.
+- Costs: recorded through the existing LLM cost path (`operation: 'odds'`).
+
+## Tests
+
+- Unit: fractional rounding ladder; averaging and the two-bookmaker rule; the race shape; every reply fits a post and
+  carries no link or bookmaker name; command matching (`odds`, `odds pls`, "odds are BTC hits 100k" is not).
+- Integration: one mention → one reply; the search down → no reply, retried, never twice.
