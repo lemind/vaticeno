@@ -19,7 +19,10 @@ export class LlmUnavailable extends Error {
 
 // The model answered, but not in the schema. Carries the cost of the (paid) call.
 export class LlmSchemaError extends Error {
-  constructor(message: string, readonly costs: CallCost[] = []) {
+  constructor(
+    message: string,
+    readonly costs: CallCost[] = [],
+  ) {
     super(message);
     this.name = 'LlmSchemaError';
   }
@@ -51,23 +54,41 @@ export type SearchResult = { queries: string[]; urls: string[] };
 
 const TIMEOUT_MS = 60_000;
 
-export function createLlmClient(options: { mode: LlmMode; apiKey?: string; store: ReplayStore }) {
+export function createLlmClient(options: {
+  mode: LlmMode;
+  apiKey?: string;
+  store: ReplayStore;
+}) {
   const { mode, store } = options;
   let ai: GoogleGenAI | undefined;
   const live = () => {
-    if (!options.apiKey) throw new LlmUnavailable(`GEMINI_API_KEY is required for LLM_MODE=${mode}`);
-    ai ??= new GoogleGenAI({ apiKey: options.apiKey, httpOptions: { timeout: TIMEOUT_MS } });
+    if (!options.apiKey)
+      throw new LlmUnavailable(`GEMINI_API_KEY is required for LLM_MODE=${mode}`);
+    ai ??= new GoogleGenAI({
+      apiKey: options.apiKey,
+      httpOptions: { timeout: TIMEOUT_MS },
+    });
     return ai;
   };
 
   // `sources`: with googleSearch, the pages search really returned (grounding), not URLs the model wrote.
-  async function generateJson<T>(call: JsonCall<T>): Promise<{ data: T; costs: CallCost[]; sources?: string[] }> {
-    const identity = { model: call.model, instruction: call.instructionVersion, input: call.replayIdentity ?? call.input };
+  async function generateJson<T>(
+    call: JsonCall<T>,
+  ): Promise<{ data: T; costs: CallCost[]; sources?: string[] }> {
+    const identity = {
+      model: call.model,
+      instruction: call.instructionVersion,
+      input: call.replayIdentity ?? call.input,
+    };
 
     if (mode === 'replay') {
       const entry = await store.get('model', identity);
-      if (entry.kind !== 'model') throw new LlmSchemaError('replay entry is not a model response');
-      return { data: parseOutput(call.replaySchema ?? call.schema, entry.response, []), costs: [] };
+      if (entry.kind !== 'model')
+        throw new LlmSchemaError('replay entry is not a model response');
+      return {
+        data: parseOutput(call.replaySchema ?? call.schema, entry.response, []),
+        costs: [],
+      };
     }
 
     let raw: unknown;
@@ -80,39 +101,75 @@ export function createLlmClient(options: { mode: LlmMode; apiKey?: string; store
         contents: call.input,
         config: call.googleSearch
           ? { systemInstruction: call.system, tools: [{ googleSearch: {} }] }
-          : { systemInstruction: call.system, responseMimeType: 'application/json', responseJsonSchema: z.toJSONSchema(call.schema, { io: 'input' }) },
+          : {
+              systemInstruction: call.system,
+              responseMimeType: 'application/json',
+              responseJsonSchema: z.toJSONSchema(call.schema, { io: 'input' }),
+            },
       });
       usage = usageOf(response.usageMetadata);
       const grounding = response.candidates?.[0]?.groundingMetadata;
       searchQueries = grounding?.webSearchQueries?.length ?? 0;
-      sources = [...new Set((grounding?.groundingChunks ?? []).map((chunk) => chunk.web?.uri).filter((uri): uri is string => !!uri))];
+      sources = [
+        ...new Set(
+          (grounding?.groundingChunks ?? [])
+            .map((chunk) => chunk.web?.uri)
+            .filter((uri): uri is string => !!uri),
+        ),
+      ];
       try {
-        raw = JSON.parse(call.googleSearch ? jsonInText(response.text ?? '') : (response.text ?? ''));
+        raw = JSON.parse(
+          call.googleSearch
+            ? jsonInText(response.text ?? '')
+            : (response.text ?? ''),
+        );
       } catch {
         raw = INVALID_JSON;
       }
     } catch (error) {
-      throw new LlmUnavailable(`model call failed: ${String(error)}`, { cause: error });
+      throw new LlmUnavailable(`model call failed: ${String(error)}`, {
+        cause: error,
+      });
     }
 
     // Record the raw answer, valid or not, so a replayed retry sees the same failure first.
     if (mode === 'record') {
       await store.put('model', identity, {
-        kind: 'model', model: call.model, instruction_version: call.instructionVersion, response: call.recordAs ? call.recordAs(raw) : raw, usage,
+        kind: 'model',
+        model: call.model,
+        instruction_version: call.instructionVersion,
+        response: call.recordAs ? call.recordAs(raw) : raw,
+        usage,
       });
     }
     const costs = [modelCost(call.model, call.operation, usage)];
-    if (searchQueries > 0) costs.push({ provider: 'google_search', operation: 'search', units: searchQueries, usdCost: searchQueries * SEARCH_QUERY_USD });
+    if (searchQueries > 0)
+      costs.push({
+        provider: 'google_search',
+        operation: 'search',
+        units: searchQueries,
+        usdCost: searchQueries * SEARCH_QUERY_USD,
+      });
     return { data: parseOutput(call.schema, raw, costs), costs, sources };
   }
 
   // Grounded search: only the grounding metadata (queries + URLs) is used; the model's prose is ignored.
-  async function groundedSearch(call: { model: string; instructionVersion: string; system: string; input: string }): Promise<SearchResult & { costs: CallCost[] }> {
-    const identity = { model: call.model, instruction: call.instructionVersion, input: call.input };
+  async function groundedSearch(call: {
+    model: string;
+    instructionVersion: string;
+    system: string;
+    input: string;
+  }): Promise<SearchResult & { costs: CallCost[] }> {
+    const identity = {
+      model: call.model,
+      instruction: call.instructionVersion,
+      input: call.input,
+    };
 
     if (mode === 'replay') {
       const entry = await store.get('search', identity);
-      if (entry.kind !== 'search') throw new LlmSchemaError('replay entry is not a search result');
+      if (entry.kind !== 'search')
+        throw new LlmSchemaError('replay entry is not a search result');
       return { queries: entry.queries, urls: entry.urls, costs: [] };
     }
 
@@ -125,29 +182,56 @@ export function createLlmClient(options: { mode: LlmMode; apiKey?: string; store
         config: { systemInstruction: call.system, tools: [{ googleSearch: {} }] },
       });
       const grounding = response.candidates?.[0]?.groundingMetadata;
-      const urls = (grounding?.groundingChunks ?? []).map((chunk) => chunk.web?.uri).filter((uri): uri is string => !!uri);
-      result = { queries: grounding?.webSearchQueries ?? [], urls: [...new Set(urls)] };
+      const urls = (grounding?.groundingChunks ?? [])
+        .map((chunk) => chunk.web?.uri)
+        .filter((uri): uri is string => !!uri);
+      result = {
+        queries: grounding?.webSearchQueries ?? [],
+        urls: [...new Set(urls)],
+      };
       usage = usageOf(response.usageMetadata);
     } catch (error) {
-      throw new LlmUnavailable(`search call failed: ${String(error)}`, { cause: error });
+      throw new LlmUnavailable(`search call failed: ${String(error)}`, {
+        cause: error,
+      });
     }
 
     if (mode === 'record') {
-      await store.put('search', identity, { kind: 'search', model: call.model, ...result, usage });
+      await store.put('search', identity, {
+        kind: 'search',
+        model: call.model,
+        ...result,
+        usage,
+      });
     }
     const costs: CallCost[] = [modelCost(call.model, 'search', usage)];
     if (result.queries.length > 0) {
-      costs.push({ provider: 'google_search', operation: 'search', units: result.queries.length, usdCost: result.queries.length * SEARCH_QUERY_USD });
+      costs.push({
+        provider: 'google_search',
+        operation: 'search',
+        units: result.queries.length,
+        usdCost: result.queries.length * SEARCH_QUERY_USD,
+      });
     }
     return { ...result, costs };
   }
 
   // A grounded answer: the same search tool, but we want the model's words, not its links (001 FR-033b).
-  async function groundedAnswer(call: { model: string; instructionVersion: string; system: string; input: string }): Promise<{ text: string; urls: string[]; sites: string[]; costs: CallCost[] }> {
-    const identity = { model: call.model, instruction: call.instructionVersion, input: call.input };
+  async function groundedAnswer(call: {
+    model: string;
+    instructionVersion: string;
+    system: string;
+    input: string;
+  }): Promise<{ text: string; urls: string[]; sites: string[]; costs: CallCost[] }> {
+    const identity = {
+      model: call.model,
+      instruction: call.instructionVersion,
+      input: call.input,
+    };
     if (mode === 'replay') {
       const entry = await store.get('search', identity);
-      if (entry.kind !== 'search') throw new LlmSchemaError('replay entry is not a search result');
+      if (entry.kind !== 'search')
+        throw new LlmSchemaError('replay entry is not a search result');
       return { text: '', urls: entry.urls, sites: [], costs: [] };
     }
     let text: string;
@@ -162,14 +246,33 @@ export function createLlmClient(options: { mode: LlmMode; apiKey?: string; store
       });
       const grounding = response.candidates?.[0]?.groundingMetadata;
       text = (response.text ?? '').trim();
-      urls = [...new Set((grounding?.groundingChunks ?? []).map((chunk) => chunk.web?.uri).filter((uri): uri is string => !!uri))];
-      sites = [...new Set((grounding?.groundingChunks ?? []).map((chunk) => chunk.web?.title).filter((title): title is string => !!title))];
+      urls = [
+        ...new Set(
+          (grounding?.groundingChunks ?? [])
+            .map((chunk) => chunk.web?.uri)
+            .filter((uri): uri is string => !!uri),
+        ),
+      ];
+      sites = [
+        ...new Set(
+          (grounding?.groundingChunks ?? [])
+            .map((chunk) => chunk.web?.title)
+            .filter((title): title is string => !!title),
+        ),
+      ];
       usage = usageOf(response.usageMetadata);
     } catch (error) {
-      throw new LlmUnavailable(`grounded answer failed: ${String(error)}`, { cause: error });
+      throw new LlmUnavailable(`grounded answer failed: ${String(error)}`, {
+        cause: error,
+      });
     }
     const costs: CallCost[] = [modelCost(call.model, 'search', usage)];
-    costs.push({ provider: 'google_search', operation: 'search', units: 1, usdCost: SEARCH_QUERY_USD });
+    costs.push({
+      provider: 'google_search',
+      operation: 'search',
+      units: 1,
+      usdCost: SEARCH_QUERY_USD,
+    });
     return { text, urls, sites, costs };
   }
 
@@ -186,22 +289,44 @@ function jsonInText(text: string): string {
 }
 
 function parseOutput<T>(schema: z.ZodType<T>, raw: unknown, costs: CallCost[]): T {
-  if (raw !== null && typeof raw === 'object' && 'invalid_json' in raw) throw new LlmSchemaError('model returned invalid JSON', costs);
+  if (raw !== null && typeof raw === 'object' && 'invalid_json' in raw)
+    throw new LlmSchemaError('model returned invalid JSON', costs);
   const parsed = schema.safeParse(raw);
-  if (!parsed.success) throw new LlmSchemaError(`model output failed validation: ${z.prettifyError(parsed.error)}`, costs);
+  if (!parsed.success)
+    throw new LlmSchemaError(
+      `model output failed validation: ${z.prettifyError(parsed.error)}`,
+      costs,
+    );
   return parsed.data;
 }
 
-function usageOf(meta: { promptTokenCount?: number; candidatesTokenCount?: number; thoughtsTokenCount?: number } | undefined): Usage {
+function usageOf(
+  meta:
+    | {
+        promptTokenCount?: number;
+        candidatesTokenCount?: number;
+        thoughtsTokenCount?: number;
+      }
+    | undefined,
+): Usage {
   return {
     input_tokens: meta?.promptTokenCount ?? 0,
     // Thinking tokens are billed as output.
-    output_tokens: (meta?.candidatesTokenCount ?? 0) + (meta?.thoughtsTokenCount ?? 0),
+    output_tokens:
+      (meta?.candidatesTokenCount ?? 0) + (meta?.thoughtsTokenCount ?? 0),
   };
 }
 
-function modelCost(model: string, operation: CallCost['operation'], usage: Usage): CallCost {
+function modelCost(
+  model: string,
+  operation: CallCost['operation'],
+  usage: Usage,
+): CallCost {
   const usd = modelCostUsd(model, usage.input_tokens, usage.output_tokens);
-  if (usd === undefined) log('warn', 'no price for model; cost recorded as 0', { event: 'llm.price_unknown', model });
+  if (usd === undefined)
+    log('warn', 'no price for model; cost recorded as 0', {
+      event: 'llm.price_unknown',
+      model,
+    });
   return { provider: 'gemini', operation, units: 1, usdCost: usd ?? 0 };
 }
