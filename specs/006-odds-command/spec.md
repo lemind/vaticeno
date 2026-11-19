@@ -7,7 +7,7 @@
 **Status**: Draft
 
 **Input**: Owner, 2026-11-19: "we write `@vaticeno odds`, you go to two or three bookmakers, get approximate odds and
-reply with them" — one classic format (2:1, 1:2); for a race the first five and a range for the rest; no bookmaker
+reply with them" — fractional (2:1, 1:2) with decimal beside it (3.00, 1.50), no American odds; for a race the first five and a range for the rest; no bookmaker
 named, no daily cap; listed in help and on the site. Decision record: `docs/decisions/009-odds-command.md`.
 
 ## User Scenarios & Testing *(mandatory)*
@@ -15,17 +15,17 @@ named, no daily cap; listed in help and on the site. Decision record: `docs/deci
 ### User Story 1 - Odds for a match (Priority: P1)
 
 Under a post about Arsenal v City, someone tags `@vaticeno odds`. The bot replies once, in that thread:
-`Arsenal 2:1 · Draw 5:2 · City 6:5 — about, from 3 bookmakers`.
+`Arsenal 2:1 (3.00) · Draw 5:2 (3.50) · City 6:5 (2.20) — about, from 3 bookmakers`.
 
 **Why this priority**: the command itself; everything else extends it.
 
 **Independent Test**: with the search stubbed to give two bookmakers' prices, one mention gets one reply with every
-outcome in fractional odds and the count of bookmakers, no bookmaker name and no link.
+outcome in fractional and decimal odds and the count of bookmakers, no bookmaker name and no link.
 
 **Acceptance Scenarios**:
 
 1. **Given** a post about a priced event, **When** `@vaticeno odds` is tagged under it, **Then** one reply lists each
-   outcome with the average of at least two bookmakers, in fractional odds, and says "about, from N bookmakers".
+   outcome with the average of at least two bookmakers, in fractional odds with decimal beside it, and says "about, from N bookmakers".
 2. **Given** a recorded prediction in the thread, **When** `odds` is tagged, **Then** the event is the one its contract
    names.
 3. **Given** only one bookmaker found, or none, **When** `odds` is tagged, **Then** the reply says no bookmaker prices
@@ -35,7 +35,7 @@ outcome in fractional odds and the count of bookmakers, no bookmaker name and no
 ### User Story 2 - Odds for a race (Priority: P2)
 
 Under a post about a race, `@vaticeno odds` gets the five shortest prices and one range for the rest:
-`Golden Sixty 2:1 · … · rest 12:1–50:1 — about, from 2 bookmakers`.
+`Golden Sixty 2:1 (3.00) · … · rest 12:1–50:1 — about, from 2 bookmakers`.
 
 **Independent Test**: twelve runners priced by two bookmakers give five named prices and one range, within one post.
 
@@ -61,7 +61,8 @@ Under a post about a race, `@vaticeno odds` gets the five shortest prices and on
 - **FR-002**: The event is inferred: the thread's recorded prediction first, else the post and its thread; never asked.
 - **FR-003**: One web search per command asks for current prices of each outcome at two or more bookmakers; the
   answer is structured and validated; code keeps outcomes priced by at least two bookmakers and averages them.
-- **FR-004**: Odds are shown in classic fractional form only, rounded to the nearest common price.
+- **FR-004**: Each price is shown in classic fractional form, rounded to the nearest common price, with its decimal
+  odds beside it to two places (`2:1 (3.00)`); the race's range is fractional only. No American odds.
 - **FR-005**: A race shows the five shortest prices and one range for the rest; the reply fits one post.
 - **FR-006**: The reply names no bookmaker, carries no link, says "about, from N bookmakers", never a tip or
   "bet now"; odds appear nowhere else — not in the feed, a verdict or a wager page.

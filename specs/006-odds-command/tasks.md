@@ -13,8 +13,8 @@
 
 ## Phase 2: The command (US1)
 
-- [ ] T603 [P] [US1] `src/bot/odds-format.ts`: decimal → nearest common fractional price; the reply text with
-  "about, from N bookmakers"; tests in `src/bot/odds-format.test.ts`.
+- [ ] T603 [P] [US1] `src/bot/odds-format.ts`: decimal → nearest common fractional price with the decimal beside it
+  (`2:1 (3.00)`); the reply text with "about, from N bookmakers"; tests in `src/bot/odds-format.test.ts`.
 - [ ] T604 [P] [US1] `src/llm/instructions/odds.v1.md` and the Zod schema of the answer.
 - [ ] T605 [US1] `src/bot/odds.ts`: the event from the thread's claim or the post; one grounded call; keep outcomes
   with two or more prices; average; the "no prices" and "name the event" replies; cost recorded.

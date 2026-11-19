@@ -24,9 +24,9 @@ the weekly race post's top-five-and-range code.
   with numbers is a prediction" guard.
 - `src/bot/odds.ts` (new): `oddsReply(deps, mention)` — the event from the thread's claim or the post (the existing
   thread reader), one `groundedAnswer` with instruction `odds.v1`, Zod schema `{ event, outcomes: [{ name, prices:
-  number[] }] }` (decimal prices), keep outcomes with ≥2 prices, average, convert to fractional.
-- `src/bot/odds-format.ts` (new, pure): decimal → nearest common fractional price; the reply text; the race shape
-  (five shortest + range) reusing `src/content/race-post.ts` helpers where they fit.
+  number[] }] }` (decimal prices), keep outcomes with ≥2 prices, average, show fractional with decimal beside it.
+- `src/bot/odds-format.ts` (new, pure): decimal → nearest common fractional price, plus the decimal to two places;
+  the reply text; the race shape (five shortest + range) reusing `src/content/race-post.ts` helpers where they fit.
 - `src/llm/instructions/odds.v1.md` (new): asks for prices at two or more bookmakers, decimal, JSON only.
 - `src/bot/mentions.ts`: `runCommand` routes `odds`.
 - `src/replies/templates.ts`: help line `• odds → about what bookmakers give`; the "no prices" and "name the event"
@@ -36,6 +36,6 @@ the weekly race post's top-five-and-range code.
 
 ## Tests
 
-- Unit: fractional rounding ladder; averaging and the two-bookmaker rule; the race shape; every reply fits a post and
-  carries no link or bookmaker name; command matching (`odds`, `odds pls`, "odds are BTC hits 100k" is not).
+- Unit: fractional rounding ladder and the decimal beside it; averaging and the two-bookmaker rule; the race shape;
+  every reply fits a post and carries no link or bookmaker name; command matching (`odds`, `odds pls`, "odds are BTC hits 100k" is not).
 - Integration: one mention → one reply; the search down → no reply, retried, never twice.

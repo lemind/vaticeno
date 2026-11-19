@@ -13,8 +13,8 @@ say, and its rules forbid odds anywhere ("never a tip, odds…", 005 FR-016).
 
 1. **A command.** `@vaticeno odds` under a post: the bot replies once, in that thread, with approximate bookmaker odds
    for the event the post or its prediction is about. Nothing else is needed in the mention.
-2. **One format.** Classic fractional odds — `2:1`, `1:2`, `5:2` — rounded to the nearest common price. Readers convert
-   if they want another format.
+2. **Two formats.** Classic fractional odds — `2:1`, `1:2`, `5:2`, rounded to the nearest common price — each with its
+   decimal odds beside it (`2:1 (3.00)`, `1:4 (1.25)`). No American odds: readers convert if they want them.
 3. **An average of at least two bookmakers.** One web search through the model asks for the current prices of the
    event's outcomes at two or more bookmakers. Code requires two prices per outcome and averages them; with fewer,
    the reply says no bookmaker prices it.
@@ -33,7 +33,7 @@ bookmakers, and why odds never touch a verdict, a wager or the own feed.
 ## Why not
 
 - **The bot's own estimate**: a prediction of its own, forbidden by constitution VI.
-- **Three formats**: longer replies for no gain (owner).
+- **American odds as well**: a third format makes replies longer for few readers (owner).
 - **Odds from wager stakes**: few claims carry stakes; it answers a different question. Can be added later.
 
 ## Revisit when
