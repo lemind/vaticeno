@@ -1057,6 +1057,40 @@ describe('selfpromo and quote', () => {
   });
 });
 
+// Live 2026-11-19: under our own post, @Lemind asked Grok for odds (our handle carried, ignored); Grok's answer
+// carried our handle again and got the help reply.
+describe('a handle carried into a thread that named us', () => {
+  test('a reply below an earlier mention of us needs our handle typed, answered or not', async () => {
+    const asked = mention('160', '@vaticeno @grok odds?', {
+      conversation_id: 'conv-grok',
+      in_reply_to_user_id: BOT,
+      referenced_tweets: [{ type: 'replied_to', id: 'own-post' }],
+    });
+    const grok = mention(
+      '161',
+      '@Lemind @vaticeno Current odds: Kabayel 1/16, Hysa 8/1',
+      {
+        author_id: '1720665183188922368',
+        conversation_id: 'conv-grok',
+        in_reply_to_user_id: ME,
+        referenced_tweets: [{ type: 'replied_to', id: '160' }],
+      },
+    );
+    const typed = mention('162', '@grok @vaticeno @vaticeno help', {
+      conversation_id: 'conv-grok',
+      in_reply_to_user_id: '1720665183188922368',
+      referenced_tweets: [{ type: 'replied_to', id: '161' }],
+    });
+    const { deps, replies } = await bot([[asked, grok, typed]]);
+    await pollMentions(deps, NOW);
+    assert.deepEqual(
+      replies.map((r) => r.to),
+      ['162'],
+      'neither the carried tag nor Grok gets a reply; a typed one does',
+    );
+  });
+});
+
 describe('unclear mentions: the model reads the thread', () => {
   test('"so?" under the bot\'s quote gets a new quote', async () => {
     const { deps, replies } = await bot([
@@ -2110,7 +2144,7 @@ describe('odds', () => {
     assert.deepEqual(
       replies.map((r) => r.text),
       [
-        'Arsenal v Man City: Man City 6:5 (2.20) · Arsenal 2:1 (3.00) · Draw 5:2 (3.50) — about, from 2 bookmakers',
+        'Arsenal v Man City: Man City 6:5 (2.20) · Arsenal 2:1 (3.00) · Draw 5:2 (3.50)',
       ],
     );
     const [odds] =

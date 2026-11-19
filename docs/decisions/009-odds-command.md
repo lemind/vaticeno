@@ -20,8 +20,9 @@ say, and its rules forbid odds anywhere ("never a tip, odds…", 005 FR-016).
    to longest (`2:9–2:7 (1.22–1.29)`; one price when they agree); with fewer, the reply says no bookmaker prices it.
    Amended 2026-11-19: a range, not an average, as other answers give it (owner); every lookup's prices and source
    sites are logged, so a difference from another answer can be explained.
-4. **No names, no links.** The reply says "about, from N bookmakers" and never names a bookmaker: we refer, we do not
-   promote. No link, as for every reply (constitution VI).
+4. **No names, no links, nothing else.** The reply is the odds alone — no "about, from N bookmakers" (owner,
+   2026-11-19) — and never names a bookmaker: we refer, we do not promote. The search is asked for three bookmakers
+   per outcome, at least two; one search either way, so three cost no more. No link, as for every reply (constitution VI).
 5. **Races.** The five shortest prices, then one range for the rest (the same shape as the weekly race post, 005 FR-025).
 6. **No daily cap for now.** The usual one reply per mention and per-author limits apply. Every call's cost is recorded
    under its own operation, `odds`, so the cost per reply can be read (owner: all costs are written).
@@ -30,7 +31,7 @@ say, and its rules forbid odds anywhere ("never a tip, odds…", 005 FR-016).
 ## What we give up
 
 Verdicts rest on pages our code reads itself. These odds do not: bookmaker sites block servers and draw their prices
-with scripts, so the numbers come from the search's answer. That is why the reply says "about" and shows the range of several
+with scripts, so the numbers come from the search's answer. That is why the reply shows the range of several
 bookmakers, and why these odds never touch a verdict, a wager or the own feed (the weekly race post keeps its
 own odds, read from the Jockey Club's cards and priced as 005 FR-025 says).
 

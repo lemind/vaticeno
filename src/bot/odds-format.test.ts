@@ -20,15 +20,15 @@ test('only outcomes two bookmakers price, averaged, shortest first', () => {
     { name: 'Arsenal', prices: [3.0, 3.2, 0.5, Number.NaN] },
   ]);
   assert.deepEqual(
-    lines.map((l) => [l.name, l.decimal.toFixed(2), l.bookmakers]),
+    lines.map((l) => [l.name, l.decimal.toFixed(2), l.low, l.high]),
     [
-      ['City', '2.25', 2],
-      ['Arsenal', '3.10', 2],
+      ['City', '2.25', 2.2, 2.3],
+      ['Arsenal', '3.10', 3.0, 3.2],
     ],
   );
 });
 
-test('a match: every outcome with its decimal, the bookmaker count, no handle or link', () => {
+test('a match: every outcome with its decimal, no handle, link or bookmaker count', () => {
   const text = oddsText(
     'Arsenal v Man City @bookie https://x.y',
     averaged([
@@ -39,7 +39,7 @@ test('a match: every outcome with its decimal, the bookmaker count, no handle or
   );
   assert.equal(
     text,
-    'Arsenal v Man City bookie: City 6:5 (2.20) · Arsenal 2:1 (3.00) · Draw 5:2 (3.50) — about, from 2 bookmakers',
+    'Arsenal v Man City bookie: City 6:5 (2.20) · Arsenal 2:1 (3.00) · Draw 5:2 (3.50)',
   );
   assert.equal(
     oddsText('x', averaged([{ name: 'A', prices: [2, 2] }])),
@@ -56,7 +56,7 @@ test('a race: the five shortest named, then one range on the ladder, within one 
   const text = oddsText('Hong Kong Cup', averaged(runners))!;
   assert.match(
     text,
-    /Horse Number 5 [\d:–]+ \(\d+\.\d\d–\d+\.\d\d\) · rest \d+:\d+–\d+:\d+ — about, from 2 bookmakers$/,
+    /Horse Number 5 [\d:–]+ \(\d+\.\d\d–\d+\.\d\d\) · rest \d+:\d+–\d+:\d+$/,
   );
   assert.ok(!text.includes('Horse Number 6 '), 'the sixth is in the range');
   assert.ok(weightedLength(text) <= 280);
@@ -90,7 +90,7 @@ test('review 2026-11-19: no bare domain, no empty head, long shots, and too long
     averaged(long),
   )!;
   assert.ok(text && weightedLength(text) <= 280, 'shortened to fit, not refused');
-  assert.match(text, /rest \d+:\d+–\d+:\d+ — about, from 2 bookmakers$/);
+  assert.match(text, /rest \d+:\d+–\d+:\d+$/);
 });
 
 test("each outcome shows the bookmakers' range; one price when they agree", () => {
@@ -103,6 +103,6 @@ test("each outcome shows the bookmakers' range; one price when they agree", () =
   );
   assert.equal(
     text,
-    'Kabayel v Hysa: Kabayel 2:9–2:7 (1.22–1.29) · Hysa 3:1 (4.00) — about, from 2 bookmakers',
+    'Kabayel v Hysa: Kabayel 2:9–2:7 (1.22–1.29) · Hysa 3:1 (4.00)',
   );
 });

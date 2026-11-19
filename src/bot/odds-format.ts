@@ -21,7 +21,6 @@ export type OddsLine = {
   decimal: number;
   low: number;
   high: number;
-  bookmakers: number;
 };
 
 // The nearest ladder price to a decimal price (decimal = fraction + 1).
@@ -49,7 +48,6 @@ export function averaged(outcomes: readonly PricedOutcome[]): OddsLine[] {
       decimal: o.prices.reduce((a, b) => a + b, 0) / o.prices.length,
       low: Math.min(...o.prices),
       high: Math.max(...o.prices),
-      bookmakers: o.prices.length,
     }))
     .sort((a, b) => a.decimal - b.decimal);
 }
@@ -83,8 +81,6 @@ const priced = (line: OddsLine, max: number) =>
 export function oddsText(event: string, found: readonly OddsLine[]): string | null {
   const lines = found.filter((line) => clean(line.name, 40)); // a name that was only a link says nothing
   if (lines.length < 2) return null;
-  const bookmakers = Math.min(...lines.map((l) => l.bookmakers));
-  const tail = ` — about, from ${bookmakers} bookmakers`;
   const race = lines.length > TOP + 1; // more than six outcomes: five named, a range for the rest
   const counts = race ? [TOP, 4, 3, 2] : [lines.length];
   let text = '';
@@ -100,9 +96,7 @@ export function oddsText(event: string, found: readonly OddsLine[]): string | nu
       }
       const body = parts.join(' · ');
       const head = clean(event, 60);
-      for (text of head
-        ? [`${head}: ${body}${tail}`, `${body}${tail}`]
-        : [`${body}${tail}`])
+      for (text of head ? [`${head}: ${body}`, `${body}`] : [`${body}`])
         if (weightedLength(text) <= X_MAX_CHARS) return text;
     }
   return text; // twelve-letter names and two runners always fit; kept for the type

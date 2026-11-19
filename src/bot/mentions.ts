@@ -997,6 +997,9 @@ export async function pollMentions(
         action: routed.action,
         text_chars: mention.text.length,
       });
+      // A thread that named us carries our handle into every reply below it, answered or not: Grok's reply under a
+      // tag we ignored got the help reply (2026-11-19). From now on only a typed handle counts there.
+      rememberConversation(state, mention.conversation_id);
       if (routed.deferQuote) {
         state.pending_quotes.push({
           tweet_id: mention.id,
@@ -1110,7 +1113,7 @@ async function retryPendingQuotes(
 const inMinutes = (now: Date, minutes: number) =>
   new Date(now.getTime() + minutes * 60_000).toISOString();
 
-// Threads we have posted in: X prepends our handle to every later reply there (src/commands/parse.ts).
+// Threads we have posted in or been named in: X prepends our handle to every later reply there (src/commands/parse.ts).
 function rememberConversation(
   state: IngestState,
   conversationId: string | undefined,

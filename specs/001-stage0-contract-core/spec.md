@@ -408,7 +408,9 @@ shown but never count as a contradiction.
   participant's handle to a reply, so a thread the bot has answered keeps producing mentions nobody intended:
   those MUST NOT be answered, and MUST cost no model call and no conversation read. A post counts as addressed
   when it replies to one of the bot's own posts, when it replies to a post by its own author, when it arrives
-  in a thread the bot has not posted in, or when the handle appears outside the prepended block. STOP is
+  in a thread the bot has not posted in or been named in before, or when the handle appears outside the prepended
+  block (a thread that named the bot carries its handle like one it answered: Grok's reply under an ignored tag
+  got the help reply, 2026-11-19). STOP is
   recorded wherever it is seen, addressed or not, and earns no reply when it was not (owner decision
   2026-10-09, after ten unasked replies into one stranger's conversation).
 - **FR-009**: All replies MUST fit within X's post length limit and contain no link card; the public

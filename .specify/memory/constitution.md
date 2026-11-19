@@ -218,7 +218,7 @@ entire class of problems, and it is what X's terms require.
   link, in any reply.
 - A reply to an explicit `odds` command MAY give approximate bookmaker odds for the event the thread is about
   (owner decision 2026-11-19, `docs/decisions/009-odds-command.md`): the range of two or more bookmakers, none
-  named, no link, marked "about". These are the bookmakers' prices, not a prediction of the bot's own; they never
+  named, no link, the odds alone. These are the bookmakers' prices, not a prediction of the bot's own; they never
   appear in an own-feed post, a verdict or a wager page. The weekly race post's odds (spec 005 FR-025) are unchanged.
 - There are no topic exclusions, but content the bot republishes MUST comply with X's rules. X allows
   automated reposts and quote posts that are not bulk, aggressive or spammy (X's automation rules).
