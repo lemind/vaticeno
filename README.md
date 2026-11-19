@@ -9,7 +9,8 @@ An X bot that puts predictions **on the record** and checks them automatically o
 ```
 
 **Live at [vaticeno.n30sk.cc](https://vaticeno.n30sk.cc)** — the front page says whether it is running and
-what version; `/status` is the owner's page, behind a password. On X: [@vaticeno](https://x.com/vaticeno).
+what version, linked to [CHANGELOG.md](CHANGELOG.md) as of the running commit; `/status` is the owner's page,
+behind a password. On X: [@vaticeno](https://x.com/vaticeno).
 
 ## Status
 
@@ -27,10 +28,11 @@ A follower-count prediction is decided by reading the account's count from X at 
 **Own feed (specs 002 and 005):** [spec 002](specs/002-content-feed/spec.md),
 [spec 005](specs/005-x-growth/spec.md), [tasks](specs/005-x-growth/tasks.md), [rules](docs/content-rules.md).
 Live on the server. Once a day it reposts the most-liked announcement of an upcoming event, found by one X
-search over that weekday's group of event accounts. Tuesday to Thursday it posts an event of its own, with a
-poster, once two sites confirm it. Monday: the predictions coming due this week, only from authors on the
-owner's list; Friday: the week's record in counts. The owner can queue own posts on a date. The feed never
-republishes a verdict: a hit or a miss is told once, in its author's thread. `ENABLE_FEED` switches it on;
+search over that weekday's group of event accounts. Every day the queue leaves free, it posts an event of its own, with a
+poster, once two sites confirm it. Every weekend's biggest Hong Kong race goes out on Friday (Saturday if
+Friday found none): the race, day and course, the five shortest prices and a range for the rest, on a poster. Monday: the predictions coming due this week, only from authors on the
+owner's list; Friday: the week's record in counts. The owner can queue own posts on a date. Once a day it reposts one fresh verdict reply
+of an author on that list, hits and misses alike; anyone else's verdict is told once, in their own thread. `ENABLE_FEED` switches it on;
 `FEED_DRY_RUN=true` (the default) records the picks and posts nothing.
 
 **Wagers in real money (spec 003, Stages 2 and 4):** [spec](specs/003-python-platform/spec.md),
@@ -67,7 +69,7 @@ the model may look, so it would save nothing (spec SC-006). It runs as a private
 | Sports: the event and its competitor must exist (web search), competition filled in, recordable until the start | |
 | Database: lock and verdict rules enforced by Postgres, locally and on Supabase | Backups: scripts in `deploy/`, not installed (owner's call) |
 | Verdicts after the deadline: Coinbase daily close, the account's follower count from X, or AI reading web pages behind code gates; human review; a per-claim spending ceiling with an alert | |
-| Own feed (specs 002, 005), live: one event repost a day found by search, own event posts with a poster Tue–Thu, the Monday list and the Friday record, the owner's dated queue; caps and "never twice" enforced by Postgres; run by systemd timers | |
+| Own feed (specs 002, 005), live: one event repost a day found by search, own event posts with a poster every free day, the weekend's Hong Kong race with its odds on Fridays, the Monday list and the Friday record, one verdict reply of a listed author reposted a day, the owner's dated queue; caps and "never twice" enforced by Postgres; run by systemd timers | |
 | Site visits counted with Cloudflare Web Analytics, cookie-free (spec 005) | |
 | Claim and author pages, public on [vaticeno.n30sk.cc](https://vaticeno.n30sk.cc) at `/claim/<slug>` (old `/c/` links forward) | |
 | Testnet wagers (spec 003): escrow contract on Base Sepolia, source verified; the worker that signs and settles; `wager` on X → one link per claim → a page where your own wallet offers, accepts, pays out or refunds; a browser wager settled and paid out (2026-10-26) | |
@@ -162,6 +164,12 @@ listed in [contracts/cli.md](specs/001-stage0-contract-core/contracts/cli.md).
 deploy/deploy.sh root@HOST                    # every update: sync, install, restart every unit
 ```
 
+Every deploy of new code raises the version in `package.json` (a feature the minor, a fix the patch) and adds
+its dated [CHANGELOG.md](CHANGELOG.md) entry. The script refuses uncommitted or unpushed code and a new commit
+under a version already live. Where this machine's traffic goes out through the server itself, direct SSH to it
+loops: run the script with an `ssh` on `PATH` that goes through the open tunnel
+(`-o "ProxyCommand=nc -X 5 -x 127.0.0.1:1080 127.0.0.1 22"`).
+
 What the server runs, where its secrets live and how to move it to another one: [docs/server.md](docs/server.md).
 
 Runs as systemd service `vaticeno` (`src/web/server.ts` with `ENABLE_JOBS=true ENABLE_X=true`). Logs:
@@ -250,7 +258,7 @@ requests are 404s and the latency numbers come out flattering.
 src/
   web/server.ts  the service entry point: pages + scheduler
   jobs/       scheduler (mentions, lock, expire, resolve, verdicts, reconcile, recheck) and the job lock
-  content/    the own feed: event reposts, event posts and posters, the queue, Monday list, Friday record
+  content/    the own feed: event reposts, event posts and posters, the queue, Monday list, Friday record, verdict reposts
   bot/        X intake: mentions → route → one reply; X post reader
   lifecycle/  record, fix, lock, expire a claim
   contract/   contract schema, checks, statement template, slugs (pure)

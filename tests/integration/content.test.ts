@@ -14,6 +14,7 @@ import {
 } from '../../src/content/slots.js';
 import { runPoolPost, type ContentDeps } from '../../src/content/pool-run.js';
 import { runDigest } from '../../src/content/record-run.js';
+import { runVerdictRepost } from '../../src/content/verdict-run.js';
 import { type EventDeps, runEventPost } from '../../src/content/event-run.js';
 import {
   runOriginalPost,
@@ -858,4 +859,90 @@ test('an event post carries its poster; a failed poster still posts the text', a
     sent.map((s) => s.image),
     [true, false],
   );
+});
+
+// Spec 005 FR-014b: one verdict reply of a listed author reposted a day, newest first, never twice.
+test('the verdict repost: listed authors only, newest first, one a day, never twice, never a corrected one', async () => {
+  const day = new Date('2027-01-05T16:29:00Z');
+  const verdict = async (reply: string, at: string, author = '200') => {
+    const claim = await insertClaim(t.sql, 'resolved', { author_x_user_id: author });
+    await t.sql`update claims set verdict_reply_at = ${at}, verdict_reply_tweet_id = ${reply} where id = ${claim.id}`;
+    return claim;
+  };
+  await verdict('r-old', '2026-12-20T00:05:00Z'); // past the week: old news
+  const older = await verdict('r1', '2027-01-03T00:05:00Z');
+  const newest = await verdict('r2', '2027-01-04T00:05:00Z');
+  await verdict('r-stranger', '2027-01-05T00:05:00Z', '300');
+  const corrected = await verdict('r3', '2027-01-05T00:06:00Z');
+  const evidence = await insertEvidence(t.sql, corrected.id, { says: 'hit' });
+  await t.sql`insert into resolutions ${t.sql({ claim_id: corrected.id, outcome: 'miss', decided_by: 'evidence', review_status: 'final', decided_at: day.toISOString(), deciding_evidence_id: evidence.id })}`;
+  await t.sql`insert into corrections ${t.sql({ claim_id: corrected.id, from_outcome: 'miss', to_outcome: 'hit', reason: 'r', decided_by: 'evidence' })}`;
+
+  const reposted: string[] = [];
+  const deps = contentDeps({
+    dryRun: false,
+    showAuthorIds: ['200'],
+    repost: async (id) => {
+      reposted.push(id);
+      return true;
+    },
+  });
+  assert.equal(
+    (await runVerdictRepost({ ...deps, showAuthorIds: [] }, day)).done,
+    'nothing_new',
+    'an empty list reposts no one',
+  );
+  assert.equal(
+    (await runVerdictRepost({ ...deps, dryRun: true }, day)).done,
+    'logged',
+  );
+  assert.equal((await t.sql`select count(*)::int as n from feed_posts`)[0]!.n, 0);
+
+  assert.deepEqual(await runVerdictRepost(deps, day), {
+    done: 'posted',
+    slug: newest.slug,
+  });
+  assert.equal((await runVerdictRepost(deps, day)).done, 'cap_reached', 'one a day');
+  const next = new Date('2027-01-06T16:29:00Z');
+  assert.deepEqual(await runVerdictRepost(deps, next), {
+    done: 'posted',
+    slug: older.slug,
+  });
+  assert.equal(
+    (await runVerdictRepost(deps, new Date('2027-01-07T16:29:00Z'))).done,
+    'nothing_new',
+    'nothing reposted twice, no stranger, no corrected verdict, nothing past the week',
+  );
+  assert.deepEqual(reposted, ['r2', 'r1']);
+  const rows =
+    await t.sql`select kind, status, posted_id from feed_posts order by created_at`;
+  assert.deepEqual(
+    rows.map((r) => [r.kind, r.status, r.posted_id]),
+    [
+      ['receipt', 'posted', null],
+      ['receipt', 'posted', null],
+    ],
+  );
+});
+
+test('X refusing a verdict repost frees the day and never retries that reply', async () => {
+  const claim = await insertClaim(t.sql, 'resolved');
+  await t.sql`update claims set verdict_reply_at = ${NOW.toISOString()}, verdict_reply_tweet_id = 'r1' where id = ${claim.id}`;
+  const deps = contentDeps({
+    dryRun: false,
+    showAuthorIds: ['200'],
+    repost: async () => {
+      throw new XApiError(403, 'forbidden', null);
+    },
+  });
+  assert.equal((await runVerdictRepost(deps, NOW)).done, 'failed');
+  assert.equal((await runVerdictRepost(deps, NOW)).done, 'nothing_new');
+});
+
+test('an author who sent STOP is never reposted', async () => {
+  const claim = await insertClaim(t.sql, 'resolved');
+  await t.sql`update claims set verdict_reply_at = ${NOW.toISOString()}, verdict_reply_tweet_id = 'r1' where id = ${claim.id}`;
+  await t.sql`insert into opt_outs ${t.sql({ x_user_id: '200' })}`;
+  const deps = contentDeps({ dryRun: false, showAuthorIds: ['200'] });
+  assert.equal((await runVerdictRepost(deps, NOW)).done, 'nothing_new');
 });

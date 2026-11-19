@@ -40,7 +40,7 @@ event post names the event and its date and stops. A post the owner makes by han
 
 ## The owner's calls
 
-Only authors on `FEED_SHOW_AUTHOR_IDS` (the owner alone for now) may be shown in an own post: their terms after
+Only authors on `FEED_SHOW_AUTHOR_IDS` (the owner and @NeonSkeld for now; their verdict replies are also reposted, one a day — FR-014b) may be shown in an own post: their terms after
 the lock, their verdict after the deadline, labelled as the author's call ("CALL · recorded on Vaticeno"), misses
 included, never only the hits. The owner records two predictions a week, writes the post once the fact exists,
 and queues it: `npm run content:queue -- add "…" [--on YYYY-MM-DD]`.

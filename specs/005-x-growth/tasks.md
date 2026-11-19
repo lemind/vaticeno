@@ -17,6 +17,7 @@ done by the owner in the X app; their drafts live in `specs/005-x-growth/content
 - [x] T501 Constitution VI 2.8.0 → 2.9.0 in `.specify/memory/constitution.md`: a claim is shown in an own-feed post
   only when its author is on the owner's list (the owner alone for now), all of the author's calls in a period
   and not only hits; the money rule set aside for now; `CLAUDE.md` version line. ADR `docs/decisions/008-x-growth.md`.
+  (Widened by 2.10.0 on 2026-11-19: see T521.)
 - [x] T502 [US1] `CF_ANALYTICS_TOKEN` (32 hex, optional) in `src/config.ts` and `.env.example`; `buildServer` in
   `src/web/server.ts` adds the beacon before `</head>` and the privacy line before `</main>` of every HTML
   response when set; `.privacy` style in `src/web/html.ts`; test in `tests/integration/pages.test.ts`; README.
@@ -93,7 +94,7 @@ done by the owner in the X app; their drafts live in `specs/005-x-growth/content
 - [x] T517a [US3a] `src/content/event-post.ts`: the template (event · scheduled for · date · place, plus one of a
   few fixed closing lines), the usual own-feed text checks, and `src/content/event-run.ts`: free slot → up to three
   topics → post once, kind `event` with payload {topic, name, date} (migration in T509); the next run's last topic is the latest event post's, never the same event twice,
-  costs logged, dry run respected. Scheduled Tue–Thu after the queue run.
+  costs logged, dry run respected. Scheduled daily after the queue run (owner 2026-11-16; was Tue–Thu).
 - [x] T517c [US3a] Event poster (FR-024): `src/content/event-image.ts` (a prompt per topic: abstract, no text, no
   logos, no "Vaticeno"), `src/llm/image.ts` (Gemini 2.5 Flash Image, 16:9, cost logged), `uploadImage` in
   `src/x/client.ts`, `media.write` in `OAUTH_SCOPES`. No image is generated, or paid for, until the saved login
@@ -122,6 +123,10 @@ done by the owner in the X app; their drafts live in `specs/005-x-growth/content
   logo or real face (`src/content/event-image.ts`, FR-024).
 - [x] T517b [US3a] Tests: two agreeing pages post; one page, or disagreeing dates, do not; three failed topics post
   nothing; a repeat event is skipped; the text never carries a link, a handle or a hashtag.
+- [x] T517l The weekend's Hong Kong race (FR-025, owner 2026-11-13): `src/content/race-card.ts` (the Jockey Club's cards, read by the code),
+  `src/llm/instructions/race.v2.md` (prices only), `src/content/race-post.ts` (prices, the top five, the rest's range, the template), `src/content/race-run.ts`,
+  `racePosterPrompt` in `src/content/event-image.ts`; the `race` feed job, Fri–Sat 14:13 UTC
+  (`deploy/vaticeno-content-race.timer`). Stand-by horses are not runners; the short text is checked first, so a long field never stops the post (review). Tests: `src/content/race-post.test.ts`.
 
 ---
 
@@ -137,6 +142,9 @@ done by the owner in the X app; their drafts live in `specs/005-x-growth/content
 - [x] T520 [P] Rewrite `docs/content-rules.md`: the two channels, the formats, no links in the bot's posts (and why:
   $0.20 vs $0.015), the owner's calls, the weekly routine (review the next 7 days, re-check events — a sports fixture
   again on its day —, add posts, run `growth:week --quotes N`, read both dashboards). Update `README.md` (status table, commands) and `docs/progress.md`.
+- [x] T521 Verdict reposts (FR-014b, owner 2026-11-19; constitution VI 2.10.0): `src/content/verdict-run.ts`, the `verdict`
+  feed job daily at 16:29 UTC (`deploy/vaticeno-content-verdict.timer`), the receipt cap one a day, migration
+  `drizzle/0028_receipt_repost.sql`. Tests: `tests/integration/content.test.ts`.
 
 ---
 

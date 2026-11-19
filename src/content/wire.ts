@@ -32,6 +32,7 @@ export function buildContentDeps(
   postText: (text: string, image?: Buffer) => Promise<{ id: string }>;
   fetchPage: PageFetcher;
   makePoster?: (topicId: string, event: FoundEvent) => Promise<Buffer | null>;
+  drawPoster?: (prompt: string) => Promise<Buffer | null>;
 } {
   const config = loadConfig();
   if (!config.X_BOT_USER_ID)
@@ -118,15 +119,15 @@ export function buildContentDeps(
     showAuthorIds: core.FEED_SHOW_AUTHOR_IDS,
     fetchPage: quoteDeps.fetchPage,
     ...(core.LLM_MODE === 'live' && core.GEMINI_API_KEY
-      ? { makePoster: posterMaker(quoteDeps, core.GEMINI_API_KEY, oauth1 !== null) }
+      ? posterMakers(quoteDeps, core.GEMINI_API_KEY, oauth1 !== null)
       : {}),
   };
 }
 
-// The event poster: one image call, its cost recorded whether or not an image came back. Nothing is generated (or
-// paid for) until the bot's saved login can upload media.
-function posterMaker(deps: QuoteDeps, apiKey: string, hasOAuth1: boolean) {
-  return async (topicId: string, event: FoundEvent): Promise<Buffer | null> => {
+// The event and race posters: one image call, its cost recorded whether or not an image came back. Nothing is
+// generated (or paid for) until the bot's saved login can upload media.
+function posterMakers(deps: QuoteDeps, apiKey: string, hasOAuth1: boolean) {
+  const drawPoster = async (prompt: string): Promise<Buffer | null> => {
     if (!hasOAuth1 && !(await tokenScopes()).includes('media.write')) {
       log('info', 'no poster: no 1.0a keys and the bot login lacks media.write', {
         event: 'feed.poster_no_scope',
@@ -134,15 +135,17 @@ function posterMaker(deps: QuoteDeps, apiKey: string, hasOAuth1: boolean) {
       return null;
     }
     try {
-      const { png, costs } = await generateImage(
-        apiKey,
-        posterPrompt(topicId, event),
-      );
+      const { png, costs } = await generateImage(apiKey, prompt);
       await saveCosts(deps, costs);
       return png;
     } catch (error) {
       await saveCosts(deps, (error as { costs?: CallCost[] }).costs ?? []);
       throw error;
     }
+  };
+  return {
+    drawPoster,
+    makePoster: (topicId: string, event: FoundEvent) =>
+      drawPoster(posterPrompt(topicId, event)),
   };
 }

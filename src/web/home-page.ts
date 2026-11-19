@@ -3,7 +3,7 @@
 import { count, eq, isNotNull } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
 import { claims, jobState, resolutions } from '../db/schema.js';
-import { VERSION } from '../version.js';
+import { CHANGELOG_URL, VERSION } from '../version.js';
 import { html, layout, safeHref, utc } from './html.js';
 
 export type Health = { ok: boolean };
@@ -154,7 +154,9 @@ export async function homePage(
           >
         </dd>
         <dt>Version</dt>
-        <dd>${VERSION}</dd>
+        <dd>
+          <a href="${CHANGELOG_URL}">${VERSION}</a>
+        </dd>
       </dl>
 
       <h2>Recorded</h2>

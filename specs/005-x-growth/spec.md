@@ -95,7 +95,7 @@ dated post goes out on its day, the undated one on the first free day, and nothi
 
 ### User Story 3a - Event posts by the bot (Priority: P1)
 
-Three days a week, with nothing else to post, the bot announces a major event coming up in a random topic —
+Every day, with nothing else to post (owner, 2026-11-16: no queue to fill), the bot announces a major event coming up in a random topic —
 "Wimbledon final is scheduled for 12 Jul in London. Have a call? Tag Vaticeno before it starts." — having found it
 with a web search and confirmed it in two independent sources itself. The owner does nothing.
 
@@ -249,10 +249,14 @@ best — and changes next week's mix from it.
   otherwise. Each post is written and approved by the owner once that fact exists, then queued; it names the
   claim by its slug, never @mentions the author, and reads as the author's call recorded on Vaticeno ("CALL ·
   recorded on Vaticeno"). Every call of that author in a period is shown, misses included, never only the hits.
-- **FR-014a**: The list is configuration and holds the owner's X user id alone for now; checked when a post is
+- **FR-014a**: The list is configuration and holds the X user ids of the accounts the owner names (FR-014b); checked when a post is
   queued and again when it goes out. Removing an id holds that author's queued posts and deletes nothing already
   out. How anyone else gets on the list is decided later. Whether a claim carries money is not checked for now
   (constitution VI: the money rule is set aside while the account grows).
+- **FR-014b**: Verdict reposts (owner, 2026-11-19; constitution VI 2.10.0): once a day the account reposts one of
+  its own verdict replies whose author is on the list — the newest not yet reposted, from the last seven days,
+  whatever the outcome; never a verdict since corrected, never an author who sent STOP, never the same reply twice. One a day, on its own daily
+  cap. The list now holds the owner and @NeonSkeld (by X user id).
 
 **Voice**
 
@@ -287,6 +291,15 @@ best — and changes next week's mix from it.
   logos (trademarks, and the model draws them garbled), no photo-like real person. The upload signs with the bot's
   OAuth 1.0a keys, since the browser login for `media.write` fails on X's side; its price is UNRECONCILED. A failed
   image never stops the post: it goes out as text.
+- **FR-025**: Every weekend, one post on the biggest Hong Kong race (owner, 2026-11-13). The code reads the Hong
+  Kong Jockey Club's own race cards for the coming Saturday and Sunday at Sha Tin and Happy Valley and takes the
+  race with the richest prize, with its name, day, course and runners from the card. A model with web search only
+  prices those runners, as one source quotes them; a horse the card does not name is dropped, and fewer than five
+  prices means no post. The poster gives the race, day and course, the five shortest prices ("5:1",
+  "13:8"; a quoted fraction is shown as quoted) and one range for the rest ("Rest 14:1–33:1"); never a price of
+  our own. The post's text names the race, day and course; the odds are told once, on the poster, and in the
+  text only when no poster came back. Friday, with Saturday as the retry; once a weekend, after the owner's queued post, in a second slot when
+  that one is taken.
 
 - **FR-018**: A weekly review from three sources: X's own dashboard (read by the owner; no paid API read), the
   site report (US1), and the database (claims recorded; distinct authors who tagged the bot, owner excluded).

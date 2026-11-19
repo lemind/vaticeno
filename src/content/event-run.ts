@@ -1,5 +1,5 @@
 // The bot's own event post (spec 005 US3a): a random topic in season, a model with web search proposes the nearest
-// big event, two pages the code reads confirm it, and a fixed template says it. Tue–Thu, only in a free own-post
+// big event, two pages the code reads confirm it, and a fixed template says it. Every day, only in a free own-post
 // slot; at most three topics, then nothing that day.
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import { z } from 'zod';
@@ -22,6 +22,8 @@ import { saveCosts } from './quote.js';
 import { markPosted, recordPostFailure, reserveSlot, utcDay } from './slots.js';
 import { overSpendCap, recordFeedPost } from './spend.js';
 import { TOPICS, type Topic } from './topics.js';
+
+const RACE_TOPIC = 'hk-racing'; // src/content/race-run.ts; not imported, since race-run imports this file
 
 export type EventDeps = OriginalDeps & {
   fetchPage: PageFetcher;
@@ -79,7 +81,7 @@ export async function runEventPost(
     .orderBy(desc(feedPosts.createdAt));
   const posted = past
     .map((r) => r.payload as EventPayload | null)
-    .filter((p): p is EventPayload => !!p);
+    .filter((p): p is EventPayload => !!p && p.topic !== RACE_TOPIC); // the weekly race is not a drawn topic
   const seen = new Set(posted.map((p) => `${p.name.toLowerCase()}|${p.date}`));
   const tried = new Set<string>(posted[0] ? [posted[0].topic] : []); // never the last topic again
 

@@ -1,6 +1,7 @@
 // Public pages (US5, SC-009): required elements, raw counts only, no content, everything escaped.
 import assert from 'node:assert/strict';
 import { after, before, beforeEach, describe, test } from 'node:test';
+import { VERSION } from '../../src/version.js';
 import { buildServer } from '../../src/web/server.js';
 import {
   insertClaim,
@@ -227,7 +228,10 @@ describe('front page', () => {
       page,
       /<a href="https:\/\/x\.com\/vaticeno" rel="noopener">@vaticeno<\/a>/,
     );
-    assert.match(page, /1\.2\.0/, 'the running version is on the page');
+    assert.ok(
+      page.includes(`>${VERSION}</a>`),
+      'the running version is on the page',
+    );
     assert.match(page, /Predictions<\/dt>\s*<dd>1<\/dd>/);
     assert.match(page, /Verdicts<\/dt>\s*<dd>1<\/dd>/);
     for (const leak of [/spend/i, /ceiling/i, /journal/i, /stale/i]) {

@@ -167,7 +167,7 @@ goes into the existing queue as an owner-written original (US2); the bot does no
 ### Key Entities
 
 - **Pool account**: numeric id, handle, field, weight, enabled.
-- **Feed post**: kind (repost, quote, original; receipt is kept for the rows already posted), day and
+- **Feed post**: kind (repost, quote, original; receipt — a plain repost of our own verdict reply, one a day, spec 005 FR-014b), day and
   slot, source post id or queue item,
   posted id, time. One row per source post and one per day's slot.
 - **Queue item**: owner-written text, order, posted at.

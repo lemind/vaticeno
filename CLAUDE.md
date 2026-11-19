@@ -1,7 +1,7 @@
 @AGENTS.md
 
 <!-- SPECKIT START -->
-**Constitution**: `.specify/memory/constitution.md` (v2.9.0) — principles every plan must pass.
+**Constitution**: `.specify/memory/constitution.md` (v2.10.0) — principles every plan must pass.
 
 **Active plan**: `specs/004-evidence-gates/plan.md` (001's plan, research, data-model and contracts/ stay the reference for the claim pipeline).
 
@@ -32,11 +32,13 @@ model-decided) proven on seeded claims, public pages. Where INIT_SPEC (v1.1.1) i
 - **Checkable by construction** (constitution II): any topic, but every contract names criterion, deadline, source and how "no" is shown. Evidence from several sources must pass code gates; one resolution per claim (agree / LLM arbiter / human review flag). No evidence = VOID, never MISS.
 - **Outage ≠ verdict**: source down → retry next run, no void, no `undecided_count` bump (§6.7).
 - **One reply per inbound interaction**; never a standalone `@mention` post (§6.1, §6.5).
-- **Lease writes are `worker_token`-guarded**; 0 rows updated → no side effects (§6.1).
+- **A mention is answered once** (§6.1): the cursor and answered ids live in `.state/ingest.json` (atomic rename),
+  a claim is unique per source post in Postgres, one job run at a time under an advisory lock. INIT_SPEC's
+  `worker_token` lease table was never built; keep this list true to the code.
 - **Never retry a post after a failed existence check** — that is how duplicates happen (§6.7).
 - **No post text stored**, IDs only (§6.9). `x_user_id` is identity; handle is a display cache (§3).
 - **Replies only where mentioned** (constitution VI): one reply per mention, in that thread; no unsolicited replies. The final verdict is posted once in the claim's thread (constitution VI 2.3.0).
-- **Own-feed posts** (constitution VI 2.5.0, spec 002): only from `src/content/` — pool reposts and quote posts, owner-written originals. The feed never republishes a verdict: a verdict is told once, in the claim's thread, because a hit or a miss belongs to its author (owner decision 2026-10-07). Capped per day in code, dry-run by default, and text the bot adds carries no @mentions, links or prediction of its own; the only hashtag allowed is the claim's own slug.
+- **Own-feed posts** (constitution VI 2.5.0, spec 002): only from `src/content/` — pool reposts and quote posts, owner-written originals. The feed never republishes a verdict: a verdict is told once, in the claim's thread, because a hit or a miss belongs to its author (owner decision 2026-10-07) — except for authors on the owner's list, whose verdict reply may be reposted, one a day (constitution VI 2.10.0). Capped per day in code, dry-run by default, and text the bot adds carries no @mentions, links or prediction of its own; the only hashtag allowed is the claim's own slug.
 - **Infer, never interrogate** (owner decisions 2026-10-04/05): the bot fills in what follows from the
   post, the thread or a public schedule and shows it in the reply, where the author can fix it in 15
   minutes. The platform is X; a date is computed from TODAY ("next month", "in a week"); an event with a
@@ -50,6 +52,10 @@ model-decided) proven on seeded claims, public pages. Where INIT_SPEC (v1.1.1) i
 ## Conventions
 
 **Commit messages**: one line, `feat|fix|chore|docs(001-T001): <short desc>` — task ID is spec number + task; a commit covering several tasks names the range, `feat(001-T009-024): …`. Omit the task ref when there is no associated task. Never commit without explicit user request.
+
+**Versions**: every deploy of new code raises the version in `package.json` and adds a `CHANGELOG.md` entry in
+plain words, dated; a feature raises the minor, a fix the patch. The front page shows it; `deploy/deploy.sh` refuses
+a new commit under a version already live.
 
 **Task IDs**: from spec 003 on, a task ID carries its spec number — 003 uses `T301`–`T399`, 004 will use `T401`–`T499`, so an ID is unique on its own. Specs 001 and 002 keep the numbers they shipped with (`T001`–`T125` and `T001`–`T056`), which repeat across the two; that is why the commit ref always names the spec. Inserted work takes a letter (`T326a`), never a renumber.
 
