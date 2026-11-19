@@ -1,6 +1,6 @@
 {
   "name": "vaticeno",
-  "version": "1.15.0",
+  "version": "1.15.1",
   "scripts": {
     "typecheck": "tsc --noEmit",
     "format": "scripts/format-changed.sh",

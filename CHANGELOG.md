@@ -3,6 +3,10 @@
 What changed for people using Vaticeno, newest first. The version on the site's front page is the top entry.
 A new feature raises the middle number, a fix the last one.
 
+## 1.15.1 — 2026-11-19
+
+- The front page describes `odds` as the bookmakers' odds, as a range.
+
 ## 1.15.0 — 2026-11-19
 
 - `@vaticeno odds` now shows each outcome's range across bookmakers, shortest to longest, like 2:9–2:7
