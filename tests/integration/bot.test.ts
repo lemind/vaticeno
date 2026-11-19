@@ -2163,7 +2163,10 @@ describe('odds', () => {
       text: '{"found": true, "event": "X v Y", "outcomes": [{"name": "X", "prices": [2.0]}]}',
     }));
     await pollMentions(thin.deps, NOW);
-    assert.match(thin.replies[0]!.text, /^No odds from two bookmakers/);
+    assert.equal(
+      thin.replies[0]!.text,
+      'No odds for this one — finished, too far off, or nobody prices it.',
+    );
   });
 
   test('under a recorded prediction its contract names the event: no posts are read', async () => {

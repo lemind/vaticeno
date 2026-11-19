@@ -3,6 +3,10 @@
 What changed for people using Vaticeno, newest first. The version on the site's front page is the top entry.
 A new feature raises the middle number, a fix the last one.
 
+## 1.15.2 — 2026-11-19
+
+- When there are no odds, the reply just says "No odds for this one", without counting bookmakers.
+
 ## 1.15.1 — 2026-11-19
 
 - The front page describes `odds` as the bookmakers' odds, as a range.

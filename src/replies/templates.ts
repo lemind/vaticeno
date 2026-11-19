@@ -90,9 +90,9 @@ export const HELP_REPLY = assertReplyFits(
     '• * → nobody knows what to expect :)',
 ); // checked at load: a too-long help fails the tests, not a post
 
-// The odds command (spec 006): no prices from two bookmakers, or no event anywhere in the conversation.
+// The odds command (spec 006): no prices (fewer than two bookmakers, unsaid), or no event in the conversation.
 export const ODDS_NO_PRICES_REPLY = assertReplyFits(
-  'No odds from two bookmakers for this one — finished, too far off, or nobody prices it.',
+  'No odds for this one — finished, too far off, or nobody prices it.',
 );
 export const ODDS_NO_EVENT_REPLY = assertReplyFits(
   'Which event? Tag me with odds under a post that names the match or race.',
