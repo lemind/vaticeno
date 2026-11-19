@@ -255,7 +255,7 @@ best — and changes next week's mix from it.
   (constitution VI: the money rule is set aside while the account grows).
 - **FR-014b**: Verdict reposts (owner, 2026-11-19; constitution VI 2.10.0): once a day the account reposts one of
   its own verdict replies whose author is on the list — the newest not yet reposted, from the last seven days,
-  whatever the outcome; never a verdict since corrected, never the same reply twice. One a day, on its own daily
+  whatever the outcome; never a verdict since corrected, never an author who sent STOP, never the same reply twice. One a day, on its own daily
   cap. The list now holds the owner and @NeonSkeld (by X user id).
 
 **Voice**

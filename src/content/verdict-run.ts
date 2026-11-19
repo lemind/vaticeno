@@ -1,7 +1,7 @@
 // The daily verdict repost (spec 005 FR-014b, constitution VI 2.10.0): one of our own verdict replies a day,
 // reposted plainly, only for an author on FEED_SHOW_AUTHOR_IDS. Newest first, outcome-blind: misses go out too.
 import { and, desc, eq, gte, inArray, isNotNull, notExists } from 'drizzle-orm';
-import { claims, corrections, feedPosts } from '../db/schema.js';
+import { claims, corrections, feedPosts, optOuts } from '../db/schema.js';
 import { log } from '../log.js';
 import { captureError } from '../observe.js';
 import { X_REPOST_USD } from '../x/prices.js';
@@ -24,7 +24,7 @@ export async function runVerdictRepost(
   const shown = deps.showAuthorIds ?? [];
   if (shown.length === 0) return { done: 'nothing_new' };
 
-  // A corrected verdict is never reposted: the reply on X says what it was, not what it is (001 FR-035).
+  // Never a corrected verdict (the reply on X says what it was, 001 FR-035), never an author who sent STOP.
   const [pick] = await deps.db
     .select({ slug: claims.slug, replyId: claims.verdictReplyTweetId })
     .from(claims)
@@ -41,6 +41,12 @@ export async function runVerdictRepost(
         ),
         notExists(
           deps.db
+            .select({ id: optOuts.xUserId })
+            .from(optOuts)
+            .where(eq(optOuts.xUserId, claims.authorXUserId)),
+        ),
+        notExists(
+          deps.db
             .select({ id: feedPosts.id })
             .from(feedPosts)
             .where(eq(feedPosts.sourcePostId, claims.verdictReplyTweetId)),
@@ -49,7 +55,7 @@ export async function runVerdictRepost(
     )
     .orderBy(desc(claims.verdictReplyAt), desc(claims.slug))
     .limit(1);
-  if (!pick?.replyId) return { done: 'nothing_new' };
+  if (!pick?.replyId) return { done: 'nothing_new' }; // replyId is never null here; the check narrows its type
 
   if (deps.dryRun) {
     log('info', 'feed dry run: would repost a verdict', {

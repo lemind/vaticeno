@@ -17,6 +17,7 @@ done by the owner in the X app; their drafts live in `specs/005-x-growth/content
 - [x] T501 Constitution VI 2.8.0 → 2.9.0 in `.specify/memory/constitution.md`: a claim is shown in an own-feed post
   only when its author is on the owner's list (the owner alone for now), all of the author's calls in a period
   and not only hits; the money rule set aside for now; `CLAUDE.md` version line. ADR `docs/decisions/008-x-growth.md`.
+  (Widened by 2.10.0 on 2026-11-19: see T521.)
 - [x] T502 [US1] `CF_ANALYTICS_TOKEN` (32 hex, optional) in `src/config.ts` and `.env.example`; `buildServer` in
   `src/web/server.ts` adds the beacon before `</head>` and the privacy line before `</main>` of every HTML
   response when set; `.privacy` style in `src/web/html.ts`; test in `tests/integration/pages.test.ts`; README.

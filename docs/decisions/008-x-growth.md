@@ -31,8 +31,10 @@ owner has given it; how anyone else gives and takes it back is decided later. Th
 has real calls to show. Each such post is written and approved by the owner once the fact exists (the lock, the
 verdict), then queued; it names the claim by its slug, never @mentions the author, and reads as the author's call
 recorded on Vaticeno, not Vaticeno's. Every eligible call of that author in a period is shown, misses included —
-never only the hits. The rule is a list in configuration, the owner alone for now: on the list, a claim may be
-shown; off it, never. Whether a claim carries money is not checked for now — the 2026-10-09 money rule is set
+never only the hits. The rule is a list in configuration: on the list, a claim may be shown; off it, never. Amended 2026-11-19
+(constitution VI 2.10.0, 005 FR-014b): the list holds the accounts the owner names (the owner and @NeonSkeld), and
+one listed author's own verdict reply is reposted a day with no approval step — newest first, outcome-blind, never a
+corrected verdict, never an author who sent STOP. Whether a claim carries money is not checked for now — the 2026-10-09 money rule is set
 aside while the account grows, and revisited later. The verdict itself is still posted once in the claim's thread,
 as for anyone.
 

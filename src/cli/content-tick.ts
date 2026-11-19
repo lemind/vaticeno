@@ -42,6 +42,7 @@ await runCli('content-tick', async (config) => {
     throw new Error('--mode is repost | quote | joke');
   const options = { force: !values['respect-caps'], ...(mode ? { mode } : {}) };
   // The digest, the record and the event post keep the day's slot even by hand: one own post a day (005 FR-009).
+  // So does the verdict repost: one listed author's verdict a day (005 FR-014b).
   const runJob = (): Promise<unknown> => {
     switch (job) {
       case 'pool':

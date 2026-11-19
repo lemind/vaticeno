@@ -25,15 +25,14 @@ export type ContentDeps = QuoteDeps & {
   quotePost: (postId: string, text: string) => Promise<{ id: string }>;
   dryRun: boolean;
   dailyUsdCap: number;
-  // Authors whose claims an own post may name (constitution VI 2.9.0); empty = none.
+  // Authors whose claims an own post may name (constitution VI 2.10.0); empty = none.
   showAuthorIds?: readonly string[];
   random?: () => number;
 };
 
 // HACK(x): OBSERVED 2026-10-05 — X answers 403 "You can only reply to or quote posts where you are
 // mentioned or are the author" when quoting a pool account's post, so every pool run reposts plainly
-// for now. Our own words still go out on our own posts (receipts quote our verdict replies, which we
-// authored). `--mode quote|joke` still forces the attempt by hand.
+// for now. Our own words still go out on our own posts (originals, digests, event posts). `--mode quote|joke` still forces the attempt by hand.
 // REVISIT: if X's access level changes (or a quote of a third party succeeds by hand), set this back
 // to 0.9 and the 1-in-10 quote turn returns.
 const REPOST_SHARE = 1;

@@ -6,7 +6,7 @@
 
 A small, cheap feed. Twice a day: pick one pool account by weight → read its latest posts → repost the
 latest eligible one (9 in 10) or quote it with a verified quote or an AI joke (1 in 10). Owner-written originals post
-from a queue with no AI. Receipts quote the bot's own verdict replies. Dry-run first.
+from a queue with no AI. Receipts (since spec 005 FR-014b) repost the bot's own verdict replies of listed authors, one a day. Dry-run first.
 
 ## Technical Context
 
@@ -127,7 +127,7 @@ measured instead of assumed.
    week — the daily caps and a hand-deleted post are the safety net). The first `cost_events` rows give
    the real X prices (SC-002); the logged picks are read as they happen (SC-001).
 4. **Originals queue**: table + CLI to add items; daily slot.
-5. **Receipts**: quote the bot's own verdict replies.
+5. **Receipts**: repost the bot's own verdict replies of listed authors, one a day (spec 005 FR-014b).
 
 ## Risks
 

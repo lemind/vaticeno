@@ -938,3 +938,11 @@ test('X refusing a verdict repost frees the day and never retries that reply', a
   assert.equal((await runVerdictRepost(deps, NOW)).done, 'failed');
   assert.equal((await runVerdictRepost(deps, NOW)).done, 'nothing_new');
 });
+
+test('an author who sent STOP is never reposted', async () => {
+  const claim = await insertClaim(t.sql, 'resolved');
+  await t.sql`update claims set verdict_reply_at = ${NOW.toISOString()}, verdict_reply_tweet_id = 'r1' where id = ${claim.id}`;
+  await t.sql`insert into opt_outs ${t.sql({ x_user_id: '200' })}`;
+  const deps = contentDeps({ dryRun: false, showAuthorIds: ['200'] });
+  assert.equal((await runVerdictRepost(deps, NOW)).done, 'nothing_new');
+});
