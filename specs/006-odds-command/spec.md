@@ -30,7 +30,8 @@ outcome in fractional and decimal odds and the count of bookmakers, no bookmaker
    names.
 3. **Given** only one bookmaker found, or none, **When** `odds` is tagged, **Then** the reply says no bookmaker prices
    it, and gives no number.
-4. **Given** a post with no event at all, **When** `odds` is tagged, **Then** the reply says which event to name.
+4. **Given** a whole conversation, read once, that names no event at all, **When** `odds` is tagged, **Then** the
+   reply says which event to name — the one case of asking ("Infer, never interrogate": genuinely absent).
 
 ### User Story 2 - Odds for a race (Priority: P2)
 
@@ -49,24 +50,29 @@ Under a post about a race, `@vaticeno odds` gets the five shortest prices and on
 
 - Prices that disagree wildly between bookmakers are still averaged; the reply says "about".
 - An event already finished: no bookmaker prices it → the "no prices" reply.
-- `odds` with words around it ("odds pls", "what are the odds") is the command; "odds" inside a prediction text
-  ("odds are BTC hits 100k") is a prediction, as `wager` is today.
-- The search is down: no reply that run; the mention is retried, never answered twice (INIT_SPEC §6.7).
+- `odds` as the first word, or "what are the odds", with no number after it, is the command ("odds pls", "odds?");
+  "odds" with a number ("odds are BTC hits 100k") is a prediction for the model to read. Unlike `wager`, the word
+  anywhere else in a post is not the command.
+- The search is down: no reply that run; the mention is retried, never answered twice (INIT_SPEC §6.7). An outage
+  is never answered "no bookmaker prices it"; only an answer that came back and gave fewer than two prices is.
 
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
 
 - **FR-001**: `odds` is a command, matched like the others; one reply per mention, in its thread (constitution VI).
-- **FR-002**: The event is inferred: the thread's recorded prediction first, else the post and its thread; never asked.
+- **FR-002**: The event is inferred: the thread's recorded prediction first, else the post and the whole conversation
+  (read once, as for predictions); asked only when nothing in it names one (US1 scenario 4).
 - **FR-003**: One web search per command asks for current prices of each outcome at two or more bookmakers; the
   answer is structured and validated; code keeps outcomes priced by at least two bookmakers and averages them.
 - **FR-004**: Each price is shown in classic fractional form, rounded to the nearest common price, with its decimal
   odds beside it to two places (`2:1 (3.00)`); the race's range is fractional only. No American odds.
 - **FR-005**: A race shows the five shortest prices and one range for the rest; the reply fits one post.
 - **FR-006**: The reply names no bookmaker, carries no link, says "about, from N bookmakers", never a tip or
-  "bet now"; odds appear nowhere else — not in the feed, a verdict or a wager page.
-- **FR-007**: No daily cap; every call's cost is recorded; existing per-author reply limits and STOP apply.
+  "bet now"; these odds appear nowhere else — not in the feed, a verdict or a wager page. The weekly race post's
+  own odds (005 FR-025) are unchanged.
+- **FR-007**: No daily cap; every call's cost is recorded under its own operation, `odds`; existing per-author reply
+  limits and STOP apply.
 - **FR-008**: Nothing is stored but the cost row and the mention's answered id.
 - **FR-009**: `odds` is listed in the help reply and in the front page's command table.
 

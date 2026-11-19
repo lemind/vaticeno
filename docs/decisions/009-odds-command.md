@@ -1,7 +1,7 @@
 # 009 — `@vaticeno odds`: approximate bookmaker odds on request
 
 **Date**: 2026-11-19 · **Decided by**: the owner · **Status**: accepted · **Changes**: constitution VI (odds allowed
-in a reply to the `odds` command, nowhere else), `docs/content-rules.md` · **Spec**: `specs/006-odds-command/spec.md` ·
+in a reply to the `odds` command; the weekly race post keeps its own, 005 FR-025), a migration for the `odds` cost), `docs/content-rules.md` · **Spec**: `specs/006-odds-command/spec.md` ·
 **Relates to**: constitution II, IV, VI; spec 005 FR-016, FR-025
 
 ## The problem
@@ -21,14 +21,16 @@ say, and its rules forbid odds anywhere ("never a tip, odds…", 005 FR-016).
 4. **No names, no links.** The reply says "about, from N bookmakers" and never names a bookmaker: we refer, we do not
    promote. No link, as for every reply (constitution VI).
 5. **Races.** The five shortest prices, then one range for the rest (the same shape as the weekly race post, 005 FR-025).
-6. **No daily cap for now.** The usual one reply per mention and per-author limits apply; each call's cost is recorded.
+6. **No daily cap for now.** The usual one reply per mention and per-author limits apply. Every call's cost is recorded
+   under its own operation, `odds`, so the cost per reply can be read (owner: all costs are written).
 7. **Nothing stored.** The odds are said once and never kept; only the cost row is.
 
 ## What we give up
 
 Verdicts rest on pages our code reads itself. These odds do not: bookmaker sites block servers and draw their prices
 with scripts, so the numbers come from the search's answer. That is why the reply says "about" and averages several
-bookmakers, and why odds never touch a verdict, a wager or the own feed.
+bookmakers, and why these odds never touch a verdict, a wager or the own feed (the weekly race post keeps its
+own odds, read from the Jockey Club's cards and priced as 005 FR-025 says).
 
 ## Why not
 

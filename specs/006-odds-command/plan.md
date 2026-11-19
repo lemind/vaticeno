@@ -15,24 +15,29 @@ the weekly race post's top-five-and-range code.
 | II Checkable by construction | odds touch no verdict, contract or wager; the model's answer is validated by Zod and filtered by code (two bookmakers per outcome) |
 | IV Opt-out | STOP applies as to any reply |
 | V IDs, not text | nothing stored but the cost row and the answered mention id |
-| VI Platform policy | **amended (2.11.0)**: odds only in a reply to the `odds` command, no bookmaker named, no link, never in the feed; replies only where mentioned |
+| VI Platform policy | **amended (2.11.0)**: odds only in a reply to the `odds` command, no bookmaker named, no link, never in the feed — the weekly race post's odds (005 FR-025) stay allowed; replies only where mentioned |
 | VII Simplicity | no new table, no dependency, no new runtime |
 
 ## Design
 
-- `src/bot/commands.ts`: `odds` joins `Command`; matched on the bare word like `wager`, with the same "a prediction
-  with numbers is a prediction" guard.
-- `src/bot/odds.ts` (new): `oddsReply(deps, mention)` — the event from the thread's claim or the post (the existing
-  thread reader), one `groundedAnswer` with instruction `odds.v1`, Zod schema `{ event, outcomes: [{ name, prices:
-  number[] }] }` (decimal prices), keep outcomes with ≥2 prices, average, show fractional with decimal beside it.
-- `src/bot/odds-format.ts` (new, pure): decimal → nearest common fractional price, plus the decimal to two places;
-  the reply text; the race shape (five shortest + range) reusing `src/content/race-post.ts` helpers where they fit.
+- `src/bot/commands.ts`: `odds` joins `Command` and `ANY_WORDS`: matched as the first word with no number after it
+  (the existing first-word path), plus the phrase "what are the odds". Not anywhere in a post, unlike `wager`.
+- `src/bot/odds.ts` (new): `oddsReply(deps, mention)` — the event from the thread's claim, else the post and the whole
+  conversation (`threadAbove` and the conversation read in `src/bot/mentions.ts`); one `groundedAnswer` with
+  instruction `odds.v1`. Its answer is text: the JSON is cut out and `safeParse`d against `{ event, outcomes: [{ name,
+  prices: number[] }] }` (decimal prices), as `src/content/race-run.ts` does. A parse or schema failure → "no prices";
+  an outage (`LlmUnavailable`) is thrown, so the mention is retried and never answered with a guess.
+  Keep outcomes with ≥2 prices, average, show fractional with decimal beside it.
+- `src/bot/odds-format.ts` (new, pure): decimal → nearest price on the common fractional ladder (its own ladder, not
+  race-post's `oddsText`, which keeps prices like 27:10), plus the decimal to two places; the reply text; the race
+  shape (five shortest + a range, both ends on the ladder), reusing only `priced()` and `TOP` from `race-post.ts`.
 - `src/llm/instructions/odds.v1.md` (new): asks for prices at two or more bookmakers, decimal, JSON only.
 - `src/bot/mentions.ts`: `runCommand` routes `odds`.
 - `src/replies/templates.ts`: help line `• odds → about what bookmakers give`; the "no prices" and "name the event"
   replies.
 - `src/web/home-page.ts`: a row in the command table.
-- Costs: recorded through the existing LLM cost path (`operation: 'odds'`).
+- Costs: `odds` joins `COST_OPERATIONS` (migration: the `cost_events_operation_check` constraint, reversible);
+  `groundedAnswer` takes an optional `operation`, default `search`, so the odds call's rows are recorded as `odds`.
 
 ## Tests
 
