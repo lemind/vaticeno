@@ -48,7 +48,8 @@ and queues it: `npm run content:queue -- add "…" [--on YYYY-MM-DD]`.
 ## Voice
 
 Direct, a little playful, sceptical of vague predictions, neutral about teams, parties and market direction.
-Never a tip, odds, "bet now", "to the moon", fake urgency or a prediction of Vaticeno's own. English.
+Never a tip, odds, "bet now", "to the moon", fake urgency or a prediction of Vaticeno's own. English. (Odds appear
+only in a reply to `@vaticeno odds`, and in the weekly race post — spec 006, ADR 009.)
 
 ## Event posts
 

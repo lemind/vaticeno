@@ -261,7 +261,7 @@ best — and changes next week's mix from it.
 **Voice**
 
 - **FR-016**: Posts are in English; direct, a little playful, sceptical of vague predictions, neutral about
-  teams, parties and market direction. Never a tip, odds, "bet now", "to the moon", fake urgency or a
+  teams, parties and market direction. Never a tip, odds (except a reply to `odds`, spec 006, and FR-025), "bet now", "to the moon", fake urgency or a
   prediction of Vaticeno's own (constitution VI; `docs/content-rules.md`).
 - **FR-017**: Wagers are described accurately when asked about — live, in USDC or USDT, no fee — and never
   promoted in the account's own posts.

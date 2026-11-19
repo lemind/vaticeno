@@ -453,7 +453,7 @@ describe('recording from X', () => {
     ]);
     await pollMentions(deps, NOW);
     assert.match(replies[0]!.text, /^pong · /);
-    assert.match(replies[1]!.text, /Tag me under your prediction/);
+    assert.match(replies[1]!.text, /Tag me under a prediction/);
   });
 });
 
@@ -2053,6 +2053,80 @@ describe('a refusal is not a dead end (FR-033)', () => {
       replies[0]!.text,
       /あ/,
       'a reply X would refuse is never sent',
+    );
+  });
+});
+
+// Spec 006: approximate bookmaker odds on request.
+describe('odds', () => {
+  const answering = (deps: BotDeps, answer: () => Promise<{ text: string }>) => {
+    deps.llm = {
+      ...deps.llm,
+      groundedAnswer: async () => ({
+        ...(await answer()),
+        urls: [],
+        costs: [
+          { provider: 'gemini', operation: 'search', units: 1, usdCost: 0.01 },
+          {
+            provider: 'google_search',
+            operation: 'search',
+            units: 1,
+            usdCost: 0.014,
+          },
+        ],
+      }),
+    } as unknown as BotDeps['llm'];
+  };
+
+  test('one reply with the averaged odds, and the call recorded as odds', async () => {
+    const { deps, replies } = await bot([[mention('140', '@vaticeno odds')]]);
+    answering(deps, async () => ({
+      text: JSON.stringify({
+        found: true,
+        event: 'Arsenal v Man City',
+        outcomes: [
+          { name: 'Arsenal', prices: [3.0, 3.0] },
+          { name: 'Draw', prices: [3.5, 3.5] },
+          { name: 'Man City', prices: [2.2, 2.2] },
+        ],
+      }),
+    }));
+    await pollMentions(deps, NOW);
+    assert.deepEqual(
+      replies.map((r) => r.text),
+      [
+        'Arsenal v Man City: Man City 6:5 (2.20) · Arsenal 2:1 (3.00) · Draw 5:2 (3.50) — about, from 2 bookmakers',
+      ],
+    );
+    const [odds] =
+      await t.sql`select count(*)::int as n from cost_events where operation = 'odds'`;
+    assert.equal(odds!.n, 2, 'the model and the search, both as odds');
+  });
+
+  test('no event named, or no two bookmakers: the plain replies, no number', async () => {
+    const none = await bot([[mention('141', '@vaticeno what are the odds')]]);
+    answering(none.deps, async () => ({ text: '{"found": false}' }));
+    await pollMentions(none.deps, NOW);
+    assert.match(none.replies[0]!.text, /^Which event\?/);
+
+    const thin = await bot([[mention('142', '@vaticeno odds pls')]]);
+    answering(thin.deps, async () => ({
+      text: '{"found": true, "event": "X v Y", "outcomes": [{"name": "X", "prices": [2.0]}]}',
+    }));
+    await pollMentions(thin.deps, NOW);
+    assert.match(thin.replies[0]!.text, /^No odds from two bookmakers/);
+  });
+
+  test('a search outage is never answered: the mention waits for the next poll', async () => {
+    const { deps, replies } = await bot([[mention('143', '@vaticeno odds')], []]);
+    answering(deps, async () => {
+      throw new LlmUnavailable('search down');
+    });
+    await pollMentions(deps, NOW);
+    assert.equal(replies.length, 0);
+    assert.equal(
+      (await readIngestState(deps.statePath)).mentions_since_id,
+      undefined,
     );
   });
 });

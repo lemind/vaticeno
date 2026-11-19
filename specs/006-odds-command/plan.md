@@ -36,8 +36,8 @@ the weekly race post's top-five-and-range code.
 - `src/replies/templates.ts`: help line `• odds → about what bookmakers give`; the "no prices" and "name the event"
   replies.
 - `src/web/home-page.ts`: a row in the command table.
-- Costs: `odds` joins `COST_OPERATIONS` (migration: the `cost_events_operation_check` constraint, reversible);
-  `groundedAnswer` takes an optional `operation`, default `search`, so the odds call's rows are recorded as `odds`.
+- Costs: `odds` joins `COST_OPERATIONS` (migration `0029_odds_cost`: the `cost_events_operation_check` constraint,
+  reversible); `src/bot/odds.ts` records the grounded call's rows under `odds`, so no client change is needed.
 
 ## Tests
 

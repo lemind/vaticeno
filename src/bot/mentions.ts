@@ -21,10 +21,13 @@ import { type ExtrasDeps, quoteReply, selfpromoReply } from './extras.js';
 import { logTopic, resolveQuoteTopic } from './quote-topic.js';
 import { loadInstruction } from '../llm/instructions.js';
 import { type WagerDeps, wagerReply } from './wager.js';
+import { lookUpOdds } from './odds.js';
 import { alert, captureError } from '../observe.js';
 import {
   HELP_REPLY,
   hasTagsOrLinks,
+  ODDS_NO_EVENT_REPLY,
+  ODDS_NO_PRICES_REPLY,
   STOPPED_REPLY,
   THIRD_PARTY_REPLY,
   weightedLength,
@@ -346,6 +349,25 @@ async function runCommand(
     return claim
       ? wagerReply(deps, claim.slug, mention.id, now)
       : { action: 'wager_no_claim', reply: null };
+  }
+  if (command === 'odds') {
+    const repliedTo = mention.referenced_tweets?.find(
+      (ref) => ref.type === 'replied_to',
+    )?.id;
+    // The event is inferred: the thread's prediction, else the whole conversation, read once (spec 006 FR-002).
+    const claim = await claimInThread(deps, mention, repliedTo);
+    const contract = claim ? ContractSchema.safeParse(claim.contract) : null;
+    const { posts } = await contextAround(deps, mention, repliedTo);
+    const found = await lookUpOdds(deps, {
+      prediction: contract?.success ? renderStatement(contract.data) : null,
+      conversation: posts.map((post) => `${post.from}: ${post.text}`),
+      request: cleanBody(mention.text),
+    });
+    await saveCosts(deps, found.costs);
+    if (found.outcome === 'odds') return { action: 'odds', reply: found.text };
+    return found.outcome === 'no_event'
+      ? { action: 'odds_no_event', reply: ODDS_NO_EVENT_REPLY }
+      : { action: 'odds_no_prices', reply: ODDS_NO_PRICES_REPLY };
   }
   if (command === 'quote') {
     const repliedTo = mention.referenced_tweets?.find(

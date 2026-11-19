@@ -84,6 +84,7 @@ export const COST_OPERATIONS = [
   'feed_post',
   'feed_model',
   'thread_read',
+  'odds', // the odds command's search (spec 006 FR-007)
 ] as const;
 export const FEED_COST_OPERATIONS = [
   'feed_read',

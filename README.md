@@ -87,6 +87,7 @@ the model may look, so it would save nothing (spec SC-006). It runs as a private
 | `@vaticeno` as a reply to your own post | records that post |
 | a reply under the bot's answer, with `@vaticeno` typed in it | a fix (within 15 min of RECORDED; anytime within 24 h of NOT RECORDED) |
 | `@vaticeno help` | the list of actions |
+| `@vaticeno odds` under a post about a match or a race | about what bookmakers give: the average of two or more, e.g. `City 6:5 (2.20) · Arsenal 2:1 (3.00)`; a race's five favourites and a range for the rest |
 | a question, anywhere it is tagged | an answer — see below |
 | `@vaticeno quote` | a sourced quote from Wikiquote about bets, luck, risk, sport, bitcoin |
 | `@vaticeno selfpromo` (or promote, show off, flex, brag, who are you…) | a motto + a joke |
