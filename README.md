@@ -77,7 +77,8 @@ the model may look, so it would save nothing (spec SC-006). It runs as a private
 | Verdicts decide on the right event (spec 004): a page must name the event the contract does before it counts, a site speaks through its best page rather than its first, silence proves nothing, and no verdict contradicts its own evidence | |
 | A verdict that was wrong is corrected (spec 004): the original is never edited, the correction is a separate record posted once in the claim's thread on its own; the Monday recheck writes one when today's rules decide a HIT or MISS differently; a match nobody can place in time is refused rather than recorded | |
 | Local verifier (spec 003): our own model, published on Hugging Face, reads each web verdict's pages in shadow and records what it would conclude; person-confirmed outcomes counted on the status page | Parked: going live saves no paid call |
-| Error tracking, logs and alerts (Sentry, production only); tests on every pull request | |
+| `odds` on X (spec 006), live: the range of up to three bookmakers per outcome, fractional with decimals beside it, nothing else; a race's five favourites and a range for the rest; each lookup's prices logged | Cost per reply measured after a week (T609a) |
+| Error tracking, logs and alerts (Sentry, production only); an email when a scheduled job fails, with the reason; tests on every pull request | |
 
 ## Commands (on X)
 
@@ -87,7 +88,7 @@ the model may look, so it would save nothing (spec SC-006). It runs as a private
 | `@vaticeno` as a reply to your own post | records that post |
 | a reply under the bot's answer, with `@vaticeno` typed in it | a fix (within 15 min of RECORDED; anytime within 24 h of NOT RECORDED) |
 | `@vaticeno help` | the list of actions |
-| `@vaticeno odds` under a post about a match or a race | about what bookmakers give: the range of two or more, e.g. `City 6:5 (2.20) · Arsenal 2:1–9:4 (3.00–3.25)`; a race's five favourites and a range for the rest |
+| `@vaticeno odds` under a post about a match or a race | the bookmakers' range, up to three of them, and nothing else, e.g. `City 6:5 (2.20) · Arsenal 2:1–9:4 (3.00–3.25)`; a race's five favourites and a range for the rest |
 | a question, anywhere it is tagged | an answer — see below |
 | `@vaticeno quote` | a sourced quote from Wikiquote about bets, luck, risk, sport, bitcoin |
 | `@vaticeno selfpromo` (or promote, show off, flex, brag, who are you…) | a motto + a joke |

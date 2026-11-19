@@ -122,7 +122,7 @@ export async function homePage(
         </tr>
         <tr>
           <td><code>@${handle} odds</code></td>
-          <td>under a post about a match or a race: about what bookmakers give</td>
+          <td>under a post about a match or a race: the bookmakers' odds, as a range</td>
         </tr>
         <tr>
           <td><code>@${handle} help</code></td>
