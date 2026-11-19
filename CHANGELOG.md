@@ -9,6 +9,8 @@ A new feature raises the middle number, a fix the last one.
   bookmakers give — the average of two or more, as 2:1 with the decimal beside it (3.00). A race shows its five
   favourites and a range for the rest.
 - The help reply lists it, and so does the front page.
+- A prediction tagged in a quote post is read together with the post it quotes, so "Jake wins" under a post
+  that names Jake is no longer "unclear which Jake".
 
 ## 1.13.0 — 2026-11-19
 

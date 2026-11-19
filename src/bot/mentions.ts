@@ -156,9 +156,10 @@ export async function routeMention(
   const repliedTo = mention.referenced_tweets?.find(
     (ref) => ref.type === 'replied_to',
   )?.id;
+  const quoted = quotedId(mention);
   // Each post read is billed: the posts above are read once for this mention, whichever steps need them.
   let aboveRead: Promise<ThreadPost[]> | undefined;
-  const readAbove = () => (aboveRead ??= threadAbove(deps, repliedTo));
+  const readAbove = () => (aboveRead ??= postsAbove(deps, repliedTo, quoted));
   let askedModel = false; // one assessment per mention, whichever path asks for it (owner decision 2026-10-07)
 
   // A reply in a claim's thread is the author's fix (FR-010, no keyword); anyone else is ignored, and a closed
@@ -277,7 +278,8 @@ export async function routeMention(
   // An edit of the mention gets a new id: the claim is keyed on the first version, so edits never record twice.
   const original = mention.edit_history_tweet_ids?.[0] ?? mention.id;
   // The posts above resolve "she", "it" and bare names; they are already paid for when this is a reply.
-  const context = repliedTo ? (await readAbove()).map((post) => post.text) : [];
+  const context =
+    repliedTo || quoted ? (await readAbove()).map((post) => post.text) : [];
   const result = await submitClaim(deps, {
     text: current.text,
     posted: current.posted,
@@ -357,7 +359,9 @@ async function runCommand(
     // The event is inferred: the thread's prediction, else the whole conversation, read once (spec 006 FR-002).
     const claim = await claimInThread(deps, mention, repliedTo);
     const contract = claim ? ContractSchema.safeParse(claim.contract) : null;
-    const { posts } = await contextAround(deps, mention, repliedTo);
+    const { posts } = await contextAround(deps, mention, repliedTo, undefined, () =>
+      postsAbove(deps, repliedTo, quotedId(mention)),
+    );
     const found = await lookUpOdds(deps, {
       prediction: contract?.success ? renderStatement(contract.data) : null,
       conversation: posts.map((post) => `${post.from}: ${post.text}`),
@@ -800,6 +804,20 @@ async function conversationBefore(
     });
     return already;
   }
+}
+
+// A quote post's subject is the post it quotes ("which Jake?" while the quoted post named him, 2026-11-19): it is
+// read first, with the posts above it, then the posts above the mention itself.
+const quotedId = (mention: Mention) =>
+  mention.referenced_tweets?.find((ref) => ref.type === 'quoted')?.id;
+
+async function postsAbove(
+  deps: BotDeps,
+  repliedTo: string | undefined,
+  quoted: string | undefined,
+): Promise<ThreadPost[]> {
+  const fromQuote = quoted ? await threadAbove(deps, quoted) : [];
+  return [...fromQuote, ...(await threadAbove(deps, repliedTo))];
 }
 
 async function threadAbove(

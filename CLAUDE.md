@@ -48,7 +48,8 @@ model-decided) proven on seeded claims, public pages. Where INIT_SPEC (v1.1.1) i
   written into the suggested example, it must be recorded instead. NEEDS INFO is only for what is
   genuinely absent: no measurable outcome, no datable event, or a name the thread never settles. What sits
   above a post on X is not its ancestry: before refusing for missing context, the whole conversation is
-  read once, including replies beside the post (owner decision 2026-10-07, `thread_read` spend).
+  read once, including replies beside the post (owner decision 2026-10-07, `thread_read` spend), and a quote
+  post is read with the post it quotes (2026-11-19).
 - All timestamps UTC; bare date = `23:59:59 UTC` (§8).
 
 ## Conventions

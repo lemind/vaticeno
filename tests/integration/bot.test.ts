@@ -560,6 +560,21 @@ describe('sports matches', () => {
     );
   });
 
+  // Live 2026-11-19: a quote post "Jake wins…" got "unclear which Jake" while the quoted post named him.
+  test('a quote post is read with the post it quotes', async () => {
+    const m = mention('350', '@vaticeno match Invented wins', {
+      referenced_tweets: [{ type: 'quoted', id: '351' }],
+    });
+    threadPosts['351'] = {
+      id: '351',
+      text: 'Liverpool v Everton on Sunday',
+      author_id: '555',
+    };
+    const { deps, replies } = await bot([[m]]);
+    await pollMentions(deps, NOW);
+    assert.match(replies[0]!.text, /^RECORDED/, 'the quoted post named the match');
+  });
+
   test('a prediction the parents cannot explain is rescued by the rest of the conversation', async () => {
     const m = mention('300', '@vaticeno match Invented wins', {
       conversation_id: 'conv1',
