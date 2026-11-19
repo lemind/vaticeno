@@ -7,7 +7,7 @@ import { feedPosts } from '../db/schema.js';
 import { type CallCost, LlmSchemaError } from '../llm/client.js';
 import { loadInstruction } from '../llm/instructions.js';
 import { log } from '../log.js';
-import { captureError } from '../observe.js';
+import { captureError, errorText } from '../observe.js';
 import type { PageFetcher } from '../resolve/fetch.js';
 import { X_POST_CREATE_USD } from '../x/prices.js';
 import {
@@ -30,9 +30,11 @@ export type EventDeps = OriginalDeps & {
   // The poster (FR-024): null, or a throw, means the post goes out as text.
   makePoster?: (topicId: string, event: FoundEvent) => Promise<Buffer | null>;
 };
-export type EventRunResult = {
-  done: 'cap_reached' | 'slot_taken' | 'no_event' | 'logged' | 'posted' | 'failed';
-};
+export type EventRunResult =
+  | { done: 'cap_reached' | 'slot_taken' | 'logged' | 'posted' }
+  | { done: 'failed'; error: string }
+  // `why`: one plain line per topic tried, for the owner's failure email.
+  | { done: 'no_event'; why: string[] };
 
 const MAX_TOPICS = 3;
 const MAX_PAGES = 4;
@@ -85,6 +87,7 @@ export async function runEventPost(
   const seen = new Set(posted.map((p) => `${p.name.toLowerCase()}|${p.date}`));
   const tried = new Set<string>(posted[0] ? [posted[0].topic] : []); // never the last topic again
 
+  const why: string[] = [];
   for (let i = 0; i < MAX_TOPICS; i++) {
     const open = TOPICS.filter(
       (t) => t.months.includes(now.getUTCMonth() + 1) && !tried.has(t.id),
@@ -93,11 +96,30 @@ export async function runEventPost(
     if (!topic) break;
     tried.add(topic.id);
     const found = await findEvent(deps, topic, now);
-    if (!found) continue;
-    const { event, urls } = found;
-    if (seen.has(`${event.name.toLowerCase()}|${event.date}`)) continue;
-    const { pages, unread } = await readPages(deps, urls);
-    const hosts = confirmedBy(event, pages);
+    if (!found) {
+      why.push(`${topic.id}: the search found no event 3–10 days ahead`);
+      continue;
+    }
+    const { event, urls, searched } = found;
+    const named = `${topic.id}: ${event.name} (${event.date})`;
+    if (seen.has(`${event.name.toLowerCase()}|${event.date}`)) {
+      why.push(`${named}: already posted`);
+      continue;
+    }
+    let { pages, unread } = await readPages(deps, urls);
+    let hosts = confirmedBy(event, pages);
+    // HACK(gemini): OBSERVED 2026-11-17/18 — grounding redirect links often fail to open, so a topic's links
+    // confirm one site; one search of our own is read too. See specs/005-x-growth/spec.md FR-020.
+    // REVISIT: if the unread reasons in feed.event_unconfirmed logs stop naming vertexaisearch, drop this.
+    if (hosts.length < 2 && !searched) {
+      const more = (await searchSourcesOrNone(deps, event)).filter(
+        (u) => !urls.includes(u),
+      );
+      const extra = await readPages(deps, more.slice(0, MAX_PAGES));
+      pages = [...pages, ...extra.pages];
+      unread = [...unread, ...extra.unread];
+      hosts = confirmedBy(event, pages);
+    }
     if (hosts.length < 2) {
       log('info', 'event not confirmed by two sites', {
         event: 'feed.event_unconfirmed',
@@ -108,10 +130,17 @@ export async function runEventPost(
         pages: pages.map((p) => pageCheck(event, p)),
         unread,
       });
+      why.push(
+        `${named}: confirmed by ${hosts.length ? hosts.join(', ') : 'no site'}, two needed` +
+          (unread.length ? `; unreadable: ${unread.join('; ')}` : ''),
+      );
       continue;
     }
     const text = eventPostText(event, random);
-    if (!text) continue;
+    if (!text) {
+      why.push(`${named}: too long for the post template`);
+      continue;
+    }
     return publish(deps, now, text, event, {
       topic: topic.id,
       name: event.name,
@@ -119,7 +148,7 @@ export async function runEventPost(
     });
   }
   log('info', 'no event post today', { event: 'feed.no_event', tried: [...tried] });
-  return { done: 'no_event' };
+  return { done: 'no_event', why };
 }
 
 // One grounded call. The URLs are the search's own, never the model's claims.
@@ -127,7 +156,7 @@ async function findEvent(
   deps: EventDeps,
   topic: Topic,
   now: Date,
-): Promise<{ event: FoundEvent; urls: string[] } | null> {
+): Promise<{ event: FoundEvent; urls: string[]; searched: boolean } | null> {
   const from = utcDay(new Date(now.getTime() + FROM_DAYS * DAY_MS));
   const to = utcDay(new Date(now.getTime() + TO_DAYS * DAY_MS));
   const costs: CallCost[] = [];
@@ -153,19 +182,15 @@ async function findEvent(
     if (!parsed.success || !parsed.data.found) return null;
     const { name, date, place } = parsed.data;
     if (date < from || date > to) return null; // the window is the code's, not the model's
-    let urls = answer.urls;
+    const event = { name, date, place };
     // The proposer often answers from memory with no links (2026-11-08), so the pages come from a search of our own.
-    if (urls.length < 2) {
-      const search = await deps.llm.groundedSearch({
-        model: deps.normalizerModel,
-        instructionVersion: 'event-sources.v1',
-        system: loadInstruction('event-sources.v1'),
-        input: JSON.stringify({ name, date, place }),
-      });
-      costs.push(...search.costs);
-      urls = [...new Set([...urls, ...search.urls])];
+    if (answer.urls.length < 2) {
+      const urls = [
+        ...new Set([...answer.urls, ...(await searchSources(deps, event))]),
+      ];
+      return { event, urls: urls.slice(0, MAX_PAGES), searched: true };
     }
-    return { event: { name, date, place }, urls: urls.slice(0, MAX_PAGES) };
+    return { event, urls: answer.urls.slice(0, MAX_PAGES), searched: false };
   } catch (error) {
     if (error instanceof SyntaxError || error instanceof LlmSchemaError) return null;
     throw error; // an outage fails the run; nothing is posted
@@ -173,6 +198,39 @@ async function findEvent(
     await saveCosts(deps, costs);
   }
 }
+
+// Our own grounded search for pages about one event; its cost is saved here, whatever happens.
+async function searchSources(deps: EventDeps, event: FoundEvent): Promise<string[]> {
+  const search = await deps.llm.groundedSearch({
+    model: deps.normalizerModel,
+    instructionVersion: 'event-sources.v1',
+    system: loadInstruction('event-sources.v1'),
+    input: JSON.stringify(event),
+  });
+  await saveCosts(deps, search.costs);
+  return search.urls;
+}
+
+// The second chance's search: a malformed answer skips it, as one in findEvent skips the topic; an outage still fails the run.
+async function searchSourcesOrNone(
+  deps: EventDeps,
+  event: FoundEvent,
+): Promise<string[]> {
+  try {
+    return await searchSources(deps, event);
+  } catch (error) {
+    if (error instanceof SyntaxError || error instanceof LlmSchemaError) return [];
+    throw error;
+  }
+}
+
+const hostOf = (url: string): string => {
+  try {
+    return new URL(url).host;
+  } catch {
+    return 'a malformed link';
+  }
+};
 
 async function readPages(
   deps: EventDeps,
@@ -185,7 +243,8 @@ async function readPages(
       const page = await deps.fetchPage(url);
       pages.push({ url: page.url, text: page.text });
     } catch (error) {
-      unread.push(String(error).slice(0, 120)); // a page that cannot be read does not count (FR-020)
+      // A page that cannot be read does not count (FR-020). The URL is dropped: a search redirect hides the reason.
+      unread.push(String(error).replace(url, hostOf(url)).slice(0, 200));
     }
   }
   return { pages, unread };
@@ -219,7 +278,7 @@ async function publish(
   } catch (error) {
     await recordPostFailure(deps.db, slot.id, error);
     captureError(error, { event: 'feed.event_failed', ...payload });
-    return { done: 'failed' };
+    return { done: 'failed', error: errorText(error) };
   }
   await markPosted(deps.db, slot.id, postedId);
   await recordFeedPost(deps, X_POST_CREATE_USD);

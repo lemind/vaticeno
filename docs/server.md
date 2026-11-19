@@ -36,6 +36,10 @@ bot never stops the feed. Times live in `SCHEDULES` (`src/jobs/scheduler.ts`); a
 | `race` (timer) | Fri–Sat 14:13 | the weekend's biggest Hong Kong race, with odds | `src/content/race-run.ts` |
 | backup (timer) | daily 03:30 | database backup | `deploy/backup.sh` |
 
+A job that crashes, or leaves its planned work undone (a post X refused, no event confirmed, the spend cap), sends
+the owner an email with the reason: one Sentry issue per job per UTC day, mailed by the project's "new issue" alert
+(`src/jobs/not-done.ts`). An empty queue or nothing new to say is the plan working and sends nothing.
+
 `deploy/setup.sh` installs Node 22, Python's venv, Caddy, swap, the log cap and both users. `deploy/deploy.sh`
 syncs the code and installs and starts every unit above. Neither touches a secret.
 

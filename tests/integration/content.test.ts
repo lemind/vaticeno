@@ -410,7 +410,7 @@ test('a quote turn adds our own line, and X refusing it frees the slot without a
       throw new Error('duplicate content');
     },
   });
-  assert.equal((await runPoolPost(refusing, NEXT_DAY)).done, 'cap_reached');
+  assert.equal((await runPoolPost(refusing, NEXT_DAY)).done, 'failed');
   const [failed] =
     await t.sql`select status, slot from feed_posts where source_post_id = 'src2'`;
   assert.deepEqual([failed!.status, failed!.slot], ['failed', null]);
@@ -803,6 +803,12 @@ test('one site, a date outside the window, or no event: nothing is posted after 
   });
   assert.equal((await runEventPost(oneSite, TUESDAY, () => 0)).done, 'no_event');
   assert.equal(oneSite.searches.length, 3, 'three topics, then the day is skipped');
+  const skipped = await runEventPost(oneSite, TUESDAY, () => 0);
+  assert.ok(
+    skipped.done === 'no_event' &&
+      skipped.why.every((w) => /two needed|already posted/.test(w)),
+    'each topic tried says why it was not posted',
+  );
   const tooFar = eventDeps({ ...FOUND, date: '2026-11-30' }, TWO_SITES);
   assert.equal((await runEventPost(tooFar, TUESDAY, () => 0)).done, 'no_event');
   const none = eventDeps({ found: false }, {});
@@ -827,6 +833,28 @@ test('an answer without links: our own search finds the two pages', async () => 
     fetchPage: deps.fetchPage,
   } as unknown as Partial<EventDeps>);
   assert.equal((await runEventPost(sourced, TUESDAY, () => 0)).done, 'posted');
+});
+
+test('links that fail to confirm: one search of our own finds the second page (2026-11-17/18)', async () => {
+  const [bbc, sky] = Object.keys(TWO_SITES);
+  const redirect =
+    'https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZ';
+  let searched = 0;
+  const deps = eventDeps(FOUND, TWO_SITES, {
+    llm: {
+      groundedAnswer: async () => ({
+        text: JSON.stringify(FOUND),
+        urls: [bbc, redirect],
+        costs: [],
+      }),
+      groundedSearch: async () => {
+        searched++;
+        return { queries: ['q'], urls: [bbc, sky], costs: [] };
+      },
+    },
+  } as unknown as Partial<EventDeps>);
+  assert.equal((await runEventPost(deps, TUESDAY, () => 0)).done, 'posted');
+  assert.equal(searched, 1);
 });
 
 test('a day whose own-post slot is taken costs no search', async () => {

@@ -38,16 +38,54 @@ export function initObservability(service: string, dsn: string | undefined): voi
 // Something a human must look at: needs_human, budget breach, a job failing repeatedly. Sentry → email.
 export function alert(event: string, fields: Record<string, unknown> = {}): void {
   log('warn', event, { event, alert: true, ...fields });
-  if (enabled) Sentry.captureMessage(event, { level: 'warning', tags: { event }, extra: scrubFields(fields) });
+  if (enabled)
+    Sentry.captureMessage(event, {
+      level: 'warning',
+      tags: { event },
+      extra: scrubFields(fields),
+    });
 }
 
-export function captureError(error: unknown, fields: Record<string, unknown> = {}): void {
-  log('error', error instanceof Error ? error.message : String(error), { event: 'error', ...fields });
+// An error in one plain line: its kind, its message and what caused it, for logs and the owner's email.
+export function errorText(error: unknown): string {
+  if (!(error instanceof Error)) return String(error).slice(0, 300);
+  const cause = error.cause ? ` (cause: ${String(error.cause)})` : '';
+  return `${error.name}: ${error.message}${cause}`.slice(0, 300);
+}
+
+export function captureError(
+  error: unknown,
+  fields: Record<string, unknown> = {},
+): void {
+  log('error', error instanceof Error ? error.message : String(error), {
+    event: 'error',
+    ...fields,
+  });
   if (enabled) Sentry.captureException(error, { extra: scrubFields(fields) });
 }
 
+// The owner's email when a scheduled job did not do its work (owner 2026-11-19): a Sentry issue per job per UTC day,
+// so the project's "new issue" alert mails it once a day at most, with the reason as its title.
+export function notifyOwner(job: string, reason: string): void {
+  log('warn', `${job} not done: ${reason}`, {
+    event: 'job.not_done',
+    alert: true,
+    job,
+  });
+  if (enabled)
+    Sentry.captureMessage(`${job} not done: ${reason}`.slice(0, 2000), {
+      level: 'error',
+      tags: { event: 'job.not_done', job },
+      fingerprint: ['job.not_done', job, new Date().toISOString().slice(0, 10)],
+    });
+}
+
 // Heartbeat for the one cron monitor the free plan allows (the every-minute lock job).
-export async function withCronMonitor<T>(slug: string, schedule: string, fn: () => Promise<T>): Promise<T> {
+export async function withCronMonitor<T>(
+  slug: string,
+  schedule: string,
+  fn: () => Promise<T>,
+): Promise<T> {
   if (!enabled) return fn();
   return Sentry.withMonitor(slug, fn, {
     schedule: { type: 'crontab', value: schedule },

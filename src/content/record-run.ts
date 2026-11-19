@@ -3,7 +3,7 @@
 import { and, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 import { claims, feedPosts, resolutions } from '../db/schema.js';
 import { log } from '../log.js';
-import { captureError } from '../observe.js';
+import { captureError, errorText } from '../observe.js';
 import { X_POST_CREATE_USD } from '../x/prices.js';
 import type { OriginalDeps } from './original-run.js';
 import { deadlineDigest, recordPost, type WeekCounts } from './record-posts.js';
@@ -12,6 +12,7 @@ import { overSpendCap, recordFeedPost } from './spend.js';
 
 export type RecordRunResult = {
   done: 'nothing_new' | 'cap_reached' | 'failed' | 'logged' | 'posted';
+  error?: string; // why X refused the post, when done is 'failed'
 };
 
 const WEEK_MS = 7 * 86_400_000;
@@ -144,7 +145,7 @@ async function publish(
   } catch (error) {
     await recordPostFailure(deps.db, slot.id, error);
     captureError(error, { event: `feed.${kind}_failed` });
-    return { done: 'failed' };
+    return { done: 'failed', error: errorText(error) };
   }
   await markPosted(deps.db, slot.id, postedId);
   await recordFeedPost(deps, X_POST_CREATE_USD);
