@@ -12,7 +12,13 @@ import type { SourceReader } from '../lifecycle/source-reader.js';
 import type { Db } from '../db/client.js';
 import { jobState } from '../db/schema.js';
 import { log } from '../log.js';
-import { captureError, withCronMonitor } from '../observe.js';
+import {
+  captureError,
+  errorText,
+  notifyOwner,
+  withCronMonitor,
+} from '../observe.js';
+import { notDoneReason } from './not-done.js';
 import { type ResolverDeps, resolveDueClaims } from '../resolve/resolver.js';
 import { confirmBeforeResolving } from '../resolve/settlement.js';
 import type { ClaimDeps } from '../lifecycle/claims.js';
@@ -205,6 +211,8 @@ export async function runJob(
       return fn();
     });
     if (!outcome.ran) return record(deps.db, name, { lastLockedAt: new Date() });
+    const reason = notDoneReason(name, outcome.result);
+    if (reason) notifyOwner(name, reason);
     const at = new Date();
     await record(deps.db, name, {
       lastFinishedAt: at,
@@ -215,6 +223,7 @@ export async function runJob(
     });
   } catch (error) {
     captureError(error, { event: 'job.failed', job: name });
+    notifyOwner(name, `the run crashed: ${errorText(error)}`);
     await record(deps.db, name, {
       lastFinishedAt: new Date(),
       lastOutcome: 'failed',

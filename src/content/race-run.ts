@@ -6,7 +6,7 @@ import { feedPosts } from '../db/schema.js';
 import { type CallCost, LlmSchemaError } from '../llm/client.js';
 import { loadInstruction } from '../llm/instructions.js';
 import { log } from '../log.js';
-import { captureError } from '../observe.js';
+import { captureError, errorText } from '../observe.js';
 import { X_POST_CREATE_USD } from '../x/prices.js';
 import { racePosterPrompt } from './event-image.js';
 import type { EventDeps } from './event-run.js';
@@ -37,6 +37,8 @@ export type RaceDeps = EventDeps & {
 export type RaceRunResult = {
   done:
     'cap_reached' | 'already_posted' | 'no_race' | 'logged' | 'posted' | 'failed';
+  error?: string; // why X refused the post, when done is 'failed'
+  why?: string; // why there is no race post, when done is 'no_race'
 };
 
 export const RACE_TOPIC = 'hk-racing';
@@ -106,7 +108,7 @@ export async function runRacePost(
 
 function noRace(message: string, fields: Record<string, unknown>): RaceRunResult {
   log('info', message, { event: 'feed.no_race', ...fields });
-  return { done: 'no_race' };
+  return { done: 'no_race', why: message };
 }
 
 // One grounded call for the card's horses; a horse the card does not name is dropped.
@@ -181,7 +183,7 @@ async function publish(
   } catch (error) {
     await recordPostFailure(deps.db, slot.id, error);
     captureError(error, { event: 'feed.race_failed', ...payload });
-    return { done: 'failed' };
+    return { done: 'failed', error: errorText(error) };
   }
   await markPosted(deps.db, slot.id, postedId);
   await recordFeedPost(deps, X_POST_CREATE_USD);

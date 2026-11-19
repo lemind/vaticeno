@@ -2,7 +2,7 @@
 // accounts, the most-liked upcoming event reposted. Dry-run by default: the pick is recorded, nothing is posted.
 // Nothing of anyone else's post is stored, only ids (constitution V).
 import { log } from '../log.js';
-import { captureError } from '../observe.js';
+import { captureError, errorText } from '../observe.js';
 import type { SearchPost } from '../x/client.js';
 import { X_POST_READ_USD, X_POST_CREATE_USD, X_REPOST_USD } from '../x/prices.js';
 import { eligiblePosts } from './eligible.js';
@@ -43,6 +43,7 @@ const GROUP_OFFSETS = [0, 1];
 
 export type PoolRunResult =
   | { done: 'spend_cap' | 'no_candidate' | 'cap_reached' }
+  | { done: 'failed'; error: string }
   | { done: 'logged'; account: string; postId: string; mode: 'repost' | QuoteMode }
   | {
       done: 'posted';
@@ -131,7 +132,7 @@ export async function runPoolPost(
       post_id: post.id,
       kind,
     });
-    return { done: 'cap_reached' };
+    return { done: 'failed', error: errorText(error) };
   }
   await markPosted(deps.db, slot.id, postedId);
   await recordFeedPost(deps, kind === 'quote' ? X_POST_CREATE_USD : X_REPOST_USD);

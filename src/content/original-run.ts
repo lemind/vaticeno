@@ -3,7 +3,7 @@
 import { and, asc, eq, gte, inArray, isNull, lt, or, sql } from 'drizzle-orm';
 import { feedPosts, feedQueue } from '../db/schema.js';
 import { log } from '../log.js';
-import { alert, captureError } from '../observe.js';
+import { alert, captureError, errorText } from '../observe.js';
 import { HAND_RUN_SLOTS, type ContentDeps, type RunOptions } from './pool-run.js';
 import { markPosted, recordPostFailure, reserveSlot, utcDay } from './slots.js';
 import { overSpendCap, recordFeedPost } from './spend.js';
@@ -16,7 +16,8 @@ export type OriginalDeps = ContentDeps & {
 };
 
 export type OriginalRunResult =
-  | { done: 'empty_queue' | 'cap_reached' | 'failed' }
+  | { done: 'empty_queue' | 'cap_reached' }
+  | { done: 'failed'; error: string }
   | { done: 'logged' | 'posted'; itemId: string; postedId?: string };
 
 export async function runOriginalPost(
@@ -67,7 +68,7 @@ export async function runOriginalPost(
   } catch (error) {
     await recordPostFailure(deps.db, slot.id, error); // never sent → this queued post is not spent
     captureError(error, { event: 'feed.original_failed', item_id: item.id });
-    return { done: 'failed' };
+    return { done: 'failed', error: errorText(error) };
   }
   // The item is marked as posted even if this throws afterwards: the row stays reserved, so the item
   // keeps its slot and is never posted twice (its unique key is the queue item).

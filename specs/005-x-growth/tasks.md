@@ -145,6 +145,12 @@ done by the owner in the X app; their drafts live in `specs/005-x-growth/content
 - [x] T521 Verdict reposts (FR-014b, owner 2026-11-19; constitution VI 2.10.0): `src/content/verdict-run.ts`, the `verdict`
   feed job daily at 16:29 UTC (`deploy/vaticeno-content-verdict.timer`), the receipt cap one a day, migration
   `drizzle/0028_receipt_repost.sql`. Tests: `tests/integration/content.test.ts`.
+- [x] T522 Event posts failed Nov 17–18: the search's redirect links were unreadable. When a topic's links confirm
+  fewer than two sites, one more search of our own is read (FR-020); unread pages log their real reason, not a cut
+  URL (`src/content/event-run.ts`). Test: `tests/integration/content.test.ts`.
+- [x] T523 The owner's failure email (owner 2026-11-19): a scheduled run that leaves its planned work undone, or
+  crashes, raises one Sentry issue per job per UTC day with the reason as its title; the project's new-issue alert
+  mails it (`src/jobs/not-done.ts`, `notifyOwner` in `src/observe.ts`, `runJob`). Test: `src/jobs/not-done.test.ts`.
 
 ---
 

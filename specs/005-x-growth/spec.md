@@ -275,7 +275,9 @@ best — and changes next week's mix from it.
   event in it, 3–10 days ahead: its name, date, place, and the pages that state them.
 - **FR-020**: The event is accepted only if the code itself reads at least two independent pages (different
   sites) that both give the event's name and date; otherwise another topic is tried, at most three, then nothing
-  is posted that day. A page that cannot be read does not count. The model proposes; code decides (constitution II).
+  is posted that day. A page that cannot be read does not count. When the search's own links confirm fewer than two
+  sites, one more search of our own for that event is read before the topic is given up (2026-11-19). The model
+  proposes; code decides (constitution II).
 - **FR-021**: The text is a fixed template with three slots — event, date, place — and one of a few fixed closing
   lines ("Have a call? Tag Vaticeno before it starts."). No free model text, no link, no @mention, no hashtag, no
   prediction; "scheduled for", never "will". Checked like every own-feed post.

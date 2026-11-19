@@ -3,6 +3,13 @@
 What changed for people using Vaticeno, newest first. The version on the site's front page is the top entry.
 A new feature raises the middle number, a fix the last one.
 
+## 1.13.0 — 2026-11-19
+
+- The owner gets an email when a scheduled job doesn't do its work — a post X refused, no event confirmed, the
+  spend cap, a crash — with the reason in plain words. At most one email per job a day.
+- The daily event post no longer gives up when the search's own links can't be opened: it looks for its two
+  sources once more.
+
 ## 1.12.0 — 2026-11-19
 
 - Once a day the account reposts a fresh verdict on a prediction by an author who agreed to be shown (for now

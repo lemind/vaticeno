@@ -3,14 +3,15 @@
 import { and, desc, eq, gte, inArray, isNotNull, notExists } from 'drizzle-orm';
 import { claims, corrections, feedPosts, optOuts } from '../db/schema.js';
 import { log } from '../log.js';
-import { captureError } from '../observe.js';
+import { captureError, errorText } from '../observe.js';
 import { X_REPOST_USD } from '../x/prices.js';
 import type { ContentDeps } from './pool-run.js';
 import { markPosted, recordPostFailure, reserveSlot, utcDay } from './slots.js';
 import { overSpendCap, recordFeedPost } from './spend.js';
 
 export type VerdictRunResult =
-  | { done: 'spend_cap' | 'nothing_new' | 'cap_reached' | 'failed' }
+  | { done: 'spend_cap' | 'nothing_new' | 'cap_reached' }
+  | { done: 'failed'; error: string }
   | { done: 'logged' | 'posted'; slug: string };
 
 // A verdict older than this is old news: it is never reposted.
@@ -78,7 +79,7 @@ export async function runVerdictRepost(
   } catch (error) {
     await recordPostFailure(deps.db, slot.id, error);
     captureError(error, { event: 'feed.verdict_failed', slug: pick.slug });
-    return { done: 'failed' };
+    return { done: 'failed', error: errorText(error) };
   }
   await markPosted(deps.db, slot.id, null);
   await recordFeedPost(deps, X_REPOST_USD);
