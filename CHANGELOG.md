@@ -4,9 +4,9 @@ What changed for people using Vaticeno, newest first. The version on the site's 
 A new feature raises the middle number, a fix the last one. One entry per pull request: the changes that matter,
 then the small ones together in one line; versions deployed while it was open share its entry.
 
-## 1.15.2 — 2026-11-19
+## 1.15.3 — 2026-11-20
 
-Odds on request (1.14.0–1.15.2).
+Odds on request (1.14.0–1.15.3).
 
 - New command: `@vaticeno odds` under a post about a match or a race. The bot replies once with each outcome's
   range across up to three bookmakers, like `2:1–9:4 (3.00–3.25)`, and nothing else. A race shows its five
