@@ -130,7 +130,9 @@ def test_every_send_carries_the_fee_limit_and_a_refused_call_costs_nothing():
 def test_out_of_energy_is_a_failure_to_retry_and_success_is_mined():
     with pytest.raises(RuntimeError, match="OUT_OF_ENERGY"):
         escrow(Client(info={"blockNumber": 5, "receipt": {"result": "OUT_OF_ENERGY"}})).wait_mined("0x01")
-    escrow(Client(info={"blockNumber": 5, "receipt": {"result": "SUCCESS"}})).wait_mined("0x01")
+    paid = escrow(Client(info={"blockNumber": 5, "fee": 345_000, "receipt": {"result": "SUCCESS"}}))
+    paid.wait_mined("0x01")
+    assert paid.drain_costs() == [345_000] and paid.drain_costs() == []
 
 
 def test_in_flight_only_while_known_and_not_in_a_block():

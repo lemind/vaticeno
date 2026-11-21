@@ -32,7 +32,7 @@ from web3.exceptions import Web3Exception
 from settle.alerts import Alerts
 from settle.chain import SETTLED_STATES, ChainMismatch, Escrow, claim_hash, evidence_ref
 from settle.health import record_health
-from settle.tron import TronEscrow
+from settle.tron import TRX_USD, TronEscrow
 
 POLL_SECONDS = 60
 # Tron's networks (spec 007): their chain id picks the Tron adapter.
@@ -228,6 +228,16 @@ def _finish(conn: psycopg.Connection, row_id: str, state: str, error: str | None
 STALE_AFTER_SECONDS = 180
 
 
+def record_tron_costs(conn: psycopg.Connection, spent_sun: list[int]) -> None:
+    """What the worker's transactions burned on Tron, one row each (spec 007 FR-007). EVM gas is not recorded."""
+    for sun in spent_sun:
+        if sun > 0:
+            _execute(conn, """
+                insert into cost_events (provider, operation, units, usd_cost)
+                values ('tron', 'settle_tx', %s, %s)
+            """, (sun, round(sun / 1_000_000 * TRX_USD, 5)))
+
+
 def job_name(escrow: Escrow) -> str:
     return f"settle-{escrow.network}"
 
@@ -297,6 +307,8 @@ def main() -> None:
                     registered = True
                 try:
                     run_once(conn, escrow, started, sign)
+                    if isinstance(escrow, TronEscrow):
+                        record_tron_costs(conn, escrow.drain_costs())
                     heartbeat(conn, escrow, started, None)
                 except Exception as error:
                     heartbeat(conn, escrow, started, error)

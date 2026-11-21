@@ -24,6 +24,8 @@ from settle.chain import ESCROW_ABI, OUTCOMES, STATES, ChainMismatch, Holdings, 
 # each call against mainnet; Tron's HTTP API defaults the limit to 0, so it is always set (ADR 010).
 FEE_LIMIT_SUN = int(os.environ.get("TRON_FEE_LIMIT_SUN", str(100 * 1_000_000)))
 CONFIRM_SECONDS = 120
+# Dollars per TRX for the cost rows: the worker calls no price service (003 FR-028). UNRECONCILED; set in its env.
+TRX_USD = float(os.environ.get("TRX_USD", "0.25"))
 
 
 def to_hex20(address: str) -> str:
@@ -58,6 +60,7 @@ class TronEscrow:
         self.acceptance_closes: int = int(self.contract.functions.acceptanceCloses())
         self.timeout: int = int(self.contract.functions.timeout())
         self.settlement_window: int = int(self.contract.functions.settlementWindow())
+        self._spent_sun: list[int] = []  # TRX burned per mined transaction, failed ones too; the worker records them
 
     def sign_open(self, hash_: bytes, deadline: int, valid_until: int) -> str:
         message = self._typed(hash_, deadline, valid_until)
@@ -134,9 +137,14 @@ class TronEscrow:
             if time.monotonic() > deadline:
                 raise RuntimeError(f"{tx_hash} not mined after {CONFIRM_SECONDS}s")
             time.sleep(3)
+        self._spent_sun.append(int(info.get("fee", 0)))  # energy and bandwidth, burned even when the call failed
         result = info.get("receipt", {}).get("result", "SUCCESS")
         if result != "SUCCESS":
             raise RuntimeError(f"{tx_hash} failed on chain: {result}")
+
+    def drain_costs(self) -> list[int]:
+        spent, self._spent_sun = self._spent_sun, []
+        return spent
 
     def in_flight(self, tx_hash: str) -> bool:
         txid = tx_hash.removeprefix("0x")

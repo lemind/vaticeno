@@ -29,11 +29,12 @@
 
 ## Phase 3: Worker (US2)
 
-- [ ] T706 [US2] `settle/tron.py`: the `Escrow` methods through `tronpy` (added to the worker's requirements);
+- [x] T706 [US2] `settle/tron.py`: the `Escrow` methods through `tronpy` (added to the worker's requirements);
   energy and bandwidth costs in TRX and dollars into `cost_events` under a new `tron` provider: `COST_PROVIDERS`
   in `src/db/schema.ts` and a reversible migration (FR-007); tests in `settle/tests/`. **Adapter done 2026-11-21**
-  (`settle/tron.py`, 6 stub tests); cost recording waits for the migration, which also needs an insert grant for
-  the settle role.
+  (`settle/tron.py`, 6 stub tests). **Costs done 2026-11-21**: migration `0030_tron_costs` (provider `tron`,
+  operation `settle_tx`, insert for `settle_rw` limited to those rows); `TRX_USD` in the worker's env,
+  UNRECONCILED.
 - [x] T707 [US2] `settle/worker.py`: pick the adapter by the network's family; each network in its own step with its
   own timeout, so a Tron outage or `OUT_OF_ENERGY` is retried without holding up other networks (FR-006); tested.
   **Done 2026-11-21**: the worker already runs one process per network, so isolation is structural; Tron's chain ids
