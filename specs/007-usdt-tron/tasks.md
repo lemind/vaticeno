@@ -64,8 +64,8 @@
   matched together and settled apart; Tron's node unreachable while EVM stakes settle; a repeated approval after a
   failed open (SC-001). The EVM side is Base Sepolia's v2 escrow (003 T379) in the run's own configuration.
   **First run passed 2026-11-21** (ADR 010): HIT paid out, VOID refunded, an untaken offer returned, nothing left
-  as a credit. Left: the blocked-address path (`end-to-end-blocked`), the cross-network and outage checks, and the
-  page with two TronLink wallets.
+  as a credit. **Blocked path passed the same day**: the frozen side credited once, the other paid, the credit
+  withdrawn. Left: the cross-network and outage checks, and the page with two TronLink wallets.
 - [ ] T711a [US2] `scripts/estimate-tron.py`: each escrow call's energy and bandwidth estimated against mainnet USDT;
   the numbers into ADR 010 (FR-007, SC-002).
 - [x] T712 [US3] `settle/health.py` and the status page: Tron's totals, the oracle's TRX, low-balance alert (FR-008).

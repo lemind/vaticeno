@@ -108,6 +108,10 @@ mainnet): an approval 22,688; an open 191,627–221,647 (the first on a claim wr
 worker's settle, payout and expire 17.4 TRX for four transactions. Mainnet's USDT transfers inside these calls cost
 about twice as much.
 
+The blocked path, same day (`TF5VoX3NFHeE9V9J7vF5s3AARX8Efg6bKk`, our test token `TJR6t7qZauxTeANTepzaNFVuzqnnhzhajn`
+returning false like USDT): with the maker frozen by the token at the verdict, a VOID paid the taker at once and
+credited the maker once; unfrozen, the maker withdrew it in full, and the escrow ended empty.
+
 ## Facts still to measure
 
 - **The escrow's own energy** for open, accept, settle, payout and refund, once it is on Nile, estimated against
