@@ -88,8 +88,8 @@ TRX and energy, and alerts when they run low.
   credited totals and the oracle's TRX, and alerts below a threshold (003 FR-022c).
 - **FR-009**: The minimum and the caps are the other networks' (007): 0.01 USDT minimum, 1,000 per side, 10,000
   per claim, 50,000 per network.
-- **FR-010**: **NEEDS DECISION** (owner): wallet linking for Tron addresses now or later (ADR 010). Until decided,
-  Tron stakes are shown by address only.
+- **FR-010**: Tron stakes are shown by address only at launch; linking an X account to a Tron address is later work
+  (owner, 2026-11-21).
 - **FR-011**: The wager reply's money line names Tron and USDT when the claim's page offers it (003 FR-039).
 
 ### Key Entities

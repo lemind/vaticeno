@@ -9,7 +9,7 @@
 - [x] T701 ADR `docs/decisions/010-usdt-tron.md`; spec, plan and tasks under `specs/007-usdt-tron/`; 003 FR-036
   points to ADR 010; `.specify/feature.json` and `CLAUDE.md` name feature 007.
 - [x] T702 Owner answers ADR 010: fees as on the other networks (worker burns TRX for exits), the other networks'
-  minimum and caps, `tronpy` for the worker. Open: wallet linking.
+  minimum and caps, `tronpy` for the worker, wallet linking later.
 - [ ] T703 On Nile: a TRC-20 test token like Tether's, then measure `transfer`'s return value, `block.chainid`,
   TronLink's TIP-712 signature against the contract's domain, and energy per transfer; write them into ADR 010
   (FR-004).
@@ -45,4 +45,4 @@
 
 ## Dependencies
 
-T703 before T704; T704–T705 before T706–T711; the wallet-linking answer before T713.
+T703 before T704; T704–T705 before T706–T711; T711 before T713.

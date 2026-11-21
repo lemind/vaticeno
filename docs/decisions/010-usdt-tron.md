@@ -1,6 +1,6 @@
 # 010 — USDT on Tron: a third real-money network, the first outside EVM
 
-**Date**: 2026-11-21 · **Decided by**: the owner · **Status**: accepted 2026-11-21; one question open (wallet linking) ·
+**Date**: 2026-11-21 · **Decided by**: the owner · **Status**: accepted 2026-11-21 ·
 **Changes**: 003 FR-036 (one chain family → EVM plus Tron), FR-036c (a Tron token) · **Spec**:
 `specs/007-usdt-tron/spec.md` · **Builds on**: 006-real-money, 007-escrow-v2
 
@@ -62,10 +62,8 @@ These decide whether the contract runs unchanged, and none is measured yet:
 3. **`tronpy`** is the worker's one new dependency (Python, builds and signs Tron transactions; approved as the
    usual way to do it).
 
-## Open (the owner's)
-
-- **Wallet linking** (003 FR-035, an X account shown beside an address): built for Tron addresses now, or Tron
-  stakes shown by address only at first.
+4. **Wallet linking later** (003 FR-035, an X account shown beside an address): Tron stakes are shown by address
+   only at launch; linking Tron addresses is later work.
 
 ## Accepted costs
 

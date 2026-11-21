@@ -45,7 +45,7 @@ the worker's transaction path (Tron instead of web3). Nile first, mainnet after 
    transfer. Write the numbers into ADR 010.
 2. Contract rule and deploy script; deploy to Nile.
 3. Worker adapter, then page; the Nile end-to-end run (FR-003).
-4. The owner's answer on wallet linking; mainnet deployment.
+4. Mainnet deployment. Wallet linking for Tron is later work.
 
 ## Tests
 
