@@ -83,11 +83,13 @@ TRX and energy, and alerts when they run low.
   is retried and never delays or voids a stake on another network (constitution III).
 - **FR-007**: Every transaction the worker sends on Tron records its cost in TRX and in dollars, as the EVM gas is
   recorded.
-- **FR-008**: The status page shows Tron's locked and credited totals, the oracle's TRX and energy, and alerts below
-  a threshold. **NEEDS DECISION** (owner): who pays the worker's energy (ADR 010, question 1).
-- **FR-009**: **NEEDS DECISION** (owner): the minimum stake on Tron (ADR 010, question 2).
-- **FR-010**: **NEEDS DECISION** (owner): wallet linking for Tron addresses now or later (ADR 010, question 3).
-  Until decided, Tron stakes are shown by address only.
+- **FR-008**: Fees are paid as on the other networks: each wallet pays for what it sends (003 FR-042), the worker
+  pays for the verdict and every exit in TRX burned for energy (FR-036b). The status page shows Tron's locked and
+  credited totals and the oracle's TRX, and alerts below a threshold (003 FR-022c).
+- **FR-009**: The minimum and the caps are the other networks' (007): 0.01 USDT minimum, 1,000 per side, 10,000
+  per claim, 50,000 per network.
+- **FR-010**: **NEEDS DECISION** (owner): wallet linking for Tron addresses now or later (ADR 010). Until decided,
+  Tron stakes are shown by address only.
 - **FR-011**: The wager reply's money line names Tron and USDT when the claim's page offers it (003 FR-039).
 
 ### Key Entities

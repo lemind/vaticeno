@@ -1,6 +1,6 @@
 # 010 — USDT on Tron: a third real-money network, the first outside EVM
 
-**Date**: 2026-11-21 · **Decided by**: the owner · **Status**: proposed; the open questions below are the owner's ·
+**Date**: 2026-11-21 · **Decided by**: the owner · **Status**: accepted 2026-11-21; one question open (wallet linking) ·
 **Changes**: 003 FR-036 (one chain family → EVM plus Tron), FR-036c (a Tron token) · **Spec**:
 `specs/007-usdt-tron/spec.md` · **Builds on**: 006-real-money, 007-escrow-v2
 
@@ -51,22 +51,27 @@ These decide whether the contract runs unchanged, and none is measured yet:
   holds USDT and about twice that to one that does not, which is several TRX when burned. **UNRECONCILED.** The
   worker makes every exit itself (FR-036b), so it pays for every payout and refund.
 
-## Open questions (the owner's)
+## Answered (owner, 2026-11-21)
 
-1. **Who pays the worker's energy?** The settlement worker sends every payout and refund. On Base that costs cents;
-   on Tron one settlement can cost a few dollars of TRX. Options: the owner stakes TRX for energy (a fixed amount
-   frozen, energy refills daily); rents energy per transaction; or Tron stakes get a higher minimum (for example
-   10 USDT) so the cost is small beside the stake.
-2. **The minimum stake on Tron**: 0.01 USDT as elsewhere, or higher for the reason above.
-3. **Wallet linking** (003 FR-035, an X account shown beside an address): built for Tron addresses now, or Tron
-   stakes shown by address only at first.
-4. **A new dependency for the worker**: `tronpy` (Python, builds and signs Tron transactions), or Tron's HTTP API
-   called directly with the signing the worker already has. AGENTS.md asks for approval of either.
+1. **Fees are paid as on the other networks.** Each person's wallet pays for what it sends (approve, open, accept,
+   withdraw: 003 FR-042), and the worker pays for the verdict and every exit at our cost (FR-036b). On Tron that cost
+   is TRX burned for energy, the way gas is paid in ETH elsewhere; nothing is staked or rented. The oracle's TRX gets
+   a low-balance alert like its gas does (003 FR-022c).
+2. **The numbers are the other networks' numbers**: minimum 0.01, per side 1,000, per claim 10,000, per network
+   50,000 USDT (007). Nothing new is invented for Tron.
+3. **`tronpy`** is the worker's one new dependency (Python, builds and signs Tron transactions; approved as the
+   usual way to do it).
+
+## Open (the owner's)
+
+- **Wallet linking** (003 FR-035, an X account shown beside an address): built for Tron addresses now, or Tron
+  stakes shown by address only at first.
 
 ## Accepted costs
 
 - A second toolchain to deploy and verify the contract, and a second signing path in the page and the worker.
-- TRX for the worker's energy, on top of the EVM networks' gas.
+- TRX for the worker's energy, on top of the EVM networks' gas: likely a few dollars per settled stake against
+  cents on Base (**UNRECONCILED** until T703 measures it).
 - Tether can freeze an address on Tron as Circle can on Base: the credit fallback (FR-036b) and the residual risks
   of FR-036e apply unchanged.
 

@@ -8,8 +8,8 @@
 
 - [x] T701 ADR `docs/decisions/010-usdt-tron.md`; spec, plan and tasks under `specs/007-usdt-tron/`; 003 FR-036
   points to ADR 010; `.specify/feature.json` and `CLAUDE.md` name feature 007.
-- [ ] T702 Owner answers ADR 010's open questions: energy, Tron's minimum stake, wallet linking, the worker's
-  dependency.
+- [x] T702 Owner answers ADR 010: fees as on the other networks (worker burns TRX for exits), the other networks'
+  minimum and caps, `tronpy` for the worker. Open: wallet linking.
 - [ ] T703 On Nile: a TRC-20 test token like Tether's, then measure `transfer`'s return value, `block.chainid`,
   TronLink's TIP-712 signature against the contract's domain, and energy per transfer; write them into ADR 010
   (FR-004).
@@ -22,8 +22,8 @@
 
 ## Phase 3: Worker (US2)
 
-- [ ] T706 [US2] `settle/tron.py`: the `Escrow` methods over Tron's HTTP API; costs in TRX and dollars (FR-007);
-  tests in `settle/tests/`.
+- [ ] T706 [US2] `settle/tron.py`: the `Escrow` methods through `tronpy` (added to the worker's requirements);
+  costs in TRX and dollars (FR-007); tests in `settle/tests/`.
 - [ ] T707 [US2] `settle/worker.py`: pick the adapter by the network's family; a Tron outage retried without holding
   up other networks (FR-006).
 
@@ -45,4 +45,4 @@
 
 ## Dependencies
 
-T703 before T704; T704–T705 before T706–T711; T702 before T713.
+T703 before T704; T704–T705 before T706–T711; the wallet-linking answer before T713.
