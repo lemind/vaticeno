@@ -261,6 +261,20 @@ contract EscrowV2Test is Test {
         new EscrowV2(c);
     }
 
+    function test_tron_takes_tethers_usdt_only() public {
+        address usdt = 0xa614f803B6FD780986A42c78Ec9c7f77e6DeD13C; // TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t
+        vm.etch(usdt, address(token).code);
+        vm.chainId(728126428);
+        vm.expectRevert(EscrowV2.BadConfig.selector);
+        new EscrowV2(_config(0));
+        EscrowV2.Config memory c = _config(0);
+        c.token = usdt;
+        assertEq(address(new EscrowV2(c).token()), usdt);
+        vm.chainId(42161);
+        vm.expectRevert(EscrowV2.BadConfig.selector);
+        new EscrowV2(c);
+    }
+
     function test_a_testnet_takes_the_test_token() public view {
         assertEq(address(escrow.token()), address(token));
     }

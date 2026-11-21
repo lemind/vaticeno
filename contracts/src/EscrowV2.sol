@@ -68,6 +68,10 @@ contract EscrowV2 {
     address private constant BASE_USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
     address private constant ARBITRUM_USDC = 0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
     address private constant ARBITRUM_USDT0 = 0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9;
+    // Tron mainnet (spec 007): Tether's TRC-20 USDT, TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t. The chain id is what a
+    // contract reads there, measured on Nile 2026-11-21 to match the node's (docs/decisions/010-usdt-tron.md).
+    uint256 private constant TRON_CHAIN_ID = 728126428;
+    address private constant TRON_USDT = 0xa614f803B6FD780986A42c78Ec9c7f77e6DeD13C;
 
     bytes32 private constant OPEN_TYPEHASH =
         keccak256("OpenAuthorization(bytes32 claimHash,uint64 deadline,uint64 validUntil)");
@@ -162,6 +166,7 @@ contract EscrowV2 {
                 || uint256(config.maxStake) * 2 > config.maxPerClaim || config.maxPerClaim > config.maxTotal
         ) revert BadConfig();
         if (block.chainid == BASE_CHAIN_ID && config.token != BASE_USDC) revert BadConfig();
+        if (block.chainid == TRON_CHAIN_ID && config.token != TRON_USDT) revert BadConfig();
         if (block.chainid == ARBITRUM_CHAIN_ID && config.token != ARBITRUM_USDC && config.token != ARBITRUM_USDT0) {
             revert BadConfig();
         }

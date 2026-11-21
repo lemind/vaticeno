@@ -85,12 +85,18 @@ So, in TRX burned, before the escrow's own logic (measured once it is deployed o
   worker does not fetch (`TRX_USD` in its env). **UNRECONCILED** until the Nile deployment measures the escrow's
   own calls and the first mainnet receipts confirm them.
 
+## Measured on Nile, 2026-11-21 (the probe contract, `TX1kATkE5RTpptT8BgmPXnX33v6rZJRANR`)
+
+- **`block.chainid` inside a contract** is 3448148188, the node's own chain id, so mainnet's is taken as its node's,
+  728126428, the value EscrowV2's Tron rule uses.
+- **`ecrecover` of the worker's EIP-712 signature**, built with that chain id and the contract's 20-byte address,
+  returns the oracle's address: the open authorization works on Tron unchanged.
+- **Tether's test USDT** (`TXYZopYRdj2D9XRtbG411XZZ3kM5VkAeBf`) has exactly mainnet USDT's bytecode (15,575 bytes,
+  same hash), and called from inside a contract its successful `transfer` returns 32 bytes of `false`.
+- Deploying the 895-byte probe burned 18.3 test TRX (169,255 energy); Nile's energy is not mainnet's, as above.
+
 ## Facts still to measure
 
-- **The chain id the contract sees.** The open authorization is signed by the settlement worker's oracle key
-  (EIP-712, as on EVM) and checked by the contract's `ecrecover`; people's wallets never sign it. What has to hold
-  is that the worker's digest, built with the chain id above, matches the one the contract builds from
-  `block.chainid` on the TVM. Measured with a small throwaway probe contract on Nile. **UNRECONCILED.**
 - **The escrow's own energy** for open, accept, settle, payout and refund, once it is on Nile, estimated against
   mainnet's factor as above. **UNRECONCILED.** The worker makes every exit itself (FR-036b), so it pays for every
   payout and refund.

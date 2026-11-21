@@ -10,21 +10,24 @@
   points to ADR 010; `.specify/feature.json` and `CLAUDE.md` name feature 007.
 - [x] T702 Owner answers ADR 010: fees as on the other networks (worker burns TRX for exits), the other networks'
   minimum and caps, `tronpy` for the worker, wallet linking later.
-- [ ] T703 `contracts/src/TronProbe.sol` (throwaway) on Nile, with Tether's test USDT
+- [x] T703 `contracts/src/TronProbe.sol` (throwaway) on Nile, with Tether's test USDT
   (`TXYZopYRdj2D9XRtbG411XZZ3kM5VkAeBf`, its bytecode checked against mainnet's): `transfer`'s return value,
   `block.chainid`, a worker-signed EIP-712 digest recovered by the contract; mainnet's chain id read on mainnet;
   all into ADR 010, then the probe deleted (FR-004, FR-004a). **Part done 2026-11-21, read-only on mainnet**:
   USDT's `transfer` returns false on success, the nodes' chain ids, and USDT's energy per transfer (ADR 010). Left:
-  `block.chainid` and `ecrecover` inside a contract, which needs the probe on Nile.
+  `block.chainid` and `ecrecover` inside a contract, which needs the probe on Nile. **Done 2026-11-21 on Nile**:
+  chain id as the node's, `ecrecover` gives the oracle, test USDT is mainnet's bytecode and returns false (ADR 010).
+  The probe's source stays as the record of what is deployed at that address.
 
 ## Phase 2: Contract and deployment (US1, US2)
 
-- [ ] T704 [US1] `contracts/src/EscrowV2.sol`: a payment counts as sent when the escrow's balance fell by its
+- [x] T704 [US1] `contracts/src/EscrowV2.sol`: a payment counts as sent when the escrow's balance fell by its
   amount, in `_tryPush` and `_push` (FR-004); Tron mainnet accepts only Tether's USDT; any change T703 forces, as a
   tagged HACK. Foundry tests in `contracts/test/` with a token that returns `false` on success: paid, not credited;
   a refusal credited once; never both. The blocking test token (`contracts/src/TestUsdc.sol`) gets a mode that
   returns `false` on success, for Nile's blocked-address path. **Done 2026-11-21**: the balance check, the test
-  token's mode and three Foundry tests; the Tron mainnet token rule waits for T703's chain id.
+  token's mode and three Foundry tests; the Tron mainnet token rule (chain 728126428 → Tether's USDT only) and its
+  test.
 - [ ] T705 [US1] Tron `solc` pinned, reproducible artifact; `scripts/deploy-tron.py`: deploy with
   `consume_user_resource_percent = 100`, `origin_energy_limit` and `fee_limit` set, bytecode checked against the
   artifact (FR-004b); deploy to Nile.
