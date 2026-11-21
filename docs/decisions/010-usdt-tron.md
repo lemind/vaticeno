@@ -60,20 +60,40 @@ phantom, can ever be taken out. So the contract changes before Tron:
   said to share mainnet USDT's bytecode, which is checked first) for the payments, and our blocking test token
   for the blocked path; never a token that returns `true`.
 
+## Measured on mainnet, 2026-11-21 (read-only calls, nothing sent)
+
+Simulated with TronGrid's `triggerconstantcontract` from a real USDT holder, and read from `getchainparameters`,
+`getcontractinfo` and the nodes' `eth_chainId`:
+
+| What | Measured |
+|---|---|
+| USDT `transfer` of 1 USDT that succeeds | returns **`0` (false)**: the finding above, confirmed on mainnet itself |
+| USDT `approve` | returns `1` (true) |
+| Energy of one USDT transfer, to an address that holds USDT | **64,285** (49,635 of it the dynamic penalty) |
+| Energy of one USDT transfer, to an address that holds none | **130,285** (100,635 penalty) |
+| Energy of an `approve` to a new spender | **99,764** |
+| USDT's dynamic energy factor | **34,000**, the maximum (×4.4 energy) |
+| Price of energy when no TRX is staked | 100 sun (0.0001 TRX) per unit |
+| Chain id the nodes report | mainnet `0x2b6653dc` (728126428), Nile `0xcd8690dc` (3448148188) |
+
+So, in TRX burned, before the escrow's own logic (measured once it is deployed on Nile):
+
+- **Our worker, per stake**: a payout is one transfer, **6.4–13 TRX**; a refund (VOID, timeout) is two, **13–26 TRX**;
+  the `settle` call itself adds its own energy, to be measured.
+- **The person, per side**: an approval about **10 TRX**, then the stake (`transferFrom` into the escrow plus the
+  escrow's bookkeeping) likely as much again. On Base the same costs cents. Dollars wait for a TRX price, which the
+  worker does not fetch (`TRX_USD` in its env). **UNRECONCILED** until the Nile deployment measures the escrow's
+  own calls and the first mainnet receipts confirm them.
+
 ## Facts still to measure
 
 - **The chain id the contract sees.** The open authorization is signed by the settlement worker's oracle key
   (EIP-712, as on EVM) and checked by the contract's `ecrecover`; people's wallets never sign it. What has to hold
-  is that the worker's digest, built with Tron's chain id, matches the one the contract builds from
-  `block.chainid` on the TVM. Measured with a small throwaway probe contract on Nile (chain id, `ecrecover` of a
-  worker-signed digest, USDT's `transfer` return value), and mainnet's chain id read with a free read-only call
-  on mainnet, since Nile only shows its own. **UNRECONCILED.**
-- **Energy and bandwidth.** On Tron the sender pays in energy and bandwidth, not gas. A USDT transfer is about
-  65,000 energy to an address that holds USDT and about twice that to one that does not, before Tron's dynamic
-  energy factor, which multiplies a busy contract's energy (USDT's) by up to 4.4. Nile does not show that factor,
-  so each escrow call is estimated against mainnet itself (read-only, free) before launch and measured from
-  receipts after. **UNRECONCILED.** The worker makes every exit itself (FR-036b), so it pays for every payout and
-  refund.
+  is that the worker's digest, built with the chain id above, matches the one the contract builds from
+  `block.chainid` on the TVM. Measured with a small throwaway probe contract on Nile. **UNRECONCILED.**
+- **The escrow's own energy** for open, accept, settle, payout and refund, once it is on Nile, estimated against
+  mainnet's factor as above. **UNRECONCILED.** The worker makes every exit itself (FR-036b), so it pays for every
+  payout and refund.
 
 ## How the contract is built and called on Tron
 
@@ -110,8 +130,9 @@ phantom, can ever be taken out. So the contract changes before Tron:
 ## Accepted costs
 
 - A second toolchain to deploy and verify the contract, and a second signing path in the page and the worker.
-- TRX for the worker's energy, on top of the EVM networks' gas: likely a few dollars per settled stake against
-  cents on Base (**UNRECONCILED** until estimated against mainnet, T711a).
+- TRX for the worker's energy, on top of the EVM networks' gas: 6.4–26 TRX of transfers per settled stake, measured
+  above, plus the escrow's own calls (**UNRECONCILED** until the Nile deployment, T711a), against cents on Base.
+- People staking on Tron pay more than on Base too: about 10 TRX to approve, and the stake itself.
 - Tether can freeze an address on Tron as Circle can on Base: the credit fallback (FR-036b) and the residual risks
   of FR-036e apply unchanged.
 - Tether's USDT has a transfer fee its owner can switch on; it is zero today. If it were switched on, a deposit

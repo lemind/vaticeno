@@ -13,7 +13,9 @@
 - [ ] T703 `contracts/src/TronProbe.sol` (throwaway) on Nile, with Tether's test USDT
   (`TXYZopYRdj2D9XRtbG411XZZ3kM5VkAeBf`, its bytecode checked against mainnet's): `transfer`'s return value,
   `block.chainid`, a worker-signed EIP-712 digest recovered by the contract; mainnet's chain id read on mainnet;
-  all into ADR 010, then the probe deleted (FR-004, FR-004a).
+  all into ADR 010, then the probe deleted (FR-004, FR-004a). **Part done 2026-11-21, read-only on mainnet**:
+  USDT's `transfer` returns false on success, the nodes' chain ids, and USDT's energy per transfer (ADR 010). Left:
+  `block.chainid` and `ecrecover` inside a contract, which needs the probe on Nile.
 
 ## Phase 2: Contract and deployment (US1, US2)
 
