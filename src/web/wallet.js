@@ -313,9 +313,15 @@ async function connectTron() {
 // docs/decisions/010-usdt-tron.md. REVISIT: on the Nile run (spec 007 T711), or if TronLink exposes a chain id.
 function ensureTronNetwork() {
   const host = String(tronWeb()?.fullNode?.host ?? '');
-  const onNile = /nile/i.test(host);
-  if (onNile !== /nile/i.test(data.chainName))
-    throw new Error(`TronLink is on another Tron network: switch it to ${data.chainName} and try again`);
+  const right = /nile/i.test(data.chainName) ? /nile/i.test(host) : !/nile|shasta/i.test(host);
+  if (!right) throw new Error(`TronLink is on another Tron network: switch it to ${data.chainName} and try again`);
+  syncTronAccount();
+}
+
+// TronLink can switch accounts without telling the page: every check and send uses the one it holds now.
+function syncTronAccount() {
+  const now = tronWeb()?.defaultAddress;
+  if (now?.hex && '0x' + now.hex.slice(2) !== account) useAccount('0x' + now.hex.slice(2), now.base58);
 }
 
 async function connect() {
@@ -449,6 +455,7 @@ async function sendBatch(label, calls, version) {
 // Approve exactly what this wager needs, and only when the allowance is short; batched with the stake
 // when the wallet can, else approve first, then the stake.
 async function sendWithAllowance(amount, label, to, callData) {
+  if (tron) ensureTronNetwork(); // the account the allowance is read for is the one that will send
   const [allowance] = await readAll([[data.token, encodeAllowance(account, data.escrow)]]);
   if (decodeUint(allowance) >= amount) return send(label, to, callData);
   if (tron) {
@@ -538,8 +545,15 @@ function useAccount(next, nextShown) {
 
 async function rememberedAccount() {
   if (tron) {
-    const known = tronWeb()?.defaultAddress; // set only once the visitor let this site in
-    if (known?.hex) useAccount('0x' + known.hex.slice(2), known.base58);
+    // TronLink sets tronWeb a moment after the page loads, and tells of account switches by message.
+    for (let tries = 0; tries < 10 && !tronWeb()?.defaultAddress?.hex; tries++) await new Promise((r) => setTimeout(r, 300));
+    syncTronAccount();
+    window.addEventListener('message', (event) => {
+      if (event.data?.message?.action === 'accountsChanged') {
+        syncTronAccount();
+        refresh();
+      }
+    });
     return;
   }
   if (!window.ethereum) return;

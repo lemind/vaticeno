@@ -18,7 +18,10 @@ from tronpy import Tron
 from tronpy.exceptions import TransactionNotFound
 from tronpy.keys import PrivateKey, to_base58check_address, to_hex_address
 
-from settle.chain import ESCROW_ABI, OUTCOMES, STATES, ChainMismatch, Holdings, Stake
+from settle.chain import BALANCE_OF_ABI, ESCROW_ABI, OUTCOMES, STATES, ChainMismatch, Escrow, Holdings, Stake
+
+TRON_MAINNET = 728126428
+TRON_CHAIN_IDS = {3448148188, TRON_MAINNET}  # Nile and mainnet: their chain id picks this adapter
 
 # The most TRX one worker transaction may burn, in sun (1 TRX = 1,000,000 sun). UNRECONCILED until T711a estimates
 # each call against mainnet; Tron's HTTP API defaults the limit to 0, so it is always set (ADR 010).
@@ -53,7 +56,8 @@ class TronEscrow:
         # The domain carries the chain id the contract reads from `block.chainid`: a wrong one signs nothing valid.
         if self._typed(b"\0" * 32, 0, 0).header != bytes(self.contract.functions.domainSeparator()):
             raise ChainMismatch(f"the contract at {self.address} is not escrow version 2 on chain {chain_id}")
-        self.network = network or f"{chain_id}-usdt"
+        # The outbox's name for the market, as Node names it (src/wager/networks.ts): `-usdt` where the token is USDT.
+        self.network = network or (f"{chain_id}-usdt" if chain_id == TRON_MAINNET else str(chain_id))
         if self.network.split("-")[0] != str(chain_id):
             raise ChainMismatch(f"market {self.network} is not on chain {chain_id}")
         self._token = None
@@ -108,15 +112,8 @@ class TronEscrow:
         block = self.client.get_latest_block()
         return int(block["block_header"]["raw_data"]["timestamp"]) // 1000
 
-    def due_action(self, stake: Stake, now: int) -> str | None:
-        # The same rules as settle.chain.Escrow.due_action: the contract's own.
-        if stake.state == "Settled" and now >= stake.settled_at + self.settlement_window:
-            return "payout"
-        if stake.state == "Matched" and now >= stake.deadline + self.timeout:
-            return "refund"
-        if stake.state == "Open" and now >= stake.offer_expiry:
-            return "expire"
-        return None
+    # The contract's own rules, the same function as on EVM: one place to change them.
+    due_action = Escrow.due_action
 
     def send_finish(self, action: str, stake_id: int) -> str | None:
         """Asked first with a constant call, sent only if the contract would accept it: a refused call costs no TRX."""
@@ -161,6 +158,7 @@ class TronEscrow:
         """The oracle's TRX (in sun, in the gas column), the escrow's USDT, and what it owes."""
         if self._token is None:
             self._token = self.client.get_contract(to_base58check_address(self.contract.functions.token()))
+            self._token.abi = BALANCE_OF_ABI  # never the ABI a token stored on chain, or did not
         trx = self.client.get_account_balance(self.owner)
         return Holdings(
             oracle_gas_wei=int(trx * 1_000_000),

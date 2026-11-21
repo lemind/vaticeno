@@ -266,8 +266,12 @@ export async function wagerPage(
         <button type="button" id="withdraw" hidden>Withdraw</button>
       </p>
       <p class="muted">
-        Your own wallet signs every step and pays its network fee in ${config.name}
-        ETH.${config.testnet ? ' Test ETH comes from a faucet; the test token from the operator.' : ''}
+        Your own wallet signs every step and pays its network fee in
+        ${config.family === 'tron' ? 'TRX' : `${config.name} ETH`}.${
+          config.testnet
+            ? ` Test ${config.family === 'tron' ? 'TRX' : 'ETH'} comes from a faucet; the test token from the operator.`
+            : ''
+        }
       </p>
       <form id="offer" class="offer" hidden>
         <fieldset class="side">

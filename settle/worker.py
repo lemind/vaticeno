@@ -32,11 +32,9 @@ from web3.exceptions import Web3Exception
 from settle.alerts import Alerts
 from settle.chain import SETTLED_STATES, ChainMismatch, Escrow, claim_hash, evidence_ref
 from settle.health import record_health
-from settle.tron import TRX_USD, TronEscrow
+from settle.tron import TRON_CHAIN_IDS, TRX_USD, TronEscrow
 
 POLL_SECONDS = 60
-# Tron's networks (spec 007): their chain id picks the Tron adapter.
-TRON_CHAIN_IDS = {3448148188, 728126428}
 # A failure of one chain call: the row is retried next run, never answered or voided (constitution III).
 CHAIN_ERRORS = (ChainMismatch, Web3Exception, RuntimeError, OSError, ValueError, httpx2.HTTPError,
                 tron_errors.ApiError, tron_errors.TransactionError, tron_errors.TvmError,
@@ -307,12 +305,16 @@ def main() -> None:
                     registered = True
                 try:
                     run_once(conn, escrow, started, sign)
-                    if isinstance(escrow, TronEscrow):
-                        record_tron_costs(conn, escrow.drain_costs())
                     heartbeat(conn, escrow, started, None)
                 except Exception as error:
                     heartbeat(conn, escrow, started, error)
                     log.exception("settle.run_failed")
+                if isinstance(escrow, TronEscrow):
+                    spent = escrow.drain_costs()
+                    try:  # bookkeeping: a refused row never marks the pass that settled as failed
+                        record_tron_costs(conn, spent)
+                    except psycopg.Error:
+                        log.exception("settle.costs_unrecorded sun=%s", spent)
                 # After settling, never before: a slow read here never delays a verdict reaching the chain.
                 record_health(conn, escrow, datetime.now(UTC), alerts)
         except psycopg.Error:

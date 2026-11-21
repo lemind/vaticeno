@@ -447,13 +447,20 @@ contract EscrowV2 {
         _call(abi.encodeCall(IERC20.transferFrom, (from, address(this), value)));
     }
 
-    // Never reverts: a refusal is reported, not raised. Sent means our balance fell by exactly `value`, whatever the
-    // token returns: Tron's USDT returns false from a transfer that worked (docs/decisions/010-usdt-tron.md).
+    // A refusal is reported, not raised. Sent means our balance fell by exactly `value`, whatever the token returns:
+    // Tron's USDT returns false from a transfer that worked (docs/decisions/010-usdt-tron.md). Exact, because the
+    // token is fixed at deployment and sends nothing back during a transfer.
     function _tryPush(address to, uint256 value) private returns (bool) {
-        uint256 before = token.balanceOf(address(this));
+        uint256 before = 0;
+        try token.balanceOf(address(this)) returns (uint256 held) {
+            before = held;
+        } catch {
+            return false; // nothing has moved yet: credited, the other side still paid
+        }
         // forge-lint: disable-next-line(reentrancy-no-eth)
         (bool ok,) = address(token).call(abi.encodeCall(IERC20.transfer, (to, value)));
         if (!ok) return false;
+        // Reverting here undoes the transfer too: nothing is paid twice, and the exit is retried.
         uint256 left = token.balanceOf(address(this));
         return left <= before && before - left == value;
     }

@@ -1,6 +1,6 @@
 """Create one network's escrow v2 wallets (003 T378, docs/decisions/007-escrow-v2.md): deployer, oracle, guardian, fee.
 
-    .venv/bin/python scripts/make-v2-wallets.py 84532|421614|8453|42161|42161-usdt|3448148188|728126428
+    .venv/bin/python scripts/make-v2-wallets.py 84532|421614|8453|42161|42161-usdt|3448148188|728126428-usdt
 
 Tron (spec 007): the same kind of key; its address is printed in Tron's own form (`T…`).
 
@@ -19,8 +19,8 @@ from eth_account import Account
 from tronpy.keys import to_base58check_address
 
 NETWORKS = {"84532": "Base Sepolia", "421614": "Arbitrum Sepolia", "8453": "Base", "42161": "Arbitrum One",
-            "42161-usdt": "Arbitrum One, USDT0", "3448148188": "Tron Nile", "728126428": "Tron"}
-TRON = {"3448148188", "728126428"}
+            "42161-usdt": "Arbitrum One, USDT0", "3448148188": "Tron Nile", "728126428-usdt": "Tron, USDT"}
+TRON = {"3448148188", "728126428-usdt"}  # the folder is the market's name, as deploy/network-on.sh reads it
 ROLES = (
     ("deployer", "pays gas for the deploy; no power after it"),
     ("oracle", "the server's key: records verdicts; needs a little ETH for gas"),
