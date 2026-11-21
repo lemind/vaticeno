@@ -87,8 +87,10 @@ TRX, and an alert when it runs low.
   is checked against the build. It is deployed with the caller paying all energy (`consume_user_resource_percent`
   100, `origin_energy_limit` set), and every call from the page and the worker sets an explicit `fee_limit`; a call
   that runs out of energy is retried, never a verdict.
-- **FR-004c**: Before asking for an allowance, the page reads the current one; a non-zero allowance that is not the
-  amount needed is set to 0 first, confirmed, then set to the new amount (Tron's USDT refuses a non-zero change).
+- **FR-004c**: On Tron the page asks for one approval for all later stakes, since each costs about 10 TRX (owner,
+  2026-11-21); the escrow only ever takes from the wallet that calls it. It reads the current allowance first: one
+  that covers the stake is used as it is; a smaller non-zero one is set to 0, confirmed, then raised (Tron's USDT
+  refuses a non-zero change). On EVM the page still approves exactly the stake.
 - **FR-005**: The wager page offers Tron beside the other networks, through TronLink; it shows Tron addresses in
   their `T…` form and links to Tronscan, and refuses to send when TronLink is on a different Tron network.
 - **FR-006**: The settlement worker settles Tron stakes with the same code and outbox as the EVM ones, in its own

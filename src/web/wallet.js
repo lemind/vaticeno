@@ -452,9 +452,11 @@ async function sendWithAllowance(amount, label, to, callData) {
   const [allowance] = await readAll([[data.token, encodeAllowance(account, data.escrow)]]);
   if (decodeUint(allowance) >= amount) return send(label, to, callData);
   if (tron) {
-    // Tron's USDT refuses a non-zero allowance changed straight to another: to 0 first (spec 007 FR-004c).
+    // One approval for every later stake: on Tron each costs about 10 TRX (owner 2026-11-21, spec 007 FR-004c).
+    // The escrow only ever takes from the wallet that calls it. Tron's USDT refuses a non-zero allowance changed
+    // straight to another, so a leftover one goes to 0 first.
     if (decodeUint(allowance) > 0n) await send(`Reset ${chain.symbol} approval`, data.token, encodeApprove(data.escrow, 0n));
-    await send(`Approve ${chain.symbol}`, data.token, encodeApprove(data.escrow, amount));
+    await send(`Approve ${chain.symbol} once`, data.token, encodeApprove(data.escrow, 2n ** 256n - 1n));
     return send(label, to, callData);
   }
   const approve = { to: data.token, data: encodeApprove(data.escrow, amount) };

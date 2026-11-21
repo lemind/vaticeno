@@ -47,7 +47,7 @@
 - [x] T708 [P] [US1] `src/wager/networks.ts` and `src/config.ts`: chain family, Nile and Tron mainnet, `T…` addresses
   in `WAGER_NETWORKS` (`src/wager/tron-address.ts` converts; chain ids as published until T703 measures them).
 - [ ] T709 [US1] `src/web/wallet.js` and `src/web/wager-page.ts`: TronLink path, `T…` addresses, Tronscan links,
-  the wrong-network refusal (FR-005); zero-first approval when an old allowance is left (FR-004c); `fee_limit` on
+  the wrong-network refusal (FR-005); one approval for all later stakes, zero first when a smaller one is left (FR-004c); `fee_limit` on
   every call. **Written 2026-11-21**, untried until TronLink on Nile (T711): reads through TronGrid's `/jsonrpc`
   (the page's `eth_call` as is), sends through `triggerSmartContract` with the raw arguments, the network told
   apart by TronLink's node host (a SPECULATIVE HACK).

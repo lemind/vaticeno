@@ -105,9 +105,9 @@ So, in TRX burned, before the escrow's own logic (measured once it is deployed o
   (`OUT_OF_ENERGY`) is a failed transaction the worker retries, never a verdict.
 - **Which Tron network TronLink is on**: TronLink names no chain id, so the page tells Nile from mainnet by its node's
   host; a SPECULATIVE HACK in `src/web/wallet.js`, checked on the Nile run.
-- **Approvals**: Tron's USDT refuses to change a non-zero allowance straight to another non-zero one. The page reads
-  the allowance first; when it is non-zero and not the amount needed, it sets it to 0, waits for that, then sets
-  the new amount.
+- **Approvals**: one approval for all later stakes, since each costs about 10 TRX (owner, 2026-11-21); the escrow
+  only ever takes from the wallet that calls it. Tron's USDT refuses to change a non-zero allowance straight to
+  another non-zero one, so a leftover smaller one is set to 0 first, then raised. On EVM nothing changes.
 - **Isolation**: each network's worker is its own process (003 FR-036d), so a slow or unreachable Tron node never
   holds up a stake on Base or Arbitrum. The Nile run proves it beside Base Sepolia's v2 escrow (deployed 2026-11-01,
   003 T379), set in the run's own configuration; production's networks are not touched.

@@ -38,7 +38,7 @@ the worker's transaction path (Tron instead of web3). Nile first, mainnet after 
   `KNOWN_NETWORKS` (Tronscan, TronGrid nodes, USDT on mainnet). `WAGER_NETWORKS` entries for Tron take `T…`
   addresses, stored hex. `src/config.ts` parses both.
 - **Page** `src/web/wallet.js`: a Tron path beside the EVM one — TronLink's `tronWeb` for the account, the
-  network check, `approve` (zero first when an old allowance is left, FR-004c), `open`, `accept` and `withdraw`,
+  network check, `approve` once for all later stakes (zero first when a smaller one is left, FR-004c), `open`, `accept` and `withdraw`,
   each with an explicit `fee_limit`; reads through TronGrid. `src/web/wager-page.ts`
   shows Tron addresses as `T…` and links Tronscan.
 - **Worker** `settle/tron.py` (new): the same methods as `settle/chain.py`'s `Escrow` (`sign_open`, `stakes_of`,

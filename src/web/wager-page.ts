@@ -299,7 +299,7 @@ export async function wagerPage(
         <p class="muted hint">
           ${
             config.family === 'tron'
-              ? "TronLink approves exactly this amount, if needed (resetting an old approval to 0 first, as Tether's USDT requires), then opens the offer."
+              ? "The first time, TronLink approves the escrow once for all later wagers (an old approval is reset to 0 first, as Tether's USDT requires); then it opens the offer."
               : 'Your wallet approves exactly this amount, if needed, and opens the offer: one confirmation where the wallet can batch, otherwise two.'
           }
         </p>
