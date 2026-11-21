@@ -72,12 +72,18 @@ export function notifyOwner(job: string, reason: string): void {
     alert: true,
     job,
   });
-  if (enabled)
+  if (!enabled) return;
+  // A warning: the job ran and skipped its work; a crash is reported as an error by captureError too (owner 2026-11-21).
+  Sentry.withScope((scope) => {
+    // HACK(sentry): OBSERVED 2026-11-21 — a message with no transaction is mailed as "None: …". See docs/server.md.
+    // REVISIT: if Sentry's mail titles change.
+    scope.setTransactionName(`job ${job}`);
     Sentry.captureMessage(`${job} not done: ${reason}`.slice(0, 2000), {
-      level: 'error',
+      level: 'warning',
       tags: { event: 'job.not_done', job },
       fingerprint: ['job.not_done', job, new Date().toISOString().slice(0, 10)],
     });
+  });
 }
 
 // Heartbeat for the one cron monitor the free plan allows (the every-minute lock job).
