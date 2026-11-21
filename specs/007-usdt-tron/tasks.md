@@ -28,9 +28,10 @@
   returns `false` on success, for Nile's blocked-address path. **Done 2026-11-21**: the balance check, the test
   token's mode and three Foundry tests; the Tron mainnet token rule (chain 728126428 → Tether's USDT only) and its
   test.
-- [ ] T705 [US1] Tron `solc` pinned, reproducible artifact; `scripts/deploy-tron.py`: deploy with
+- [x] T705 [US1] Tron `solc` pinned, reproducible artifact; `scripts/deploy-tron.py`: deploy with
   `consume_user_resource_percent = 100`, `origin_energy_limit` and `fee_limit` set, bytecode checked against the
-  artifact (FR-004b); deploy to Nile.
+  artifact (FR-004b); deploy to Nile. **Done 2026-11-21**: `scripts/deploy-tron.py`, Tron solc 0.8.28 from Tron's
+  releases with its checksum; the end-to-end escrow at `TB5MqRETNoFDno8qyk93kcqzrWrUz3PPDH`.
 
 ## Phase 3: Worker (US2)
 
@@ -62,6 +63,9 @@
 - [ ] T711 [US2] `scripts/e2e_tron.py`: every path of FR-003 on Nile; a Tron and an EVM offer on one claim, never
   matched together and settled apart; Tron's node unreachable while EVM stakes settle; a repeated approval after a
   failed open (SC-001). The EVM side is Base Sepolia's v2 escrow (003 T379) in the run's own configuration.
+  **First run passed 2026-11-21** (ADR 010): HIT paid out, VOID refunded, an untaken offer returned, nothing left
+  as a credit. Left: the blocked-address path (`end-to-end-blocked`), the cross-network and outage checks, and the
+  page with two TronLink wallets.
 - [ ] T711a [US2] `scripts/estimate-tron.py`: each escrow call's energy and bandwidth estimated against mainnet USDT;
   the numbers into ADR 010 (FR-007, SC-002).
 - [x] T712 [US3] `settle/health.py` and the status page: Tron's totals, the oracle's TRX, low-balance alert (FR-008).

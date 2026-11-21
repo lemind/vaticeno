@@ -95,6 +95,19 @@ So, in TRX burned, before the escrow's own logic (measured once it is deployed o
   same hash), and called from inside a contract its successful `transfer` returns 32 bytes of `false`.
 - Deploying the 895-byte probe burned 18.3 test TRX (169,255 energy); Nile's energy is not mainnet's, as above.
 
+## The escrow on Nile, end to end, 2026-11-21 (`TB5MqRETNoFDno8qyk93kcqzrWrUz3PPDH`, `scripts/e2e_tron.py`)
+
+Built with Tron's solc 0.8.28, deployed with the caller paying all energy (200.8 test TRX, 1,864,680 energy), its
+bytecode checked against the build. Three wagers of 1 test USDT, settled and finished by the worker's Tron adapter:
+A a HIT paid out after the hold, B a VOID refunded to both, C an untaken offer returned. Every exit landed in a
+wallet: the maker received 4 USDT, the taker 1, and the escrow ended holding 0 and owing 0, no credit anywhere,
+although every USDT transfer returned false.
+
+Energy on Nile, where USDT's dynamic factor is lower than mainnet's (a USDT transfer took 29,650 there, 64,285 on
+mainnet): an approval 22,688; an open 191,627–221,647 (the first on a claim writes more); an accept 53,947; the
+worker's settle, payout and expire 17.4 TRX for four transactions. Mainnet's USDT transfers inside these calls cost
+about twice as much.
+
 ## Facts still to measure
 
 - **The escrow's own energy** for open, accept, settle, payout and refund, once it is on Nile, estimated against
