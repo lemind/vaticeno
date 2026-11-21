@@ -89,4 +89,6 @@ T703 before T704; T704–T705 before T706–T711; T711, T711a and T712 before T7
   people in the stake and says when money waits unclaimed (FR-012).
 - [ ] T717 Tron mainnet, when the owner funds it: simulate the creation bytecode's energy on mainnet, rent ~1.9M
   energy to the deployer for an hour, deploy (T713's steps).
+- [x] T718 `ENABLE_TRON` (default false): the bot and page refuse a Tron entry in `WAGER_NETWORKS`, the worker refuses
+  a Tron chain, until it is true; `deploy/network-on.sh` sets it for the Tron market. So the code ships switched off.
 

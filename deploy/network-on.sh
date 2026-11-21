@@ -44,6 +44,7 @@ worker() {
       echo ESCROW_VERSION=2
       echo ORACLE_KEY_FILE=$DIR/oracle.key
       echo SIGN_AUTHORIZATIONS=0
+      if [ $CHAIN = 728126428 ]; then echo ENABLE_TRON=true; fi
     } | awk -F= '!seen[\$1]++' > $DIR/env
     chown vaticeno-settle:vaticeno-settle $DIR/env"
   # The Stage 2 worker restarts on the new code too: its heartbeat is `settle-84532` since 0023.
@@ -70,6 +71,7 @@ page() {
     [ -f .env.before-$MARKET ] || cp .env .env.before-$MARKET
     sed -i -E 's/^(ESCROW_ADDRESS|STAKE_TOKEN_ADDRESS|ESCROW_CHAIN_ID|ESCROW_VERSION|PUBLIC_RPC_URLS|WAGER_NETWORKS)=/# &/' .env
     echo \"WAGER_NETWORKS=\$next\" >> .env
+    if [ $CHAIN = 728126428 ]; then sed -i -E 's/^ENABLE_TRON=/# &/' .env; echo ENABLE_TRON=true >> .env; fi
     systemctl restart vaticeno; sleep 8
     if ! systemctl is-active --quiet vaticeno; then
       cp .env.before-$MARKET .env && systemctl restart vaticeno

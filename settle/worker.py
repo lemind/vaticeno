@@ -276,6 +276,8 @@ def main() -> None:
     key = read_key(Path(os.environ["ORACLE_KEY_FILE"]))
     chain_id = int(os.environ["ESCROW_CHAIN_ID"])
     version = int(os.environ.get("ESCROW_VERSION", "1"))
+    if chain_id in TRON_CHAIN_IDS and os.environ.get("ENABLE_TRON") != "true":
+        raise SystemExit("Tron is switched off: set ENABLE_TRON=true in this worker's env (spec 007)")
     if chain_id in TRON_CHAIN_IDS:
         # TRONGRID_API_KEY: TronGrid rate-limits keyless callers; RPC_URL is this network's TronGrid endpoint.
         client = Tron(HTTPProvider(os.environ["RPC_URL"], api_key=os.environ.get("TRONGRID_API_KEY")))
