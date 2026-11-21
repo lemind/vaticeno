@@ -136,6 +136,11 @@ class NetworkHealth:
     def underfunded(self) -> bool:
         return self.escrow_usdc < self.owed_usdc
 
+    @property
+    def on_tron(self) -> bool:
+        """Tron's markets (spec 007): the oracle's balance is TRX in sun, not ETH in wei."""
+        return self.network.split("-")[0] in ("3448148188", "728126428")
+
     def unread(self, now: datetime) -> bool:
         """The worker writes the row every minute; five without one means it is not reading that chain."""
         return now - self.read_at > timedelta(minutes=5)
