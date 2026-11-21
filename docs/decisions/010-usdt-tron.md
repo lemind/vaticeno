@@ -83,10 +83,12 @@ phantom, can ever be taken out. So the contract changes before Tron:
   100`; the deployer subsidises nothing, `origin_energy_limit` set to match). Every call from the page and the
   worker carries an explicit `fee_limit` (Tron's HTTP API defaults it to 0). A call that runs out of energy
   (`OUT_OF_ENERGY`) is a failed transaction the worker retries, never a verdict.
+- **Which Tron network TronLink is on**: TronLink names no chain id, so the page tells Nile from mainnet by its node's
+  host; a SPECULATIVE HACK in `src/web/wallet.js`, checked on the Nile run.
 - **Approvals**: Tron's USDT refuses to change a non-zero allowance straight to another non-zero one. The page reads
   the allowance first; when it is non-zero and not the amount needed, it sets it to 0, waits for that, then sets
   the new amount.
-- **Isolation**: each network settles in its own step with its own timeout, so a slow or unreachable Tron node never
+- **Isolation**: each network's worker is its own process (003 FR-036d), so a slow or unreachable Tron node never
   holds up a stake on Base or Arbitrum. The Nile run proves it beside Base Sepolia's v2 escrow (deployed 2026-11-01,
   003 T379), set in the run's own configuration; production's networks are not touched.
 - **Costs**: the worker's TRX per transaction (energy and bandwidth) is recorded in `cost_events` under a new

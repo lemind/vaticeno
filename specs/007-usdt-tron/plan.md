@@ -44,7 +44,7 @@ the worker's transaction path (Tron instead of web3). Nile first, mainnet after 
 - **Worker** `settle/tron.py` (new): the same methods as `settle/chain.py`'s `Escrow` (`sign_open`, `stakes_of`,
   `send_settle`, `send_finish`, `wait_mined`, `in_flight`, `holdings`) through `tronpy`, energy paid by burning
   TRX, an explicit `fee_limit` on every call, `OUT_OF_ENERGY` retried. `settle/worker.py` picks the adapter by the
-  network's family and settles each network in its own step with its own timeout. The oracle key for Tron lives in
+  network's family; each network is already its own worker process. The oracle key for Tron lives in
   `/etc/vaticeno-settle/` like the others. Costs (energy and bandwidth, as TRX burned) go to `cost_events` under
   the new `tron` provider: `COST_PROVIDERS` in `src/db/schema.ts` and a reversible migration for
   `cost_events_provider_check`.
