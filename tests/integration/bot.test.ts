@@ -453,7 +453,7 @@ describe('recording from X', () => {
     ]);
     await pollMentions(deps, NOW);
     assert.match(replies[0]!.text, /^pong · /);
-    assert.match(replies[1]!.text, /Tag me under your prediction/);
+    assert.match(replies[1]!.text, /Tag me under a prediction/);
   });
 });
 
@@ -558,6 +558,21 @@ describe('sports matches', () => {
       /^RECORDED/,
       'the wider conversation showed it was a prediction',
     );
+  });
+
+  // Live 2026-11-19: a quote post "Jake wins…" got "unclear which Jake" while the quoted post named him.
+  test('a quote post is read with the post it quotes', async () => {
+    const m = mention('350', '@vaticeno match Invented wins', {
+      referenced_tweets: [{ type: 'quoted', id: '351' }],
+    });
+    threadPosts['351'] = {
+      id: '351',
+      text: 'Liverpool v Everton on Sunday',
+      author_id: '555',
+    };
+    const { deps, replies } = await bot([[m]]);
+    await pollMentions(deps, NOW);
+    assert.match(replies[0]!.text, /^RECORDED/, 'the quoted post named the match');
   });
 
   test('a prediction the parents cannot explain is rescued by the rest of the conversation', async () => {
@@ -1039,6 +1054,40 @@ describe('selfpromo and quote', () => {
     } finally {
       jokeText = 'I predicted this joke. Check the receipt.';
     }
+  });
+});
+
+// Live 2026-11-19: under our own post, @Lemind asked Grok for odds (our handle carried, ignored); Grok's answer
+// carried our handle again and got the help reply.
+describe('a handle carried into a thread that named us', () => {
+  test('a reply below an earlier mention of us needs our handle typed, answered or not', async () => {
+    const asked = mention('160', '@vaticeno @grok odds?', {
+      conversation_id: 'conv-grok',
+      in_reply_to_user_id: BOT,
+      referenced_tweets: [{ type: 'replied_to', id: 'own-post' }],
+    });
+    const grok = mention(
+      '161',
+      '@Lemind @vaticeno Current odds: Kabayel 1/16, Hysa 8/1',
+      {
+        author_id: '1720665183188922368',
+        conversation_id: 'conv-grok',
+        in_reply_to_user_id: ME,
+        referenced_tweets: [{ type: 'replied_to', id: '160' }],
+      },
+    );
+    const typed = mention('162', '@grok @vaticeno @vaticeno help', {
+      conversation_id: 'conv-grok',
+      in_reply_to_user_id: '1720665183188922368',
+      referenced_tweets: [{ type: 'replied_to', id: '161' }],
+    });
+    const { deps, replies } = await bot([[asked, grok, typed]]);
+    await pollMentions(deps, NOW);
+    assert.deepEqual(
+      replies.map((r) => r.to),
+      ['162'],
+      'neither the carried tag nor Grok gets a reply; a typed one does',
+    );
   });
 });
 
@@ -2053,6 +2102,114 @@ describe('a refusal is not a dead end (FR-033)', () => {
       replies[0]!.text,
       /あ/,
       'a reply X would refuse is never sent',
+    );
+  });
+});
+
+// Spec 006: approximate bookmaker odds on request.
+describe('odds', () => {
+  const answering = (deps: BotDeps, answer: () => Promise<{ text: string }>) => {
+    deps.llm = {
+      ...deps.llm,
+      groundedAnswer: async () => ({
+        ...(await answer()),
+        urls: [],
+        costs: [
+          { provider: 'gemini', operation: 'search', units: 1, usdCost: 0.01 },
+          {
+            provider: 'google_search',
+            operation: 'search',
+            units: 1,
+            usdCost: 0.014,
+          },
+        ],
+      }),
+    } as unknown as BotDeps['llm'];
+  };
+
+  test('one reply with the averaged odds, and the call recorded as odds', async () => {
+    const { deps, replies } = await bot([[mention('140', '@vaticeno odds')]]);
+    answering(deps, async () => ({
+      text: JSON.stringify({
+        found: true,
+        event: 'Arsenal v Man City',
+        outcomes: [
+          { name: 'Arsenal', prices: [3.0, 3.0] },
+          { name: 'Draw', prices: [3.5, 3.5] },
+          { name: 'Man City', prices: [2.2, 2.2] },
+        ],
+      }),
+    }));
+    await pollMentions(deps, NOW);
+    assert.deepEqual(
+      replies.map((r) => r.text),
+      [
+        'Arsenal v Man City: Man City 6:5 (2.20) · Arsenal 2:1 (3.00) · Draw 5:2 (3.50)',
+      ],
+    );
+    const [odds] =
+      await t.sql`select count(*)::int as n from cost_events where operation = 'odds'`;
+    assert.equal(odds!.n, 2, 'the model and the search, both as odds');
+  });
+
+  test('no event named, or no two bookmakers: the plain replies, no number', async () => {
+    const none = await bot([[mention('141', '@vaticeno what are the odds')]]);
+    answering(none.deps, async () => ({ text: '{"found": false}' }));
+    await pollMentions(none.deps, NOW);
+    assert.match(none.replies[0]!.text, /^Which event\?/);
+
+    const thin = await bot([[mention('142', '@vaticeno odds pls')]]);
+    answering(thin.deps, async () => ({
+      text: '{"found": true, "event": "X v Y", "outcomes": [{"name": "X", "prices": [2.0]}]}',
+    }));
+    await pollMentions(thin.deps, NOW);
+    assert.equal(
+      thin.replies[0]!.text,
+      'No odds for this one — finished, too far off, or nobody prices it.',
+    );
+  });
+
+  test('under a recorded prediction its contract names the event: no posts are read', async () => {
+    const claim =
+      await t.sql`insert into claims ${t.sql({ slug: 'odds1', source_tweet_id: '150', summon_tweet_id: '151', source_version: 'v1', author_x_user_id: ME, status: 'draft', contract: JSON.stringify(VALID_CONTRACT), resolution_method: 'price_feed', deadline_at: VALID_CONTRACT.deadline_at })} returning id`;
+    assert.ok(claim[0]);
+    const { deps, replies, conversationReads } = await bot([
+      [
+        mention('152', '@vaticeno odds', {
+          conversation_id: 'conv-odds',
+          referenced_tweets: [{ type: 'replied_to', id: '151' }],
+        }),
+      ],
+    ]);
+    let input = '';
+    deps.llm = {
+      ...deps.llm,
+      groundedAnswer: async (call: { input: string }) => {
+        input = call.input;
+        return { text: '{"found": false}', urls: [], costs: [] };
+      },
+    } as unknown as BotDeps['llm'];
+    await pollMentions(deps, NOW);
+    assert.equal(replies.length, 1);
+    assert.deepEqual(conversationReads, [], 'no conversation bought');
+    const sent = JSON.parse(input) as {
+      prediction: string | null;
+      conversation: string[];
+    };
+    assert.ok(sent.prediction, 'the contract is the event');
+    assert.deepEqual(sent.conversation, []);
+  });
+
+  test('a search outage is never answered: the mention waits for the next poll', async () => {
+    const { deps, replies } = await bot([[mention('143', '@vaticeno odds')], []]);
+    answering(deps, async () => {
+      throw new LlmUnavailable('search down');
+    });
+    await pollMentions(deps, NOW);
+    assert.equal(replies.length, 0);
+    assert.equal(
+      (await readIngestState(deps.statePath)).mentions_since_id,
+      undefined,
     );
   });
 });

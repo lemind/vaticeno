@@ -21,6 +21,7 @@ import {
   type OriginalDeps,
 } from '../../src/content/original-run.js';
 import { XApiError, type SearchPost, type UserPost } from '../../src/x/client.js';
+import { groupsFrom } from '../../src/content/repost-groups.js';
 import { insertClaim, insertEvidence, setupTestDb, type TestDb } from './helpers.js';
 
 let t: TestDb;
@@ -333,8 +334,8 @@ test('the repost policy: no event, no repost; of the events, the most-liked one'
   assert.equal(reposted.length, 0);
   assert.equal(
     sortCalls.length,
-    2,
-    "the day's group, then the next day's, then no repost",
+    groupsFrom(NOW).length,
+    "every group from the day's on, then no repost",
   );
   assert.notEqual(queries[0], queries[1]);
   assert.match(queries[0]!, /min_likes:\d+/);

@@ -182,9 +182,18 @@ export const REPOST_GROUPS: readonly RepostGroup[] = [
   },
 ];
 
-// The group of `now`'s UTC weekday, or of the day `offset` days later (the one fallback search).
-export function groupFor(now: Date, offset = 0): RepostGroup {
-  return REPOST_GROUPS[(now.getUTCDay() + offset) % REPOST_GROUPS.length]!;
+const WEEK_MS = 7 * 86_400_000;
+// Launches and awards are rare: their group leads Saturday every other week only, starting 2026-11-21 (owner).
+const FORTNIGHTLY = 'launches and awards';
+const fortnightOn = (now: Date) => Math.floor(now.getTime() / WEEK_MS) % 2 === 0;
+
+// The order of the day's search: `now`'s UTC weekday group first, then each next one in the list (FR-011).
+export function groupsFrom(now: Date): RepostGroup[] {
+  return REPOST_GROUPS.map(
+    (_, i) => REPOST_GROUPS[(now.getUTCDay() + i) % REPOST_GROUPS.length]!,
+  ).filter(
+    (group, i) => group.name !== FORTNIGHTLY || (i === 0 && fortnightOn(now)),
+  );
 }
 
 export function groupQuery(group: RepostGroup): string {

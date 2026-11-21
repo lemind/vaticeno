@@ -209,7 +209,7 @@ describe('help', () => {
       now: NOW,
     });
     assert.deepEqual([result.outcome, result.slug], ['help', null]);
-    assert.match(result.reply, /Tag me under your prediction/);
+    assert.match(result.reply, /Tag me under a prediction/);
     assert.equal((await t.sql`select count(*)::int as n from claims`)[0]!.n, 0);
   });
 });

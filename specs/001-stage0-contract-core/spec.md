@@ -408,7 +408,9 @@ shown but never count as a contradiction.
   participant's handle to a reply, so a thread the bot has answered keeps producing mentions nobody intended:
   those MUST NOT be answered, and MUST cost no model call and no conversation read. A post counts as addressed
   when it replies to one of the bot's own posts, when it replies to a post by its own author, when it arrives
-  in a thread the bot has not posted in, or when the handle appears outside the prepended block. STOP is
+  in a thread the bot has not posted in or been named in before, or when the handle appears outside the prepended
+  block (a thread that named the bot carries its handle like one it answered: Grok's reply under an ignored tag
+  got the help reply, 2026-11-19). STOP is
   recorded wherever it is seen, addressed or not, and earns no reply when it was not (owner decision
   2026-10-09, after ten unasked replies into one stranger's conversation).
 - **FR-009**: All replies MUST fit within X's post length limit and contain no link card; the public
@@ -536,6 +538,8 @@ shown but never count as a contradiction.
   VOID or unsettled is only reported. Every correction, the run's or one written by hand, is posted on
   its own once the verdict it corrects has gone out (owner decision 2026-11-10). A fresh re-judge of one claim, with new searches, is a command run by hand (~$0.04). A
   correction is told once, in the claim's own thread, and never retried (owner decision 2026-10-12).
+- **FR-033c**: A quote post is read with the post it quotes, and the posts above that, after the posts above the
+  mention itself (owner 2026-11-19: "which Jake?" while the quoted post named him). Spec 006 T610.
 - **FR-033b**: Replies written to people run on a fuller model than the one that parses predictions, and
   may be as long as the platform allows. The model is configuration, not code. It answers from what it was
   given — the conversation, and Vaticeno's own line about the prediction — and says it does not know

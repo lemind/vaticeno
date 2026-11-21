@@ -21,10 +21,13 @@ import { type ExtrasDeps, quoteReply, selfpromoReply } from './extras.js';
 import { logTopic, resolveQuoteTopic } from './quote-topic.js';
 import { loadInstruction } from '../llm/instructions.js';
 import { type WagerDeps, wagerReply } from './wager.js';
+import { lookUpOdds } from './odds.js';
 import { alert, captureError } from '../observe.js';
 import {
   HELP_REPLY,
   hasTagsOrLinks,
+  ODDS_NO_EVENT_REPLY,
+  ODDS_NO_PRICES_REPLY,
   STOPPED_REPLY,
   THIRD_PARTY_REPLY,
   weightedLength,
@@ -153,9 +156,10 @@ export async function routeMention(
   const repliedTo = mention.referenced_tweets?.find(
     (ref) => ref.type === 'replied_to',
   )?.id;
+  const quoted = quotedId(mention);
   // Each post read is billed: the posts above are read once for this mention, whichever steps need them.
   let aboveRead: Promise<ThreadPost[]> | undefined;
-  const readAbove = () => (aboveRead ??= threadAbove(deps, repliedTo));
+  const readAbove = () => (aboveRead ??= postsAbove(deps, repliedTo, quoted));
   let askedModel = false; // one assessment per mention, whichever path asks for it (owner decision 2026-10-07)
 
   // A reply in a claim's thread is the author's fix (FR-010, no keyword); anyone else is ignored, and a closed
@@ -274,7 +278,8 @@ export async function routeMention(
   // An edit of the mention gets a new id: the claim is keyed on the first version, so edits never record twice.
   const original = mention.edit_history_tweet_ids?.[0] ?? mention.id;
   // The posts above resolve "she", "it" and bare names; they are already paid for when this is a reply.
-  const context = repliedTo ? (await readAbove()).map((post) => post.text) : [];
+  const context =
+    repliedTo || quoted ? (await readAbove()).map((post) => post.text) : [];
   const result = await submitClaim(deps, {
     text: current.text,
     posted: current.posted,
@@ -346,6 +351,33 @@ async function runCommand(
     return claim
       ? wagerReply(deps, claim.slug, mention.id, now)
       : { action: 'wager_no_claim', reply: null };
+  }
+  if (command === 'odds') {
+    const repliedTo = mention.referenced_tweets?.find(
+      (ref) => ref.type === 'replied_to',
+    )?.id;
+    // The event is inferred: the thread's prediction, else the whole conversation, read once (spec 006 FR-002).
+    const claim = await claimInThread(deps, mention, repliedTo);
+    const contract = claim ? ContractSchema.safeParse(claim.contract) : null;
+    const prediction = contract?.success ? renderStatement(contract.data) : null;
+    // The recorded prediction names the event: no paid reads then (FR-002).
+    const posts = prediction
+      ? []
+      : (
+          await contextAround(deps, mention, repliedTo, undefined, () =>
+            postsAbove(deps, repliedTo, quotedId(mention)),
+          )
+        ).posts;
+    const found = await lookUpOdds(deps, {
+      prediction,
+      conversation: posts.map((post) => `${post.from}: ${post.text}`),
+      request: cleanBody(mention.text),
+    });
+    await saveCosts(deps, found.costs);
+    if (found.outcome === 'odds') return { action: 'odds', reply: found.text };
+    return found.outcome === 'no_event'
+      ? { action: 'odds_no_event', reply: ODDS_NO_EVENT_REPLY }
+      : { action: 'odds_no_prices', reply: ODDS_NO_PRICES_REPLY };
   }
   if (command === 'quote') {
     const repliedTo = mention.referenced_tweets?.find(
@@ -780,6 +812,21 @@ async function conversationBefore(
   }
 }
 
+// A quote post's subject is the post it quotes ("which Jake?" while the quoted post named him, 2026-11-19): it is
+// read with the posts above it, after the posts above the mention itself.
+const quotedId = (mention: Mention) =>
+  mention.referenced_tweets?.find((ref) => ref.type === 'quoted')?.id;
+
+async function postsAbove(
+  deps: BotDeps,
+  repliedTo: string | undefined,
+  quoted: string | undefined,
+): Promise<ThreadPost[]> {
+  // Nearest first: the direct parent's chain, then the quoted post's (assess() reads above[0] as the parent).
+  const above = await threadAbove(deps, repliedTo);
+  return [...above, ...(quoted ? await threadAbove(deps, quoted) : [])];
+}
+
 async function threadAbove(
   deps: BotDeps,
   repliedTo: string | undefined,
@@ -950,6 +997,9 @@ export async function pollMentions(
         action: routed.action,
         text_chars: mention.text.length,
       });
+      // A thread that named us carries our handle into every reply below it, answered or not: Grok's reply under a
+      // tag we ignored got the help reply (2026-11-19). From now on only a typed handle counts there.
+      rememberConversation(state, mention.conversation_id);
       if (routed.deferQuote) {
         state.pending_quotes.push({
           tweet_id: mention.id,
@@ -1063,7 +1113,7 @@ async function retryPendingQuotes(
 const inMinutes = (now: Date, minutes: number) =>
   new Date(now.getTime() + minutes * 60_000).toISOString();
 
-// Threads we have posted in: X prepends our handle to every later reply there (src/commands/parse.ts).
+// Threads we have posted in or been named in: X prepends our handle to every later reply there (src/commands/parse.ts).
 function rememberConversation(
   state: IngestState,
   conversationId: string | undefined,

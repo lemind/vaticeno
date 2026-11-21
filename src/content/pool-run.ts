@@ -7,7 +7,7 @@ import type { SearchPost } from '../x/client.js';
 import { X_POST_READ_USD, X_POST_CREATE_USD, X_REPOST_USD } from '../x/prices.js';
 import { eligiblePosts } from './eligible.js';
 import { upcomingEvents } from './repost-fit.js';
-import { type RepostGroup, groupFor, groupQuery } from './repost-groups.js';
+import { type RepostGroup, groupQuery, groupsFrom } from './repost-groups.js';
 import { type QuoteDeps, type QuoteMode, ourLineFor } from './quote.js';
 import {
   logDryRun,
@@ -38,8 +38,6 @@ export type ContentDeps = QuoteDeps & {
 const REPOST_SHARE = 1;
 export const HAND_RUN_SLOTS = 10; // room for a hand-run on top of the day's cap
 const SEARCH_HOURS = 48; // eligiblePosts drops anything older anyway
-// The day's group, then the next day's once; still nothing → no repost (FR-011).
-const GROUP_OFFSETS = [0, 1];
 
 export type PoolRunResult =
   | { done: 'spend_cap' | 'no_candidate' | 'cap_reached' }
@@ -153,13 +151,12 @@ export async function runPoolPost(
   };
 }
 
-// The day's group is searched; if no event comes back, the next day's group once (spec 005 FR-011).
+// The day's group is searched, then each next one until one has an event; none anywhere → no repost (FR-011).
 async function findCandidate(
   deps: ContentDeps,
   now: Date,
 ): Promise<{ group: RepostGroup; post: SearchPost } | null> {
-  for (const offset of GROUP_OFFSETS) {
-    const group = groupFor(now, offset);
+  for (const group of groupsFrom(now)) {
     const posts = await deps.searchPosts(
       groupQuery(group),
       new Date(now.getTime() - SEARCH_HOURS * 3_600_000),

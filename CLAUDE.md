@@ -1,11 +1,13 @@
 @AGENTS.md
 
 <!-- SPECKIT START -->
-**Constitution**: `.specify/memory/constitution.md` (v2.10.0) — principles every plan must pass.
+**Constitution**: `.specify/memory/constitution.md` (v2.11.0) — principles every plan must pass.
 
-**Active plan**: `specs/004-evidence-gates/plan.md` (001's plan, research, data-model and contracts/ stay the reference for the claim pipeline).
+**Active plan**: `specs/006-odds-command/plan.md` — `@vaticeno odds`: approximate bookmaker odds on request
+(ADR 009). Before it: `specs/004-evidence-gates/plan.md` (001's plan, research, data-model and contracts/ stay the reference for the claim pipeline).
 
-**Active feature**: `specs/004-evidence-gates/spec.md` — the gates decide on the right event: a page must
+**Active feature**: `specs/006-odds-command/spec.md` — `@vaticeno odds` replies once with the range of two or
+more bookmakers' prices, fractional with decimal beside it, none named, no link. Before it: `specs/004-evidence-gates/spec.md` — the gates decide on the right event: a page must
 identify the event the contract names before it can count, one site speaks through its best page rather than
 its first, absence is admitted only from endpoints recorded in code, and a judgement that contradicts its own
 result never publishes. Written after three of the first twelve verdicts were wrong or unsettled.
@@ -46,16 +48,22 @@ model-decided) proven on seeded claims, public pages. Where INIT_SPEC (v1.1.1) i
   written into the suggested example, it must be recorded instead. NEEDS INFO is only for what is
   genuinely absent: no measurable outcome, no datable event, or a name the thread never settles. What sits
   above a post on X is not its ancestry: before refusing for missing context, the whole conversation is
-  read once, including replies beside the post (owner decision 2026-10-07, `thread_read` spend).
+  read once, including replies beside the post (owner decision 2026-10-07, `thread_read` spend), and a quote
+  post is read with the post it quotes (2026-11-19).
 - All timestamps UTC; bare date = `23:59:59 UTC` (§8).
 
 ## Conventions
 
 **Commit messages**: one line, `feat|fix|chore|docs(001-T001): <short desc>` — task ID is spec number + task; a commit covering several tasks names the range, `feat(001-T009-024): …`. Omit the task ref when there is no associated task. Never commit without explicit user request.
 
-**Versions**: every deploy of new code raises the version in `package.json` and adds a `CHANGELOG.md` entry in
-plain words, dated; a feature raises the minor, a fix the patch. The front page shows it; `deploy/deploy.sh` refuses
-a new commit under a version already live.
+**Versions**: every deploy of new code raises the version in `package.json`; a feature raises the minor, a fix the
+patch. The front page shows it; `deploy/deploy.sh` refuses a new commit under a version already live, or one with no
+`## <version> ` heading in `CHANGELOG.md`.
+
+**Changelog**: one entry per pull request, in plain words, dated (owner 2026-11-19). The changes that matter get a
+line each; small fixes share one "Smaller fixes: …" line. While the pull request is open, a deploy renames its entry's
+heading to the new version and notes the range ("1.14.0–1.15.2") instead of adding an entry; the entry is finished
+when the pull request is ready to merge.
 
 **Task IDs**: from spec 003 on, a task ID carries its spec number — 003 uses `T301`–`T399`, 004 will use `T401`–`T499`, so an ID is unique on its own. Specs 001 and 002 keep the numbers they shipped with (`T001`–`T125` and `T001`–`T056`), which repeat across the two; that is why the commit ref always names the spec. Inserted work takes a letter (`T326a`), never a renumber.
 

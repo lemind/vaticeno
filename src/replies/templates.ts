@@ -81,13 +81,22 @@ const REJECT_WORDS: Record<
 // Anything that isn't a prediction ("@vaticeno cancel", "hi", …) gets what the bot can do.
 export const HELP_REPLY = assertReplyFits(
   'I record predictions and check them at the deadline.\n' +
-    '• Tag me under your prediction → recorded\n' +
-    '• Tag me with a fix (15 min) → updated\n' +
-    '• quote → a quote about bets\n' +
+    '• Tag me under a prediction → recorded\n' +
+    '• Tag a fix in 15 min → updated\n' +
+    "• odds → bookmakers' odds\n" +
+    '• quote → a quote\n' +
     '• selfpromo → who I am\n' +
-    '• STOP → I go quiet (tag me to resume)\n' +
+    '• STOP → I go quiet till you tag me\n' +
     '• * → nobody knows what to expect :)',
 ); // checked at load: a too-long help fails the tests, not a post
+
+// The odds command (spec 006): no prices (fewer than two bookmakers, unsaid), or no event in the conversation.
+export const ODDS_NO_PRICES_REPLY = assertReplyFits(
+  'No odds for this one — finished, too far off, or nobody prices it.',
+);
+export const ODDS_NO_EVENT_REPLY = assertReplyFits(
+  'Which event? Tag me with odds under a post that names the match or race.',
+);
 
 // Sent on STOP; the bot stays silent to the author until they tag it again (constitution IV).
 export const STOPPED_REPLY =
