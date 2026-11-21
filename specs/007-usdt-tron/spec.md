@@ -91,9 +91,9 @@ TRX, and an alert when it runs low.
   amount needed is set to 0 first, confirmed, then set to the new amount (Tron's USDT refuses a non-zero change).
 - **FR-005**: The wager page offers Tron beside the other networks, through TronLink; it shows Tron addresses in
   their `T…` form and links to Tronscan, and refuses to send when TronLink is on a different Tron network.
-- **FR-006**: The settlement worker settles Tron stakes in the same loop and outbox as the EVM ones, each network in
-  its own step with its own timeout; a Tron outage is retried and never delays or voids a stake on another network
-  (constitution III).
+- **FR-006**: The settlement worker settles Tron stakes with the same code and outbox as the EVM ones, in its own
+  process like every network (003 FR-036d); a Tron outage is retried and never delays or voids a stake on another
+  network (constitution III).
 - **FR-007**: Every transaction the worker sends on Tron records its cost, energy and bandwidth both, in TRX and in
   dollars, in `cost_events` under a new `tron` provider (a reversible migration). EVM gas is not recorded today and
   this feature does not add it. Before mainnet, each escrow call is estimated against mainnet itself (Tron's
