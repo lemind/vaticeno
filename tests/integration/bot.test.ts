@@ -2213,6 +2213,25 @@ describe('odds', () => {
     );
   });
 
+  test('an outage on the second search answers from the first, and keeps its cost', async () => {
+    let calls = 0;
+    const { deps, replies } = await bot([[mention('147', '@vaticeno odds')]]);
+    answering(deps, async () => {
+      if (++calls === 2) throw new LlmUnavailable('search down');
+      return {
+        text: '{"found": true, "event": "X v Y", "status": "upcoming", "outcomes": []}',
+      };
+    });
+    await pollMentions(deps, NOW);
+    assert.equal(
+      replies[0]!.text,
+      'No odds for this one — finished, too far off, or nobody prices it.',
+    );
+    const [odds] =
+      await t.sql`select count(*)::int as n from cost_events where operation = 'odds'`;
+    assert.equal(odds!.n, 2, 'the first search, model and search rows');
+  });
+
   test('under a recorded prediction its contract names the event: no posts are read', async () => {
     const claim =
       await t.sql`insert into claims ${t.sql({ slug: 'odds1', source_tweet_id: '150', summon_tweet_id: '151', source_version: 'v1', author_x_user_id: ME, status: 'draft', contract: JSON.stringify(VALID_CONTRACT), resolution_method: 'price_feed', deadline_at: VALID_CONTRACT.deadline_at })} returning id`;

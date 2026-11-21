@@ -1,7 +1,7 @@
 // The odds lookup (spec 006, ADR 009): one grounded call names the event and gives each outcome's price at several
 // bookmakers; code keeps outcomes two bookmakers price and averages them. An outage is thrown, never answered.
 import { z } from 'zod';
-import type { CallCost } from '../llm/client.js';
+import { type CallCost, LlmUnavailable } from '../llm/client.js';
 import { loadInstruction } from '../llm/instructions.js';
 import { log } from '../log.js';
 import { averaged, oddsText } from './odds-format.js';
@@ -59,7 +59,14 @@ export async function lookUpOdds(
   // prices at all; a second search often finds them. See specs/006-odds-command/spec.md.
   // REVISIT: if no-price answers stay as frequent with one search.
   if (first.lookup.outcome !== 'no_prices' || !first.upcoming) return first.lookup;
-  const second = await askOnce(deps, input);
+  let second;
+  try {
+    second = await askOnce(deps, input);
+  } catch (error) {
+    // The first answer was a real one: it stands, and its cost is kept, rather than both being lost to a retry.
+    if (error instanceof LlmUnavailable) return first.lookup;
+    throw error;
+  }
   return {
     ...second.lookup,
     costs: [...first.lookup.costs, ...second.lookup.costs],
