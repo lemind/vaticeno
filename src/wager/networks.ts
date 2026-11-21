@@ -70,7 +70,7 @@ export const KNOWN_NETWORKS: Record<number, KnownNetwork> = {
     testnet: true,
     explorer: 'https://nile.tronscan.org/#',
     explorerName: 'Tronscan',
-    rpcUrls: ['https://nile.trongrid.io'],
+    rpcUrls: ['https://nile.trongrid.io/jsonrpc'], // TronGrid's Ethereum-style reads: the page's eth_call works as is
   },
   728126428: {
     name: 'Tron',
@@ -78,7 +78,7 @@ export const KNOWN_NETWORKS: Record<number, KnownNetwork> = {
     testnet: false,
     explorer: 'https://tronscan.org/#',
     explorerName: 'Tronscan',
-    rpcUrls: ['https://api.trongrid.io'],
+    rpcUrls: ['https://api.trongrid.io/jsonrpc'],
     usdt: fromTronAddress('TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t')!, // Tether's TRC-20 USDT
   },
 };

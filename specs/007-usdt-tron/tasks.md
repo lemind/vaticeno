@@ -46,8 +46,11 @@
   in `WAGER_NETWORKS` (`src/wager/tron-address.ts` converts; chain ids as published until T703 measures them).
 - [ ] T709 [US1] `src/web/wallet.js` and `src/web/wager-page.ts`: TronLink path, `T…` addresses, Tronscan links,
   the wrong-network refusal (FR-005); zero-first approval when an old allowance is left (FR-004c); `fee_limit` on
-  every call.
-- [ ] T710 [US1] `src/replies/templates.ts`: the wager reply's money line names Tron (FR-011).
+  every call. **Written 2026-11-21**, untried until TronLink on Nile (T711): reads through TronGrid's `/jsonrpc`
+  (the page's `eth_call` as is), sends through `triggerSmartContract` with the raw arguments, the network told
+  apart by TronLink's node host (a SPECULATIVE HACK).
+- [x] T710 [US1] `src/replies/templates.ts`: the wager reply's money line names Tron (FR-011). **Done 2026-11-21**:
+  it already lists every open market by token; a test pins "USDT on Arbitrum One or Tron".
 
 ## Phase 5: Proof and launch (US2, US3)
 
