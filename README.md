@@ -28,7 +28,7 @@ A follower-count prediction is decided by reading the account's count from X at 
 **Own feed (specs 002 and 005):** [spec 002](specs/002-content-feed/spec.md),
 [spec 005](specs/005-x-growth/spec.md), [tasks](specs/005-x-growth/tasks.md), [rules](docs/content-rules.md).
 Live on the server. Once a day it reposts the most-liked announcement of an upcoming event, found by one X
-search over that weekday's group of event accounts. Every day the queue leaves free, it posts an event of its own, with a
+search over that weekday's group of event accounts, then the next group, until one has an event. Every day the queue leaves free, it posts an event of its own, with a
 poster, once two sites confirm it. Every weekend's biggest Hong Kong race goes out on Friday (Saturday if
 Friday found none): the race, day and course, the five shortest prices and a range for the rest, on a poster. Monday: the predictions coming due this week, only from authors on the
 owner's list; Friday: the week's record in counts. The owner can queue own posts on a date. Once a day it reposts one fresh verdict reply

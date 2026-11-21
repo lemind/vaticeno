@@ -4,15 +4,17 @@ What changed for people using Vaticeno, newest first. The version on the site's 
 A new feature raises the middle number, a fix the last one. One entry per pull request: the changes that matter,
 then the small ones together in one line; versions deployed while it was open share its entry.
 
-## 1.15.3 — 2026-11-20
+## 1.15.4 — 2026-11-21
 
-Odds on request (1.14.0–1.15.3).
+Odds on request (1.14.0–1.15.4).
 
 - New command: `@vaticeno odds` under a post about a match or a race. The bot replies once with each outcome's
   range across up to three bookmakers, like `2:1–9:4 (3.00–3.25)`, and nothing else. A race shows its five
   favourites and a range for the rest. Listed in help and on the front page.
 - A prediction tagged in a quote post is read together with the post it quotes, so "Jake wins" is no longer
   "unclear which Jake".
+- The daily repost no longer skips a day when its group has no announcement: it moves on to the next group, and
+  the next, until one has an upcoming event. Launches and awards lead Saturday only every other week.
 - Smaller fixes: the bot no longer answers replies that only carry its handle along (Grok's answers); heavy
   favourites read right (1:16, not 1:10); a shorter "no odds" reply.
 
