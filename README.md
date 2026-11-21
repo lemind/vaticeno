@@ -166,9 +166,9 @@ listed in [contracts/cli.md](specs/001-stage0-contract-core/contracts/cli.md).
 deploy/deploy.sh root@HOST                    # every update: sync, install, restart every unit
 ```
 
-Every deploy of new code raises the version in `package.json` (a feature the minor, a fix the patch) and adds
-its dated [CHANGELOG.md](CHANGELOG.md) entry. The script refuses uncommitted or unpushed code and a new commit
-under a version already live. Where this machine's traffic goes out through the server itself, direct SSH to it
+Each pull request has one version in `package.json` (a feature raises the minor, fixes only the patch) and one
+dated [CHANGELOG.md](CHANGELOG.md) entry; deploys while it is open keep both. The script refuses uncommitted or
+unpushed code and a version with no changelog entry. Where this machine's traffic goes out through the server itself, direct SSH to it
 loops: run the script with an `ssh` on `PATH` that goes through the open tunnel
 (`-o "ProxyCommand=nc -X 5 -x 127.0.0.1:1080 127.0.0.1 22"`).
 

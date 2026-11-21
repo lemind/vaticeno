@@ -110,7 +110,7 @@ test('selfpromo has many names, phrases included; short ones never catch ordinar
   assert.equal(resolveCommand('promte'), 'selfpromo', 'typo of promote');
 });
 
-test('odds: the first word or the phrase, with no number; never mid-text, never a typo', () => {
+test('odds: the first word or the phrase, numbers included; "odds are…" is a prediction', () => {
   for (const input of [
     'odds',
     'odds pls',
@@ -118,6 +118,8 @@ test('odds: the first word or the phrase, with no number; never mid-text, never 
     'odds on this one',
     'what are the odds',
     'What are the odds?',
+    'odds for UFC 310',
+    'odds game 7',
   ])
     assert.equal(resolveCommand(input), 'odds', input);
   for (const input of [
@@ -125,6 +127,8 @@ test('odds: the first word or the phrase, with no number; never mid-text, never 
     'adds',
     'ods',
     'the odds are long',
+    'odds are City win the league',
+    'Odds say Trump loses',
   ])
     assert.equal(resolveCommand(input), null, input);
   assert.equal(

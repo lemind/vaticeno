@@ -108,3 +108,13 @@ test("each outcome shows the bookmakers' range; one price when they agree", () =
     'Kabayel v Hysa: Kabayel 2:9–2:7 (1.22–1.29) · Hysa 3:1 (4.00)',
   );
 });
+
+test('a dotted name is a name, not a domain; a bookmaker domain is still dropped', () => {
+  const text = oddsText('Final', [
+    { name: 'J.Sinner bet365.com', decimal: 1.5, low: 1.5, high: 1.5 },
+    { name: 'C.Alcaraz', decimal: 2.6, low: 2.5, high: 2.7 },
+  ]);
+  assert.ok(text?.includes('J.Sinner'), text ?? '');
+  assert.ok(text?.includes('C.Alcaraz'), text ?? '');
+  assert.ok(!text?.includes('bet365'), text ?? '');
+});

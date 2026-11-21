@@ -2200,6 +2200,25 @@ describe('odds', () => {
     assert.deepEqual(sent.conversation, []);
   });
 
+  test('a post above that X cannot read is retried, never answered "Which event?"', async () => {
+    const { deps, replies } = await bot([
+      [
+        mention('144', '@vaticeno odds', {
+          referenced_tweets: [{ type: 'replied_to', id: '999' }],
+        }),
+      ],
+    ]);
+    let searched = false;
+    answering(deps, async () => {
+      searched = true;
+      return { text: '{"found": false}' };
+    });
+    await pollMentions(deps, NOW);
+    assert.equal(replies.length, 0);
+    assert.equal(searched, false, 'no paid search on an empty read');
+    assert.equal((await readIngestState(deps.statePath)).failing?.tweet_id, '144');
+  });
+
   test('a search outage is never answered: the mention waits for the next poll', async () => {
     const { deps, replies } = await bot([[mention('143', '@vaticeno odds')], []]);
     answering(deps, async () => {

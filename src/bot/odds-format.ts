@@ -56,7 +56,8 @@ export function averaged(outcomes: readonly PricedOutcome[]): OddsLine[] {
 // with the rest. The same name.tld test as hasTagsOrLinks in src/replies/templates.ts.
 const clean = (text: string, max: number) =>
   text
-    .replace(/https?:\/\/\S+|www\.\S+|\b[\w-]+\.[a-z]{2,24}\b/gi, '')
+    .replace(/https?:\/\/\S+|www\.\S+/gi, '')
+    .replace(/\b[\w-]+\.[a-z]{2,24}\b/g, '') // lowercase ending only: "J.Sinner" is a name
     .replace(/[@#]/g, '')
     .replace(/\s+/g, ' ')
     .trim()

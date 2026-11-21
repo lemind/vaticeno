@@ -18,7 +18,8 @@ Odds on request (1.14.0–1.15.7).
   elections, rate decisions. Launches and awards are gone; Saturday is the weekend's football and rugby. The search stops at the feed's
   daily budget.
 - Smaller fixes: the bot no longer answers replies that only carry its handle along (Grok's answers); heavy
-  favourites read right (1:16, not 1:10); a shorter "no odds" reply.
+  favourites read right (1:16, not 1:10); a shorter "no odds" reply; "odds for UFC 310" asks for odds while
+  "odds are City win" stays a prediction; a thread X fails to load is retried, not answered "Which event?".
 
 ## 1.13.0 — 2026-11-19
 

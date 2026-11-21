@@ -113,6 +113,15 @@ const ANY_WORDS = new Set([
   'selfpromo',
   'selfpromote',
 ]);
+const ODDS_SAYING = new Set([
+  'are',
+  'is',
+  'say',
+  'says',
+  'favour',
+  'favor',
+  'suggest',
+]);
 const isFiller = (word: string) => FILLER.has(word) || /^\d{1,2}$/.test(word);
 
 export function resolveCommand(body: string): Command | null {
@@ -134,6 +143,8 @@ export function resolveCommand(body: string): Command | null {
   // anywhere is the wager command; outside a claim's thread src/bot/mentions.ts reads the post as usual.
   if (words.some((w) => w === 'wager' || w === 'wagers')) return 'wager';
   const exact = ALIASES[first];
+  // "odds" first is the command, numbers included ("odds for UFC 310"); "odds are/say…" is a prediction (review 2026-11-21).
+  if (first === 'odds') return ODDS_SAYING.has(rest[0] ?? '') ? null : 'odds';
   // Any other command word first, with any words after it. A number makes the text a prediction for the
   // model to read ("Quote me: BTC hits 200k"). Only the main names: STOP stays bare (a typed stop must mean
   // stop), and short aliases ("promo", "brand", "bio") start ordinary sentences.
@@ -159,8 +170,7 @@ export function commandWordIn(body: string): Command | null {
     words[0] === 'self' && words.length > 1 ? `self${words[1]}` : words[0];
   const command = first ? (ALIASES[first] ?? null) : null;
   // The model has no wager intent: "Wager: BTC above 100k" is a prediction, not a paid detour (review 2026-10-20).
-  // Nor an odds intent: with a number ("Odds are BTC hits 100k") it is a prediction; without one, resolveCommand
-  // already took it as the command, like every command word first (spec 006, owner 2026-11-19).
+  // Nor an odds intent: "Odds are BTC hits 100k" is a prediction; any other "odds …" resolveCommand already took.
   if (command) return command === 'wager' || command === 'odds' ? null : command;
   // A main command word further on ("This is my project. @vaticeno selfpromo"): the model reads the thread and
   // decides. #ymjep was recorded as a prediction instead (2026-11-06).

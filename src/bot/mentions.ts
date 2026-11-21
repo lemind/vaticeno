@@ -368,6 +368,9 @@ async function runCommand(
             postsAbove(deps, repliedTo, quotedId(mention)),
           )
         ).posts;
+    // A reply or a quote always has a post to read: none means X failed, so retry, never answer (INIT_SPEC §6.7).
+    if (!prediction && posts.length === 0 && (repliedTo || quotedId(mention)))
+      throw new Error('odds: the thread could not be read');
     const found = await lookUpOdds(deps, {
       prediction,
       conversation: posts.map((post) => `${post.from}: ${post.text}`),
@@ -999,7 +1002,9 @@ export async function pollMentions(
       });
       // A thread that named us carries our handle into every reply below it, answered or not: Grok's reply under a
       // tag we ignored got the help reply (2026-11-19). From now on only a typed handle counts there.
-      rememberConversation(state, mention.conversation_id);
+      // A mention given up on was never handled: a retried tag there must still count.
+      if (routed.action !== 'given_up')
+        rememberConversation(state, mention.conversation_id);
       if (routed.deferQuote) {
         state.pending_quotes.push({
           tweet_id: mention.id,

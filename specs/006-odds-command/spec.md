@@ -50,8 +50,9 @@ Under a post about a race, `@vaticeno odds` gets the five shortest prices and on
 
 - Prices that disagree wildly between bookmakers show as a wide range.
 - An event already finished: no bookmaker prices it → the "no prices" reply.
-- `odds` as the first word, or "what are the odds", with no number after it, is the command ("odds pls", "odds?");
-  "odds" with a number ("odds are BTC hits 100k") is a prediction for the model to read. Unlike `wager`, the word
+- `odds` as the first word, or "what are the odds", is the command, numbers included ("odds pls", "odds for UFC
+  310"); "odds are / is / say …" ("odds are BTC hits 100k") is a prediction for the model to read (review
+  2026-11-21). If X cannot read the post replied to or quoted, the mention is retried, never answered. Unlike `wager`, the word
   anywhere else in a post is not the command.
 - The search is down: no reply that run; the mention is retried, never answered twice (INIT_SPEC §6.7). An outage
   is never answered "no bookmaker prices it"; only an answer that came back and gave fewer than two prices is.
