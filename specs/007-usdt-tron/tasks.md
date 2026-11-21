@@ -70,7 +70,9 @@
   the numbers into ADR 010 (FR-007, SC-002).
 - [x] T712 [US3] `settle/health.py` and the status page: Tron's totals, the oracle's TRX, low-balance alert (FR-008).
   **Done 2026-11-21**: `TRX_LOW_SUN` (200 TRX, UNRECONCILED), the page shows TRX for Tron's markets.
-- [ ] T713 Incident policy (`docs/settlement-policy.md`) covers Tron, Tether's switchable fee among its known risks; deploy EscrowV2 to Tron mainnet; `WAGER_NETWORKS` on the server; README and
+- [ ] T713 Incident policy (`docs/settlement-policy.md`) covers Tron, Tether's switchable fee among its known risks;
+  **prepared 2026-11-21**: the policy's Tron rows, `deploy/network-on.sh` takes the market `728126428-usdt`, the
+  server installs the worker's packages on deploy, the mainnet wallets in `~/.vaticeno-keys/728126428-usdt/`. deploy EscrowV2 to Tron mainnet; `WAGER_NETWORKS` on the server; README and
   CHANGELOG.
 
 ## Dependencies

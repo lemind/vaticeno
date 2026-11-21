@@ -5,12 +5,14 @@
 #   deploy/network-on.sh root@HOST 8453 0xESCROW authorize  the worker starts signing: wagers can open
 #   deploy/network-on.sh root@HOST 8453 0xNEW replace       a network already on moves to a new, unused contract
 # The market `42161-usdt` is Tether's USDT0 on Arbitrum One: its own contract, worker, oracle key and offers.
+# The market `728126428-usdt` is Tether's USDT on Tron (spec 007): the escrow in its 0x form, as deploy-tron.py
+# prints it; the worker picks its Tron adapter by the chain id.
 # Run after deploy/deploy.sh and the 0023 migration. Only this network's oracle key leaves this machine, copied once;
 # the worker's database login and Sentry DSN are reused from the Stage 2 worker's env file on the server.
 set -euo pipefail
 
 HOST="${1:?usage: deploy/network-on.sh root@HOST MARKET ESCROW_ADDRESS worker|page|authorize}"
-MARKET="${2:?market: 8453 (Base), 42161 (Arbitrum One) or 42161-usdt (USDT0 on Arbitrum One)}"
+MARKET="${2:?market: 8453 (Base), 42161 (Arbitrum One), 42161-usdt (USDT0 on Arbitrum One) or 728126428-usdt (Tron)}"
 CHAIN="${MARKET%-usdt}"
 ESCROW="${3:?the escrow address deploy-v2.sh printed}"
 STEP="${4:?step: worker, page, authorize or replace}"
@@ -18,7 +20,9 @@ case "$MARKET" in
   8453) RPC="https://mainnet.base.org"; TOKEN="0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" ;;
   42161) RPC="https://arb1.arbitrum.io/rpc"; TOKEN="0xaf88d065e77c8cC2239327C5EDb3A432268e5831" ;;
   42161-usdt) RPC="https://arb1.arbitrum.io/rpc"; TOKEN="0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9" ;;
-  *) echo "a mainnet market: 8453, 42161 or 42161-usdt" >&2; exit 1 ;;
+  # TronGrid's HTTP API for the worker; TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t in its 0x form.
+  728126428-usdt) RPC="https://api.trongrid.io"; TOKEN="0xa614f803b6fd780986a42c78ec9c7f77e6ded13c" ;;
+  *) echo "a mainnet market: 8453, 42161, 42161-usdt or 728126428-usdt" >&2; exit 1 ;;
 esac
 [[ "$ESCROW" =~ ^0x[0-9a-fA-F]{40}$ ]] || { echo "not an address: $ESCROW" >&2; exit 1; }
 DIR="/etc/vaticeno-settle/$MARKET"

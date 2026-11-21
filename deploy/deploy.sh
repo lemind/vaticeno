@@ -31,7 +31,7 @@ ssh "$HOST" 'cd /opt/vaticeno && cp deploy/vaticeno-content@.service deploy/vati
 
 # The status page: its own virtualenv on the server, never rsynced, and localhost only (003 FR-004).
 ssh "$HOST" 'cd /opt/vaticeno && test -x .venv/bin/pip || sudo -u vaticeno python3 -m venv --clear .venv; \
-  sudo -u vaticeno .venv/bin/pip install -q --upgrade pip && sudo -u vaticeno .venv/bin/pip install -q ".[status]" \
+  sudo -u vaticeno .venv/bin/pip install -q --upgrade pip && sudo -u vaticeno .venv/bin/pip install -q ".[status,settle]" \
   && cp deploy/vaticeno-status.service /etc/systemd/system/ && systemctl daemon-reload \
   && systemctl enable --now vaticeno-status && systemctl restart vaticeno-status'
 

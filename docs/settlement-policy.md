@@ -125,10 +125,12 @@ What the operator does, and how quickly. Each case is recorded as an incident (b
 | **A suspected fault or abuse** in the contract | the guardian stops new stakes on that network, every exit stays open; new stakes resume only once the cause is understood and written up |
 | **Our server is down** | nothing is lost: stakes already settled pay out after the hold, unsettled ones refund at the 14-day timeout. Verdicts are written to the chain once the server is back, if the hold and the timeout still allow |
 | **A network's node fails** | the worker retries on the next pass and tells the operator; the other network is unaffected |
-| **The referee's gas runs low** | the operator is alerted before it runs out and tops it up |
+| **The referee's gas runs low** | the operator is alerted before it runs out and tops it up; on Tron the referee burns TRX, alerted below 200 TRX |
 | **A transaction is stuck or fails** | it is never shown as done; the worker retries and the operator is alerted if it does not clear |
 | **A reorg** undoes a block | the worker reads each stake's state from the chain before sending, so nothing is settled twice |
 | **USDC blocks an address or the escrow** | the affected credits wait; the incident is recorded and announced |
+| **Tether blocks an address or the escrow, on Tron or Arbitrum** | the same as USDC: the blocked side's money waits as a credit, the other side is paid |
+| **Tether switches on its transfer fee** (zero today, spec 007) | the guardian stops new Tron stakes at once: a deposit would arrive short of the stake it records; exits stay open, and the shortfall is recorded and announced |
 
 **How fast.** The guardian acts **within 24 hours** of an alert, so inside the 72-hour hold. The operator
 brings the guardian's wallet online; nobody else holds it. If the operator cannot act at all, the contract

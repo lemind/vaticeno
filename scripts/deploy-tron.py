@@ -108,6 +108,7 @@ def main() -> None:
                               UNIT // 100, 1_000 * UNIT, 10_000 * UNIT, 50_000 * UNIT)])
     escrow = deploy(client, deployer, "EscrowV2", built["EscrowV2"], args)
     print(f"WAGER_NETWORKS entry: {chain}:2:{escrow}:{token}")
+    print(f"escrow in its 0x form, for deploy/network-on.sh: {hex20(escrow)}")
 
 
 if __name__ == "__main__":

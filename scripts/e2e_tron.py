@@ -7,6 +7,9 @@ Settled and finished by the worker's own Tron adapter (`settle.tron.TronEscrow`)
 that every exit lands in a wallet and nothing is left as a credit: the escrow ends holding nothing, owing nothing.
 
     .venv/bin/python scripts/e2e_tron.py <escrow T…>        # about 20 minutes; keys from ~/.vaticeno-keys/3448148188
+    .venv/bin/python scripts/e2e_tron.py <escrow T…> <test token T…>
+        # the blocked path, on `deploy-tron.py 3448148188 end-to-end-blocked`: the maker frozen at the verdict waits as
+        # a credit while the taker is paid; unfrozen, the maker withdraws it (SC-025). About 8 minutes.
 """
 
 from __future__ import annotations
@@ -44,6 +47,8 @@ TOKEN_ABI = [
          [{"name": "", "type": "bool"}]),
         ("transfer", "nonpayable", [{"name": "t", "type": "address"}, {"name": "v", "type": "uint256"}],
          [{"name": "", "type": "bool"}]),
+        ("mint", "nonpayable", [{"name": "t", "type": "address"}, {"name": "v", "type": "uint256"}], []),
+        ("setBlocked", "nonpayable", [{"name": "a", "type": "address"}, {"name": "b", "type": "bool"}], []),
     ]
 ]
 USER_ABI = [
@@ -59,6 +64,9 @@ USER_ABI = [
      "outputs": [{"name": "", "type": "uint256"}]},
     {"type": "function", "name": "creditTotal", "stateMutability": "view", "inputs": [],
      "outputs": [{"name": "", "type": "uint256"}]},
+    {"type": "function", "name": "creditOf", "stateMutability": "view", "inputs": [{"name": "a", "type": "address"}],
+     "outputs": [{"name": "", "type": "uint256"}]},
+    {"type": "function", "name": "withdraw", "stateMutability": "nonpayable", "inputs": [], "outputs": []},
 ]
 
 
@@ -92,8 +100,10 @@ class Wallet:
 
 
 def main() -> None:
-    if len(sys.argv) != 2:
+    if len(sys.argv) not in (2, 3):
         sys.exit(__doc__)
+    if len(sys.argv) == 3:
+        return blocked(to_base58check_address(sys.argv[1]), to_base58check_address(sys.argv[2]))
     client = Tron(network="nile")
     escrow_address = to_base58check_address(sys.argv[1])
     oracle = TronEscrow(client, escrow_address, CHAIN, key("oracle"), 2, str(CHAIN))
@@ -158,6 +168,52 @@ def main() -> None:
     assert got[taker.address] == AMOUNT, "B's refund"
     assert held == 0 and owed == 0, "every exit left as a payment, none as a credit"
     say(f"PASSED; the worker burned {sum(oracle.drain_costs()) / UNIT} TRX on 4 transactions")
+
+
+def blocked(escrow_address: str, token_address: str) -> None:
+    client = Tron(network="nile")
+    oracle = TronEscrow(client, escrow_address, CHAIN, key("oracle"), 2, str(CHAIN))
+    token = client.get_contract(token_address)
+    token.abi = TOKEN_ABI
+    escrow = client.get_contract(escrow_address)
+    escrow.abi = USER_ABI
+    deployer, maker, taker = (Wallet(client, r) for r in ("deployer", "e2e-maker", "e2e-taker"))
+    say("the two sides get test tokens and approve once")
+    for w in (maker, taker):
+        try:
+            trx = client.get_account_balance(w.address)
+        except AddressNotFound:
+            trx = 0
+        if trx < 30:
+            deployer.send(client.trx.transfer(deployer.address, w.address, 40 * UNIT), f"40 TRX to {w.address}")
+        deployer.send(token.functions.mint(w.address, 2 * AMOUNT), f"2 test tokens to {w.address}")
+        w.send(token.functions.approve(escrow_address, MAX), f"{w.address} approves once")
+    deadline = oracle.chain_time() + 4 * 60
+    valid_until = deadline - oracle.acceptance_closes
+    claim = os.urandom(32)
+    signature = bytes.fromhex(oracle.sign_open(claim, deadline, valid_until).removeprefix("0x"))
+    maker.send(escrow.functions.open(claim, deadline, valid_until, signature, True, AMOUNT), "open")
+    stake_id = int(escrow.functions.stakesOf(claim)[-1])
+    taker.send(escrow.functions.accept(stake_id), "accept")
+    start = {w.address: token.functions.balanceOf(w.address) for w in (maker, taker)}
+    say(f"waiting for the deadline ({deadline - oracle.chain_time()} s)")
+    while oracle.chain_time() < deadline:
+        time.sleep(10)
+    deployer.send(token.functions.setBlocked(maker.address, True), "the token freezes the maker")
+    tx = oracle.send_settle(oracle.stake(stake_id), "void", os.urandom(32))
+    oracle.wait_mined(tx)
+    say(f"  VOID settled by the oracle, {tx}")
+    got_taker = token.functions.balanceOf(taker.address) - start[taker.address]
+    credit = escrow.functions.creditOf(maker.address)
+    say(f"taker paid {got_taker / UNIT}; the frozen maker credited {credit / UNIT}, paid "
+        f"{(token.functions.balanceOf(maker.address) - start[maker.address]) / UNIT}")
+    assert got_taker == AMOUNT, "the frozen maker never holds up the taker"
+    assert credit == AMOUNT, "the maker's refund waits as one credit"
+    deployer.send(token.functions.setBlocked(maker.address, False), "the token unfreezes the maker")
+    maker.send(escrow.functions.withdraw(), "the maker withdraws")
+    assert token.functions.balanceOf(maker.address) - start[maker.address] == AMOUNT, "withdrawn in full"
+    assert token.functions.balanceOf(escrow_address) == 0 and escrow.functions.creditTotal() == 0
+    say("PASSED: frozen side credited once, other side paid, the credit withdrawn, the escrow empty")
 
 
 if __name__ == "__main__":
