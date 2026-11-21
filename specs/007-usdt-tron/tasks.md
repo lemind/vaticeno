@@ -21,7 +21,8 @@
   amount, in `_tryPush` and `_push` (FR-004); Tron mainnet accepts only Tether's USDT; any change T703 forces, as a
   tagged HACK. Foundry tests in `contracts/test/` with a token that returns `false` on success: paid, not credited;
   a refusal credited once; never both. The blocking test token (`contracts/src/TestUsdc.sol`) gets a mode that
-  returns `false` on success, for Nile's blocked-address path.
+  returns `false` on success, for Nile's blocked-address path. **Done 2026-11-21**: the balance check, the test
+  token's mode and three Foundry tests; the Tron mainnet token rule waits for T703's chain id.
 - [ ] T705 [US1] Tron `solc` pinned, reproducible artifact; `scripts/deploy-tron.py`: deploy with
   `consume_user_resource_percent = 100`, `origin_energy_limit` and `fee_limit` set, bytecode checked against the
   artifact (FR-004b); deploy to Nile.

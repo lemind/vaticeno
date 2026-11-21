@@ -4,6 +4,7 @@ pragma solidity 0.8.28;
 interface IERC20 {
     function transfer(address to, uint256 value) external returns (bool);
     function transferFrom(address from, address to, uint256 value) external returns (bool);
+    function balanceOf(address account) external view returns (uint256);
 }
 
 /// The escrow that holds real USDC (003 Stage 4, FR-022a, FR-036b–e). Its rules are answered in
@@ -441,15 +442,19 @@ contract EscrowV2 {
         _call(abi.encodeCall(IERC20.transferFrom, (from, address(this), value)));
     }
 
-    // Never reverts: a refusal is reported, not raised. Accepts a token that returns nothing as well as one returning true.
+    // Never reverts: a refusal is reported, not raised. Sent means our balance fell by exactly `value`, whatever the
+    // token returns: Tron's USDT returns false from a transfer that worked (docs/decisions/010-usdt-tron.md).
     function _tryPush(address to, uint256 value) private returns (bool) {
+        uint256 before = token.balanceOf(address(this));
         // forge-lint: disable-next-line(reentrancy-no-eth)
-        (bool ok, bytes memory returned) = address(token).call(abi.encodeCall(IERC20.transfer, (to, value)));
-        return ok && (returned.length == 0 || (returned.length == 32 && abi.decode(returned, (bool))));
+        (bool ok,) = address(token).call(abi.encodeCall(IERC20.transfer, (to, value)));
+        if (!ok) return false;
+        uint256 left = token.balanceOf(address(this));
+        return left <= before && before - left == value;
     }
 
     function _push(address to, uint256 value) private {
-        _call(abi.encodeCall(IERC20.transfer, (to, value)));
+        if (!_tryPush(to, value)) revert TransferFailed();
     }
 
     // Accepts a token that returns nothing as well as one that returns true, as stablecoins differ.

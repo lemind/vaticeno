@@ -812,6 +812,53 @@ contract EscrowV2Test is Test {
         assertEq(escrow.creditOf(taker), AMOUNT);
     }
 
+    // ---- a token whose transfer returns false when it worked, like Tron's USDT (010-usdt-tron) ----
+
+    function test_a_transfer_that_returns_false_but_moved_the_money_is_sent_not_credited() public {
+        token.setTransferReturnsFalse(true);
+        uint256 id = _settled(true, EscrowV2.Outcome.Hit);
+        _snap();
+        vm.warp(block.timestamp + WINDOW);
+        escrow.payout(id);
+        assertEq(token.balanceOf(maker) - snapshot[maker], uint256(AMOUNT) * 2, "the winner has the pot");
+        assertEq(escrow.creditOf(maker), 0, "and no credit besides");
+        assertEq(escrow.creditTotal(), 0);
+        assertEq(token.balanceOf(address(escrow)), 0);
+    }
+
+    function test_a_refund_with_a_false_returning_token_pays_both_once() public {
+        token.setTransferReturnsFalse(true);
+        uint256 id = _matched(true);
+        _snap();
+        vm.warp(deadline);
+        vm.prank(oracle);
+        escrow.settle(id, EscrowV2.Outcome.Void, EVIDENCE);
+        assertEq(token.balanceOf(maker) - snapshot[maker], AMOUNT);
+        assertEq(token.balanceOf(taker) - snapshot[taker], AMOUNT);
+        assertEq(escrow.creditTotal(), 0, "nothing credited on top");
+    }
+
+    function test_a_blocked_address_with_a_false_returning_token_is_credited_once_and_withdraws() public {
+        token.setTransferReturnsFalse(true);
+        uint256 id = _matched(true);
+        token.setBlocked(maker, true);
+        _snap();
+        vm.warp(deadline);
+        vm.prank(oracle);
+        escrow.settle(id, EscrowV2.Outcome.Void, EVIDENCE);
+        assertEq(escrow.creditOf(maker), AMOUNT, "refused: credited once");
+        assertEq(token.balanceOf(maker), snapshot[maker], "and not paid");
+        assertEq(token.balanceOf(taker) - snapshot[taker], AMOUNT);
+        assertEq(escrow.creditOf(taker), 0);
+        vm.prank(maker);
+        vm.expectRevert(EscrowV2.TransferFailed.selector);
+        escrow.withdraw();
+        token.setBlocked(maker, false);
+        assertEq(_withdraw(maker), AMOUNT);
+        assertEq(escrow.creditTotal(), 0);
+        assertEq(token.balanceOf(address(escrow)), 0);
+    }
+
     // ---- one blocked address holds up only itself (SC-025) ----
 
     /// After an exit made while `blocked` was frozen: every other address already has its money in its wallet,
