@@ -12,6 +12,7 @@ const Answer = z.union([
   z.object({
     found: z.literal(true),
     event: z.string().catch(''),
+    status: z.enum(['upcoming', 'live', 'finished']).catch('upcoming'),
     outcomes: z.array(
       z
         .object({
@@ -42,8 +43,9 @@ export type OddsDeps = {
 };
 
 export type OddsLookup = {
-  // `odds`: the reply; `no_prices`: an answer came back without two bookmakers; `no_event`: nothing named one.
-  outcome: 'odds' | 'no_prices' | 'no_event';
+  // `odds`: the reply; `no_prices`: an answer came back without two bookmakers; `no_event`: nothing named one;
+  // `live`: it has started, and in-play odds are never given (owner 2026-11-21).
+  outcome: 'odds' | 'no_prices' | 'no_event' | 'live';
   text: string | null;
   costs: CallCost[]; // recorded as `odds` (FR-007)
 };
@@ -52,11 +54,27 @@ export async function lookUpOdds(
   deps: OddsDeps,
   input: { prediction: string | null; conversation: string[]; request: string },
 ): Promise<OddsLookup> {
-  // LlmUnavailable propagates: the mention is retried next run, never answered "no prices" (INIT_SPEC §6.7).
+  const first = await askOnce(deps, input);
+  // HACK(gemini): OBSERVED 2026-11-21 — "Shoaib Yousaf v John Mitchell" came back as an upcoming event with no
+  // prices at all; a second search often finds them. See specs/006-odds-command/spec.md.
+  // REVISIT: if no-price answers stay as frequent with one search.
+  if (first.lookup.outcome !== 'no_prices' || !first.upcoming) return first.lookup;
+  const second = await askOnce(deps, input);
+  return {
+    ...second.lookup,
+    costs: [...first.lookup.costs, ...second.lookup.costs],
+  };
+}
+
+// LlmUnavailable propagates: the mention is retried next run, never answered "no prices" (INIT_SPEC §6.7).
+async function askOnce(
+  deps: OddsDeps,
+  input: { prediction: string | null; conversation: string[]; request: string },
+): Promise<{ lookup: OddsLookup; upcoming: boolean }> {
   const answer = await deps.llm.groundedAnswer({
     model: deps.answerModel,
-    instructionVersion: 'odds.v2',
-    system: loadInstruction('odds.v2'),
+    instructionVersion: 'odds.v3',
+    system: loadInstruction('odds.v3'),
     input: JSON.stringify(input),
   });
   const costs = answer.costs.map((cost) => ({
@@ -72,18 +90,25 @@ export async function lookUpOdds(
     raw = null; // a malformed answer is "no prices", as one with no prices is
   }
   const parsed = Answer.safeParse(raw);
-  if (!parsed.success) return { outcome: 'no_prices', text: null, costs };
-  if (!parsed.data.found) return { outcome: 'no_event', text: null, costs };
+  const none = (outcome: OddsLookup['outcome'], upcoming = false) => ({
+    lookup: { outcome, text: null, costs },
+    upcoming,
+  });
+  if (!parsed.success) return none('no_prices');
+  if (!parsed.data.found) return none('no_event');
   const outcomes = parsed.data.outcomes.filter((o) => o !== null);
   // Every price the search gave and the sites it read: why our odds differ from someone else's is answered here.
   log('info', 'odds looked up', {
     event: 'odds.lookup',
     match: parsed.data.event,
+    status: parsed.data.status,
     outcomes: outcomes.map((o) => ({ name: o.name, prices: o.prices })),
     sources: answer.sites ?? [],
   });
+  if (parsed.data.status === 'live') return none('live');
+  if (parsed.data.status === 'finished') return none('no_prices');
   const text = oddsText(parsed.data.event, averaged(outcomes));
   return text
-    ? { outcome: 'odds', text, costs }
-    : { outcome: 'no_prices', text: null, costs };
+    ? { lookup: { outcome: 'odds', text, costs }, upcoming: true }
+    : none('no_prices', true);
 }

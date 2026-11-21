@@ -2169,6 +2169,50 @@ describe('odds', () => {
     );
   });
 
+  test('a live event gets the in-play reply; an upcoming one with no prices is searched once more', async () => {
+    const live = await bot([[mention('145', '@vaticeno odds')]]);
+    answering(live.deps, async () => ({
+      text: '{"found": true, "event": "Yousaf v Mitchell", "status": "live", "outcomes": []}',
+    }));
+    await pollMentions(live.deps, NOW);
+    assert.equal(
+      live.replies[0]!.text,
+      "It's live now — I don't give in-play odds.",
+    );
+
+    const calls: string[] = [];
+    const retried = await bot([[mention('146', '@vaticeno odds')]]);
+    answering(retried.deps, async () => {
+      calls.push('search');
+      return {
+        text: JSON.stringify(
+          calls.length === 1
+            ? {
+                found: true,
+                event: 'Yousaf v Mitchell',
+                status: 'upcoming',
+                outcomes: [],
+              }
+            : {
+                found: true,
+                event: 'Yousaf v Mitchell',
+                status: 'upcoming',
+                outcomes: [
+                  { name: 'Yousaf', prices: [1.5, 1.5] },
+                  { name: 'Mitchell', prices: [2.5, 2.5] },
+                ],
+              },
+        ),
+      };
+    });
+    await pollMentions(retried.deps, NOW);
+    assert.equal(calls.length, 2, 'one more search, no more');
+    assert.match(
+      retried.replies[0]!.text,
+      /^Yousaf v Mitchell: Yousaf 1:2 \(1\.50\)/,
+    );
+  });
+
   test('under a recorded prediction its contract names the event: no posts are read', async () => {
     const claim =
       await t.sql`insert into claims ${t.sql({ slug: 'odds1', source_tweet_id: '150', summon_tweet_id: '151', source_version: 'v1', author_x_user_id: ME, status: 'draft', contract: JSON.stringify(VALID_CONTRACT), resolution_method: 'price_feed', deadline_at: VALID_CONTRACT.deadline_at })} returning id`;

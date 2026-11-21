@@ -94,6 +94,9 @@ export const HELP_REPLY = assertReplyFits(
 export const ODDS_NO_PRICES_REPLY = assertReplyFits(
   'No odds for this one — finished, too far off, or nobody prices it.',
 );
+export const ODDS_LIVE_REPLY = assertReplyFits(
+  "It's live now — I don't give in-play odds.",
+);
 export const ODDS_NO_EVENT_REPLY = assertReplyFits(
   'Which event? Tag me with odds under a post that names the match or race.',
 );

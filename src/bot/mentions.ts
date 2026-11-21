@@ -26,6 +26,7 @@ import { alert, captureError } from '../observe.js';
 import {
   HELP_REPLY,
   hasTagsOrLinks,
+  ODDS_LIVE_REPLY,
   ODDS_NO_EVENT_REPLY,
   ODDS_NO_PRICES_REPLY,
   STOPPED_REPLY,
@@ -378,6 +379,8 @@ async function runCommand(
     });
     await saveCosts(deps, found.costs);
     if (found.outcome === 'odds') return { action: 'odds', reply: found.text };
+    if (found.outcome === 'live')
+      return { action: 'odds_live', reply: ODDS_LIVE_REPLY };
     return found.outcome === 'no_event'
       ? { action: 'odds_no_event', reply: ODDS_NO_EVENT_REPLY }
       : { action: 'odds_no_prices', reply: ODDS_NO_PRICES_REPLY };

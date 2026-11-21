@@ -15,7 +15,7 @@ from eth_abi import encode
 from eth_account import Account
 from eth_account.messages import encode_typed_data
 from tronpy import Tron
-from tronpy.exceptions import TransactionNotFound
+from tronpy.exceptions import AddressNotFound, TransactionNotFound
 from tronpy.keys import PrivateKey, to_base58check_address, to_hex_address
 
 from settle.chain import BALANCE_OF_ABI, ESCROW_ABI, OUTCOMES, STATES, ChainMismatch, Escrow, Holdings, Stake
@@ -159,7 +159,10 @@ class TronEscrow:
         if self._token is None:
             self._token = self.client.get_contract(to_base58check_address(self.contract.functions.token()))
             self._token.abi = BALANCE_OF_ABI  # never the ABI a token stored on chain, or did not
-        trx = self.client.get_account_balance(self.owner)
+        try:
+            trx = self.client.get_account_balance(self.owner)
+        except AddressNotFound:  # an oracle never sent TRX does not exist on chain yet: no TRX, so the alert says so
+            trx = 0
         return Holdings(
             oracle_gas_wei=int(trx * 1_000_000),
             escrow_usdc=int(self._token.functions.balanceOf(self.address)),
