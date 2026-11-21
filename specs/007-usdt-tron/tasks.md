@@ -37,8 +37,8 @@
 
 ## Phase 4: Page (US1)
 
-- [ ] T708 [P] [US1] `src/wager/networks.ts` and `src/config.ts`: chain family, Nile and Tron mainnet, `T…` addresses
-  in `WAGER_NETWORKS`.
+- [x] T708 [P] [US1] `src/wager/networks.ts` and `src/config.ts`: chain family, Nile and Tron mainnet, `T…` addresses
+  in `WAGER_NETWORKS` (`src/wager/tron-address.ts` converts; chain ids as published until T703 measures them).
 - [ ] T709 [US1] `src/web/wallet.js` and `src/web/wager-page.ts`: TronLink path, `T…` addresses, Tronscan links,
   the wrong-network refusal (FR-005); zero-first approval when an old allowance is left (FR-004c); `fee_limit` on
   every call.
