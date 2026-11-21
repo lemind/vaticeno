@@ -73,7 +73,7 @@ Once a day (09:23 UTC) one X search covers the weekday's group of fields: the ac
 them (organisers, insiders, promoters, fan and preview accounts), announcement words ("race week", "fight week",
 "kicks off", "launch window"…), the last 48 hours and a floor of likes, 10 posts at most ($0.05). The model keeps
 the upcoming events; the one with the most likes + 2 × reposts is reposted. None → the next group in the list,
-then the next, through every group; none anywhere → no repost. Never the same post twice. The list lives in `src/content/repost-groups.ts`; the owner
+then the next, through every group, until the feed's daily spend cap; none anywhere → no repost. Never the same post twice. The list lives in `src/content/repost-groups.ts`; the owner
 changes it there.
 
 | Day (UTC) | Group | Min likes |
@@ -83,7 +83,7 @@ changes it there.
 | Wed | combat sports (UFC, MMA, boxing) | 100 |
 | Thu | NFL, NBA, MLB | 500 |
 | Fri | cricket, tennis, golf, horse racing | 100 |
-| Sat | the weekend's fights and races (UFC, boxing, horse racing) | 50 |
+| Sat | the weekend's football and rugby (La Liga, Serie A, Bundesliga, Ligue 1, EFL, rugby) | 200 |
 | Sun | central banks, economic data, earnings, crypto | 100 |
 
 A sponsor's tag on an announcement is fine (owner, 2026-11-09: our stakes are between friends, not a rival

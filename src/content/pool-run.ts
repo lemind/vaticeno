@@ -61,10 +61,8 @@ export async function runPoolPost(
   options: RunOptions = {},
 ): Promise<PoolRunResult> {
   const random = deps.random ?? Math.random;
-  if (!options.force && (await overSpendCap(deps, now)))
-    return { done: 'spend_cap' };
-
-  const found = await findCandidate(deps, now);
+  const found = await findCandidate(deps, now, options.force ?? false);
+  if (found === 'spend_cap') return { done: 'spend_cap' };
   if (!found) return { done: 'no_candidate' };
   const { group, post } = found;
   const account = { handle: group.name, id: post.author_id };
@@ -152,11 +150,14 @@ export async function runPoolPost(
 }
 
 // The day's group is searched, then each next one until one has an event; none anywhere → no repost (FR-011).
+// Each search is paid, so the walk stops at the feed's daily spend cap (a hand-run is past caps).
 async function findCandidate(
   deps: ContentDeps,
   now: Date,
-): Promise<{ group: RepostGroup; post: SearchPost } | null> {
+  force: boolean,
+): Promise<{ group: RepostGroup; post: SearchPost } | 'spend_cap' | null> {
   for (const group of groupsFrom(now)) {
+    if (!force && (await overSpendCap(deps, now))) return 'spend_cap';
     const posts = await deps.searchPosts(
       groupQuery(group),
       new Date(now.getTime() - SEARCH_HOURS * 3_600_000),

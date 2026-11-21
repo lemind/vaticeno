@@ -20,7 +20,7 @@ test('the search walks every group, starting with the day’s', () => {
   const names = (day: string) =>
     groupsFrom(new Date(`${day}T09:23:00Z`)).map((g) => g.name);
   assert.deepEqual(names('2026-11-21'), [
-    'weekend fights and races',
+    'weekend football and rugby',
     'markets and crypto',
     'F1, MotoGP and space',
     'football',

@@ -156,31 +156,31 @@ export const REPOST_GROUPS: readonly RepostGroup[] = [
     ],
     minLikes: 100,
   },
-  // Saturday: the weekend's fight cards and race meetings, things people bet on (owner 2026-11-21: launches and
-  // awards were dropped, they are not betting and rarely happen).
+  // Saturday: the weekend's football and rugby, accounts no other day searches (owner 2026-11-21; launches
+  // and awards were dropped: not betting, and they rarely happen).
   {
-    name: 'weekend fights and races',
+    name: 'weekend football and rugby',
     handles: [
-      'ufc',
-      'danawhite',
-      'Home_of_Fight',
-      'PFLMMA',
-      'trboxing',
-      'RacingPost',
-      'ITVRacing',
-      'CheltenhamRaces',
-      'BreedersCup',
+      'LaLigaEN',
+      'SerieA_EN',
+      'Bundesliga_EN',
+      'Ligue1_ENG',
+      'EFL',
+      'premrugby',
+      'SixNationsRugby',
+      'rugbyworldcup',
+      'URCOfficial',
     ],
     words: [
+      'today',
       'tonight',
       'tomorrow',
       '"this weekend"',
-      '"this Sunday"',
-      '"fight night"',
-      'weigh-ins',
-      'runners',
+      '"kick-off"',
+      'matchday',
+      '"team news"',
     ],
-    minLikes: 50,
+    minLikes: 200,
   },
 ];
 

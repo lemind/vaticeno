@@ -116,7 +116,8 @@ recent search for the day's group (`from:` each account, the words, `-is:retweet
 48 h, 10 posts, newest first; `min_likes` checked by hand on 2026-11-09). Each eligible post (≤ 48 h, never
 posted) goes to one lite-model call (`repost.v3`, events people bet on only); only `event` counts, and the one with the most likes + 2 ×
 reposts is reposted. None → each next group in the list in turn (`groupsFrom`); none anywhere → no repost, logged.
-Saturday is the weekend's fights and races; the launches-and-awards group was dropped (owner, 2026-11-21). Search takes handles, so
+Saturday is the weekend's football and rugby (no account shared with another day); the launches-and-awards
+group was dropped, and the walk stops at the feed's daily spend cap (owner, 2026-11-21). Search takes handles, so
 no paid id lookup; the post's `author_id` is its account. Post text is read for the call and never stored
 (constitution V).
 

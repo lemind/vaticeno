@@ -234,7 +234,8 @@ best — and changes next week's mix from it.
   last 48 hours, a floor of likes — and the most-liked event among the results is reposted; nothing → the next
   group in the list, and so on through every group; still nothing → no repost. **Amended 2026-11-21 (owner)**:
   launches and awards are not betting and rarely happen, so that group is dropped; Saturday searches the weekend's
-  fight cards and race meetings. Only an event whose outcome people bet on counts (a match, fight, race,
+  football and rugby, from accounts no other day searches; the walk through the groups stops at the feed's daily
+  spend cap. Only an event whose outcome people bet on counts (a match, fight, race,
   tournament, election or rate decision); a launch, an awards night or an unclear teaser never does. A sponsor's tag on an announcement does not exclude it (owner:
   our stakes are between friends, not a rival bookmaker); a post whose point is odds, tips or a betting offer
   still does.
