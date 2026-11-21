@@ -17,8 +17,8 @@ contract, worker key and offers, exactly as each EVM network is its own market (
 on Tron; a claim may carry stakes on Tron and on the EVM networks at once, and every stake settles with the same
 verdict on the network it was opened on.
 
-- **The same contract, compiled for Tron.** Tron runs Solidity on the TVM, which keeps `ecrecover`, `keccak256`
-  and 20-byte addresses. EscrowV2 is deployed there with the same numbers (007: per side 1,000, per claim 10,000,
+- **The same contract, compiled for Tron, with one change** (below: how a payment is judged sent). Tron runs
+  Solidity on the TVM, which keeps `ecrecover`, `keccak256` and 20-byte addresses. EscrowV2 is deployed there with the same numbers (007: per side 1,000, per claim 10,000,
   per network 50,000, minimum 0.01, in USDT base units, 6 decimals), fee 0, ceiling 5%. Its constructor gains one
   rule: on Tron mainnet only Tether's USDT is accepted (`TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t`, to be checked against
   Tether's published address before deployment).
@@ -39,17 +39,47 @@ toolchain (Foundry cannot deploy to Tron), a second signing path in the page and
 end-to-end runs. The owner judges the USDT held on Tron worth that (2026-11-21). The contract itself is not a second
 one: the same source, the same tests on EVM, plus the Nile runs.
 
-## Facts to check on Nile before anything else (each a HACK if it holds)
+## Tron's USDT returns `false` from a transfer that worked (review 2026-11-21)
 
-These decide whether the contract runs unchanged, and none is measured yet:
+Documented by OpenZeppelin for TRON: Tether's TRC-20 `transfer` moves the tokens and returns `false`; `transferFrom`
+and `approve` return `true`. In EscrowV2 as it stands that is a double payment: `_tryPush` reads `false` as
+"refused" and credits the person after the money has already gone out, and `withdraw` (`_push`, which requires
+`true`) then always reverts. So the contract changes before Tron:
 
-- **Does Tron's USDT `transfer` return `true`?** EscrowV2 credits a payment the token refuses (FR-036b). If the token
-  returns nothing or `false` on success, every payout would be credited instead of sent. **UNRECONCILED.**
+- **A payment counts as sent when the escrow's own balance fell by exactly its amount**, read before and after the
+  call, whatever the token returns (the pattern of OpenZeppelin's `SafeTRC20.safeTransferChecked`). A call that
+  reverts or leaves the balance unchanged is a refusal and is credited, once. `withdraw` uses the same check.
+- The change is in the source both families share. Base's and Arbitrum's deployed contracts are immutable and stay
+  as they are (USDC returns `true`); a later EVM deployment carries the check too, which is still correct.
+- Tests: a token that returns `false` on success (paid, not credited); a blocked address (credited once); never
+  both paid and credited, never credited twice. On Nile the run uses Tether's test USDT
+  (`TXYZopYRdj2D9XRtbG411XZZ3kM5VkAeBf`, said to share mainnet USDT's bytecode, which is checked first), never a
+  well-behaved stand-in.
+
+## Facts still to measure
+
 - **What `block.chainid` returns on the TVM**, and so what chain id the EIP-712 domain carries and what TronLink
   signs (TIP-712). **UNRECONCILED.**
-- **Energy.** On Tron the sender pays in energy, not gas: a USDT transfer is about 65,000 energy to an address that
-  holds USDT and about twice that to one that does not, which is several TRX when burned. **UNRECONCILED.** The
-  worker makes every exit itself (FR-036b), so it pays for every payout and refund.
+- **Energy and bandwidth.** On Tron the sender pays in energy and bandwidth, not gas. A USDT transfer is about
+  65,000 energy to an address that holds USDT and about twice that to one that does not, before Tron's dynamic
+  energy factor, which multiplies a busy contract's energy (USDT's) by up to 4.4. Nile does not show that factor,
+  so each escrow call is estimated against mainnet itself (read-only, free) before launch and measured from
+  receipts after. **UNRECONCILED.** The worker makes every exit itself (FR-036b), so it pays for every payout and
+  refund.
+
+## How the contract is built and called on Tron
+
+- **Compiler**: Tron's own `solc`, at a pinned version and with the EVM build's optimizer settings, not upstream
+  `solc`. The artifact is reproducible from the repo, and the deployed bytecode is checked against it.
+- **Energy settings**: deployed with the caller paying all of a call's energy (`consume_user_resource_percent =
+  100`; the deployer subsidises nothing, `origin_energy_limit` set to match). Every call from the page and the
+  worker carries an explicit `fee_limit` (Tron's HTTP API defaults it to 0). A call that runs out of energy
+  (`OUT_OF_ENERGY`) is a failed transaction the worker retries, never a verdict.
+- **Approvals**: Tron's USDT refuses to change a non-zero allowance straight to another non-zero one. The page reads
+  the allowance first; when it is non-zero and not the amount needed, it sets it to 0, waits for that, then sets
+  the new amount.
+- **Isolation**: each network settles in its own step with its own timeout, so a slow or unreachable Tron node never
+  holds up a stake on Base or Arbitrum.
 
 ## Answered (owner, 2026-11-21)
 
@@ -69,7 +99,7 @@ These decide whether the contract runs unchanged, and none is measured yet:
 
 - A second toolchain to deploy and verify the contract, and a second signing path in the page and the worker.
 - TRX for the worker's energy, on top of the EVM networks' gas: likely a few dollars per settled stake against
-  cents on Base (**UNRECONCILED** until T703 measures it).
+  cents on Base (**UNRECONCILED** until estimated against mainnet, T711a).
 - Tether can freeze an address on Tron as Circle can on Base: the credit fallback (FR-036b) and the residual risks
   of FR-036e apply unchanged.
 

@@ -74,18 +74,29 @@ TRX and energy, and alerts when they run low.
 - **FR-003**: Nothing is deployed to Tron mainnet before the contract has run end to end on Nile — open, accept,
   HIT, MISS, VOID, the guardian's void, the timeout, an expired offer and a blocked address — and the incident
   policy covers Tron (006).
-- **FR-004**: The facts ADR 010 lists (USDT's `transfer` return value, `block.chainid` and the signed domain,
-  energy per transfer) are measured on Nile and written down before the contract is changed for them; each
-  workaround is a tagged HACK.
+- **FR-004**: A payment out of the escrow counts as sent only when the escrow's balance fell by exactly its amount,
+  whatever the token's `transfer` returns: Tron's USDT returns `false` from a transfer that worked (ADR 010). A
+  refusal is credited once; no payment is ever both sent and credited. Withdrawals use the same check. Proven on
+  Nile with Tether's test USDT, never a stand-in token.
+- **FR-004a**: `block.chainid` and the domain TronLink signs are measured on Nile and written into ADR 010 before
+  the contract relies on them; each workaround is a tagged HACK.
+- **FR-004b**: The contract is built with Tron's `solc` at a pinned version, reproducibly, and the deployed bytecode
+  is checked against the build. It is deployed with the caller paying all energy (`consume_user_resource_percent`
+  100, `origin_energy_limit` set), and every call from the page and the worker sets an explicit `fee_limit`; a call
+  that runs out of energy is retried, never a verdict.
+- **FR-004c**: Before asking for an allowance, the page reads the current one; a non-zero allowance that is not the
+  amount needed is set to 0 first, confirmed, then set to the new amount (Tron's USDT refuses a non-zero change).
 - **FR-005**: The wager page offers Tron beside the other networks, through TronLink; it shows Tron addresses in
   their `T…` form and links to Tronscan, and refuses to send when TronLink is on a different Tron network.
-- **FR-006**: The settlement worker settles Tron stakes in the same loop and outbox as the EVM ones; a Tron outage
-  is retried and never delays or voids a stake on another network (constitution III).
-- **FR-007**: Every transaction the worker sends on Tron records its cost in TRX and in dollars, as the EVM gas is
-  recorded.
+- **FR-006**: The settlement worker settles Tron stakes in the same loop and outbox as the EVM ones, each network in
+  its own step with its own timeout; a Tron outage is retried and never delays or voids a stake on another network
+  (constitution III).
+- **FR-007**: Every transaction the worker sends on Tron records its cost, energy and bandwidth both, in TRX and in
+  dollars, as the EVM gas is recorded. Before mainnet, each escrow call is estimated against mainnet itself (Tron's
+  dynamic energy factor does not show on Nile), and those numbers replace ADR 010's estimate.
 - **FR-008**: Fees are paid as on the other networks: each wallet pays for what it sends (003 FR-042), the worker
   pays for the verdict and every exit in TRX burned for energy (FR-036b). The status page shows Tron's locked and
-  credited totals and the oracle's TRX, and alerts below a threshold (003 FR-022c).
+  credited totals and the oracle's TRX, and alerts below a threshold (003 FR-022c). This is in place before mainnet.
 - **FR-009**: The minimum and the caps are the other networks' (007): 0.01 USDT minimum, 1,000 per side, 10,000
   per claim, 50,000 per network.
 - **FR-010**: Tron stakes are shown by address only at launch; linking an X account to a Tron address is later work
@@ -100,8 +111,10 @@ TRX and energy, and alerts when they run low.
 ## Success Criteria *(mandatory)*
 
 - **SC-001**: On Nile, every path in FR-003 settles to the right wallet, with the same verdict as an EVM stake on
-  the same claim.
-- **SC-002**: The cost of one Tron settlement is measured and written into ADR 010, replacing UNRECONCILED.
+  the same claim; a Tron offer and an EVM offer on one claim never match each other and settle apart; with Tron's
+  node made unreachable, EVM stakes still settle on time.
+- **SC-002**: The cost of one Tron settlement, estimated against mainnet and then measured from mainnet receipts, is
+  written into ADR 010, replacing UNRECONCILED.
 - **SC-003**: After launch, a Tron stake is settled within the same hold and window as an EVM one.
 
 ## Assumptions
