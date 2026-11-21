@@ -602,6 +602,8 @@ timeout: that path is proved on testnet and in the contract's tests.
   block an address) is **credited** instead, and only that address can withdraw it, so a blocked address never
   freezes the other side's money. What it cannot do: a blocked address's own credit stays unwithdrawable while
   the token blocks it — a documented residual risk, not a contract bug.
+  **Reversed 2026-11-21 (owner)**: users pay every transaction, the verdict included, and claim their own payouts
+  and refunds; the worker sends none (`docs/decisions/010-usdt-tron.md`, 007 FR-012, to be built: 007 T715–T716).
 - **FR-036c**: Before real value, the stake token is exactly one address: **native USDC** on the chosen network
   (Base `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`, Arbitrum One `0xaf88d065e77c8cC2239327C5EDb3A432268e5831`,
   both published by Circle), never a bridged variant. USDC has 6 decimals, so the cap is set in base units
@@ -655,7 +657,8 @@ timeout: that path is proved on testnet and in the contract's tests.
   receives data only as JSON, never as text spliced into code.
 - **FR-042**: Everything that moves money is done by the person's own wallet, which signs and pays the gas;
   the page holds no key, sends nothing on anyone's behalf and has no faucet (owner decision 2026-10-19). Only
-  the verdict is written by us, through the worker, at our cost. On the testnet, test tokens reach testers by
+  the verdict is written by us, through the worker, at our cost. **Reversed 2026-11-21 (owner)**: the verdict too is
+  paid by the person claiming (007 FR-012). On the testnet, test tokens reach testers by
   the operator's script, the one the end-to-end run mints with, not through the page.
 - **FR-043**: The page offers each action only in the state the contract allows it: open while not paused and
   before acceptance closes; accept while not paused and before the offer's own expiry, which is at the latest

@@ -4,7 +4,7 @@
 
 **Created**: 2026-11-21
 
-**Status**: Draft
+**Status**: Paused 2026-11-21 (owner): built and proven on Nile, merged switched off; mainnet waits (ADR 010)
 
 **Input**: Owner, 2026-11-21: "let's add USDT on Tron" — a real-money market in Tether's TRC-20 USDT beside the
 USDC markets on Base and Arbitrum One and USDT0 on Arbitrum One. Decision record: `docs/decisions/010-usdt-tron.md`.
@@ -101,13 +101,17 @@ TRX, and an alert when it runs low.
   this feature does not add it. Before mainnet, each escrow call is estimated against mainnet itself (Tron's
   dynamic energy factor does not show on Nile), and those numbers replace ADR 010's estimate.
 - **FR-008**: Fees are paid as on the other networks: each wallet pays for what it sends (003 FR-042), the worker
-  pays for the verdict and every exit in TRX burned for energy (FR-036b). The status page shows Tron's locked and
+  pays for the verdict and every exit in TRX burned for energy (FR-036b) — **superseded by FR-012**. The status page shows Tron's locked and
   credited totals and the oracle's TRX, and alerts below a threshold (003 FR-022c). This is in place before mainnet.
-- **FR-009**: The minimum and the caps are the other networks' (007): 0.01 USDT minimum, 1,000 per side, 10,000
-  per claim, 50,000 per network.
+- **FR-009**: The minimum on Tron is **5 USDT** (owner, 2026-11-21: network fees dwarf smaller stakes); the caps are
+  the other networks' (007): 1,000 per side, 10,000 per claim, 50,000 per network.
 - **FR-010**: Tron stakes are shown by address only at launch; linking an X account to a Tron address is later work
   (owner, 2026-11-21).
 - **FR-011**: The wager reply's money line names Tron and USDT when the claim's page offers it (003 FR-039).
+- **FR-012**: Users pay every transaction on every network, the verdict included; Vaticeno pays none (owner,
+  2026-11-21; ADR 010). The oracle signs the verdict, the claimant submits it with the payout; payouts, refunds and
+  expiries are claimed on the page. A new contract version, deployed on Tron before mainnet and on Base and Arbitrum
+  as new deployments. Supersedes FR-008's "the worker pays for the verdict and every exit".
 
 ### Key Entities
 

@@ -105,7 +105,9 @@ def main() -> None:
     window, timeout, closes, lifetime = MINUTE_RULES if mode else REAL_RULES
     args = encode([CONFIG], [(hex20(token), hex20(tron_of["oracle"]), hex20(tron_of["guardian"]), hex20(tron_of["fee"]),
                               0, window, timeout, closes, lifetime,
-                              UNIT // 100, 1_000 * UNIT, 10_000 * UNIT, 50_000 * UNIT)])
+                              # Mainnet's minimum is 5 USDT (owner 2026-11-21): network fees dwarf smaller stakes.
+                              5 * UNIT if chain == "728126428" else UNIT // 100,
+                              1_000 * UNIT, 10_000 * UNIT, 50_000 * UNIT)])
     escrow = deploy(client, deployer, "EscrowV2", built["EscrowV2"], args)
     print(f"WAGER_NETWORKS entry: {chain}:2:{escrow}:{token}")
     print(f"escrow in its 0x form, for deploy/network-on.sh: {hex20(escrow)}")

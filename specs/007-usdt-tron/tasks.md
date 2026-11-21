@@ -78,3 +78,15 @@
 ## Dependencies
 
 T703 before T704; T704–T705 before T706–T711; T711, T711a and T712 before T713.
+
+## Phase 6: Users pay everything; paused (owner, 2026-11-21)
+
+- [x] T714 ADR 010, spec FR-009 and FR-012, 003 FR-036b/FR-042 notes: users pay every transaction, the verdict
+  included; Tron's minimum 5 USDT (`scripts/deploy-tron.py`); the deployment with rented energy; Tron paused.
+- [ ] T715 Contract version where anyone submits the oracle's signed verdict, and a VOID only records itself, each
+  side claiming its refund; Foundry tests; the worker signs verdicts instead of sending them (FR-012).
+- [ ] T716 The worker stops sending payouts, refunds and expiries on every network; the wager page offers them to the
+  people in the stake and says when money waits unclaimed (FR-012).
+- [ ] T717 Tron mainnet, when the owner funds it: simulate the creation bytecode's energy on mainnet, rent ~1.9M
+  energy to the deployer for an hour, deploy (T713's steps).
+

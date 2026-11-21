@@ -4,6 +4,17 @@ What changed for people using Vaticeno, newest first. The version on the site's 
 A new feature raises the middle number, a fix the last one. One entry per pull request: the changes that matter,
 then the small ones together in one line; versions deployed while it was open share its entry.
 
+## 1.16.0 — 2026-11-21
+
+USDT on Tron, built and switched off.
+
+- Stakes in Tether's USDT on Tron are built end to end: the escrow, the settlement worker and the wager page with
+  TronLink, proven on Tron's test network. Not on the site yet: Tron waits until people pay every network fee
+  themselves, the verdict included, and the deployment is funded. The Tron minimum will be 5 USDT.
+- Odds: an event already under way gets "It's live now — I don't give in-play odds."; an event with no prices found
+  is searched once more before "no odds".
+- Smaller fixes: the email about a skipped scheduled job is a warning named after its job, not an error.
+
 ## 1.15.7 — 2026-11-21
 
 Odds on request (1.14.0–1.15.7).

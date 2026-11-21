@@ -1,6 +1,7 @@
 # 010 — USDT on Tron: a third real-money network, the first outside EVM
 
-**Date**: 2026-11-21 · **Decided by**: the owner · **Status**: accepted 2026-11-21 ·
+**Date**: 2026-11-21 · **Decided by**: the owner · **Status**: accepted 2026-11-21; **paused** the same day: built
+and proven on Nile, not deployed to mainnet (see "Paused") ·
 **Changes**: 003 FR-036 (one chain family → EVM plus Tron), FR-036c (a Tron token) · **Spec**:
 `specs/007-usdt-tron/spec.md` · **Builds on**: 006-real-money, 007-escrow-v2
 
@@ -149,6 +150,48 @@ credited the maker once; unfrozen, the maker withdrew it in full, and the escrow
    usual way to do it).
 4. **Wallet linking later** (003 FR-035, an X account shown beside an address): Tron stakes are shown by address
    only at launch; linking Tron addresses is later work.
+
+## Who pays: users, for everything, on every network (owner, 2026-11-21)
+
+Vaticeno takes no fee, so it pays no network fee either. Every transaction a wager needs is paid by a person in it:
+approve, open and accept as today, and from now on also the verdict, the payout, the refunds and the return of an
+expired offer. This reverses "nobody presses a button for their money" (003 FR-036b, owner 2026-11-01) and "only the
+verdict is written by us, at our cost" (003 FR-042).
+
+- **Payout, refund, expiry**: the contract already lets anyone call them. The settlement worker stops sending them;
+  the wager page offers "Pay out", "Refund" and "Return the offer" to the people in the stake, and says when money
+  has waited unclaimed.
+- **The verdict**: the oracle still decides it and signs it, but no longer sends it. The person claiming submits the
+  signed verdict and the payout in one transaction. That needs a new contract version: `settle` accepting the
+  oracle's signature from any caller, and a VOID that only records itself, each side then claiming its own refund.
+  Tron gets that version before its first deployment; Base and Arbitrum move to it with new deployments, their
+  current contracts running down.
+- **The catch, accepted**: after the verdict on X, nothing moves until someone in the stake presses the button.
+
+Measured against Tron's prices this was the deciding point: with Vaticeno paying the verdict and every exit, each
+settled stake cost it 10–30 TRX ($3–9), however small the stake.
+
+## The minimum on Tron is 5 USDT (owner, 2026-11-21)
+
+Even with rented energy (below) one USDT transfer costs its sender $0.40–1.70, so a 0.01 USDT stake there is all fee.
+Tron's minimum is 5 USDT; Base and Arbitrum keep 0.01. The per-side, per-claim and per-network caps stay 007's.
+
+## The deployment, and renting energy
+
+Deploying the 11,071-byte escrow used 1,864,680 energy on Nile: 186.5 TRX if burned at 100 sun per unit, plus about
+14 TRX of bandwidth for the ~11 KB transaction, 200.8 TRX (~$61 at $0.304) in all. Compiled for size it is 10,942
+bytes, no real saving. Energy can be rented to the deployer's wallet for an hour instead of burned: quotes on
+2026-11-21 ran 21–44 sun per unit, so the deployment would cost about 39–82 TRX of energy plus the bandwidth, **about
+$16–29**. Bandwidth is not rented, and the deployment still sets a `fee_limit`. Before deploying, the exact creation
+bytecode is simulated against mainnet for its energy, rather than Nile's total being copied.
+
+## Paused (owner, 2026-11-21)
+
+The owner will not spend on Tron mainnet today, not even the ~$20–30 of a rented-energy deployment. What is built
+is merged and stays switched off: the contract change, the worker's Tron adapter, the page's TronLink path, the
+status page, the cost records, the deploy and end-to-end scripts. Nile's runs proved it (above). Mainnet waits for:
+the new contract version where users pay the verdict (above), the TronLink click-through on Nile, and the money for
+the deployment. The mainnet wallets exist on the owner's machine (`~/.vaticeno-keys/728126428-usdt/`), unfunded.
 
 ## Accepted costs
 
