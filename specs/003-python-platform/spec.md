@@ -583,7 +583,8 @@ timeout: that path is proved on testnet and in the contract's tests.
 - **FR-036**: One chain family (EVM) and one stake token per network. A second chain *family* is a second
   verification path, a second toolchain and a second settlement worker — not a configuration value. A second
   EVM network is not: the same contract and the same worker serve each one, configured per network
-  (FR-036d).
+  (FR-036d). **Amended 2026-11-21 (owner)**: Tron is added as a second family, for Tether's USDT, accepting that
+  cost (`docs/decisions/010-usdt-tron.md`, `specs/007-usdt-tron/spec.md`).
 - **FR-036a**: Real value runs on **both Arbitrum One and Base** (owner, 2026-10-25), Ethereum layer 2s with
   native USDC; going live is Stage 4 (FR-022a), gated on FR-031h. The contract
   does not ship there unchanged: it gains FR-036b and FR-036c first. Whichever network is chosen, its own

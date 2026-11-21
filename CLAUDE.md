@@ -3,11 +3,12 @@
 <!-- SPECKIT START -->
 **Constitution**: `.specify/memory/constitution.md` (v2.11.0) — principles every plan must pass.
 
-**Active plan**: `specs/006-odds-command/plan.md` — `@vaticeno odds`: approximate bookmaker odds on request
-(ADR 009). Before it: `specs/004-evidence-gates/plan.md` (001's plan, research, data-model and contracts/ stay the reference for the claim pipeline).
+**Active plan**: `specs/007-usdt-tron/plan.md` — USDT on Tron, a fourth real-money market (ADR 010). Before it:
+`specs/006-odds-command/plan.md` — `@vaticeno odds` (ADR 009). Before that: `specs/004-evidence-gates/plan.md` (001's plan, research, data-model and contracts/ stay the reference for the claim pipeline).
 
-**Active feature**: `specs/006-odds-command/spec.md` — `@vaticeno odds` replies once with the range of two or
-more bookmakers' prices, fractional with decimal beside it, none named, no link. Before it: `specs/004-evidence-gates/spec.md` — the gates decide on the right event: a page must
+**Active feature**: `specs/007-usdt-tron/spec.md` — stakes in Tether's USDT on Tron through TronLink, settled by the
+same worker with the claim's one verdict; Nile end to end before mainnet. Before it: `specs/006-odds-command/spec.md`
+— `@vaticeno odds` replies once with the range of two or more bookmakers' prices, none named, no link. Before that: `specs/004-evidence-gates/spec.md` — the gates decide on the right event: a page must
 identify the event the contract names before it can count, one site speaks through its best page rather than
 its first, absence is admitted only from endpoints recorded in code, and a judgement that contradicts its own
 result never publishes. Written after three of the first twelve verdicts were wrong or unsettled.
