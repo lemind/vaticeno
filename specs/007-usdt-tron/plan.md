@@ -21,9 +21,12 @@ the worker's transaction path (Tron instead of web3). Nile first, mainnet after 
 
 - **Contract** `contracts/src/EscrowV2.sol`: `_tryPush` and `_push` judge a payment by the escrow's balance before
   and after the call, not by the returned value (FR-004); the constructor's token rule gains Tron mainnet →
-  Tether's USDT only (the 20-byte form of `TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t`), once Nile has shown what
-  `block.chainid` returns there. Foundry tests: a token that returns `false` on success (new, in `contracts/test/`),
-  the blocking token, never paid and credited, the Tron chain id rule.
+  Tether's USDT only (the 20-byte form of `TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t`), keyed to mainnet's chain id as
+  read on mainnet. Foundry tests: a token that returns `false` on success (new, in `contracts/test/`), the blocking
+  token made to return `false` too, never paid and credited, the Tron chain id rule.
+- **Probe** `contracts/src/TronProbe.sol` (new, throwaway, Nile only): returns `block.chainid`, recovers a
+  worker-signed EIP-712 digest, and calls USDT's `transfer` to report what it returns (FR-004a). Deleted once its
+  numbers are in ADR 010.
 - **Build**: Tron's `solc` at a pinned version with the optimizer settings of `contracts/foundry.toml`; the artifact
   is reproducible and recorded by hash, and the deploy checks the bytecode on chain against it (FR-004b).
 - **Deploy** `scripts/deploy-tron.py` (new, `tronpy`): deploys that artifact to Nile or mainnet with the constructor
@@ -42,15 +45,16 @@ the worker's transaction path (Tron instead of web3). Nile first, mainnet after 
   `send_settle`, `send_finish`, `wait_mined`, `in_flight`, `holdings`) through `tronpy`, energy paid by burning
   TRX, an explicit `fee_limit` on every call, `OUT_OF_ENERGY` retried. `settle/worker.py` picks the adapter by the
   network's family and settles each network in its own step with its own timeout. The oracle key for Tron lives in
-  `/etc/vaticeno-settle/` like the others. Costs (energy and bandwidth, as TRX burned) go to `cost_events` as the
-  EVM gas does.
-- **Health** `settle/health.py`: Tron's totals, the oracle's TRX and energy, a low-balance alert.
+  `/etc/vaticeno-settle/` like the others. Costs (energy and bandwidth, as TRX burned) go to `cost_events` under
+  the new `tron` provider: `COST_PROVIDERS` in `src/db/schema.ts` and a reversible migration for
+  `cost_events_provider_check`.
+- **Health** `settle/health.py`: Tron's totals, the oracle's TRX, a low-balance alert.
 - **Wager reply** `src/replies/templates.ts`: the money line names Tron when the page offers it.
 
 ## Order
 
-1. On Nile with Tether's test USDT: `transfer`'s return value, `block.chainid`, TronLink's TIP-712 signature
-   (FR-004, FR-004a). Into ADR 010.
+1. The probe contract on Nile with Tether's test USDT: `transfer`'s return value, `block.chainid`, the worker's
+   EIP-712 digest recovered by the contract; mainnet's chain id read on mainnet (FR-004, FR-004a). Into ADR 010.
 2. The balance-checked payment and the Tron token rule, with their Foundry tests.
 3. Tron build and deploy script; deploy to Nile.
 4. Worker adapter, then page; the Nile end-to-end run with the cross-network and outage tests (SC-001).
@@ -63,4 +67,5 @@ the worker's transaction path (Tron instead of web3). Nile first, mainnet after 
 - Python: the Tron adapter against a stubbed `tronpy` client (settle, finish, a refused transfer credited, an outage
   and `OUT_OF_ENERGY` retried); a stalled Tron network does not delay an EVM one.
 - Page: an old non-zero allowance is set to 0 before the new one.
-- The Nile end-to-end run is the proof (SC-001), as the Base and Arbitrum Sepolia runs were.
+- The Nile end-to-end run is the proof (SC-001), as the Base and Arbitrum Sepolia runs were; its EVM side is Base
+  Sepolia's v2 escrow, in the run's own configuration.

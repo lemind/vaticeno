@@ -50,13 +50,13 @@ wallet the token blocks is credited instead and can withdraw once unblocked.
 ### User Story 3 - The owner sees Tron in health and costs (Priority: P2)
 
 The owner's status page shows Tron's escrow like each other network: what it holds, what it owes, the worker key's
-TRX and energy, and alerts when they run low.
+TRX, and an alert when it runs low.
 
 **Independent Test**: the status page lists Tron with its locked and credited totals read from the chain.
 
 ### Edge Cases
 
-- The worker's key runs out of energy or TRX: settlement waits and the owner is alerted; a stake still refunds itself
+- The worker's key runs out of TRX: settlement waits and the owner is alerted; a stake still refunds itself
   at the timeout (FR-036b).
 - Tether freezes the escrow's own address or pauses the token: the risk stays documented, never presented as solved
   (FR-036e).
@@ -77,9 +77,12 @@ TRX and energy, and alerts when they run low.
 - **FR-004**: A payment out of the escrow counts as sent only when the escrow's balance fell by exactly its amount,
   whatever the token's `transfer` returns: Tron's USDT returns `false` from a transfer that worked (ADR 010). A
   refusal is credited once; no payment is ever both sent and credited. Withdrawals use the same check. Proven on
-  Nile with Tether's test USDT, never a stand-in token.
-- **FR-004a**: `block.chainid` and the domain TronLink signs are measured on Nile and written into ADR 010 before
-  the contract relies on them; each workaround is a tagged HACK.
+  Nile with Tether's test USDT for payments and our own blocking test token (which also returns `false`) for the
+  blocked-address path; never with a token that returns `true`.
+- **FR-004a**: The open authorization stays signed by the worker's oracle key and checked by the contract's
+  `ecrecover`. Before the contract relies on it, a throwaway probe contract on Nile shows that the worker's EIP-712
+  digest with Tron's chain id matches the contract's, and mainnet's chain id is read on mainnet itself (read-only);
+  both go into ADR 010. Each workaround is a tagged HACK.
 - **FR-004b**: The contract is built with Tron's `solc` at a pinned version, reproducibly, and the deployed bytecode
   is checked against the build. It is deployed with the caller paying all energy (`consume_user_resource_percent`
   100, `origin_energy_limit` set), and every call from the page and the worker sets an explicit `fee_limit`; a call
@@ -92,7 +95,8 @@ TRX and energy, and alerts when they run low.
   its own step with its own timeout; a Tron outage is retried and never delays or voids a stake on another network
   (constitution III).
 - **FR-007**: Every transaction the worker sends on Tron records its cost, energy and bandwidth both, in TRX and in
-  dollars, as the EVM gas is recorded. Before mainnet, each escrow call is estimated against mainnet itself (Tron's
+  dollars, in `cost_events` under a new `tron` provider (a reversible migration). EVM gas is not recorded today and
+  this feature does not add it. Before mainnet, each escrow call is estimated against mainnet itself (Tron's
   dynamic energy factor does not show on Nile), and those numbers replace ADR 010's estimate.
 - **FR-008**: Fees are paid as on the other networks: each wallet pays for what it sends (003 FR-042), the worker
   pays for the verdict and every exit in TRX burned for energy (FR-036b). The status page shows Tron's locked and
@@ -112,7 +116,8 @@ TRX and energy, and alerts when they run low.
 
 - **SC-001**: On Nile, every path in FR-003 settles to the right wallet, with the same verdict as an EVM stake on
   the same claim; a Tron offer and an EVM offer on one claim never match each other and settle apart; with Tron's
-  node made unreachable, EVM stakes still settle on time.
+  node made unreachable, EVM stakes still settle on time. The EVM side is Base Sepolia's v2 escrow (003 T379), set
+  in the run's own configuration; production is not touched.
 - **SC-002**: The cost of one Tron settlement, estimated against mainnet and then measured from mainnet receipts, is
   written into ADR 010, replacing UNRECONCILED.
 - **SC-003**: After launch, a Tron stake is settled within the same hold and window as an EVM one.
@@ -122,3 +127,4 @@ TRX and energy, and alerts when they run low.
 - TronLink is the only Tron wallet supported at first.
 - The verdict, lock, caps, guardian and fee are unchanged (007-escrow-v2).
 - No legal opinion or outside review is awaited (owner, 2026-10-29).
+- Tether's switchable transfer fee (zero today) is a known risk, not handled (owner, 2026-11-21; ADR 010).

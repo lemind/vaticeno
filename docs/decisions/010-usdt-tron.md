@@ -23,7 +23,9 @@ verdict on the network it was opened on.
   rule: on Tron mainnet only Tether's USDT is accepted (`TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t`, to be checked against
   Tether's published address before deployment).
 - **Testnet first.** Nothing is deployed to Tron mainnet before the contract has run end to end on **Nile**, Tron's
-  testnet, with a test token that can block an address, as 006 requires of every network.
+  testnet, as 006 requires of every network. Two tokens there: Tether's own test USDT, to prove the escrow copes
+  with its `transfer`, and our own test token that returns `false` the same way and can also block an address,
+  for the blocked-address path, which only Tether could set up on its token.
 - **The wallet is TronLink.** The page talks to TronLink's injected `tronWeb`, not to `window.ethereum`; nothing is
   bundled, as on the EVM networks.
 - **The worker gets a Tron adapter.** The settlement worker keeps one loop and one outbox; how a transaction is
@@ -37,14 +39,16 @@ verdict on the network it was opened on.
 worker — not a configuration value". That stays true, and this record accepts it: Tron costs a second deployment
 toolchain (Foundry cannot deploy to Tron), a second signing path in the page and in the worker, and a second set of
 end-to-end runs. The owner judges the USDT held on Tron worth that (2026-11-21). The contract itself is not a second
-one: the same source, the same tests on EVM, plus the Nile runs.
+one: the same source (with the payment check below, which suits every token), the same tests on EVM, plus the
+Nile runs.
 
 ## Tron's USDT returns `false` from a transfer that worked (review 2026-11-21)
 
 Documented by OpenZeppelin for TRON: Tether's TRC-20 `transfer` moves the tokens and returns `false`; `transferFrom`
-and `approve` return `true`. In EscrowV2 as it stands that is a double payment: `_tryPush` reads `false` as
-"refused" and credits the person after the money has already gone out, and `withdraw` (`_push`, which requires
-`true`) then always reverts. So the contract changes before Tron:
+and `approve` return `true`. In EscrowV2 as it stands, `_tryPush` reads `false` as "refused" and credits the
+person after the money has already gone out: every payout is also booked as a credit, so the escrow appears to owe
+far more than it holds, and `withdraw` (`_push`, which requires `true`) always reverts, so no credit, real or
+phantom, can ever be taken out. So the contract changes before Tron:
 
 - **A payment counts as sent when the escrow's own balance fell by exactly its amount**, read before and after the
   call, whatever the token returns (the pattern of OpenZeppelin's `SafeTRC20.safeTransferChecked`). A call that
@@ -52,14 +56,18 @@ and `approve` return `true`. In EscrowV2 as it stands that is a double payment: 
 - The change is in the source both families share. Base's and Arbitrum's deployed contracts are immutable and stay
   as they are (USDC returns `true`); a later EVM deployment carries the check too, which is still correct.
 - Tests: a token that returns `false` on success (paid, not credited); a blocked address (credited once); never
-  both paid and credited, never credited twice. On Nile the run uses Tether's test USDT
-  (`TXYZopYRdj2D9XRtbG411XZZ3kM5VkAeBf`, said to share mainnet USDT's bytecode, which is checked first), never a
-  well-behaved stand-in.
+  both paid and credited, never credited twice. On Nile, Tether's test USDT (`TXYZopYRdj2D9XRtbG411XZZ3kM5VkAeBf`,
+  said to share mainnet USDT's bytecode, which is checked first) for the payments, and our blocking test token
+  for the blocked path; never a token that returns `true`.
 
 ## Facts still to measure
 
-- **What `block.chainid` returns on the TVM**, and so what chain id the EIP-712 domain carries and what TronLink
-  signs (TIP-712). **UNRECONCILED.**
+- **The chain id the contract sees.** The open authorization is signed by the settlement worker's oracle key
+  (EIP-712, as on EVM) and checked by the contract's `ecrecover`; people's wallets never sign it. What has to hold
+  is that the worker's digest, built with Tron's chain id, matches the one the contract builds from
+  `block.chainid` on the TVM. Measured with a small throwaway probe contract on Nile (chain id, `ecrecover` of a
+  worker-signed digest, USDT's `transfer` return value), and mainnet's chain id read with a free read-only call
+  on mainnet, since Nile only shows its own. **UNRECONCILED.**
 - **Energy and bandwidth.** On Tron the sender pays in energy and bandwidth, not gas. A USDT transfer is about
   65,000 energy to an address that holds USDT and about twice that to one that does not, before Tron's dynamic
   energy factor, which multiplies a busy contract's energy (USDT's) by up to 4.4. Nile does not show that factor,
@@ -79,19 +87,21 @@ and `approve` return `true`. In EscrowV2 as it stands that is a double payment: 
   the allowance first; when it is non-zero and not the amount needed, it sets it to 0, waits for that, then sets
   the new amount.
 - **Isolation**: each network settles in its own step with its own timeout, so a slow or unreachable Tron node never
-  holds up a stake on Base or Arbitrum.
+  holds up a stake on Base or Arbitrum. The Nile run proves it beside Base Sepolia's v2 escrow (deployed 2026-11-01,
+  003 T379), set in the run's own configuration; production's networks are not touched.
+- **Costs**: the worker's TRX per transaction (energy and bandwidth) is recorded in `cost_events` under a new
+  `tron` provider (a migration); EVM gas is not recorded today and is not added by this feature.
 
 ## Answered (owner, 2026-11-21)
 
 1. **Fees are paid as on the other networks.** Each person's wallet pays for what it sends (approve, open, accept,
    withdraw: 003 FR-042), and the worker pays for the verdict and every exit at our cost (FR-036b). On Tron that cost
-   is TRX burned for energy, the way gas is paid in ETH elsewhere; nothing is staked or rented. The oracle's TRX gets
-   a low-balance alert like its gas does (003 FR-022c).
+   is TRX burned for energy, the way gas is paid in ETH elsewhere; nothing is staked or rented, so the oracle holds
+   TRX, not energy. Its TRX gets a low-balance alert like its gas does (003 FR-022c).
 2. **The numbers are the other networks' numbers**: minimum 0.01, per side 1,000, per claim 10,000, per network
    50,000 USDT (007). Nothing new is invented for Tron.
 3. **`tronpy`** is the worker's one new dependency (Python, builds and signs Tron transactions; approved as the
    usual way to do it).
-
 4. **Wallet linking later** (003 FR-035, an X account shown beside an address): Tron stakes are shown by address
    only at launch; linking Tron addresses is later work.
 
@@ -102,6 +112,9 @@ and `approve` return `true`. In EscrowV2 as it stands that is a double payment: 
   cents on Base (**UNRECONCILED** until estimated against mainnet, T711a).
 - Tether can freeze an address on Tron as Circle can on Base: the credit fallback (FR-036b) and the residual risks
   of FR-036e apply unchanged.
+- Tether's USDT has a transfer fee its owner can switch on; it is zero today. If it were switched on, a deposit
+  would arrive short of the stake it records. Accepted as a known risk (owner, 2026-11-21), written into the
+  settlement policy; nothing is built for it.
 
 ## Not changed
 

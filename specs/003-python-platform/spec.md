@@ -611,6 +611,10 @@ timeout: that path is proved on testnet and in the contract's tests.
   **USDT0 on Arbitrum One** (owner, 2026-11-05): beside USDC there, a second market in Tether's USDT0
   (`0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9`, 6 decimals), with its own contract, worker, oracle key and
   offers; a USDT offer never matches a USDC one. Base has no USDT of its own, so none there.
+  **USDT on Tron** (owner, 2026-11-21): Tether's TRC-20 USDT (`TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t`, 6 decimals) on
+  Tron mainnet, its own market as above (`docs/decisions/010-usdt-tron.md`, `specs/007-usdt-tron/spec.md`).
+  Tether's USDT carries a transfer fee its owner can switch on (zero today): accepted as a known risk, not a
+  fee-on-transfer token while the fee stays zero.
 
 - **FR-036e**: Pull withdrawals isolate one blocked participant; they cannot help when the token blocks the
   escrow's own address, pauses transfers, or the network stops. Those risks are written into the settlement
