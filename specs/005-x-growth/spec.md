@@ -232,7 +232,11 @@ best — and changes next week's mix from it.
   runs, six accounts, none). Each day one X search covers a group of fields by weekday — the accounts that do
   announce events in them (organisers, insiders, promoters, fan and preview accounts), announcement words, the
   last 48 hours, a floor of likes — and the most-liked event among the results is reposted; nothing → the next
-  day's group once; still nothing → no repost. A sponsor's tag on an announcement does not exclude it (owner:
+  group in the list, and so on through every group; still nothing → no repost. **Amended 2026-11-21 (owner)**:
+  launches and awards are not betting and rarely happen, so that group is dropped; Saturday searches the weekend's
+  football and rugby, from accounts no other day searches; the walk through the groups stops at the feed's daily
+  spend cap. Only an event whose outcome people bet on counts (a match, fight, race,
+  tournament, election or rate decision); a launch, an awards night or an unclear teaser never does. A sponsor's tag on an announcement does not exclude it (owner:
   our stakes are between friends, not a rival bookmaker); a post whose point is odds, tips or a betting offer
   still does.
 - **FR-011a**: Following an account does not make its posts repostable; the repost sources are an owner-chosen
@@ -261,7 +265,7 @@ best — and changes next week's mix from it.
 **Voice**
 
 - **FR-016**: Posts are in English; direct, a little playful, sceptical of vague predictions, neutral about
-  teams, parties and market direction. Never a tip, odds, "bet now", "to the moon", fake urgency or a
+  teams, parties and market direction. Never a tip, odds (except a reply to `odds`, spec 006, and FR-025), "bet now", "to the moon", fake urgency or a
   prediction of Vaticeno's own (constitution VI; `docs/content-rules.md`).
 - **FR-017**: Wagers are described accurately when asked about — live, in USDC or USDT, no fee — and never
   promoted in the account's own posts.

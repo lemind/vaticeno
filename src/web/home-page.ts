@@ -121,6 +121,10 @@ export async function homePage(
           <td>under a recorded prediction: the link to wager on it</td>
         </tr>
         <tr>
+          <td><code>@${handle} odds</code></td>
+          <td>under a post about a match or a race: the bookmakers' odds, as a range</td>
+        </tr>
+        <tr>
           <td><code>@${handle} help</code></td>
           <td>how it works, in one reply</td>
         </tr>

@@ -13,7 +13,7 @@ export function notDoneReason(job: string, result: unknown): string | null {
   switch (job) {
     case 'pool':
       if (done === 'no_candidate')
-        return "no account in today's groups posted an upcoming event in the last 48 hours";
+        return 'no group had an upcoming event in the last 48 hours (every group was searched)';
       return null;
     case 'event':
       if (done === 'cap_reached') return SPEND_CAP;

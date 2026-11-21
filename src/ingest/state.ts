@@ -9,31 +9,56 @@ const IngestStateSchema = z.object({
   // POC stand-in for processed_mentions.reply_state='posted' (§6.1): never reply twice.
   replied_tweet_ids: z.array(z.string()).default([]),
   // Sent replies from the last 24h, for the §6.1 rate caps.
-  reply_log: z.array(z.object({ author_id: z.string(), at: z.string() })).default([]),
+  reply_log: z
+    .array(z.object({ author_id: z.string(), at: z.string() }))
+    .default([]),
   // The mention that failed on the last poll(s), so one that always fails is skipped instead of blocking the rest.
   // `next_at` is absent in state written before the retry ladder shipped: an absent one means "try now".
-  failing: z.object({ tweet_id: z.string(), attempts: z.number(), next_at: z.string().optional() }).optional(),
-  // Conversations the bot has already replied in. X prepends our handle to every later reply there, so this
-  // is what tells a thread we were dragged into from one we were tagged into (src/commands/parse.ts).
+  failing: z
+    .object({
+      tweet_id: z.string(),
+      attempts: z.number(),
+      next_at: z.string().optional(),
+    })
+    .optional(),
+  // Conversations the bot has replied in or been named in. X prepends our handle to every later reply there, so
+  // this is what tells a thread we were dragged into from one we were tagged into (src/commands/parse.ts).
   answered_conversation_ids: z.array(z.string()).default([]),
   // `quote` mentions whose quote couldn't be fetched yet: retried on a ladder (src/bot/mentions.ts).
-  pending_quotes: z.array(z.object({ tweet_id: z.string(), author_id: z.string(), attempts: z.number(), next_at: z.string(), topic: z.string().optional(), conversation_id: z.string().optional() })).default([]),
+  pending_quotes: z
+    .array(
+      z.object({
+        tweet_id: z.string(),
+        author_id: z.string(),
+        attempts: z.number(),
+        next_at: z.string(),
+        topic: z.string().optional(),
+        conversation_id: z.string().optional(),
+      }),
+    )
+    .default([]),
 });
 
 export type IngestState = z.infer<typeof IngestStateSchema>;
 
 export const DEFAULT_STATE_PATH = '.state/ingest.json';
 
-export async function readIngestState(path = DEFAULT_STATE_PATH): Promise<IngestState> {
+export async function readIngestState(
+  path = DEFAULT_STATE_PATH,
+): Promise<IngestState> {
   try {
     return IngestStateSchema.parse(JSON.parse(await readFile(path, 'utf8')));
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return IngestStateSchema.parse({});
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT')
+      return IngestStateSchema.parse({});
     throw error;
   }
 }
 
-export async function writeIngestState(state: IngestState, path = DEFAULT_STATE_PATH): Promise<void> {
+export async function writeIngestState(
+  state: IngestState,
+  path = DEFAULT_STATE_PATH,
+): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
   const tmpPath = `${path}.tmp`;
   await writeFile(tmpPath, JSON.stringify(state, null, 2) + '\n');

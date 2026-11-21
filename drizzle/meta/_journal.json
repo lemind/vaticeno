@@ -204,6 +204,13 @@
       "when": 1792476000000,
       "tag": "0028_receipt_repost",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1792562400000,
+      "tag": "0029_odds_cost",
+      "breakpoints": true
     }
   ]
 }

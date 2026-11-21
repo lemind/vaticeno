@@ -156,35 +156,39 @@ export const REPOST_GROUPS: readonly RepostGroup[] = [
     ],
     minLikes: 100,
   },
+  // Saturday: the weekend's football and rugby, accounts no other day searches (owner 2026-11-21; launches
+  // and awards were dropped: not betting, and they rarely happen).
   {
-    name: 'launches and awards',
+    name: 'weekend football and rugby',
     handles: [
-      'RockstarGames',
-      'XBOX',
-      'PlayStation',
-      'MacRumors',
-      'markgurman',
-      'PopBase',
-      'PopCrave',
-      'thegameawards',
-      'geoffkeighley',
-      'goldenglobes',
+      'LaLigaEN',
+      'SerieA_EN',
+      'Bundesliga_EN',
+      'Ligue1_ENG',
+      'EFL',
+      'premrugby',
+      'SixNationsRugby',
+      'rugbyworldcup',
+      'URCOfficial',
     ],
     words: [
-      '"release date"',
-      'launches',
-      'nominations',
-      '"will be announced"',
-      '"next week"',
+      'today',
+      'tonight',
       'tomorrow',
+      '"this weekend"',
+      '"kick-off"',
+      'matchday',
+      '"team news"',
     ],
-    minLikes: 500,
+    minLikes: 20, // their posts get 2–72 likes (checked 2026-11-21); 200 found nothing
   },
 ];
 
-// The group of `now`'s UTC weekday, or of the day `offset` days later (the one fallback search).
-export function groupFor(now: Date, offset = 0): RepostGroup {
-  return REPOST_GROUPS[(now.getUTCDay() + offset) % REPOST_GROUPS.length]!;
+// The order of the day's search: `now`'s UTC weekday group first, then each next one in the list (FR-011).
+export function groupsFrom(now: Date): RepostGroup[] {
+  return REPOST_GROUPS.map(
+    (_, i) => REPOST_GROUPS[(now.getUTCDay() + i) % REPOST_GROUPS.length]!,
+  );
 }
 
 export function groupQuery(group: RepostGroup): string {

@@ -1,14 +1,31 @@
 # Changelog
 
 What changed for people using Vaticeno, newest first. The version on the site's front page is the top entry.
-A new feature raises the middle number, a fix the last one.
+A new feature raises the middle number, a fix the last one. One entry per pull request: the changes that matter,
+then the small ones together in one line; versions deployed while it was open share its entry.
+
+## 1.15.7 — 2026-11-21
+
+Odds on request (1.14.0–1.15.7).
+
+- New command: `@vaticeno odds` under a post about a match or a race. The bot replies once with each outcome's
+  range across up to three bookmakers, like `2:1–9:4 (3.00–3.25)`, and nothing else. A race shows its five
+  favourites and a range for the rest. Listed in help and on the front page.
+- A prediction tagged in a quote post is read together with the post it quotes, so "Jake wins" is no longer
+  "unclear which Jake".
+- The daily repost no longer skips a day when its group has no announcement: it moves on to the next group, and
+  the next, until one has an upcoming event. It reposts only events people bet on: matches, fights, races,
+  elections, rate decisions. Launches and awards are gone; Saturday is the weekend's football and rugby. The search stops at the feed's
+  daily budget.
+- Smaller fixes: the bot no longer answers replies that only carry its handle along (Grok's answers); heavy
+  favourites read right (1:16, not 1:10); a shorter "no odds" reply; "odds for UFC 310" asks for odds while
+  "odds are City win" stays a prediction; a thread X fails to load is retried, not answered "Which event?".
 
 ## 1.13.0 — 2026-11-19
 
 - The owner gets an email when a scheduled job doesn't do its work — a post X refused, no event confirmed, the
   spend cap, a crash — with the reason in plain words. At most one email per job a day.
-- The daily event post no longer gives up when the search's own links can't be opened: it looks for its two
-  sources once more.
+- The daily event post looks for its two sources once more before giving up on an event.
 
 ## 1.12.0 — 2026-11-19
 
@@ -17,13 +34,10 @@ A new feature raises the middle number, a fix the last one.
 
 ## 1.11.1 — 2026-11-16
 
-- The version on the front page opens the changelog of the code that is running.
-
-## 1.11.0 — 2026-11-16
-
 - Every weekend's biggest Hong Kong race goes out on a poster: the race, day, course and early odds.
 - A horse that never ran makes the prediction void, never a miss.
 - The account posts an event of its own on every free day, not only Tuesday to Thursday.
+- The version on the front page opens this changelog, for the code that is running.
 
 ## 1.10.0 — 2026-11-12
 

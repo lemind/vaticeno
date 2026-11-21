@@ -1,6 +1,7 @@
 // The closed set of bot commands, matched in code (no model call): exact words, a few aliases, and small
 // typos ("qoute", "selfpromtoe"). Anything else goes to the prediction pipeline.
-export type Command = 'help' | 'stop' | 'ping' | 'selfpromo' | 'quote' | 'wager';
+export type Command =
+  'help' | 'stop' | 'ping' | 'selfpromo' | 'quote' | 'wager' | 'odds';
 
 const ALIASES: Record<string, Command> = {
   help: 'help',
@@ -64,6 +65,9 @@ const ALIASES: Record<string, Command> = {
   citation: 'quote',
   // Exact word only, never fuzzy: it posts a link (003 FR-037).
   wager: 'wager',
+  // Approximate bookmaker odds (spec 006): the first word, or the phrase; never fuzzy ("adds", "ods").
+  odds: 'odds',
+  whataretheodds: 'odds',
 };
 // Typos are matched against these words only (STOP and ping never: a typo must not opt someone out, and
 // short aliases like "plug" or "brag" would catch ordinary words).
@@ -101,12 +105,22 @@ const FILLER = new Set([
 ]);
 // Command words that take any words after them (owner, 2026-11-02).
 const ANY_WORDS = new Set([
+  'odds',
   'help',
   'ping',
   'quote',
   'quotes',
   'selfpromo',
   'selfpromote',
+]);
+const ODDS_SAYING = new Set([
+  'are',
+  'is',
+  'say',
+  'says',
+  'favour',
+  'favor',
+  'suggest',
 ]);
 const isFiller = (word: string) => FILLER.has(word) || /^\d{1,2}$/.test(word);
 
@@ -129,6 +143,8 @@ export function resolveCommand(body: string): Command | null {
   // anywhere is the wager command; outside a claim's thread src/bot/mentions.ts reads the post as usual.
   if (words.some((w) => w === 'wager' || w === 'wagers')) return 'wager';
   const exact = ALIASES[first];
+  // "odds" first is the command, numbers included ("odds for UFC 310"); "odds are/say…" is a prediction (review 2026-11-21).
+  if (first === 'odds') return ODDS_SAYING.has(rest[0] ?? '') ? null : 'odds';
   // Any other command word first, with any words after it. A number makes the text a prediction for the
   // model to read ("Quote me: BTC hits 200k"). Only the main names: STOP stays bare (a typed stop must mean
   // stop), and short aliases ("promo", "brand", "bio") start ordinary sentences.
@@ -154,13 +170,14 @@ export function commandWordIn(body: string): Command | null {
     words[0] === 'self' && words.length > 1 ? `self${words[1]}` : words[0];
   const command = first ? (ALIASES[first] ?? null) : null;
   // The model has no wager intent: "Wager: BTC above 100k" is a prediction, not a paid detour (review 2026-10-20).
-  if (command) return command === 'wager' ? null : command;
+  // Nor an odds intent: "Odds are BTC hits 100k" is a prediction; any other "odds …" resolveCommand already took.
+  if (command) return command === 'wager' || command === 'odds' ? null : command;
   // A main command word further on ("This is my project. @vaticeno selfpromo"): the model reads the thread and
   // decides. #ymjep was recorded as a prediction instead (2026-11-06).
   const later = words.map((w, i) =>
     w === 'self' && words[i + 1] ? `self${words[i + 1]}` : w,
   );
-  const named = later.find((w) => ANY_WORDS.has(w));
+  const named = later.find((w) => ANY_WORDS.has(w) && w !== 'odds'); // "the odds are…" mid-text is not asking
   return named ? ALIASES[named]! : null;
 }
 

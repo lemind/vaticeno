@@ -7,7 +7,7 @@ import type { SearchPost } from '../x/client.js';
 import { X_POST_READ_USD, X_POST_CREATE_USD, X_REPOST_USD } from '../x/prices.js';
 import { eligiblePosts } from './eligible.js';
 import { upcomingEvents } from './repost-fit.js';
-import { type RepostGroup, groupFor, groupQuery } from './repost-groups.js';
+import { type RepostGroup, groupQuery, groupsFrom } from './repost-groups.js';
 import { type QuoteDeps, type QuoteMode, ourLineFor } from './quote.js';
 import {
   logDryRun,
@@ -38,8 +38,6 @@ export type ContentDeps = QuoteDeps & {
 const REPOST_SHARE = 1;
 export const HAND_RUN_SLOTS = 10; // room for a hand-run on top of the day's cap
 const SEARCH_HOURS = 48; // eligiblePosts drops anything older anyway
-// The day's group, then the next day's once; still nothing → no repost (FR-011).
-const GROUP_OFFSETS = [0, 1];
 
 export type PoolRunResult =
   | { done: 'spend_cap' | 'no_candidate' | 'cap_reached' }
@@ -63,10 +61,8 @@ export async function runPoolPost(
   options: RunOptions = {},
 ): Promise<PoolRunResult> {
   const random = deps.random ?? Math.random;
-  if (!options.force && (await overSpendCap(deps, now)))
-    return { done: 'spend_cap' };
-
-  const found = await findCandidate(deps, now);
+  const found = await findCandidate(deps, now, options.force ?? false);
+  if (found === 'spend_cap') return { done: 'spend_cap' };
   if (!found) return { done: 'no_candidate' };
   const { group, post } = found;
   const account = { handle: group.name, id: post.author_id };
@@ -153,13 +149,15 @@ export async function runPoolPost(
   };
 }
 
-// The day's group is searched; if no event comes back, the next day's group once (spec 005 FR-011).
+// The day's group is searched, then each next one until one has an event; none anywhere → no repost (FR-011).
+// Each search is paid, so the walk stops at the feed's daily spend cap (a hand-run is past caps).
 async function findCandidate(
   deps: ContentDeps,
   now: Date,
-): Promise<{ group: RepostGroup; post: SearchPost } | null> {
-  for (const offset of GROUP_OFFSETS) {
-    const group = groupFor(now, offset);
+  force: boolean,
+): Promise<{ group: RepostGroup; post: SearchPost } | 'spend_cap' | null> {
+  for (const group of groupsFrom(now)) {
+    if (!force && (await overSpendCap(deps, now))) return 'spend_cap';
     const posts = await deps.searchPosts(
       groupQuery(group),
       new Date(now.getTime() - SEARCH_HOURS * 3_600_000),
