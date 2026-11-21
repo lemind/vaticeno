@@ -156,43 +156,38 @@ export const REPOST_GROUPS: readonly RepostGroup[] = [
     ],
     minLikes: 100,
   },
+  // Saturday: the weekend's fight cards and race meetings, things people bet on (owner 2026-11-21: launches and
+  // awards were dropped, they are not betting and rarely happen).
   {
-    name: 'launches and awards',
+    name: 'weekend fights and races',
     handles: [
-      'RockstarGames',
-      'XBOX',
-      'PlayStation',
-      'MacRumors',
-      'markgurman',
-      'PopBase',
-      'PopCrave',
-      'thegameawards',
-      'geoffkeighley',
-      'goldenglobes',
+      'ufc',
+      'danawhite',
+      'Home_of_Fight',
+      'PFLMMA',
+      'trboxing',
+      'RacingPost',
+      'ITVRacing',
+      'CheltenhamRaces',
+      'BreedersCup',
     ],
     words: [
-      '"release date"',
-      'launches',
-      'nominations',
-      '"will be announced"',
-      '"next week"',
+      'tonight',
       'tomorrow',
+      '"this weekend"',
+      '"this Sunday"',
+      '"fight night"',
+      'weigh-ins',
+      'runners',
     ],
-    minLikes: 500,
+    minLikes: 50,
   },
 ];
-
-const WEEK_MS = 7 * 86_400_000;
-// Launches and awards are rare: their group leads Saturday every other week only, starting 2026-11-21 (owner).
-const FORTNIGHTLY = 'launches and awards';
-const fortnightOn = (now: Date) => Math.floor(now.getTime() / WEEK_MS) % 2 === 0;
 
 // The order of the day's search: `now`'s UTC weekday group first, then each next one in the list (FR-011).
 export function groupsFrom(now: Date): RepostGroup[] {
   return REPOST_GROUPS.map(
     (_, i) => REPOST_GROUPS[(now.getUTCDay() + i) % REPOST_GROUPS.length]!,
-  ).filter(
-    (group, i) => group.name !== FORTNIGHTLY || (i === 0 && fortnightOn(now)),
   );
 }
 

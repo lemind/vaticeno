@@ -234,7 +234,7 @@ function contentDeps(
       }: {
         instructionVersion: string;
       }) =>
-        instructionVersion === 'repost.v2'
+        instructionVersion === 'repost.v3'
           ? {
               data: { posts: [{ index: 0, kind: 'event', fit: 8 }] },
               costs: [],

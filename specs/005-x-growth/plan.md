@@ -114,9 +114,9 @@ Once a day at 09:23 UTC (owner, 2026-11-09). `src/content/repost-groups.ts` hold
 weekday, each with its accounts, announcement words and a floor of likes. `src/content/pool-run.ts` runs one X
 recent search for the day's group (`from:` each account, the words, `-is:retweet -is:reply`, `min_likes:N`, last
 48 h, 10 posts, newest first; `min_likes` checked by hand on 2026-11-09). Each eligible post (≤ 48 h, never
-posted) goes to one lite-model call (`repost.v2`); only `event` counts, and the one with the most likes + 2 ×
+posted) goes to one lite-model call (`repost.v3`, events people bet on only); only `event` counts, and the one with the most likes + 2 ×
 reposts is reposted. None → each next group in the list in turn (`groupsFrom`); none anywhere → no repost, logged.
-The launches-and-awards group leads every other Saturday only, never a fallback (owner, 2026-11-21). Search takes handles, so
+Saturday is the weekend's fights and races; the launches-and-awards group was dropped (owner, 2026-11-21). Search takes handles, so
 no paid id lookup; the post's `author_id` is its account. Post text is read for the call and never stored
 (constitution V).
 

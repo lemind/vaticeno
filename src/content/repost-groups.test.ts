@@ -16,11 +16,11 @@ test('one group per weekday, each query short enough for X', () => {
     );
 });
 
-test('the search walks every group from the day’s; awards lead every other Saturday only', () => {
+test('the search walks every group, starting with the day’s', () => {
   const names = (day: string) =>
     groupsFrom(new Date(`${day}T09:23:00Z`)).map((g) => g.name);
   assert.deepEqual(names('2026-11-21'), [
-    'launches and awards',
+    'weekend fights and races',
     'markets and crypto',
     'F1, MotoGP and space',
     'football',
@@ -28,9 +28,6 @@ test('the search walks every group from the day’s; awards lead every other Sat
     'US sports',
     'cricket, tennis, golf and racing',
   ]);
-  assert.equal(names('2026-11-28')[0], 'markets and crypto');
-  assert.equal(names('2026-11-28').length, 6);
-  assert.equal(names('2026-12-05')[0], 'launches and awards');
   assert.equal(names('2026-11-23')[0], 'F1, MotoGP and space');
-  assert.ok(!names('2026-11-23').includes('launches and awards'));
+  assert.equal(names('2026-11-23').length, 7);
 });

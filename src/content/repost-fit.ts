@@ -28,9 +28,9 @@ export async function upcomingEvents<T extends UserPost>(
   try {
     const { data, costs: c } = await deps.llm.generateJson({
       model: deps.normalizerModel,
-      instructionVersion: 'repost.v2',
+      instructionVersion: 'repost.v3',
       operation: 'feed_model',
-      system: loadInstruction('repost.v2'),
+      system: loadInstruction('repost.v3'),
       input: JSON.stringify({
         posts: posts.map((p, index) => ({ index, text: p.text })),
       }),

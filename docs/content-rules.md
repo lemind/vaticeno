@@ -83,7 +83,7 @@ changes it there.
 | Wed | combat sports (UFC, MMA, boxing) | 100 |
 | Thu | NFL, NBA, MLB | 500 |
 | Fri | cricket, tennis, golf, horse racing | 100 |
-| Sat | game and tech launches, awards — every other week (from 2026-11-21); otherwise Sunday's group leads | 500 |
+| Sat | the weekend's fights and races (UFC, boxing, horse racing) | 50 |
 | Sun | central banks, economic data, earnings, crypto | 100 |
 
 A sponsor's tag on an announcement is fine (owner, 2026-11-09: our stakes are between friends, not a rival
