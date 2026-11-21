@@ -83,7 +83,7 @@ changes it there.
 | Wed | combat sports (UFC, MMA, boxing) | 100 |
 | Thu | NFL, NBA, MLB | 500 |
 | Fri | cricket, tennis, golf, horse racing | 100 |
-| Sat | the weekend's football and rugby (La Liga, Serie A, Bundesliga, Ligue 1, EFL, rugby) | 200 |
+| Sat | the weekend's football and rugby (La Liga, Serie A, Bundesliga, Ligue 1, EFL, rugby) | 20 |
 | Sun | central banks, economic data, earnings, crypto | 100 |
 
 A sponsor's tag on an announcement is fine (owner, 2026-11-09: our stakes are between friends, not a rival

@@ -180,7 +180,7 @@ export const REPOST_GROUPS: readonly RepostGroup[] = [
       'matchday',
       '"team news"',
     ],
-    minLikes: 200,
+    minLikes: 20, // their posts get 2–72 likes (checked 2026-11-21); 200 found nothing
   },
 ];
 
