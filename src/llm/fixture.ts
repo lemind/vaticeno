@@ -6,7 +6,7 @@ import type { Contract } from '../contract/schema.js';
 import type { CallCost, LlmClient } from './client.js';
 import { loadInstruction } from './instructions.js';
 
-export const FIXTURE_VERSION = 'fixture.v2';
+export const FIXTURE_VERSION = 'fixture.v3';
 
 const FixtureSchema = z.object({
   found: z.boolean(),
@@ -21,13 +21,23 @@ const FixtureSchema = z.object({
 });
 export type Fixture = z.infer<typeof FixtureSchema>;
 
-export async function findFixture(llm: LlmClient, model: string, contract: Contract, now: Date): Promise<{ fixture: Fixture; costs: CallCost[] }> {
+export async function findFixture(
+  llm: LlmClient,
+  model: string,
+  contract: Contract,
+  now: Date,
+): Promise<{ fixture: Fixture; costs: CallCost[] }> {
   const { data, costs } = await llm.generateJson({
     model,
     instructionVersion: FIXTURE_VERSION,
     operation: 'search',
     system: loadInstruction(FIXTURE_VERSION),
-    input: JSON.stringify({ criterion: contract.criterion, subject: contract.subject, deadline: contract.deadline_at, now: now.toISOString() }),
+    input: JSON.stringify({
+      criterion: contract.criterion,
+      subject: contract.subject,
+      deadline: contract.deadline_at,
+      now: now.toISOString(),
+    }),
     schema: FixtureSchema,
     googleSearch: true,
   });
