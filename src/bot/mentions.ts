@@ -119,11 +119,10 @@ export async function routeMention(
   const body = cleanBody(mention.text);
   const command = resolveCommand(body); // a bare command, matched in code: no model call
 
-  // HACK(x): OBSERVED 2026-11-24 — a typed "@vaticeno" at the start merges into X's reply prefix, so "Spivac
-  // odds" went unanswered. A command matched in code is asking us, unless Grok is the one asked (live 2026-11-19).
-  // REVISIT: with addressesBot's HACK.
-  const asksUs =
-    command !== null && command !== 'stop' && !/@grok\b/i.test(mention.text);
+  // HACK(x): OBSERVED 2026-11-24, a typed tag merged into X's reply prefix ("Spivac odds" went unanswered). See
+  // specs/006-odds-command/spec.md (Edge Cases).
+  // REVISIT: with addressesBot's HACK. Odds only; a post that tags Grok is asking Grok (live 2026-11-19).
+  const asksUs = command === 'odds' && !/@grok\b/i.test(mention.text);
   // No mention, no reply (constitution VI, owner decision 2026-10-09). Decided before any spend.
   if (
     !asksUs &&

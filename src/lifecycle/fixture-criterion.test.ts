@@ -39,6 +39,21 @@ test('a two-sided event always names the opponent (live 2026-11-24)', () => {
   );
 });
 
+test('a word both sides share does not count as naming the opponent', () => {
+  assert.equal(
+    fixtureCriterion(
+      {
+        ...fight,
+        home: 'Manchester City',
+        away: 'Manchester United',
+        criterion: 'Manchester City win (Premier League)',
+      },
+      'City win',
+    ),
+    'Manchester City vs Manchester United: Manchester City win (Premier League)',
+  );
+});
+
 test('a field event keeps the search wording', () => {
   assert.equal(
     fixtureCriterion(

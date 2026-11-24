@@ -925,6 +925,29 @@ describe('fixes from X', () => {
     );
   });
 
+  // Only odds skips the typed-tag rule (review 2026-11-24): "wager" in strangers' talk is still not asking us.
+  test('a carried handle in front of "I\'d wager…" gets no reply', async () => {
+    const summon = mention(
+      '75a',
+      '@vaticeno BTC daily close above $150,000 by 2026-12-31',
+    );
+    const carried = mention('76a', "@vaticeno @alice I'd wager he loses", {
+      author_id: '400',
+      conversation_id: '75a',
+      in_reply_to_user_id: '401',
+      referenced_tweets: [{ type: 'replied_to', id: 'someone-else' }],
+    });
+    const { deps, replies } = await bot([[summon], [carried]]);
+    await pollMentions(deps, NOW);
+    const repliesBefore = replies.length;
+    await pollMentions(deps, NOW);
+    assert.equal(
+      replies.length,
+      repliesBefore,
+      'no wager link in their conversation',
+    );
+  });
+
   test('STOP is recorded even when our handle was only carried, and earns no reply', async () => {
     const summon = mention(
       '72a',

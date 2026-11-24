@@ -125,6 +125,12 @@ const ODDS_SAYING = new Set([
 const isFiller = (word: string) => FILLER.has(word) || /^\d{1,2}$/.test(word);
 
 const ODDS_ANYWHERE = /\bodds\b(?!\s+(?:are|is|says?|favou?r|suggest)\b)/i;
+// An idiom, not an ask: "against all odds", "beat the odds", "at odds with".
+const ODDS_IDIOM =
+  /\b(?:against|beat|beats|beating|defy|defies|defied|at)\s+(?:all\s+|the\s+)?odds\b/i;
+// A price in the post means someone is quoting odds, not asking (Grok's "Current odds: Kabayel 1/16").
+const QUOTED_PRICE = /\d+\s*[/:]\s*\d+|\d+\.\d+/;
+const ODDS_ANYWHERE_MAX_WORDS = 6;
 
 export function resolveCommand(body: string): Command | null {
   const words = body
@@ -147,8 +153,14 @@ export function resolveCommand(body: string): Command | null {
   const exact = ALIASES[first];
   // "odds" first is the command, numbers included ("odds for UFC 310"); "odds are/say…" is a prediction (review 2026-11-21).
   if (first === 'odds') return ODDS_SAYING.has(rest[0] ?? '') ? null : 'odds';
-  // Anywhere else too ("Spivac odds", owner 2026-11-24), but not with a number: Grok's "Current odds: X 1/16" is no ask.
-  if (!/\d/.test(body) && ODDS_ANYWHERE.test(body)) return 'odds';
+  // Anywhere in a short post too ("Spivac odds", owner 2026-11-24); a long one or a quoted price is talk, not an ask.
+  if (
+    words.length <= ODDS_ANYWHERE_MAX_WORDS &&
+    ODDS_ANYWHERE.test(body) &&
+    !ODDS_IDIOM.test(body) &&
+    !QUOTED_PRICE.test(body)
+  )
+    return 'odds';
   // Any other command word first, with any words after it. A number makes the text a prediction for the
   // model to read ("Quote me: BTC hits 200k"). Only the main names: STOP stays bare (a typed stop must mean
   // stop), and short aliases ("promo", "brand", "bio") start ordinary sentences.

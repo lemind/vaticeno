@@ -66,7 +66,7 @@ the model may look, so it would save nothing (spec SC-006). It runs as a private
 |---|---|
 | X: mentions → one reply each; fixes by replying under the bot's answer with the bot tagged; STOP; help; verdict replies carrying the result; questions answered from the conversation, or from the web when nothing in the thread can settle them | |
 | Predictions → contracts by AI, checked in code; price + date = daily close; unclear ones get a checked example | |
-| Sports: the event and its competitor must exist (web search), competition filled in, recordable until the start | |
+| Sports: the event and its competitor must exist (web search), competition filled in, a match or fight names both sides, recordable until the start | |
 | Database: lock and verdict rules enforced by Postgres, locally and on Supabase | Backups: scripts in `deploy/`, not installed (owner's call) |
 | Verdicts after the deadline: Coinbase daily close, the account's follower count from X, or AI reading web pages behind code gates; human review; a per-claim spending ceiling with an alert | |
 | Own feed (specs 002, 005), live: one event repost a day found by search, own event posts with a poster every free day, the weekend's Hong Kong race with its odds on Fridays, the Monday list and the Friday record, one verdict reply of a listed author reposted a day, the owner's dated queue; caps and "never twice" enforced by Postgres; run by systemd timers | |
@@ -88,7 +88,7 @@ the model may look, so it would save nothing (spec SC-006). It runs as a private
 | `@vaticeno` as a reply to your own post | records that post |
 | a reply under the bot's answer, with `@vaticeno` typed in it | a fix (within 15 min of RECORDED; anytime within 24 h of NOT RECORDED) |
 | `@vaticeno help` | the list of actions |
-| `@vaticeno odds` under a post about a match or a race | the bookmakers' range, up to three of them, and nothing else, e.g. `City 6:5 (2.20) · Arsenal 2:1–9:4 (3.00–3.25)`; a race's five favourites and a range for the rest; no in-play odds |
+| `@vaticeno odds` (or `Spivac odds`: the word anywhere in a short post) under a post about a match or a race | the bookmakers' range, up to three of them, and nothing else, e.g. `City 6:5 (2.20) · Arsenal 2:1–9:4 (3.00–3.25)`; a race's five favourites and a range for the rest; no in-play odds |
 | a question, anywhere it is tagged | an answer — see below |
 | `@vaticeno quote` | a sourced quote from Wikiquote about bets, luck, risk, sport, bitcoin |
 | `@vaticeno selfpromo` (or promote, show off, flex, brag, who are you…) | a motto + a joke |

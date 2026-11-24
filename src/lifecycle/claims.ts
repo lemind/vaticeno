@@ -660,11 +660,14 @@ export function fixtureCriterion(fixture: Fixture, authored: string): string {
   const candidates = [fixture.criterion, authored].filter(fits);
   const away = fixture.away;
   if (!away || !fixture.home) return candidates[0] ?? authored;
+  // Only the opponent's own words count: "Manchester" names neither side of Manchester City v United.
+  const homeWords = new Set(fixture.home.toLowerCase().split(/\s+/));
+  const awayWords = away
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((word) => word.length > 2 && !homeWords.has(word));
   const namesAway = (text: string) =>
-    away
-      .toLowerCase()
-      .split(/\s+/)
-      .some((word) => word.length > 2 && text.toLowerCase().includes(word));
+    awayWords.some((word) => text.toLowerCase().includes(word));
   const named = candidates.find(namesAway);
   if (named) return named;
   const paired = candidates
