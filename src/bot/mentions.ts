@@ -119,8 +119,16 @@ export async function routeMention(
   const body = cleanBody(mention.text);
   const command = resolveCommand(body); // a bare command, matched in code: no model call
 
+  // HACK(x): OBSERVED 2026-11-24 — a typed "@vaticeno" at the start merges into X's reply prefix, so "Spivac
+  // odds" went unanswered. A command matched in code is asking us, unless Grok is the one asked (live 2026-11-19).
+  // REVISIT: with addressesBot's HACK.
+  const asksUs =
+    command !== null && command !== 'stop' && !/@grok\b/i.test(mention.text);
   // No mention, no reply (constitution VI, owner decision 2026-10-09). Decided before any spend.
-  if (!addressesBot(mention, deps.botHandle, deps.botUserId, weRepliedInThread)) {
+  if (
+    !asksUs &&
+    !addressesBot(mention, deps.botHandle, deps.botUserId, weRepliedInThread)
+  ) {
     // STOP is honoured wherever it is seen — silence is what they asked for — but earns no reply (§6.5).
     if (command === 'stop') {
       await deps.db

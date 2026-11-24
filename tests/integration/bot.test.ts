@@ -2127,6 +2127,37 @@ describe('odds', () => {
     } as unknown as BotDeps['llm'];
   };
 
+  // A typed tag at the start merges into X's prefix (live 2026-11-24): "<name> odds" is still asking us.
+  test('"odds" anywhere, behind the handles, in a thread we answered gets one reply', async () => {
+    const summon = mention(
+      '146',
+      '@vaticeno BTC daily close above $150,000 by 2026-12-31',
+    );
+    const asked = mention('147', '@alice @vaticeno Spivac odds', {
+      author_id: '400',
+      conversation_id: '146',
+      in_reply_to_user_id: '401',
+      referenced_tweets: [{ type: 'replied_to', id: 'someone-else' }],
+    });
+    const { deps, replies } = await bot([[summon], [asked]], {}, '', [
+      { id: 'someone-else', text: 'Spivac v Hysa on Saturday', author_id: '401' },
+    ]);
+    await pollMentions(deps, NOW);
+    answering(deps, async () => ({
+      text: JSON.stringify({
+        found: true,
+        event: 'Spivac v Hysa',
+        outcomes: [
+          { name: 'Spivac', prices: [1.5, 1.5] },
+          { name: 'Hysa', prices: [2.5, 2.5] },
+        ],
+      }),
+    }));
+    await pollMentions(deps, NOW);
+    assert.equal(replies.length, 2, 'the recording, then the odds');
+    assert.match(replies[1]!.text, /Spivac/);
+  });
+
   test('one reply with the averaged odds, and the call recorded as odds', async () => {
     const { deps, replies } = await bot([[mention('140', '@vaticeno odds')]]);
     answering(deps, async () => ({

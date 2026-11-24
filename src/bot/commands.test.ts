@@ -120,6 +120,9 @@ test('odds: the first word or the phrase, numbers included; "odds are…" is a p
     'What are the odds?',
     'odds for UFC 310',
     'odds game 7',
+    'Spivac odds',
+    'Usyk v Fury odds please',
+    'give me the odds',
   ])
     assert.equal(resolveCommand(input), 'odds', input);
   for (const input of [
@@ -129,6 +132,8 @@ test('odds: the first word or the phrase, numbers included; "odds are…" is a p
     'the odds are long',
     'odds are City win the league',
     'Odds say Trump loses',
+    'Current odds: Kabayel 1/16, Hysa 8/1',
+    'I think the odds favour City',
   ])
     assert.equal(resolveCommand(input), null, input);
   assert.equal(
