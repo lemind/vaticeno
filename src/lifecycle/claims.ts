@@ -16,7 +16,7 @@ import { recordCosts } from '../db/costs.js';
 import { type ClaimRow, claims, positions } from '../db/schema.js';
 import type { Coinbase } from '../feeds/coinbase.js';
 import { type CallCost, type LlmClient, LlmSchemaError } from '../llm/client.js';
-import { findFixture } from '../llm/fixture.js';
+import { findFixture, type Fixture } from '../llm/fixture.js';
 import { proposeContract } from '../llm/normalize.js';
 import { log } from '../log.js';
 import { buildNeedsInfoReply } from '../replies/needs-info.js';
@@ -636,10 +636,7 @@ async function confirmFixture(
     : `${new Date(kickoff).toISOString().slice(0, 10)}T23:59:59Z`;
   const confirmed = {
     ...contract,
-    criterion:
-      fixture.criterion && fixture.criterion.length <= 100
-        ? fixture.criterion
-        : contract.criterion,
+    criterion: fixtureCriterion(fixture, contract.criterion),
     deadline_at:
       kickoffDayEnd && Date.parse(kickoffDayEnd) > Date.parse(contract.deadline_at)
         ? kickoffDayEnd
@@ -654,6 +651,29 @@ async function confirmFixture(
       event: 'fixture.invalid',
     });
   return { outcome: 'recorded', contract: valid.success ? valid.data : contract };
+}
+
+// A two-sided event names both sides (owner, 2026-11-24: "Mario Pinto wins their fight" was recorded). The
+// search's wording first, then the author's; if neither names the opponent, the pairing goes in front.
+export function fixtureCriterion(fixture: Fixture, authored: string): string {
+  const fits = (text: string | null): text is string => !!text && text.length <= 100;
+  const candidates = [fixture.criterion, authored].filter(fits);
+  const away = fixture.away;
+  if (!away || !fixture.home) return candidates[0] ?? authored;
+  // Only the opponent's own words count: "Manchester" names neither side of Manchester City v United.
+  const homeWords = new Set(fixture.home.toLowerCase().split(/\s+/));
+  const awayWords = away
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((word) => word.length > 2 && !homeWords.has(word));
+  const namesAway = (text: string) =>
+    awayWords.some((word) => text.toLowerCase().includes(word));
+  const named = candidates.find(namesAway);
+  if (named) return named;
+  const paired = candidates
+    .map((text) => `${fixture.home} vs ${away}: ${text}`)
+    .find(fits);
+  return paired ?? candidates[0] ?? authored;
 }
 
 async function confirmPriceFeed(

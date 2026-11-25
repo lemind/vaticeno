@@ -4,6 +4,7 @@ pragma solidity 0.8.28;
 interface IERC20 {
     function transfer(address to, uint256 value) external returns (bool);
     function transferFrom(address from, address to, uint256 value) external returns (bool);
+    function balanceOf(address account) external view returns (uint256);
 }
 
 /// The escrow that holds real USDC (003 Stage 4, FR-022a, FR-036b–e). Its rules are answered in
@@ -67,6 +68,10 @@ contract EscrowV2 {
     address private constant BASE_USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
     address private constant ARBITRUM_USDC = 0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
     address private constant ARBITRUM_USDT0 = 0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9;
+    // Tron mainnet (spec 007): Tether's TRC-20 USDT, TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t. The chain id is what a
+    // contract reads there, measured on Nile 2026-11-21 to match the node's (docs/decisions/010-usdt-tron.md).
+    uint256 private constant TRON_CHAIN_ID = 728126428;
+    address private constant TRON_USDT = 0xa614f803B6FD780986A42c78Ec9c7f77e6DeD13C;
 
     bytes32 private constant OPEN_TYPEHASH =
         keccak256("OpenAuthorization(bytes32 claimHash,uint64 deadline,uint64 validUntil)");
@@ -161,6 +166,7 @@ contract EscrowV2 {
                 || uint256(config.maxStake) * 2 > config.maxPerClaim || config.maxPerClaim > config.maxTotal
         ) revert BadConfig();
         if (block.chainid == BASE_CHAIN_ID && config.token != BASE_USDC) revert BadConfig();
+        if (block.chainid == TRON_CHAIN_ID && config.token != TRON_USDT) revert BadConfig();
         if (block.chainid == ARBITRUM_CHAIN_ID && config.token != ARBITRUM_USDC && config.token != ARBITRUM_USDT0) {
             revert BadConfig();
         }
@@ -441,15 +447,26 @@ contract EscrowV2 {
         _call(abi.encodeCall(IERC20.transferFrom, (from, address(this), value)));
     }
 
-    // Never reverts: a refusal is reported, not raised. Accepts a token that returns nothing as well as one returning true.
+    // A refusal is reported, not raised. Sent means our balance fell by exactly `value`, whatever the token returns:
+    // Tron's USDT returns false from a transfer that worked (docs/decisions/010-usdt-tron.md). Exact, because the
+    // token is fixed at deployment and sends nothing back during a transfer.
     function _tryPush(address to, uint256 value) private returns (bool) {
+        uint256 before = 0;
+        try token.balanceOf(address(this)) returns (uint256 held) {
+            before = held;
+        } catch {
+            return false; // nothing has moved yet: credited, the other side still paid
+        }
         // forge-lint: disable-next-line(reentrancy-no-eth)
-        (bool ok, bytes memory returned) = address(token).call(abi.encodeCall(IERC20.transfer, (to, value)));
-        return ok && (returned.length == 0 || (returned.length == 32 && abi.decode(returned, (bool))));
+        (bool ok,) = address(token).call(abi.encodeCall(IERC20.transfer, (to, value)));
+        if (!ok) return false;
+        // Reverting here undoes the transfer too: nothing is paid twice, and the exit is retried.
+        uint256 left = token.balanceOf(address(this));
+        return left <= before && before - left == value;
     }
 
     function _push(address to, uint256 value) private {
-        _call(abi.encodeCall(IERC20.transfer, (to, value)));
+        if (!_tryPush(to, value)) revert TransferFailed();
     }
 
     // Accepts a token that returns nothing as well as one that returns true, as stablecoins differ.

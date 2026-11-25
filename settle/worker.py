@@ -3,7 +3,8 @@ settles every matched stake on the claim. It holds the oracle key and does nothi
 X, no model, no input from strangers. It reads the claim and its verdict and decides nothing (001-second-runtime).
 
 One process per network (FR-036d), each with its own chain id, contract, RPC and oracle key: it reads and writes
-only its own network's rows, so a stuck transaction or a dead node on one never delays the other.
+only its own network's rows, so a stuck transaction or a dead node on one never delays the other. A Tron network
+runs the same loop through `settle.tron.TronEscrow` (spec 007).
 
     .venv/bin/python -m settle.worker
 """
@@ -18,17 +19,26 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
+import httpx2
 import psycopg
 from eth_account import Account
 from psycopg.rows import dict_row
+from tronpy import Tron
+from tronpy import exceptions as tron_errors
+from tronpy.providers import HTTPProvider
 from web3 import Web3
 from web3.exceptions import Web3Exception
 
 from settle.alerts import Alerts
 from settle.chain import SETTLED_STATES, ChainMismatch, Escrow, claim_hash, evidence_ref
 from settle.health import record_health
+from settle.tron import TRON_CHAIN_IDS, TRX_USD, TronEscrow
 
 POLL_SECONDS = 60
+# A failure of one chain call: the row is retried next run, never answered or voided (constitution III).
+CHAIN_ERRORS = (ChainMismatch, Web3Exception, RuntimeError, OSError, ValueError, httpx2.HTTPError,
+                tron_errors.ApiError, tron_errors.TransactionError, tron_errors.TvmError,
+                tron_errors.ValidationError, tron_errors.UnknownError, tron_errors.BugInJavaTron)
 CONNECT_TIMEOUT_SECONDS = 5
 
 log = logging.getLogger("vaticeno.settle")
@@ -81,7 +91,7 @@ def finish_stakes(conn: psycopg.Connection, escrow: Escrow, run: Run) -> None:
                 if tx is None:
                     continue
                 escrow.wait_mined(tx)
-            except (ChainMismatch, Web3Exception, RuntimeError, OSError, ValueError) as error:
+            except CHAIN_ERRORS as error:
                 log.warning("settle.finish_failed slug=%s stake=%s action=%s error=%s", row["slug"], stake.id,
                             action, error)
                 continue
@@ -161,7 +171,7 @@ def settle_confirmed(conn: psycopg.Connection, escrow: Escrow, now: datetime, ru
             continue
         try:
             _settle_claim(conn, escrow, row, run)
-        except (ChainMismatch, Web3Exception, RuntimeError, OSError, ValueError) as error:
+        except CHAIN_ERRORS as error:
             # The row stays pending and is tried next run; the contract refuses a stake settled twice.
             _execute(conn, """
                 update settlement_outbox set attempts = attempts + 1, last_error = %s
@@ -216,6 +226,16 @@ def _finish(conn: psycopg.Connection, row_id: str, state: str, error: str | None
 STALE_AFTER_SECONDS = 180
 
 
+def record_tron_costs(conn: psycopg.Connection, spent_sun: list[int]) -> None:
+    """What the worker's transactions burned on Tron, one row each (spec 007 FR-007). EVM gas is not recorded."""
+    for sun in spent_sun:
+        if sun > 0:
+            _execute(conn, """
+                insert into cost_events (provider, operation, units, usd_cost)
+                values ('tron', 'settle_tx', %s, %s)
+            """, (sun, round(sun / 1_000_000 * TRX_USD, 5)))
+
+
 def job_name(escrow: Escrow) -> str:
     return f"settle-{escrow.network}"
 
@@ -253,14 +273,26 @@ def read_key(path: Path) -> str:
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    account = Account.from_key(read_key(Path(os.environ["ORACLE_KEY_FILE"])))
-    # RPC_URL: this network's node. BASE_SEPOLIA_RPC_URL is the name Stage 2's env file already carries.
-    w3 = Web3(Web3.HTTPProvider(os.environ.get("RPC_URL") or os.environ["BASE_SEPOLIA_RPC_URL"]))
-    # NETWORK_KEY: a second market on the same chain, e.g. `42161-usdt`; unset, the chain id names it.
-    escrow = Escrow(w3, os.environ["ESCROW_ADDRESS"], int(os.environ["ESCROW_CHAIN_ID"]), account,
-                    int(os.environ.get("ESCROW_VERSION", "1")), os.environ.get("NETWORK_KEY"))
+    key = read_key(Path(os.environ["ORACLE_KEY_FILE"]))
+    chain_id = int(os.environ["ESCROW_CHAIN_ID"])
+    version = int(os.environ.get("ESCROW_VERSION", "1"))
+    if chain_id in TRON_CHAIN_IDS and os.environ.get("ENABLE_TRON") != "true":
+        raise SystemExit("Tron is switched off: set ENABLE_TRON=true in this worker's env (spec 007)")
+    if chain_id in TRON_CHAIN_IDS:
+        # TRONGRID_API_KEY: TronGrid rate-limits keyless callers; RPC_URL is this network's TronGrid endpoint.
+        client = Tron(HTTPProvider(os.environ["RPC_URL"], api_key=os.environ.get("TRONGRID_API_KEY")))
+        escrow = TronEscrow(client, os.environ["ESCROW_ADDRESS"], chain_id, key, version,
+                            os.environ.get("NETWORK_KEY"))
+        oracle = escrow.owner
+    else:
+        account = Account.from_key(key)
+        # RPC_URL: this network's node. BASE_SEPOLIA_RPC_URL is the name Stage 2's env file already carries.
+        w3 = Web3(Web3.HTTPProvider(os.environ.get("RPC_URL") or os.environ["BASE_SEPOLIA_RPC_URL"]))
+        # NETWORK_KEY: a second market on the same chain, e.g. `42161-usdt`; unset, the chain id names it.
+        escrow = Escrow(w3, os.environ["ESCROW_ADDRESS"], chain_id, account, version, os.environ.get("NETWORK_KEY"))
+        oracle = account.address
     log.info("settle.started network=%s oracle=%s escrow=%s version=%s",
-             escrow.network, account.address, escrow.address, escrow.version)
+             escrow.network, oracle, escrow.address, escrow.version)
     alerts = Alerts(os.environ.get("SENTRY_DSN"))
     sign = os.environ.get("SIGN_AUTHORIZATIONS", "1") == "1"
     log.info("settle.signing network=%s on=%s", escrow.network, sign)
@@ -279,6 +311,12 @@ def main() -> None:
                 except Exception as error:
                     heartbeat(conn, escrow, started, error)
                     log.exception("settle.run_failed")
+                if isinstance(escrow, TronEscrow):
+                    spent = escrow.drain_costs()
+                    try:  # bookkeeping: a refused row never marks the pass that settled as failed
+                        record_tron_costs(conn, spent)
+                    except psycopg.Error:
+                        log.exception("settle.costs_unrecorded sun=%s", spent)
                 # After settling, never before: a slow read here never delays a verdict reaching the chain.
                 record_health(conn, escrow, datetime.now(UTC), alerts)
         except psycopg.Error:

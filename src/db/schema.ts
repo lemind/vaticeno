@@ -71,6 +71,7 @@ export const COST_PROVIDERS = [
   'coinbase',
   'web_fetch',
   'x',
+  'tron', // the settlement worker's TRX on Tron (spec 007 FR-007)
 ] as const;
 // feed_* are the content jobs' own operations (spec 002): the daily feed spend cap sums exactly these.
 export const COST_OPERATIONS = [
@@ -85,6 +86,7 @@ export const COST_OPERATIONS = [
   'feed_model',
   'thread_read',
   'odds', // the odds command's search (spec 006 FR-007)
+  'settle_tx', // one worker transaction on Tron; inserted by settle_rw (0030)
 ] as const;
 export const FEED_COST_OPERATIONS = [
   'feed_read',

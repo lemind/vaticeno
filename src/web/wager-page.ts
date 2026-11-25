@@ -6,8 +6,13 @@ import { ContractSchema } from '../contract/schema.js';
 import type { Db } from '../db/client.js';
 import { claims, corrections, resolutions, settlementOutbox } from '../db/schema.js';
 import type { WagerNetwork } from '../wager/networks.js';
+import { toTronAddress } from '../wager/tron-address.js';
 import { wagerKind } from '../wager/terms.js';
 import { html, jsonData, layout, utc } from './html.js';
+
+// The most TRX one of the visitor's own Tron calls may burn, in sun: Tron sets no limit by default (ADR 010).
+// UNRECONCILED until spec 007 T711a measures the calls against mainnet.
+const TRON_FEE_LIMIT_SUN = 100 * 1_000_000;
 
 const POLICY_URL =
   'https://github.com/lemind/vaticeno/blob/main/docs/settlement-policy.md';
@@ -135,13 +140,21 @@ export async function wagerPage(
       <dt>Contract</dt>
       <dd>
         <a
-          href="${config.explorer}/address/${config.escrow}#code"
+          href="${
+            config.family === 'tron'
+              ? `${config.explorer}/contract/${toTronAddress(config.escrow)}/code`
+              : `${config.explorer}/address/${config.escrow}#code`
+          }"
           rel="noopener"
           target="_blank"
           >the escrow on ${config.explorerName}</a
         >, source code verified ·
         <a
-          href="${config.explorer}/token/${config.token}"
+          href="${
+            config.family === 'tron'
+              ? `${config.explorer}/token20/${toTronAddress(config.token)}`
+              : `${config.explorer}/token/${config.token}`
+          }"
           rel="noopener"
           target="_blank"
           >the token</a
@@ -253,8 +266,12 @@ export async function wagerPage(
         <button type="button" id="withdraw" hidden>Withdraw</button>
       </p>
       <p class="muted">
-        Your own wallet signs every step and pays its network fee in ${config.name}
-        ETH.${config.testnet ? ' Test ETH comes from a faucet; the test token from the operator.' : ''}
+        Your own wallet signs every step and pays its network fee in
+        ${config.family === 'tron' ? 'TRX' : `${config.name} ETH`}.${
+          config.testnet
+            ? ` Test ${config.family === 'tron' ? 'TRX' : 'ETH'} comes from a faucet; the test token from the operator.`
+            : ''
+        }
       </p>
       <form id="offer" class="offer" hidden>
         <fieldset class="side">
@@ -284,8 +301,11 @@ export async function wagerPage(
         </label>
         <button type="submit" class="primary">Make an offer</button>
         <p class="muted hint">
-          Your wallet approves exactly this amount, if needed, and opens the offer:
-          one confirmation where the wallet can batch, otherwise two.
+          ${
+            config.family === 'tron'
+              ? "The first time, TronLink approves the escrow once for all later wagers (an old approval is reset to 0 first, as Tether's USDT requires); then it opens the offer."
+              : 'Your wallet approves exactly this amount, if needed, and opens the offer: one confirmation where the wallet can batch, otherwise two.'
+          }
         </p>
       </form>
       <p id="offer-closed" class="muted">${opening}</p>
@@ -295,6 +315,13 @@ export async function wagerPage(
       escrow: config.escrow,
       token: config.token,
       chainId: config.chainId,
+      family: config.family,
+      ...(config.family === 'tron'
+        ? {
+            escrowShown: toTronAddress(config.escrow),
+            feeLimitSun: TRON_FEE_LIMIT_SUN,
+          }
+        : {}),
       // The page's name for the token; USDT0 calls itself USD₮0 on chain.
       symbol: config.symbol === 'tokens' ? null : config.symbol,
       version: config.version,

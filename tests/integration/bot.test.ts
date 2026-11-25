@@ -925,6 +925,29 @@ describe('fixes from X', () => {
     );
   });
 
+  // Only odds skips the typed-tag rule (review 2026-11-24): "wager" in strangers' talk is still not asking us.
+  test('a carried handle in front of "I\'d wager…" gets no reply', async () => {
+    const summon = mention(
+      '75a',
+      '@vaticeno BTC daily close above $150,000 by 2026-12-31',
+    );
+    const carried = mention('76a', "@vaticeno @alice I'd wager he loses", {
+      author_id: '400',
+      conversation_id: '75a',
+      in_reply_to_user_id: '401',
+      referenced_tweets: [{ type: 'replied_to', id: 'someone-else' }],
+    });
+    const { deps, replies } = await bot([[summon], [carried]]);
+    await pollMentions(deps, NOW);
+    const repliesBefore = replies.length;
+    await pollMentions(deps, NOW);
+    assert.equal(
+      replies.length,
+      repliesBefore,
+      'no wager link in their conversation',
+    );
+  });
+
   test('STOP is recorded even when our handle was only carried, and earns no reply', async () => {
     const summon = mention(
       '72a',
@@ -2127,6 +2150,37 @@ describe('odds', () => {
     } as unknown as BotDeps['llm'];
   };
 
+  // A typed tag at the start merges into X's prefix (live 2026-11-24): "<name> odds" is still asking us.
+  test('"odds" anywhere, behind the handles, in a thread we answered gets one reply', async () => {
+    const summon = mention(
+      '146',
+      '@vaticeno BTC daily close above $150,000 by 2026-12-31',
+    );
+    const asked = mention('147', '@alice @vaticeno Spivac odds', {
+      author_id: '400',
+      conversation_id: '146',
+      in_reply_to_user_id: '401',
+      referenced_tweets: [{ type: 'replied_to', id: 'someone-else' }],
+    });
+    const { deps, replies } = await bot([[summon], [asked]], {}, '', [
+      { id: 'someone-else', text: 'Spivac v Hysa on Saturday', author_id: '401' },
+    ]);
+    await pollMentions(deps, NOW);
+    answering(deps, async () => ({
+      text: JSON.stringify({
+        found: true,
+        event: 'Spivac v Hysa',
+        outcomes: [
+          { name: 'Spivac', prices: [1.5, 1.5] },
+          { name: 'Hysa', prices: [2.5, 2.5] },
+        ],
+      }),
+    }));
+    await pollMentions(deps, NOW);
+    assert.equal(replies.length, 2, 'the recording, then the odds');
+    assert.match(replies[1]!.text, /Spivac/);
+  });
+
   test('one reply with the averaged odds, and the call recorded as odds', async () => {
     const { deps, replies } = await bot([[mention('140', '@vaticeno odds')]]);
     answering(deps, async () => ({
@@ -2167,6 +2221,69 @@ describe('odds', () => {
       thin.replies[0]!.text,
       'No odds for this one — finished, too far off, or nobody prices it.',
     );
+  });
+
+  test('a live event gets the in-play reply; an upcoming one with no prices is searched once more', async () => {
+    const live = await bot([[mention('145', '@vaticeno odds')]]);
+    answering(live.deps, async () => ({
+      text: '{"found": true, "event": "Yousaf v Mitchell", "status": "live", "outcomes": []}',
+    }));
+    await pollMentions(live.deps, NOW);
+    assert.equal(
+      live.replies[0]!.text,
+      "It's live now — I don't give in-play odds.",
+    );
+
+    const calls: string[] = [];
+    const retried = await bot([[mention('146', '@vaticeno odds')]]);
+    answering(retried.deps, async () => {
+      calls.push('search');
+      return {
+        text: JSON.stringify(
+          calls.length === 1
+            ? {
+                found: true,
+                event: 'Yousaf v Mitchell',
+                status: 'upcoming',
+                outcomes: [],
+              }
+            : {
+                found: true,
+                event: 'Yousaf v Mitchell',
+                status: 'upcoming',
+                outcomes: [
+                  { name: 'Yousaf', prices: [1.5, 1.5] },
+                  { name: 'Mitchell', prices: [2.5, 2.5] },
+                ],
+              },
+        ),
+      };
+    });
+    await pollMentions(retried.deps, NOW);
+    assert.equal(calls.length, 2, 'one more search, no more');
+    assert.match(
+      retried.replies[0]!.text,
+      /^Yousaf v Mitchell: Yousaf 1:2 \(1\.50\)/,
+    );
+  });
+
+  test('an outage on the second search answers from the first, and keeps its cost', async () => {
+    let calls = 0;
+    const { deps, replies } = await bot([[mention('147', '@vaticeno odds')]]);
+    answering(deps, async () => {
+      if (++calls === 2) throw new LlmUnavailable('search down');
+      return {
+        text: '{"found": true, "event": "X v Y", "status": "upcoming", "outcomes": []}',
+      };
+    });
+    await pollMentions(deps, NOW);
+    assert.equal(
+      replies[0]!.text,
+      'No odds for this one — finished, too far off, or nobody prices it.',
+    );
+    const [odds] =
+      await t.sql`select count(*)::int as n from cost_events where operation = 'odds'`;
+    assert.equal(odds!.n, 2, 'the first search, model and search rows');
   });
 
   test('under a recorded prediction its contract names the event: no posts are read', async () => {

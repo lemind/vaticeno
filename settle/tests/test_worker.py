@@ -20,7 +20,7 @@ from web3 import Web3
 from web3.exceptions import ContractLogicError
 
 from settle.chain import ChainMismatch, Escrow, claim_hash
-from settle.worker import heartbeat, read_key, register, run_once
+from settle.worker import heartbeat, read_key, record_tron_costs, register, run_once
 
 ROOT = Path(__file__).resolve().parents[2]
 CONTRACTS = ROOT / "contracts"
@@ -595,3 +595,23 @@ def test_a_balance_short_of_what_is_owed_and_an_old_backlog_are_alerts():
     found = conditions(10**18, 99, 100, queue, now)
     assert set(found) == {"underfunded", "backlog_old", "stuck"}
     assert conditions(10**18, 100, 100, {**queue, "oldest_backlog_at": now, "stuck": 0}, now) == {}
+
+
+def test_tron_alerts_on_the_oracles_trx_in_sun():
+    from settle.health import TRX_LOW_SUN, conditions
+
+    now = datetime.now(UTC)
+    calm = {"backlog": 0, "oldest_backlog_at": None, "stuck": 0, "last_settled_at": None}
+    found = conditions(TRX_LOW_SUN - 1, 0, 0, calm, now, low=TRX_LOW_SUN, unit="sun")
+    assert found == {"gas_low": f"oracle gas {TRX_LOW_SUN - 1} sun, below {TRX_LOW_SUN}"}
+    assert conditions(TRX_LOW_SUN, 0, 0, calm, now, low=TRX_LOW_SUN, unit="sun") == {}
+
+
+def test_the_worker_records_tron_fees_and_nothing_else_into_costs(db):
+    """Spec 007 FR-007: as settle_rw it may insert Tron settlement rows only (migration 0030)."""
+    record_tron_costs(db["worker"], [12_500_000, 0])
+    rows = db["owner"].execute("select provider, operation, units from cost_events").fetchall()
+    assert rows == [("tron", "settle_tx", 12_500_000)], "a zero fee writes no row"
+    with pytest.raises(psycopg.errors.InsufficientPrivilege):
+        db["worker"].execute("insert into cost_events (provider, operation, units, usd_cost) "
+                             "values ('gemini', 'search', 1, 1)")

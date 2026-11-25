@@ -27,7 +27,7 @@ A follower-count prediction is decided by reading the account's count from X at 
 
 **Own feed (specs 002 and 005):** [spec 002](specs/002-content-feed/spec.md),
 [spec 005](specs/005-x-growth/spec.md), [tasks](specs/005-x-growth/tasks.md), [rules](docs/content-rules.md).
-Live on the server. Once a day it reposts the most-liked announcement of an upcoming event, found by one X
+Live on the server. Once a day it reposts the most-liked announcement of an upcoming event people bet on, found by one X
 search over that weekday's group of event accounts, then the next group, until one has an event. Every day the queue leaves free, it posts an event of its own, with a
 poster, once two sites confirm it. Every weekend's biggest Hong Kong race goes out on Friday (Saturday if
 Friday found none): the race, day and course, the five shortest prices and a range for the rest, on a poster. Monday: the predictions coming due this week, only from authors on the
@@ -66,19 +66,19 @@ the model may look, so it would save nothing (spec SC-006). It runs as a private
 |---|---|
 | X: mentions → one reply each; fixes by replying under the bot's answer with the bot tagged; STOP; help; verdict replies carrying the result; questions answered from the conversation, or from the web when nothing in the thread can settle them | |
 | Predictions → contracts by AI, checked in code; price + date = daily close; unclear ones get a checked example | |
-| Sports: the event and its competitor must exist (web search), competition filled in, recordable until the start | |
+| Sports: the event and its competitor must exist (web search), competition filled in, a match or fight names both sides, recordable until the start | |
 | Database: lock and verdict rules enforced by Postgres, locally and on Supabase | Backups: scripts in `deploy/`, not installed (owner's call) |
 | Verdicts after the deadline: Coinbase daily close, the account's follower count from X, or AI reading web pages behind code gates; human review; a per-claim spending ceiling with an alert | |
 | Own feed (specs 002, 005), live: one event repost a day found by search, own event posts with a poster every free day, the weekend's Hong Kong race with its odds on Fridays, the Monday list and the Friday record, one verdict reply of a listed author reposted a day, the owner's dated queue; caps and "never twice" enforced by Postgres; run by systemd timers | |
 | Site visits counted with Cloudflare Web Analytics, cookie-free (spec 005) | |
 | Claim and author pages, public on [vaticeno.n30sk.cc](https://vaticeno.n30sk.cc) at `/claim/<slug>` (old `/c/` links forward) | |
 | Testnet wagers (spec 003): escrow contract on Base Sepolia, source verified; the worker that signs and settles; `wager` on X → one link per claim → a page where your own wallet offers, accepts, pays out or refunds; a browser wager settled and paid out (2026-10-26) | |
-| **Real money (Stage 4)**: contract v2, no fee, in USDC on Base and Arbitrum One and USDT0 on Arbitrum One, sources verified; one worker per market; testnet runs on both networks first; the first real wager paid out (2026-11-06) | Parked: wallet links (one X account, one wallet) |
+| **Real money (Stage 4)**: contract v2, no fee, in USDC on Base and Arbitrum One and USDT0 on Arbitrum One, sources verified; one worker per market; testnet runs on both networks first; the first real wager paid out (2026-11-06) | Parked: wallet links (one X account, one wallet). **USDT on Tron** ([spec 007](specs/007-usdt-tron/spec.md)): built and proven on Nile, merged switched off (`ENABLE_TRON`), paused before mainnet (2026-11-21); minimum 5 USDT; next, a contract version where users pay every fee, the verdict included (T715–T716) |
 | Verdicts decide on the right event (spec 004): a page must name the event the contract does before it counts, a site speaks through its best page rather than its first, silence proves nothing, and no verdict contradicts its own evidence | |
 | A verdict that was wrong is corrected (spec 004): the original is never edited, the correction is a separate record posted once in the claim's thread on its own; the Monday recheck writes one when today's rules decide a HIT or MISS differently; a match nobody can place in time is refused rather than recorded | |
 | Local verifier (spec 003): our own model, published on Hugging Face, reads each web verdict's pages in shadow and records what it would conclude; person-confirmed outcomes counted on the status page | Parked: going live saves no paid call |
-| `odds` on X (spec 006), live: the range of up to three bookmakers per outcome, fractional with decimals beside it, nothing else; a race's five favourites and a range for the rest; each lookup's prices logged | Cost per reply measured after a week (T609a) |
-| Error tracking, logs and alerts (Sentry, production only); an email when a scheduled job fails, with the reason; tests on every pull request | |
+| `odds` on X (spec 006), live: the range of up to three bookmakers per outcome, fractional with decimals beside it, nothing else; a race's five favourites and a range for the rest; an event already under way gets "It's live now — I don't give in-play odds."; each lookup's prices logged | Cost per reply measured after a week (T609a) |
+| Error tracking, logs and alerts (Sentry, production only); an email when a scheduled job fails, with the reason, and a warning when one finds nothing to do; tests on every pull request | |
 
 ## Commands (on X)
 
@@ -88,7 +88,7 @@ the model may look, so it would save nothing (spec SC-006). It runs as a private
 | `@vaticeno` as a reply to your own post | records that post |
 | a reply under the bot's answer, with `@vaticeno` typed in it | a fix (within 15 min of RECORDED; anytime within 24 h of NOT RECORDED) |
 | `@vaticeno help` | the list of actions |
-| `@vaticeno odds` under a post about a match or a race | the bookmakers' range, up to three of them, and nothing else, e.g. `City 6:5 (2.20) · Arsenal 2:1–9:4 (3.00–3.25)`; a race's five favourites and a range for the rest |
+| `@vaticeno odds` (or `Spivac odds`: the word anywhere in a short post) under a post about a match or a race | the bookmakers' range, up to three of them, and nothing else, e.g. `City 6:5 (2.20) · Arsenal 2:1–9:4 (3.00–3.25)`; a race's five favourites and a range for the rest; no in-play odds |
 | a question, anywhere it is tagged | an answer — see below |
 | `@vaticeno quote` | a sourced quote from Wikiquote about bets, luck, risk, sport, bitcoin |
 | `@vaticeno selfpromo` (or promote, show off, flex, brag, who are you…) | a motto + a joke |
@@ -181,7 +181,8 @@ connection string in the gitignored `.env.production`; apply migrations there wi
 `npx tsx --env-file=.env.production src/cli/db-migrate.ts` before deploying code that needs them.
 Claim pages are public through Caddy: `https://vaticeno.n30sk.cc/claim/<slug>` and its `/wager` page, which
 needs `ESCROW_ADDRESS` and `STAKE_TOKEN_ADDRESS` in the server's `.env`, or, from Stage 4, `WAGER_NETWORKS`
-naming every market (`?network=<market>` picks one: `8453`, `42161`, `42161-usdt`, `84532`). With `CF_ANALYTICS_TOKEN` set,
+naming every market (`?network=<market>` picks one: `8453`, `42161`, `42161-usdt`, `84532`). Tron's markets
+(spec 007) are refused unless `ENABLE_TRON=true`, off while Tron is paused. With `CF_ANALYTICS_TOKEN` set,
 every public page carries Cloudflare Web Analytics' cookie-free beacon and a line saying so (spec 005); the
 numbers are on the owner's Cloudflare dashboard, filtered by host, and nothing is stored on the server.
 
@@ -277,8 +278,8 @@ src/
 drizzle/      SQL migrations (tables, triggers, row-level security)
 status/       the owner's status page (Python, FastAPI)
 load/         load-test harness, local targets only
-contracts/    the escrows (Solidity, Foundry): v1 on the testnet, v2 for real money; tests, deploy scripts
-settle/       the settlement worker (Python): signs open authorizations, settles stakes
+contracts/    the escrows (Solidity, Foundry): v1 on the testnet, v2 for real money, also built for Tron; tests, deploy scripts
+settle/       the settlement worker (Python): signs open authorizations, settles stakes; EVM and Tron adapters
 verifier/     the local verifier (Python): eval and training (offline), serve (the Cloud Run service)
 tests/        database tests against real Postgres
 deploy/       systemd units and feed timers, Caddyfile, server setup, deploy and move scripts
@@ -294,6 +295,6 @@ Node 22 · TypeScript (strict) · Zod · PostgreSQL (Supabase) + Drizzle · Gemi
 Fastify (server-rendered pages; one browser script, for the wallet) · node-cron (jobs in the same process;
 the feed's on systemd timers).
 Python 3.12 · FastAPI + Jinja2 (the status page) · ONNX Runtime on Cloud Run (the verifier; trained
-with PyTorch and Transformers on Colab). Solidity + Foundry on Base and Arbitrum One (the escrows,
+with PyTorch and Transformers on Colab). Solidity + Foundry on Base and Arbitrum One, Tron's solc and tronpy for Tron (the escrows,
 [settlement policy](docs/settlement-policy.md)). Planned, not in yet: Redis and RabbitMQ, each when its
 trigger is measured ([decision 003](docs/decisions/003-redis-and-rabbitmq.md)).

@@ -26,10 +26,44 @@ const RECEIPT_WAIT_MS = 180_000;
 
 const data = JSON.parse(document.getElementById('wager-data').textContent);
 const $ = (id) => document.getElementById(id);
-let account = null;
+let account = null; // always `0x…` (20 bytes), what the contract reads; on Tron, `shownAccount` is its `T…` form
+let shownAccount = null;
 let chain = null; // the last successful read
 
 const short = (addr) => `${addr.slice(0, 6)}…${addr.slice(-4)}`;
+
+// ---- Tron (spec 007): TronLink instead of window.ethereum, `T…` addresses, Tronscan links ----
+const tron = data.family === 'tron';
+const tronWeb = () => window.tronLink?.tronWeb || window.tronWeb;
+// The functions the page sends, by selector: TronLink builds a call from its signature and the raw arguments.
+const SIGNATURES = {
+  [SELECTORS.open]: 'open(bytes32,uint64,uint64,bytes,bool,uint128)',
+  [SELECTORS.accept]: 'accept(uint256)',
+  [SELECTORS.expire]: 'expire(uint256)',
+  [SELECTORS.payout]: 'payout(uint256)',
+  [SELECTORS.refund]: 'refund(uint256)',
+  [SELECTORS.withdraw]: 'withdraw()',
+  [SELECTORS.approve]: 'approve(address,uint256)',
+};
+const B58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+const sha256 = async (bytes) => new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
+// `0x…` → `T…`: 0x41, the 20 bytes, then the first four bytes of a double SHA-256.
+async function tronAddress(hex) {
+  const body = new Uint8Array(21);
+  body[0] = 0x41;
+  for (let i = 0; i < 20; i++) body[i + 1] = parseInt(hex.slice(2 + 2 * i, 4 + 2 * i), 16);
+  const check = (await sha256(await sha256(body))).slice(0, 4);
+  let value = BigInt('0x' + [...body, ...check].map((b) => b.toString(16).padStart(2, '0')).join(''));
+  let text = '';
+  while (value > 0n) {
+    text = B58[Number(value % 58n)] + text;
+    value /= 58n;
+  }
+  return text;
+}
+const shown = async (addr) => (tron ? tronAddress(addr) : addr);
+const addressLink = (addr) => `${data.explorer}/address/${addr}`;
+const txLink = (hash) => (tron ? `${data.explorer}/transaction/${hash.replace(/^0x/, '')}` : `${data.explorer}/tx/${hash}`);
 const nowSeconds = () => Math.floor(Date.now() / 1000);
 const utc = (seconds) => new Date(seconds * 1000).toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
 
@@ -46,7 +80,7 @@ async function readAll(calls) {
       last = error; // the next node; one refusing says nothing about the chain
     }
   }
-  if (window.ethereum && (await walletOnThisChain()))
+  if (!tron && window.ethereum && (await walletOnThisChain()))
     return Promise.all(batch.map(({ params }) => window.ethereum.request({ method: 'eth_call', params })));
   throw last;
 }
@@ -108,6 +142,11 @@ async function loadChain() {
   const caps = v2
     ? { minStake: n('minStake'), maxStake, lockedOnClaim: n('lockedOnClaim') ?? 0n, maxPerClaim: n('maxPerClaim'), lockedTotal: n('lockedTotal'), maxTotal: n('maxTotal'), decimals, symbol }
     : null;
+  const stakes = raw.map((hex, i) => ({ id: newest[i], ...decodeStake(hex) }));
+  for (const stake of stakes) {
+    stake.makerShown = await shown(stake.maker);
+    stake.takerShown = await shown(stake.taker);
+  }
   return {
     paused: paused === 1n,
     maxStake,
@@ -121,7 +160,7 @@ async function loadChain() {
     balance,
     caps,
     credit: n('credit'),
-    stakes: raw.map((hex, i) => ({ id: newest[i], ...decodeStake(hex) })),
+    stakes,
   };
 }
 
@@ -139,7 +178,7 @@ async function refresh() {
   renderTerms();
   renderWagers();
   renderOfferForm();
-  if (account) $('balance').textContent = `${short(account)} · ${units(chain.balance)} on ${data.chainName}`;
+  if (account) $('balance').textContent = `${short(shownAccount)} · ${units(chain.balance)} on ${data.chainName}`;
   renderWithdraw();
   if (busy) setBusy(true); // a redraw mid-action draws fresh buttons: they stay locked too
 }
@@ -181,10 +220,10 @@ function renderWagers() {
     const empty = stake.taker === '0x0000000000000000000000000000000000000000';
     // Every party links to its own page on the explorer, so either side can check the other (and itself).
     const cells = [
-      [`#${stake.id}`, `${data.explorer}/address/${data.escrow}#readContract`],
+      [`#${stake.id}`, tron ? `${data.explorer}/contract/${data.escrowShown}/code` : `${data.explorer}/address/${data.escrow}#readContract`],
       [`${units(stake.amount)} each, on ${data.chainName}`],
-      [`${short(stake.maker)} on ${makerSide}`, `${data.explorer}/address/${stake.maker}`],
-      empty ? ['—'] : [`${short(stake.taker)} on ${stake.makerSaysHit ? 'MISS' : 'HIT'}`, `${data.explorer}/address/${stake.taker}`],
+      [`${short(stake.makerShown)} on ${makerSide}`, addressLink(stake.makerShown)],
+      empty ? ['—'] : [`${short(stake.takerShown)} on ${stake.makerSaysHit ? 'MISS' : 'HIT'}`, addressLink(stake.takerShown)],
       [describe(stake)],
     ];
     const labels = ['Wager', 'Stake', 'Maker', 'Taker', 'State']; // the phone layout's card labels
@@ -257,7 +296,36 @@ function renderOfferForm() {
 }
 
 
+async function connectTron() {
+  if (!window.tronLink && !window.tronWeb) {
+    status('No TronLink found in this browser. Install TronLink, then reload.');
+    return;
+  }
+  await window.tronLink?.request({ method: 'tron_requestAccounts' });
+  const tw = tronWeb();
+  if (!tw?.defaultAddress?.hex) throw new Error('TronLink is locked: unlock it and try again');
+  useAccount('0x' + tw.defaultAddress.hex.slice(2), tw.defaultAddress.base58);
+  ensureTronNetwork();
+  await refresh();
+}
+
+// HACK(tron): SPECULATIVE — TronLink names no chain id, so its node's host tells Nile from mainnet. See
+// docs/decisions/010-usdt-tron.md. REVISIT: on the Nile run (spec 007 T711), or if TronLink exposes a chain id.
+function ensureTronNetwork() {
+  const host = String(tronWeb()?.fullNode?.host ?? '');
+  const right = /nile/i.test(data.chainName) ? /nile/i.test(host) : !/nile|shasta/i.test(host);
+  if (!right) throw new Error(`TronLink is on another Tron network: switch it to ${data.chainName} and try again`);
+  syncTronAccount();
+}
+
+// TronLink can switch accounts without telling the page: every check and send uses the one it holds now.
+function syncTronAccount() {
+  const now = tronWeb()?.defaultAddress;
+  if (now?.hex && '0x' + now.hex.slice(2) !== account) useAccount('0x' + now.hex.slice(2), now.base58);
+}
+
 async function connect() {
+  if (tron) return connectTron();
   if (!window.ethereum) {
     status('No wallet found in this browser. Install MetaMask or Coinbase Wallet, then reload.');
     return;
@@ -287,7 +355,7 @@ function status(text, txHash) {
   line.replaceChildren(text);
   if (txHash) {
     const link = document.createElement('a');
-    link.href = `${data.explorer}/tx/${txHash}`;
+    link.href = txLink(txHash);
     link.rel = 'noopener';
     link.textContent = ` ${short(txHash)}`;
     line.append(link);
@@ -320,7 +388,26 @@ async function waitMined(label, read, firstHash) {
   throw new Error(`${label} is still pending; check it on the explorer`);
 }
 
+// Tron: TronLink builds the call from the function's signature and the raw arguments, with a fee limit, since
+// Tron's default is none (ADR 010); mined means a receipt, and anything but SUCCESS is a failure.
+async function sendTron(label, to, callData) {
+  ensureTronNetwork();
+  const tw = tronWeb();
+  const signature = SIGNATURES[callData.slice(0, 10)];
+  const { transaction } = await tw.transactionBuilder.triggerSmartContract(
+    '41' + to.slice(2), signature, { feeLimit: data.feeLimitSun, rawParameter: callData.slice(10) }, [], tw.defaultAddress.hex);
+  const sent = await tw.trx.sendRawTransaction(await tw.trx.sign(transaction));
+  if (!sent.result) throw new Error(`${label} was refused: ${sent.code ?? 'no reason given'}`);
+  const hash = sent.txid ?? transaction.txID;
+  await waitMined(label, async () => {
+    const info = await tw.trx.getTransactionInfo(hash);
+    if (!info?.blockNumber) return null;
+    return { ok: (info.receipt?.result ?? 'SUCCESS') === 'SUCCESS', hash };
+  }, hash);
+}
+
 async function send(label, to, callData) {
+  if (tron) return sendTron(label, to, callData);
   await ensureNetwork();
   const hash = await window.ethereum.request({ method: 'eth_sendTransaction', params: [{ from: account, to, data: callData }] });
   await waitMined(label, async () => {
@@ -368,8 +455,17 @@ async function sendBatch(label, calls, version) {
 // Approve exactly what this wager needs, and only when the allowance is short; batched with the stake
 // when the wallet can, else approve first, then the stake.
 async function sendWithAllowance(amount, label, to, callData) {
+  if (tron) ensureTronNetwork(); // the account the allowance is read for is the one that will send
   const [allowance] = await readAll([[data.token, encodeAllowance(account, data.escrow)]]);
   if (decodeUint(allowance) >= amount) return send(label, to, callData);
+  if (tron) {
+    // One approval for every later stake: on Tron each costs about 10 TRX (owner 2026-11-21, spec 007 FR-004c).
+    // The escrow only ever takes from the wallet that calls it. Tron's USDT refuses a non-zero allowance changed
+    // straight to another, so a leftover one goes to 0 first.
+    if (decodeUint(allowance) > 0n) await send(`Reset ${chain.symbol} approval`, data.token, encodeApprove(data.escrow, 0n));
+    await send(`Approve ${chain.symbol} once`, data.token, encodeApprove(data.escrow, 2n ** 256n - 1n));
+    return send(label, to, callData);
+  }
   const approve = { to: data.token, data: encodeApprove(data.escrow, amount) };
   const version = await canBatch();
   if (version) return sendBatch(label, [approve, { to, data: callData }], version);
@@ -440,13 +536,26 @@ async function makeOffer(event) {
 }
 
 // A wallet that already let this site in says so without a popup (eth_accounts), so a reload stays connected.
-function useAccount(next) {
+function useAccount(next, nextShown) {
   account = next ?? null;
+  shownAccount = nextShown ?? account;
   $('connect').hidden = Boolean(account);
   if (!account) $('balance').textContent = '';
 }
 
 async function rememberedAccount() {
+  if (tron) {
+    // TronLink sets tronWeb a moment after the page loads, and tells of account switches by message.
+    for (let tries = 0; tries < 10 && !tronWeb()?.defaultAddress?.hex; tries++) await new Promise((r) => setTimeout(r, 300));
+    syncTronAccount();
+    window.addEventListener('message', (event) => {
+      if (event.data?.message?.action === 'accountsChanged') {
+        syncTronAccount();
+        refresh();
+      }
+    });
+    return;
+  }
   if (!window.ethereum) return;
   try {
     const [known] = await window.ethereum.request({ method: 'eth_accounts' });

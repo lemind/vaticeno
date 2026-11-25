@@ -14,6 +14,8 @@ contract TestUsdc {
     mapping(address => uint256) public balanceOf;
     mapping(address => mapping(address => uint256)) public allowance;
     mapping(address => bool) public isBlocked;
+    // Like Tron's USDT: `transfer` moves the tokens and returns false (docs/decisions/010-usdt-tron.md).
+    bool public transferReturnsFalse;
 
     event Transfer(address indexed from, address indexed to, uint256 value);
     event Approval(address indexed owner, address indexed spender, uint256 value);
@@ -37,6 +39,11 @@ contract TestUsdc {
         emit Blocked(account, blocked);
     }
 
+    function setTransferReturnsFalse(bool on) external {
+        require(msg.sender == minter, "not minter");
+        transferReturnsFalse = on;
+    }
+
     function approve(address spender, uint256 value) external returns (bool) {
         allowance[msg.sender][spender] = value;
         emit Approval(msg.sender, spender, value);
@@ -45,7 +52,7 @@ contract TestUsdc {
 
     function transfer(address to, uint256 value) external returns (bool) {
         _move(msg.sender, to, value);
-        return true;
+        return !transferReturnsFalse;
     }
 
     function transferFrom(address from, address to, uint256 value) external returns (bool) {

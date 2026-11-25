@@ -50,10 +50,18 @@ Under a post about a race, `@vaticeno odds` gets the five shortest prices and on
 
 - Prices that disagree wildly between bookmakers show as a wide range.
 - An event already finished: no bookmaker prices it → the "no prices" reply.
+- An event under way (owner, 2026-11-21): no in-play odds, ever → "It's live now — I don't give in-play odds."
+  The search says whether the event is upcoming, live or finished (instruction `odds.v3`).
+- An upcoming event with no prices on the first search is searched once more before "no prices": a small fight on
+  a big card came back empty once (2026-11-21, Shoaib Yousaf v John Mitchell).
 - `odds` as the first word, or "what are the odds", is the command, numbers included ("odds pls", "odds for UFC
   310"); "odds are / is / say …" ("odds are BTC hits 100k") is a prediction for the model to read (review
-  2026-11-21). If X cannot read the post replied to or quoted, the mention is retried, never answered. Unlike `wager`, the word
-  anywhere else in a post is not the command.
+  2026-11-21). If X cannot read the post replied to or quoted, the mention is retried, never answered. Anywhere
+  else in a short post (six words or fewer) the word is the command too ("Spivac odds", owner 2026-11-24), unless it
+  is an idiom ("against all odds", "beat the odds") or the post quotes a price ("Kabayel 1/16"): that is talk.
+- A typed `@vaticeno` at the start of a reply merges into X's reply prefix and looks carried (2026-11-24, "Spivac
+  odds" went unanswered). An odds command is answered even then; a post that also tags Grok is asking Grok, and
+  every other command still needs the handle typed after the prefix (001's "no tag, no answer").
 - The search is down: no reply that run; the mention is retried, never answered twice (INIT_SPEC §6.7). An outage
   is never answered "no bookmaker prices it"; only an answer that came back and gave fewer than two prices is.
 

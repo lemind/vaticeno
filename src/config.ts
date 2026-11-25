@@ -112,6 +112,11 @@ const CoreEnvSchema = z
       .enum(['true', 'false'])
       .default('false')
       .transform((v) => v === 'true'),
+    // Tron (spec 007) is built and paused: a Tron entry in WAGER_NETWORKS is refused until this is true.
+    ENABLE_TRON: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((v) => v === 'true'),
     // On (the default): picks are logged, nothing is posted. Posting needs an explicit false.
     FEED_DRY_RUN: z
       .enum(['true', 'false'])
@@ -226,7 +231,13 @@ const CoreEnvSchema = z
             "PUBLIC_RPC_URLS names one network's nodes; with WAGER_NETWORKS, list them in src/wager/networks.ts",
         });
       try {
-        parseWagerNetworks(env.WAGER_NETWORKS);
+        const tron = parseWagerNetworks(env.WAGER_NETWORKS).filter(
+          (n) => n.family === 'tron',
+        );
+        if (tron.length > 0 && !env.ENABLE_TRON)
+          throw new Error(
+            `Tron is switched off (ENABLE_TRON=false): ${tron.map((n) => n.key).join(', ')}`,
+          );
       } catch (error) {
         ctx.addIssue({
           code: 'custom',

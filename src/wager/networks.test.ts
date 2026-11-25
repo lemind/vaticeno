@@ -41,3 +41,25 @@ test('Arbitrum One carries a USDT0 market beside its USDC one, under its own key
     /named twice/,
   );
 });
+
+test('Tron takes Tether’s USDT only, in its T… form or 0x…; Nile takes any token', () => {
+  const USDT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
+  const [tron] = parseWagerNetworks(`728126428:2:${A}:${USDT}`);
+  assert.deepEqual(
+    [tron!.family, tron!.key, tron!.symbol, tron!.token],
+    ['tron', '728126428-usdt', 'USDT', '0xa614f803b6fd780986a42c78ec9c7f77e6ded13c'],
+  );
+  assert.throws(
+    () => parseWagerNetworks(`728126428:2:${A}:${A}`),
+    /Tether's USDT only/,
+  );
+  assert.throws(
+    () => parseWagerNetworks(`728126428:2:${A}:TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6u`),
+    /bad address/,
+  );
+  const [nile] = parseWagerNetworks(
+    `3448148188:2:${A}:TXYZopYRdj2D9XRtbG411XZZ3kM5VkAeBf`,
+  );
+  assert.deepEqual([nile!.family, nile!.symbol], ['tron', 'tokens']);
+  assert.throws(() => parseWagerNetworks(`8453:2:${A}:${USDT}`), /bad address/);
+});

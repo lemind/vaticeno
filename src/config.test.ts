@@ -58,3 +58,17 @@ test('the content feed is off and dry-run by default', () => {
     true,
   );
 });
+
+test('a Tron entry in WAGER_NETWORKS is refused until ENABLE_TRON is true (spec 007, paused)', () => {
+  const A = '0x' + '11'.repeat(20);
+  const WAGER_NETWORKS = `728126428:2:${A}:TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t`;
+  assert.throws(
+    () => loadCoreConfig({ DATABASE_URL: DB, WAGER_NETWORKS }),
+    /Tron is switched off/,
+  );
+  assert.equal(
+    loadCoreConfig({ DATABASE_URL: DB, WAGER_NETWORKS, ENABLE_TRON: 'true' })
+      .ENABLE_TRON,
+    true,
+  );
+});

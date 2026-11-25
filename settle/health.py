@@ -12,10 +12,13 @@ from psycopg.rows import dict_row
 
 from settle.alerts import Alerts
 from settle.chain import Escrow
+from settle.tron import TronEscrow
 
 # Thresholds, overridable in the worker's env file. Gas measured 2026-11-01 on Base Sepolia (T373): two settlements
 # cost 0.0000007 ETH at 0.006 gwei, so 0.0001 ETH is about 300 settlements of warning. Arbitrum One: UNRECONCILED.
 GAS_LOW_WEI = int(os.environ.get("GAS_LOW_WEI", str(10**14)))  # 0.0001 ETH
+# Tron (spec 007): the oracle's TRX, in sun. 200 TRX is about ten settlements at ADR 010's estimate: UNRECONCILED.
+TRX_LOW_SUN = int(os.environ.get("TRX_LOW_SUN", str(200 * 1_000_000)))
 BACKLOG_MAX_AGE = timedelta(hours=int(os.environ.get("BACKLOG_MAX_AGE_HOURS", "6")))
 STUCK_AFTER_ATTEMPTS = 10  # ten passes, about ten minutes
 
@@ -43,14 +46,17 @@ def record_health(conn: psycopg.Connection, escrow: Escrow, now: datetime, alert
               read_at = excluded.read_at
         """, (network, held.oracle_gas_wei, held.escrow_usdc, held.owed_usdc, queue["backlog"],
               queue["oldest_backlog_at"], queue["last_settled_at"], now))
-    alerts.update(network, conditions(held.oracle_gas_wei, held.escrow_usdc, held.owed_usdc, queue, now))
+    tron = isinstance(escrow, TronEscrow)
+    alerts.update(network, conditions(held.oracle_gas_wei, held.escrow_usdc, held.owed_usdc, queue, now,
+                                      low=TRX_LOW_SUN if tron else GAS_LOW_WEI, unit="sun" if tron else "wei"))
 
 
-def conditions(gas: int, balance: int, owed: int, queue: dict, now: datetime) -> dict[str, str]:
+def conditions(gas: int, balance: int, owed: int, queue: dict, now: datetime, low: int = GAS_LOW_WEI,
+               unit: str = "wei") -> dict[str, str]:
     """Every alert that holds now. A balance short of what is owed means someone cannot be paid: never normal."""
     found = {}
-    if gas < GAS_LOW_WEI:
-        found["gas_low"] = f"oracle gas {gas} wei, below {GAS_LOW_WEI}"
+    if gas < low:
+        found["gas_low"] = f"oracle gas {gas} {unit}, below {low}"
     if balance < owed:
         found["underfunded"] = f"escrow holds {balance}, owes {owed}"
     oldest = queue["oldest_backlog_at"]

@@ -26,6 +26,7 @@ import { alert, captureError } from '../observe.js';
 import {
   HELP_REPLY,
   hasTagsOrLinks,
+  ODDS_LIVE_REPLY,
   ODDS_NO_EVENT_REPLY,
   ODDS_NO_PRICES_REPLY,
   STOPPED_REPLY,
@@ -118,8 +119,15 @@ export async function routeMention(
   const body = cleanBody(mention.text);
   const command = resolveCommand(body); // a bare command, matched in code: no model call
 
+  // HACK(x): OBSERVED 2026-11-24, a typed tag merged into X's reply prefix ("Spivac odds" went unanswered). See
+  // specs/006-odds-command/spec.md (Edge Cases).
+  // REVISIT: with addressesBot's HACK. Odds only; a post that tags Grok is asking Grok (live 2026-11-19).
+  const asksUs = command === 'odds' && !/@grok\b/i.test(mention.text);
   // No mention, no reply (constitution VI, owner decision 2026-10-09). Decided before any spend.
-  if (!addressesBot(mention, deps.botHandle, deps.botUserId, weRepliedInThread)) {
+  if (
+    !asksUs &&
+    !addressesBot(mention, deps.botHandle, deps.botUserId, weRepliedInThread)
+  ) {
     // STOP is honoured wherever it is seen — silence is what they asked for — but earns no reply (§6.5).
     if (command === 'stop') {
       await deps.db
@@ -378,6 +386,8 @@ async function runCommand(
     });
     await saveCosts(deps, found.costs);
     if (found.outcome === 'odds') return { action: 'odds', reply: found.text };
+    if (found.outcome === 'live')
+      return { action: 'odds_live', reply: ODDS_LIVE_REPLY };
     return found.outcome === 'no_event'
       ? { action: 'odds_no_event', reply: ODDS_NO_EVENT_REPLY }
       : { action: 'odds_no_prices', reply: ODDS_NO_PRICES_REPLY };
