@@ -110,12 +110,8 @@ an event is, where and when, who won) is looked up on the web and answered from 
 answer, it reads further up and looks it up regardless (owner, 2026-11-11). One reply, no links, never a pick
 of its own, and it says it could not confirm something rather than inventing it.
 
-**It answers only where it was addressed.** X puts the handles of everyone in a thread at the front of every
-reply there, so once the bot has answered once, later replies arrive looking tagged even when two other people
-are talking to each other. Those get nothing. **No tag, no answer** (owner, 2026-11-11): under the bot's own
-post or in a thread it is in, a reply reaches it only when you typed `@vaticeno` yourself, a fix included; X's
-prefix alone is not a tag. A post of your own naming it, `@vaticeno` under your own post, and a tag that pulls it
-into a thread it was not in still reach it. STOP is recorded wherever it appears, addressed or not.
+**Tagged means answered** (owner, 2026-11-26): every mention gets one reply in its thread, wherever it is, a reply
+under the bot's own answer included. Only the bot's own posts, reposts and Grok's posts get none.
 
 ## Run locally
 

@@ -6,10 +6,11 @@ then the small ones together in one line; versions deployed while it was open sh
 
 ## 1.16.1 — 2026-11-26
 
-Replies under the bot's answer.
+Tagged means answered.
 
-- Replying right under the bot's answer to you reaches it again: X folds a typed `@vaticeno` there into its own,
-  so the bot now treats the person it answered as talking to it. Other people under that answer still tag it.
+- Every mention gets a reply, a reply under the bot's own answer included. Before, the bot tried to tell a tag you
+  typed from the one X adds to every reply in a thread, could not, and stayed silent when it was really asked.
+  Only Grok's posts get no answer, so the two bots never reply to each other forever.
 
 ## 1.16.0 — 2026-11-21
 

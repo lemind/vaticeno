@@ -11,7 +11,7 @@ import { amendClaim, type ClaimDeps, submitClaim } from '../lifecycle/claims.js'
 import type { SourceReader } from '../lifecycle/source-reader.js';
 import { log } from '../log.js';
 import { type Command, commandWordIn, resolveCommand } from './commands.js';
-import { addressesBot, escapeRegExp } from '../commands/parse.js';
+import { escapeRegExp } from '../commands/parse.js';
 import { ContractSchema } from '../contract/schema.js';
 import { renderStatement } from '../contract/render.js';
 import { type Intent, type ThreadPost, classifyIntent } from '../llm/intent.js';
@@ -70,9 +70,6 @@ const FIRST_RUN_PAGE_SIZE = 10; // no cursor yet: only recent mentions, keep the
 const PAGE_SIZE = 100;
 const MAX_PAGES = 5;
 const REPLIED_IDS_KEPT = 1000;
-// Conversations outlive replies: a verdict can land a year after the first reply in that thread, and X carries
-// our handle there the whole time. Kept 5× longer, so the thread is still known when the verdict posts.
-const CONVERSATIONS_KEPT = 5000;
 // Tries for one mention before it is dropped, and the pause before each retry: a transient model or
 // network fault gets ~23 minutes to pass, not three (owner decision 2026-10-07).
 const MENTION_RETRY_MINUTES = [1, 2, 5, 15];
@@ -105,13 +102,14 @@ function forModel(text: string): string {
     .trim();
 }
 
+// Grok's account (@grok), seen in our mentions since 2026-11-19.
+const GROK_USER_ID = '1720665183188922368';
+
 // What one mention means and what the bot answers (null = say nothing).
 export async function routeMention(
   deps: BotDeps,
   mention: Mention,
   now: Date,
-  weRepliedInThread = false,
-  answersOurReply = false,
 ): Promise<Routed> {
   if (mention.author_id === deps.botUserId)
     return { action: 'ignored_self', reply: null };
@@ -120,37 +118,14 @@ export async function routeMention(
   const body = cleanBody(mention.text);
   const command = resolveCommand(body); // a bare command, matched in code: no model call
 
-  // HACK(x): OBSERVED 2026-11-24, a typed tag merged into X's reply prefix ("Spivac odds" went unanswered). See
-  // specs/006-odds-command/spec.md (Edge Cases).
-  // REVISIT: with addressesBot's HACK. Odds only; a post that tags Grok is asking Grok (live 2026-11-19).
-  const asksUs = command === 'odds' && !/@grok\b/i.test(mention.text);
-  // No mention, no reply (constitution VI, owner decision 2026-10-09). Decided before any spend.
-  // HACK(x): OBSERVED 2026-11-26, the same merge under our answer to them ("Van win" went unanswered): the person
-  // we answered, replying right under that answer, is talking to us. See specs/001-stage0-contract-core/spec.md FR-008a.
-  if (
-    !asksUs &&
-    !answersOurReply &&
-    !addressesBot(mention, deps.botHandle, deps.botUserId, weRepliedInThread)
-  ) {
-    // STOP is honoured wherever it is seen — silence is what they asked for — but earns no reply (§6.5).
-    if (command === 'stop') {
-      await deps.db
-        .insert(optOuts)
-        .values({ xUserId: mention.author_id })
-        .onConflictDoNothing();
-      log('info', 'STOP in a post that did not address us; recorded, no reply', {
-        event: 'mention.stop_unaddressed',
-        tweet_id: mention.id,
-        author_id: mention.author_id,
-      });
-      return { action: 'stop_unaddressed', reply: null };
-    }
-    log('info', 'mention not addressed to us; no reply', {
-      event: 'mention.not_addressed',
+  // Tagged means answered (owner 2026-11-26): X can't tell a typed tag from the one it adds, so every mention is.
+  // Grok is the one exception: two bots tagging each other would never stop.
+  if (mention.author_id === GROK_USER_ID) {
+    log('info', 'mention from Grok; no reply', {
+      event: 'mention.from_grok',
       tweet_id: mention.id,
-      author_id: mention.author_id,
     });
-    return { action: 'ignored_not_addressed', reply: null };
+    return { action: 'ignored_grok', reply: null };
   }
 
   // "I wager BTC hits 100k" under no claim is a prediction to record, not a request for a wager link.
@@ -980,24 +955,7 @@ export async function pollMentions(
     } else {
       let routed: Routed;
       try {
-        const inThread = Boolean(
-          mention.conversation_id &&
-          state.answered_conversation_ids.includes(mention.conversation_id),
-        );
-        const parentId = mention.referenced_tweets?.find(
-          (ref) => ref.type === 'replied_to',
-        )?.id;
-        const answersOurReply = state.our_replies.some(
-          ([replyId, authorId]) =>
-            replyId === parentId && authorId === mention.author_id,
-        );
-        routed = await routeMention(
-          cachedReads(deps),
-          mention,
-          now,
-          inThread,
-          answersOurReply,
-        );
+        routed = await routeMention(cachedReads(deps), mention, now);
       } catch (error) {
         const attempts =
           state.failing?.tweet_id === mention.id ? state.failing.attempts + 1 : 1;
@@ -1027,11 +985,6 @@ export async function pollMentions(
         action: routed.action,
         text_chars: mention.text.length,
       });
-      // A thread that named us carries our handle into every reply below it, answered or not: Grok's reply under a
-      // tag we ignored got the help reply (2026-11-19). From now on only a typed handle counts there.
-      // A mention given up on was never handled: a retried tag there must still count.
-      if (routed.action !== 'given_up')
-        rememberConversation(state, mention.conversation_id);
       if (routed.deferQuote) {
         state.pending_quotes.push({
           tweet_id: mention.id,
@@ -1045,13 +998,7 @@ export async function pollMentions(
       const replyId = routed.reply
         ? await sendReply(deps, state, mention, routed.reply, now, routed.onNotSent)
         : null;
-      if (replyId) {
-        replies++;
-        state.our_replies = [
-          ...state.our_replies,
-          [replyId, mention.author_id] as [string, string],
-        ].slice(-CONVERSATIONS_KEPT);
-      }
+      if (replyId) replies++;
       if (routed.slug && replyId)
         await rememberThread(deps, routed.slug, [mention.id, replyId]); // only threads the bot answered in
       else if (routed.slug && routed.discloses)
@@ -1152,18 +1099,6 @@ const inMinutes = (now: Date, minutes: number) =>
   new Date(now.getTime() + minutes * 60_000).toISOString();
 
 // Threads we have posted in or been named in: X prepends our handle to every later reply there (src/commands/parse.ts).
-function rememberConversation(
-  state: IngestState,
-  conversationId: string | undefined,
-): void {
-  if (!conversationId || state.answered_conversation_ids.includes(conversationId))
-    return;
-  state.answered_conversation_ids = [
-    ...state.answered_conversation_ids,
-    conversationId,
-  ].slice(-CONVERSATIONS_KEPT);
-}
-
 // The posted reply's id, or null when nothing was posted. The mention is saved as answered BEFORE the post:
 // a crash mid-post never replays it, and a failed post is never retried (INIT_SPEC §6.7).
 async function sendReply(
@@ -1184,9 +1119,6 @@ async function sendReply(
   await writeIngestState(state, deps.statePath);
   try {
     const posted = await deps.postReply(mention.id, text);
-    // Only a reply that went out puts us in the thread: X carries nothing for a post that never existed.
-    rememberConversation(state, mention.conversation_id);
-    await writeIngestState(state, deps.statePath);
     log('info', 'reply posted', {
       event: 'reply.posted',
       tweet_id: mention.id,

@@ -59,9 +59,8 @@ Under a post about a race, `@vaticeno odds` gets the five shortest prices and on
   2026-11-21). If X cannot read the post replied to or quoted, the mention is retried, never answered. Anywhere
   else in a short post (six words or fewer) the word is the command too ("Spivac odds", owner 2026-11-24), unless it
   is an idiom ("against all odds", "beat the odds") or the post quotes a price ("Kabayel 1/16"): that is talk.
-- A typed `@vaticeno` at the start of a reply merges into X's reply prefix and looks carried (2026-11-24, "Spivac
-  odds" went unanswered). An odds command is answered even then; a post that also tags Grok is asking Grok, and
-  every other command still needs the handle typed after the prefix (001's "no tag, no answer").
+- Every mention is answered (001 FR-008a, 2026-11-26), so `odds` under the bot's own answer or in a busy thread
+  is answered too.
 - The search is down: no reply that run; the mention is retried, never answered twice (INIT_SPEC §6.7). An outage
   is never answered "no bookmaker prices it"; only an answer that came back and gave fewer than two prices is.
 

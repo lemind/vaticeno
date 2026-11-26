@@ -57,35 +57,6 @@ function stripLeadingHandles(text: string): string {
   return text.replace(/^(\s*@\w{1,15})+/, '').trim();
 }
 
-export type AddressableMention = {
-  text: string;
-  author_id: string;
-  in_reply_to_user_id?: string;
-  referenced_tweets?: Array<{ type: string; id: string }>;
-};
-
-// Addressed to us, or did we just end up in it? See specs/001-stage0-contract-core/spec.md.
-// HACK(x): OBSERVED 2026-10-08 — v2 marks nothing as a carried handle. REVISIT: drop the body test if it does.
-export function addressesBot(
-  mention: AddressableMention,
-  botHandle: string,
-  botUserId: string,
-  weRepliedInThread: boolean,
-): boolean {
-  if (!mention.referenced_tweets?.some((ref) => ref.type === 'replied_to'))
-    return true; // its own post, naming us
-  // "@vaticeno" under their own post, or tagged into someone else's thread: deliberate, nothing carried.
-  if (mention.in_reply_to_user_id !== botUserId && !weRepliedInThread) return true;
-  // Under our post or in a thread we are in, X puts our handle in front of every reply: only a handle they
-  // typed is a tag. No tag, no answer, a fix included (owner decision 2026-11-11).
-  const handle = `@${escapeRegExp(botHandle)}\\b`;
-  if (new RegExp(handle, 'i').test(stripLeadingHandles(mention.text))) return true;
-  // HACK(x): OBSERVED 2026-11-06 — X lists each handle once in a reply's prefix, so ours twice there means one was
-  // typed ("@alice @vaticeno @vaticeno help" went unanswered). REVISIT: with the HACK above.
-  const prefix = mention.text.match(/^(\s*@\w{1,15})+/)?.[0] ?? '';
-  return (prefix.match(new RegExp(handle, 'gi')) ?? []).length > 1;
-}
-
 function cleanBody(text: string): string {
   return text.replace(LEADING_SEPARATORS, '').trim();
 }

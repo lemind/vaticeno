@@ -404,17 +404,10 @@ shown but never count as a contradiction.
   evaluated through the same proposal and checks as a real amend; failing ones are discarded and
   regenerated once; if none survive, the reply uses a fixed generic example. An unchecked example
   is never sent.
-- **FR-008a**: The bot MUST reply only where it was addressed (constitution VI). X prepends every
-  participant's handle to a reply, so a thread the bot has answered keeps producing mentions nobody intended:
-  those MUST NOT be answered, and MUST cost no model call and no conversation read. A post counts as addressed
-  when it replies to one of the bot's own posts, when it replies to a post by its own author, when it arrives
-  in a thread the bot has not posted in or been named in before, or when the handle appears outside the prepended
-  block (a thread that named the bot carries its handle like one it answered: Grok's reply under an ignored tag
-  got the help reply, 2026-11-19). One exception: an odds command counts as addressed with the handle only in
-  the block, since a typed tag at the start merges into it (spec 006, 2026-11-24); and so does a reply right
-  under the bot's answer from the person that answer was to, for the same reason (2026-11-26). STOP is
-  recorded wherever it is seen, addressed or not, and earns no reply when it was not (owner decision
-  2026-10-09, after ten unasked replies into one stranger's conversation).
+- **FR-008a**: Every mention X delivers is answered, once, in its thread (owner decision 2026-11-26: "tagged →
+  answered", nothing more). X cannot tell a typed tag from the one it adds to replies in a thread, and every rule
+  that tried to cost real people their answers. The bot's own posts, reposts and Grok's posts are not answered (two
+  bots tagging each other would never stop). STOP is recorded and acknowledged like any other command.
 - **FR-009**: All replies MUST fit within X's post length limit and contain no link card; the public
   page link is plain text.
 - **FR-010**: Amends — any reply from the claim's author directly under the bot's reply, the claim's post,

@@ -878,53 +878,6 @@ describe('fixes from X', () => {
     assert.equal((await t.sql`select count(*)::int as n from claims`)[0]!.n, 1);
   });
 
-  // The handle is in the body, not the prepended block: in a thread the bot has already answered, that is the
-  // only way to summon it again while replying to someone else (src/commands/parse.ts addressesBot).
-  test('strangers talking under our answer get no reply, no claim and no model call', async () => {
-    const summon = mention(
-      '70a',
-      '@vaticeno BTC daily close above $150,000 by 2026-12-31',
-    );
-    // X prepends our handle because we answered in this thread; nobody asked us anything (owner report 2026-10-09).
-    const carried = mention('71a', '@vaticeno @alice lol no way that happens', {
-      author_id: '400',
-      conversation_id: '70a',
-      in_reply_to_user_id: '401',
-      referenced_tweets: [{ type: 'replied_to', id: 'someone-else' }],
-    });
-    const { deps, replies } = await bot([[summon], [carried]]);
-    await pollMentions(deps, NOW);
-    const repliesBefore = replies.length;
-    const modelCalls = async () =>
-      (
-        await t.sql`select count(*)::int as n from cost_events where provider = 'gemini'`
-      )[0]!.n;
-    // X bills for every post its timeline returns, so a carried mention costs that one read whatever we do.
-    const postsRead = async () =>
-      (
-        await t.sql`select coalesce(sum(units), 0)::int as n from cost_events where operation = 'thread_read'`
-      )[0]!.n;
-    const modelsBefore = await modelCalls();
-    const postsBefore = await postsRead();
-    await pollMentions(deps, NOW);
-    assert.equal(replies.length, repliesBefore, 'no reply to a handle X carried');
-    assert.equal(
-      (await t.sql`select count(*)::int as n from claims`)[0]!.n,
-      1,
-      'no claim from a carried handle',
-    );
-    assert.equal(
-      await modelCalls(),
-      modelsBefore,
-      'no model call for a carried mention',
-    );
-    assert.equal(
-      await postsRead(),
-      postsBefore + 1,
-      'only the mention itself was paid for: no conversation read',
-    );
-  });
-
   // Only odds skips the typed-tag rule (review 2026-11-24): "wager" in strangers' talk is still not asking us.
   test('a carried handle in front of "I\'d wager…" gets no reply', async () => {
     const summon = mention(
@@ -985,31 +938,6 @@ describe('fixes from X', () => {
     assert.deepEqual(
       replies.map((r) => r.to),
       ['78a', '79a'],
-    );
-  });
-
-  test('STOP is recorded even when our handle was only carried, and earns no reply', async () => {
-    const summon = mention(
-      '72a',
-      '@vaticeno BTC daily close above $150,000 by 2026-12-31',
-    );
-    const stop = mention('73a', '@vaticeno @alice STOP', {
-      author_id: '500',
-      conversation_id: '72a',
-      in_reply_to_user_id: '501',
-      referenced_tweets: [{ type: 'replied_to', id: 'someone-else' }],
-    });
-    const { deps, replies } = await bot([[summon], [stop]]);
-    await pollMentions(deps, NOW);
-    const repliesBefore = replies.length;
-    await pollMentions(deps, NOW);
-    assert.equal(replies.length, repliesBefore, 'silence is what they asked for');
-    assert.equal(
-      (
-        await t.sql`select count(*)::int as n from opt_outs where x_user_id = '500'`
-      )[0]!.n,
-      1,
-      'the opt-out is recorded anyway',
     );
   });
 
@@ -1120,36 +1048,27 @@ describe('selfpromo and quote', () => {
   });
 });
 
-// Live 2026-11-19: under our own post, @Lemind asked Grok for odds (our handle carried, ignored); Grok's answer
-// carried our handle again and got the help reply.
-describe('a handle carried into a thread that named us', () => {
-  test('a reply below an earlier mention of us needs our handle typed, answered or not', async () => {
-    const asked = mention('160', '@vaticeno @grok odds?', {
-      conversation_id: 'conv-grok',
+// Tagged means answered (owner 2026-11-26), Grok excepted: two bots tagging each other would never stop.
+describe('every tag is answered', () => {
+  test('a reply in a thread we answered gets its answer, typed tag or not; Grok gets none', async () => {
+    const summon = mention('160', '@vaticeno help', { author_id: '400' });
+    const grok = mention('161', '@Lemind @vaticeno help', {
+      author_id: '1720665183188922368',
+      conversation_id: '160',
+      referenced_tweets: [{ type: 'replied_to', id: 'r-160' }],
+    });
+    const again = mention('162', '@vaticeno help', {
+      author_id: '400',
+      conversation_id: '160',
       in_reply_to_user_id: BOT,
-      referenced_tweets: [{ type: 'replied_to', id: 'own-post' }],
+      referenced_tweets: [{ type: 'replied_to', id: 'r-160' }],
     });
-    const grok = mention(
-      '161',
-      '@Lemind @vaticeno Current odds: Kabayel 1/16, Hysa 8/1',
-      {
-        author_id: '1720665183188922368',
-        conversation_id: 'conv-grok',
-        in_reply_to_user_id: ME,
-        referenced_tweets: [{ type: 'replied_to', id: '160' }],
-      },
-    );
-    const typed = mention('162', '@grok @vaticeno @vaticeno help', {
-      conversation_id: 'conv-grok',
-      in_reply_to_user_id: '1720665183188922368',
-      referenced_tweets: [{ type: 'replied_to', id: '161' }],
-    });
-    const { deps, replies } = await bot([[asked, grok, typed]]);
+    const { deps, replies } = await bot([[summon], [grok, again]]);
+    await pollMentions(deps, NOW);
     await pollMentions(deps, NOW);
     assert.deepEqual(
       replies.map((r) => r.to),
-      ['162'],
-      'neither the carried tag nor Grok gets a reply; a typed one does',
+      ['160', '162'],
     );
   });
 });
