@@ -4,6 +4,13 @@ What changed for people using Vaticeno, newest first. The version on the site's 
 A new feature raises the middle number, a fix the last one. One entry per pull request: the changes that matter,
 then the small ones together in one line; versions deployed while it was open share its entry.
 
+## 1.16.1 — 2026-11-26
+
+Replies under the bot's answer.
+
+- Replying right under the bot's answer to you reaches it again: X folds a typed `@vaticeno` there into its own,
+  so the bot now treats the person it answered as talking to it. Other people under that answer still tag it.
+
 ## 1.16.0 — 2026-11-21
 
 USDT on Tron, built and switched off.
@@ -14,8 +21,6 @@ USDT on Tron, built and switched off.
 - Odds: an event already under way gets "It's live now — I don't give in-play odds."; an event with no prices found
   is searched once more before "no odds". "odds" counts anywhere in the post ("Spivac odds"), and is answered even
   when X folds the typed tag into its reply prefix.
-- Replying right under the bot's answer to you reaches it again: X folds a typed `@vaticeno` there into its own,
-  so the bot now treats the person it answered as talking to it. Other people under that answer still tag it.
 - A fight or match is recorded with both sides named: the opponent the event search finds is written into the
   prediction when the wording leaves it out ("Mario Pinto wins their fight" no longer).
 - Smaller fixes: the email about a skipped scheduled job is a warning named after its job, not an error.
