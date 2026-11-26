@@ -948,6 +948,46 @@ describe('fixes from X', () => {
     );
   });
 
+  // X folds a typed tag into its prefix under our answer (live 2026-11-26, "Van win"): the person we answered is
+  // talking to us there; a stranger under the same answer still needs the tag typed.
+  test('the person we answered, replying right under our answer, is answered; a stranger is not', async () => {
+    const summon = mention(
+      '78a',
+      '@vaticeno BTC daily close above $150,000 by 2026-12-31',
+    );
+    const theirs = mention(
+      '79a',
+      '@vaticeno ETH daily close above $10,000 by 2026-12-31',
+      {
+        conversation_id: '78a',
+        in_reply_to_user_id: BOT,
+        referenced_tweets: [{ type: 'replied_to', id: 'r-78a' }],
+      },
+    );
+    const stranger = mention(
+      '80a',
+      '@vaticeno SOL daily close above $500 by 2026-12-31',
+      {
+        author_id: '400',
+        conversation_id: '78a',
+        in_reply_to_user_id: BOT,
+        referenced_tweets: [{ type: 'replied_to', id: 'r-78a' }],
+      },
+    );
+    const { deps, replies } = await bot([[summon], [theirs, stranger]], {
+      '78a': {
+        versionId: '78a',
+        text: 'BTC daily close above $150,000 by 2026-12-31',
+      },
+    });
+    await pollMentions(deps, NOW);
+    await pollMentions(deps, NOW);
+    assert.deepEqual(
+      replies.map((r) => r.to),
+      ['78a', '79a'],
+    );
+  });
+
   test('STOP is recorded even when our handle was only carried, and earns no reply', async () => {
     const summon = mention(
       '72a',

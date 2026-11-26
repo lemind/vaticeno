@@ -24,6 +24,8 @@ const IngestStateSchema = z.object({
   // Conversations the bot has replied in or been named in. X prepends our handle to every later reply there, so
   // this is what tells a thread we were dragged into from one we were tagged into (src/commands/parse.ts).
   answered_conversation_ids: z.array(z.string()).default([]),
+  // Our replies and whom each answered: that person replying under it is talking to us, tag or not (2026-11-26).
+  our_replies: z.array(z.tuple([z.string(), z.string()])).default([]),
   // `quote` mentions whose quote couldn't be fetched yet: retried on a ladder (src/bot/mentions.ts).
   pending_quotes: z
     .array(

@@ -111,6 +111,7 @@ export async function routeMention(
   mention: Mention,
   now: Date,
   weRepliedInThread = false,
+  answersOurReply = false,
 ): Promise<Routed> {
   if (mention.author_id === deps.botUserId)
     return { action: 'ignored_self', reply: null };
@@ -124,8 +125,11 @@ export async function routeMention(
   // REVISIT: with addressesBot's HACK. Odds only; a post that tags Grok is asking Grok (live 2026-11-19).
   const asksUs = command === 'odds' && !/@grok\b/i.test(mention.text);
   // No mention, no reply (constitution VI, owner decision 2026-10-09). Decided before any spend.
+  // HACK(x): OBSERVED 2026-11-26, the same merge under our answer to them ("Van win" went unanswered): the person
+  // we answered, replying right under that answer, is talking to us. See specs/001-stage0-contract-core/spec.md FR-008a.
   if (
     !asksUs &&
+    !answersOurReply &&
     !addressesBot(mention, deps.botHandle, deps.botUserId, weRepliedInThread)
   ) {
     // STOP is honoured wherever it is seen — silence is what they asked for — but earns no reply (§6.5).
@@ -980,7 +984,20 @@ export async function pollMentions(
           mention.conversation_id &&
           state.answered_conversation_ids.includes(mention.conversation_id),
         );
-        routed = await routeMention(cachedReads(deps), mention, now, inThread);
+        const parentId = mention.referenced_tweets?.find(
+          (ref) => ref.type === 'replied_to',
+        )?.id;
+        const answersOurReply = state.our_replies.some(
+          ([replyId, authorId]) =>
+            replyId === parentId && authorId === mention.author_id,
+        );
+        routed = await routeMention(
+          cachedReads(deps),
+          mention,
+          now,
+          inThread,
+          answersOurReply,
+        );
       } catch (error) {
         const attempts =
           state.failing?.tweet_id === mention.id ? state.failing.attempts + 1 : 1;
@@ -1028,7 +1045,13 @@ export async function pollMentions(
       const replyId = routed.reply
         ? await sendReply(deps, state, mention, routed.reply, now, routed.onNotSent)
         : null;
-      if (replyId) replies++;
+      if (replyId) {
+        replies++;
+        state.our_replies = [
+          ...state.our_replies,
+          [replyId, mention.author_id] as [string, string],
+        ].slice(-CONVERSATIONS_KEPT);
+      }
       if (routed.slug && replyId)
         await rememberThread(deps, routed.slug, [mention.id, replyId]); // only threads the bot answered in
       else if (routed.slug && routed.discloses)
