@@ -21,6 +21,8 @@ const IngestStateSchema = z.object({
       next_at: z.string().optional(),
     })
     .optional(),
+  // Who said STOP, and in which conversation: X tags us on their every later reply there, which must not undo it.
+  stopped_in: z.record(z.string(), z.string()).default({}),
   // `quote` mentions whose quote couldn't be fetched yet: retried on a ladder (src/bot/mentions.ts).
   pending_quotes: z
     .array(

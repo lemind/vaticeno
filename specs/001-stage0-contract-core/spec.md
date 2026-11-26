@@ -407,7 +407,8 @@ shown but never count as a contradiction.
 - **FR-008a**: Every mention X delivers is answered, once, in its thread (owner decision 2026-11-26: "tagged →
   answered", nothing more). X cannot tell a typed tag from the one it adds to replies in a thread, and every rule
   that tried to cost real people their answers. The bot's own posts, reposts and Grok's posts are not answered (two
-  bots tagging each other would never stop). STOP is recorded and acknowledged like any other command.
+  bots tagging each other would never stop). STOP is recorded and acknowledged; it holds in the conversation it was
+  said in, where X keeps tagging the bot on that person's replies, and a tag anywhere else resumes.
 - **FR-009**: All replies MUST fit within X's post length limit and contain no link card; the public
   page link is plain text.
 - **FR-010**: Amends — any reply from the claim's author directly under the bot's reply, the claim's post,

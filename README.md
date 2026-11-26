@@ -86,7 +86,7 @@ the model may look, so it would save nothing (spec SC-006). It runs as a private
 |---|---|
 | `@vaticeno <prediction with a date>` | RECORDED · #slug, or NOT RECORDED with what's missing and an example |
 | `@vaticeno` as a reply to your own post | records that post |
-| a reply under the bot's answer, with `@vaticeno` typed in it | a fix (within 15 min of RECORDED; anytime within 24 h of NOT RECORDED) |
+| a reply under the bot's answer | a fix (within 15 min of RECORDED; anytime within 24 h of NOT RECORDED) |
 | `@vaticeno help` | the list of actions |
 | `@vaticeno odds` (or `Spivac odds`: the word anywhere in a short post) under a post about a match or a race | the bookmakers' range, up to three of them, and nothing else, e.g. `City 6:5 (2.20) · Arsenal 2:1–9:4 (3.00–3.25)`; a race's five favourites and a range for the rest; no in-play odds |
 | a question, anywhere it is tagged | an answer — see below |

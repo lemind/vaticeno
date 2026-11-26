@@ -11,6 +11,8 @@ Tagged means answered.
 - Every mention gets a reply, a reply under the bot's own answer included. Before, the bot tried to tell a tag you
   typed from the one X adds to every reply in a thread, could not, and stayed silent when it was really asked.
   Only Grok's posts get no answer, so the two bots never reply to each other forever.
+- STOP holds in the thread it was said in, even though X keeps tagging the bot on your replies there; tagging it
+  anywhere else resumes.
 
 ## 1.16.0 — 2026-11-21
 

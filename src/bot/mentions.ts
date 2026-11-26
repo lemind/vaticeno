@@ -955,7 +955,13 @@ export async function pollMentions(
     } else {
       let routed: Routed;
       try {
-        routed = await routeMention(cachedReads(deps), mention, now);
+        // STOP holds in the thread it was said in: a reply there carries our handle without asking (constitution IV).
+        const stoppedHere =
+          !!mention.conversation_id &&
+          state.stopped_in[mention.author_id] === mention.conversation_id;
+        routed = stoppedHere
+          ? { action: 'ignored_stopped', reply: null }
+          : await routeMention(cachedReads(deps), mention, now);
       } catch (error) {
         const attempts =
           state.failing?.tweet_id === mention.id ? state.failing.attempts + 1 : 1;
@@ -985,6 +991,10 @@ export async function pollMentions(
         action: routed.action,
         text_chars: mention.text.length,
       });
+      if (routed.action === 'stop' && mention.conversation_id)
+        state.stopped_in[mention.author_id] = mention.conversation_id;
+      else if (!routed.action.startsWith('ignored'))
+        delete state.stopped_in[mention.author_id]; // a tag anywhere else resumes
       if (routed.deferQuote) {
         state.pending_quotes.push({
           tweet_id: mention.id,
@@ -1098,7 +1108,6 @@ async function retryPendingQuotes(
 const inMinutes = (now: Date, minutes: number) =>
   new Date(now.getTime() + minutes * 60_000).toISOString();
 
-// Threads we have posted in or been named in: X prepends our handle to every later reply there (src/commands/parse.ts).
 // The posted reply's id, or null when nothing was posted. The mention is saved as answered BEFORE the post:
 // a crash mid-post never replays it, and a failed post is never retried (INIT_SPEC §6.7).
 async function sendReply(

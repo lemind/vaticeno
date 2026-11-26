@@ -1131,6 +1131,25 @@ describe('STOP', () => {
     assert.match(replies[1]!.text, /^pong/);
     assert.equal((await t.sql`select count(*)::int as n from opt_outs`)[0]!.n, 0);
   });
+
+  test('STOP holds in its thread: a later reply there gets nothing and keeps the opt-out', async () => {
+    const { deps, replies } = await bot([
+      [mention('102', '@vaticeno STOP', { conversation_id: 'c-stop' })],
+      [
+        mention('103', '@bob @vaticeno ping', {
+          conversation_id: 'c-stop',
+          referenced_tweets: [{ type: 'replied_to', id: 'bob-post' }],
+        }),
+      ],
+      [mention('104', '@vaticeno ping', { conversation_id: 'c-other' })],
+    ]);
+    await pollMentions(deps, NOW);
+    await pollMentions(deps, NOW);
+    assert.equal(replies.length, 1, 'only the STOPPED reply');
+    assert.equal((await t.sql`select count(*)::int as n from opt_outs`)[0]!.n, 1);
+    await pollMentions(deps, NOW);
+    assert.match(replies[1]!.text, /^pong/, 'a tag in another thread resumes');
+  });
 });
 
 describe('failures and limits', () => {
