@@ -13,6 +13,8 @@ Tagged means answered.
   Only Grok's posts get no answer, so the two bots never reply to each other forever.
 - STOP holds in the thread it was said in, even though X keeps tagging the bot on your replies there; tagging it
   anywhere else resumes.
+- A bare pick under a match or fight post ("Van win 😎") is recorded as a prediction instead of answered with
+  the help text.
 
 ## 1.16.0 — 2026-11-21
 

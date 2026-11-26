@@ -3,7 +3,7 @@ import { type CallCost, type LlmClient, LlmSchemaError } from './client.js';
 import { loadInstruction } from './instructions.js';
 import { log } from '../log.js';
 
-export const NORMALIZE_VERSION = 'normalize.v6';
+export const NORMALIZE_VERSION = 'normalize.v7';
 // The fixture corpus was recorded with v2; it replays with it — no paid re-record.
 export const CORPUS_NORMALIZE_VERSION = 'normalize.v2';
 
