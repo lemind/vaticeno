@@ -151,6 +151,9 @@ done by the owner in the X app; their drafts live in `specs/005-x-growth/content
 - [x] T523 The owner's failure email (owner 2026-11-19): a scheduled run that leaves its planned work undone, or
   crashes, raises one Sentry issue per job per UTC day with the reason as its title; the project's new-issue alert
   mails it (`src/jobs/not-done.ts`, `notifyOwner` in `src/observe.ts`, `runJob`). Test: `src/jobs/not-done.test.ts`.
+- [x] T524 Topics weighted toward sports (owner 2026-11-28, FR-019): `weight` per topic in `src/content/topics.ts`
+  (sports 3, crypto 2, money 1, politics, tech, space, awards 0.5), one `pickWeighted` for the event job and
+  `content:topic`.
 
 ---
 

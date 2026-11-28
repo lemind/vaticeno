@@ -2109,12 +2109,15 @@ describe('a refusal is not a dead end (FR-033)', () => {
 
 // Spec 006: approximate bookmaker odds on request.
 describe('odds', () => {
-  const answering = (deps: BotDeps, answer: () => Promise<{ text: string }>) => {
+  const answering = (
+    deps: BotDeps,
+    answer: () => Promise<{ text: string; urls?: string[] }>,
+  ) => {
     deps.llm = {
       ...deps.llm,
       groundedAnswer: async () => ({
+        urls: ['https://odds.example/fight'],
         ...(await answer()),
-        urls: [],
         costs: [
           { provider: 'gemini', operation: 'search', units: 1, usdCost: 0.01 },
           {
@@ -2197,6 +2200,31 @@ describe('odds', () => {
     await pollMentions(thin.deps, NOW);
     assert.equal(
       thin.replies[0]!.text,
+      'No odds for this one — finished, too far off, or nobody prices it.',
+    );
+  });
+
+  test('prices with no page read are memory: searched again, then no odds', async () => {
+    const calls: string[] = [];
+    const { deps, replies } = await bot([[mention('147', '@vaticeno give odds')]]);
+    answering(deps, async () => {
+      calls.push('search');
+      return {
+        urls: [],
+        text: JSON.stringify({
+          found: true,
+          event: 'Oliveira v Lopes',
+          outcomes: [
+            { name: 'Oliveira', prices: [1.6, 1.67] },
+            { name: 'Lopes', prices: [2.4, 2.3] },
+          ],
+        }),
+      };
+    });
+    await pollMentions(deps, NOW);
+    assert.equal(calls.length, 2, 'the second search, before giving up');
+    assert.equal(
+      replies[0]!.text,
       'No odds for this one — finished, too far off, or nobody prices it.',
     );
   });

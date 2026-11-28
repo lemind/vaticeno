@@ -51,7 +51,9 @@ Under a post about a race, `@vaticeno odds` gets the five shortest prices and on
 - Prices that disagree wildly between bookmakers show as a wide range.
 - An event already finished: no bookmaker prices it → the "no prices" reply.
 - An event under way (owner, 2026-11-21): no in-play odds, ever → "It's live now — I don't give in-play odds."
-  The search says whether the event is upcoming, live or finished (instruction `odds.v4`).
+  The search says whether the event is upcoming, live or finished (instruction `odds.v5`).
+- Prices count only from pages the search read: an answer with none is the model's memory (2026-11-28, Oliveira v
+  Lopes under a UFC 335 poster), searched again, then "no prices". A card named without a fight means its main event.
 - An upcoming event with no prices on the first search is searched once more before "no prices", this time for
   the event by name with "odds": fights other bots priced came back empty (2026-11-21 Shoaib Yousaf v John
   Mitchell; 2026-11-28 Baisangur Susurkaev v Damian Pinas). Each lookup logs what it searched for.

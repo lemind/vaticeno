@@ -17,6 +17,9 @@ Tagged means answered.
   the help text.
 - Odds: when the first search finds the fight but no prices, the second one searches for that fight's odds by
   name, rather than repeating the first.
+- Odds come only from pages the search actually read: prices from the model's memory are thrown away. A post that
+  names a card but no fight ("UFC 335") gets the odds of its main event.
+- The bot's event posts are mostly sport now, about three in four; politics, tech, space and awards are rare.
 
 ## 1.16.0 — 2026-11-21
 

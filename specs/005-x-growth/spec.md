@@ -275,7 +275,8 @@ best — and changes next week's mix from it.
 **Automated event posts (owner, 2026-11-06)**
 
 - **FR-019**: On days the slot is free (no digest, record or queued post), the bot draws a topic (in season, never
-  the last; `src/content/topics.ts`, all alike) and asks a model with web search for the nearest major scheduled
+  the last; `src/content/topics.ts`, weighted: sports 3, crypto 2, central banks, economic data and earnings 1, politics,
+  tech, space and awards 0.5, so about three posts in four are sports; owner 2026-11-28) and asks a model with web search for the nearest major scheduled
   event in it, 3–10 days ahead: its name, date, place, and the pages that state them.
 - **FR-020**: The event is accepted only if the code itself reads at least two independent pages (different
   sites) that both give the event's name and date; otherwise another topic is tried, at most three, then nothing

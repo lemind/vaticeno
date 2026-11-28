@@ -87,8 +87,8 @@ async function askOnce(
 ): Promise<{ lookup: OddsLookup; upcoming: boolean; event?: string }> {
   const answer = await deps.llm.groundedAnswer({
     model: deps.answerModel,
-    instructionVersion: 'odds.v4',
-    system: loadInstruction('odds.v4'),
+    instructionVersion: 'odds.v5',
+    system: loadInstruction('odds.v5'),
     input: JSON.stringify(input),
   });
   const costs = answer.costs.map((cost) => ({
@@ -127,6 +127,8 @@ async function askOnce(
     queries: answer.queries ?? [],
   });
   if (parsed.data.status === 'live') return none('live');
+  // Prices with no page read are the model's memory, never a bookmaker's (odds.v5): searched again, then none.
+  if (answer.urls.length === 0) return none('no_prices', true, parsed.data.event);
   if (parsed.data.status === 'finished') return none('no_prices');
   const text = oddsText(parsed.data.event, averaged(outcomes));
   return text
