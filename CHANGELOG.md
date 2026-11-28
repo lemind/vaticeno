@@ -15,6 +15,8 @@ Tagged means answered.
   anywhere else resumes.
 - A bare pick under a match or fight post ("Van win 😎") is recorded as a prediction instead of answered with
   the help text.
+- Odds: when the first search finds the fight but no prices, the second one searches for that fight's odds by
+  name, rather than repeating the first.
 
 ## 1.16.0 — 2026-11-21
 

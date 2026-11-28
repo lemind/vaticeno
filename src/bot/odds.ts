@@ -37,6 +37,7 @@ export type OddsDeps = {
       text: string;
       urls: string[];
       sites?: string[];
+      queries?: string[];
       costs: CallCost[];
     }>;
   };
@@ -55,13 +56,14 @@ export async function lookUpOdds(
   input: { prediction: string | null; conversation: string[]; request: string },
 ): Promise<OddsLookup> {
   const first = await askOnce(deps, input);
-  // HACK(gemini): OBSERVED 2026-11-21 — "Shoaib Yousaf v John Mitchell" came back as an upcoming event with no
-  // prices at all; a second search often finds them. See specs/006-odds-command/spec.md.
-  // REVISIT: if no-price answers stay as frequent with one search.
+  // HACK(gemini): OBSERVED 2026-11-21/28 — upcoming fights (Yousaf v Mitchell, Dubois v Parker, Susurkaev v Pinas)
+  // came back with no prices that other bots found; the second search names the event. See specs/006-odds-command/spec.md.
+  // REVISIT: if no-price answers stay as frequent with the named search.
   if (first.lookup.outcome !== 'no_prices' || !first.upcoming) return first.lookup;
   let second;
   try {
-    second = await askOnce(deps, input);
+    const searchFor = first.event ? `${first.event} odds` : null;
+    second = await askOnce(deps, { ...input, searchFor });
   } catch (error) {
     // The first answer was a real one: it stands, and its cost is kept, rather than both being lost to a retry.
     if (error instanceof LlmUnavailable) return first.lookup;
@@ -76,12 +78,17 @@ export async function lookUpOdds(
 // LlmUnavailable propagates: the mention is retried next run, never answered "no prices" (INIT_SPEC §6.7).
 async function askOnce(
   deps: OddsDeps,
-  input: { prediction: string | null; conversation: string[]; request: string },
-): Promise<{ lookup: OddsLookup; upcoming: boolean }> {
+  input: {
+    prediction: string | null;
+    conversation: string[];
+    request: string;
+    searchFor?: string | null;
+  },
+): Promise<{ lookup: OddsLookup; upcoming: boolean; event?: string }> {
   const answer = await deps.llm.groundedAnswer({
     model: deps.answerModel,
-    instructionVersion: 'odds.v3',
-    system: loadInstruction('odds.v3'),
+    instructionVersion: 'odds.v4',
+    system: loadInstruction('odds.v4'),
     input: JSON.stringify(input),
   });
   const costs = answer.costs.map((cost) => ({
@@ -97,9 +104,14 @@ async function askOnce(
     raw = null; // a malformed answer is "no prices", as one with no prices is
   }
   const parsed = Answer.safeParse(raw);
-  const none = (outcome: OddsLookup['outcome'], upcoming = false) => ({
+  const none = (
+    outcome: OddsLookup['outcome'],
+    upcoming = false,
+    event?: string,
+  ) => ({
     lookup: { outcome, text: null, costs },
     upcoming,
+    event,
   });
   if (!parsed.success) return none('no_prices');
   if (!parsed.data.found) return none('no_event');
@@ -111,11 +123,13 @@ async function askOnce(
     status: parsed.data.status,
     outcomes: outcomes.map((o) => ({ name: o.name, prices: o.prices })),
     sources: answer.sites ?? [],
+    pages: answer.urls.length,
+    queries: answer.queries ?? [],
   });
   if (parsed.data.status === 'live') return none('live');
   if (parsed.data.status === 'finished') return none('no_prices');
   const text = oddsText(parsed.data.event, averaged(outcomes));
   return text
     ? { lookup: { outcome: 'odds', text, costs }, upcoming: true }
-    : none('no_prices', true);
+    : none('no_prices', true, parsed.data.event);
 }
