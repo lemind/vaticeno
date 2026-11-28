@@ -4,6 +4,23 @@ What changed for people using Vaticeno, newest first. The version on the site's 
 A new feature raises the middle number, a fix the last one. One entry per pull request: the changes that matter,
 then the small ones together in one line; versions deployed while it was open share its entry.
 
+## 1.16.1 — 2026-11-26
+
+Tagged means answered.
+
+- Every mention gets a reply, a reply under the bot's own answer included. Before, the bot tried to tell a tag you
+  typed from the one X adds to every reply in a thread, could not, and stayed silent when it was really asked.
+  Only Grok's posts get no answer, so the two bots never reply to each other forever.
+- STOP holds in the thread it was said in, even though X keeps tagging the bot on your replies there; tagging it
+  anywhere else resumes.
+- A bare pick under a match or fight post ("Van win 😎") is recorded as a prediction instead of answered with
+  the help text.
+- Odds: when the first search finds the fight but no prices, the second one searches for that fight's odds by
+  name, rather than repeating the first.
+- Odds come only from pages the search actually read: prices from the model's memory are thrown away. A post that
+  names a card but no fight ("UFC 335") gets the odds of its main event.
+- The bot's event posts are mostly sport now, about three in four; politics, tech, space and awards are rare.
+
 ## 1.16.0 — 2026-11-21
 
 USDT on Tron, built and switched off.

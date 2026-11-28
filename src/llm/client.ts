@@ -222,7 +222,13 @@ export function createLlmClient(options: {
     instructionVersion: string;
     system: string;
     input: string;
-  }): Promise<{ text: string; urls: string[]; sites: string[]; costs: CallCost[] }> {
+  }): Promise<{
+    text: string;
+    urls: string[];
+    sites: string[];
+    queries: string[];
+    costs: CallCost[];
+  }> {
     const identity = {
       model: call.model,
       instruction: call.instructionVersion,
@@ -232,11 +238,12 @@ export function createLlmClient(options: {
       const entry = await store.get('search', identity);
       if (entry.kind !== 'search')
         throw new LlmSchemaError('replay entry is not a search result');
-      return { text: '', urls: entry.urls, sites: [], costs: [] };
+      return { text: '', urls: entry.urls, sites: [], queries: [], costs: [] };
     }
     let text: string;
     let urls: string[];
     let sites: string[]; // the sources' site names: the URLs are search redirects that hide them
+    let queries: string[]; // what the model searched for: an answer with no prices is read against these
     let usage: Usage;
     try {
       const response = await live().models.generateContent({
@@ -260,6 +267,7 @@ export function createLlmClient(options: {
             .filter((title): title is string => !!title),
         ),
       ];
+      queries = grounding?.webSearchQueries ?? [];
       usage = usageOf(response.usageMetadata);
     } catch (error) {
       throw new LlmUnavailable(`grounded answer failed: ${String(error)}`, {
@@ -273,7 +281,7 @@ export function createLlmClient(options: {
       units: 1,
       usdCost: SEARCH_QUERY_USD,
     });
-    return { text, urls, sites, costs };
+    return { text, urls, sites, queries, costs };
   }
 
   return { mode, generateJson, groundedSearch, groundedAnswer };

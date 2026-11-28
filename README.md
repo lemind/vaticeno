@@ -86,7 +86,7 @@ the model may look, so it would save nothing (spec SC-006). It runs as a private
 |---|---|
 | `@vaticeno <prediction with a date>` | RECORDED · #slug, or NOT RECORDED with what's missing and an example |
 | `@vaticeno` as a reply to your own post | records that post |
-| a reply under the bot's answer, with `@vaticeno` typed in it | a fix (within 15 min of RECORDED; anytime within 24 h of NOT RECORDED) |
+| a reply under the bot's answer | a fix (within 15 min of RECORDED; anytime within 24 h of NOT RECORDED) |
 | `@vaticeno help` | the list of actions |
 | `@vaticeno odds` (or `Spivac odds`: the word anywhere in a short post) under a post about a match or a race | the bookmakers' range, up to three of them, and nothing else, e.g. `City 6:5 (2.20) · Arsenal 2:1–9:4 (3.00–3.25)`; a race's five favourites and a range for the rest; no in-play odds |
 | a question, anywhere it is tagged | an answer — see below |
@@ -110,12 +110,8 @@ an event is, where and when, who won) is looked up on the web and answered from 
 answer, it reads further up and looks it up regardless (owner, 2026-11-11). One reply, no links, never a pick
 of its own, and it says it could not confirm something rather than inventing it.
 
-**It answers only where it was addressed.** X puts the handles of everyone in a thread at the front of every
-reply there, so once the bot has answered once, later replies arrive looking tagged even when two other people
-are talking to each other. Those get nothing. **No tag, no answer** (owner, 2026-11-11): under the bot's own
-post or in a thread it is in, a reply reaches it only when you typed `@vaticeno` yourself, a fix included; X's
-prefix alone is not a tag. A post of your own naming it, `@vaticeno` under your own post, and a tag that pulls it
-into a thread it was not in still reach it. STOP is recorded wherever it appears, addressed or not.
+**Tagged means answered** (owner, 2026-11-26): every mention gets one reply in its thread, wherever it is, a reply
+under the bot's own answer included. Only the bot's own posts, reposts and Grok's posts get none.
 
 ## Run locally
 

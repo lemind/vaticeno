@@ -1,4 +1,4 @@
-// The bot's own event post (spec 005 US3a): a random topic in season, a model with web search proposes the nearest
+// The bot's own event post (spec 005 US3a): a topic drawn by weight, in season, a model with web search proposes the nearest
 // big event, two pages the code reads confirm it, and a fixed template says it. Every day, only in a free own-post
 // slot; at most three topics, then nothing that day.
 import { and, desc, eq, inArray } from 'drizzle-orm';
@@ -21,7 +21,7 @@ import type { OriginalDeps } from './original-run.js';
 import { saveCosts } from './quote.js';
 import { markPosted, recordPostFailure, reserveSlot, utcDay } from './slots.js';
 import { overSpendCap, recordFeedPost } from './spend.js';
-import { TOPICS, type Topic } from './topics.js';
+import { pickWeighted, TOPICS, type Topic } from './topics.js';
 
 const RACE_TOPIC = 'hk-racing'; // src/content/race-run.ts; not imported, since race-run imports this file
 
@@ -92,7 +92,7 @@ export async function runEventPost(
     const open = TOPICS.filter(
       (t) => t.months.includes(now.getUTCMonth() + 1) && !tried.has(t.id),
     );
-    const topic = open[Math.floor(random() * open.length)];
+    const topic = pickWeighted(open, random());
     if (!topic) break;
     tried.add(topic.id);
     const found = await findEvent(deps, topic, now);

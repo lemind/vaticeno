@@ -21,9 +21,8 @@ const IngestStateSchema = z.object({
       next_at: z.string().optional(),
     })
     .optional(),
-  // Conversations the bot has replied in or been named in. X prepends our handle to every later reply there, so
-  // this is what tells a thread we were dragged into from one we were tagged into (src/commands/parse.ts).
-  answered_conversation_ids: z.array(z.string()).default([]),
+  // Who said STOP, and in which conversation: X tags us on their every later reply there, which must not undo it.
+  stopped_in: z.record(z.string(), z.string()).default({}),
   // `quote` mentions whose quote couldn't be fetched yet: retried on a ladder (src/bot/mentions.ts).
   pending_quotes: z
     .array(

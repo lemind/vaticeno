@@ -1,6 +1,8 @@
-// The topics an event post is drawn from (spec 005 FR-019), all weighted alike (owner, 2026-11-06).
+// The topics an event post is drawn from (spec 005 FR-019), weighted toward sports (owner, 2026-11-28).
 export type Topic = {
   id: string;
+  // Relative chance of being drawn: sports 3, crypto 2, money 1, politics, tech, space and awards 0.5.
+  weight: number;
   name: string;
   events: string;
   // Months (1–12) when the topic usually has a scheduled event; out of season it is not drawn.
@@ -14,6 +16,7 @@ const ALL_YEAR = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] as const;
 export const TOPICS: readonly Topic[] = [
   {
     id: 'football',
+    weight: 3,
     name: 'Football (soccer)',
     events: 'Premier League, La Liga, Champions League, World Cup, Euros',
     months: ALL_YEAR,
@@ -25,6 +28,7 @@ export const TOPICS: readonly Topic[] = [
   },
   {
     id: 'american-football',
+    weight: 3,
     name: 'American football',
     events: 'NFL weeks, playoffs, Super Bowl, draft',
     months: [1, 2, 4, 9, 10, 11, 12],
@@ -32,6 +36,7 @@ export const TOPICS: readonly Topic[] = [
   },
   {
     id: 'basketball',
+    weight: 3,
     name: 'Basketball',
     events: 'NBA season, playoffs, Finals, draft',
     months: [1, 2, 3, 4, 5, 6, 10, 11, 12],
@@ -39,6 +44,7 @@ export const TOPICS: readonly Topic[] = [
   },
   {
     id: 'tennis',
+    weight: 3,
     name: 'Tennis',
     events: 'Australian Open, Roland Garros, Wimbledon, US Open, ATP and WTA Finals',
     months: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
@@ -46,6 +52,7 @@ export const TOPICS: readonly Topic[] = [
   },
   {
     id: 'formula-1',
+    weight: 3,
     name: 'Formula 1',
     events: 'each Grand Prix, the championship',
     months: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
@@ -53,6 +60,7 @@ export const TOPICS: readonly Topic[] = [
   },
   {
     id: 'horse-racing',
+    weight: 3,
     name: 'Horse racing',
     events: 'Cheltenham, Grand National, Kentucky Derby, Royal Ascot, Breeders’ Cup',
     months: ALL_YEAR,
@@ -60,6 +68,7 @@ export const TOPICS: readonly Topic[] = [
   },
   {
     id: 'cricket',
+    weight: 3,
     name: 'Cricket',
     events: 'IPL, the Ashes, T20 World Cup, test series',
     months: ALL_YEAR,
@@ -67,6 +76,7 @@ export const TOPICS: readonly Topic[] = [
   },
   {
     id: 'baseball',
+    weight: 3,
     name: 'Baseball',
     events: 'MLB season, playoffs, World Series',
     months: [4, 5, 6, 7, 8, 9, 10],
@@ -74,6 +84,7 @@ export const TOPICS: readonly Topic[] = [
   },
   {
     id: 'combat-sports',
+    weight: 3,
     name: 'Combat sports',
     events: 'UFC numbered events, big boxing fights',
     months: ALL_YEAR,
@@ -81,6 +92,7 @@ export const TOPICS: readonly Topic[] = [
   },
   {
     id: 'golf',
+    weight: 3,
     name: 'Golf',
     events: 'the Masters, the Open, PGA Championship, US Open, Ryder Cup',
     months: [4, 5, 6, 7, 8, 9],
@@ -92,6 +104,7 @@ export const TOPICS: readonly Topic[] = [
   },
   {
     id: 'crypto',
+    weight: 2,
     name: 'Crypto',
     events:
       'BTC and ETH price levels by a date, network upgrades, token unlocks, fund approvals',
@@ -100,6 +113,7 @@ export const TOPICS: readonly Topic[] = [
   },
   {
     id: 'central-banks',
+    weight: 1,
     name: 'Central banks',
     events: 'Fed, ECB and Bank of England meetings and rate decisions',
     months: ALL_YEAR,
@@ -111,6 +125,7 @@ export const TOPICS: readonly Topic[] = [
   },
   {
     id: 'economic-data',
+    weight: 1,
     name: 'Economic data',
     events: 'US inflation (CPI), jobs report, GDP',
     months: ALL_YEAR,
@@ -118,6 +133,7 @@ export const TOPICS: readonly Topic[] = [
   },
   {
     id: 'earnings',
+    weight: 1,
     name: 'Company earnings',
     events: 'quarterly results of the largest companies',
     months: [1, 2, 4, 5, 7, 8, 10, 11],
@@ -125,6 +141,7 @@ export const TOPICS: readonly Topic[] = [
   },
   {
     id: 'politics',
+    weight: 0.5,
     name: 'Politics and elections',
     events: 'elections, referendums, parliament votes, Supreme Court decisions',
     months: ALL_YEAR,
@@ -136,6 +153,7 @@ export const TOPICS: readonly Topic[] = [
   },
   {
     id: 'tech',
+    weight: 0.5,
     name: 'Tech',
     events: 'product launches, keynotes, AI model releases',
     months: ALL_YEAR,
@@ -143,6 +161,7 @@ export const TOPICS: readonly Topic[] = [
   },
   {
     id: 'space',
+    weight: 0.5,
     name: 'Space and science',
     events: 'launches, missions, landings',
     months: ALL_YEAR,
@@ -150,6 +169,7 @@ export const TOPICS: readonly Topic[] = [
   },
   {
     id: 'awards',
+    weight: 0.5,
     name: 'Awards and entertainment',
     events: 'Oscars, Grammys, Ballon d’Or, box office',
     months: [1, 2, 3, 9, 10, 11, 12],
@@ -157,12 +177,22 @@ export const TOPICS: readonly Topic[] = [
   },
 ];
 
-// One topic at random, in season this month, never the one drawn last time.
+// One topic by weight, in season this month, never the one drawn last time.
 export function drawTopic(
   month: number,
   last: string | undefined,
   random: () => number = Math.random,
 ): Topic {
   const open = TOPICS.filter((t) => t.months.includes(month) && t.id !== last);
-  return open[Math.floor(random() * open.length)]!;
+  return pickWeighted(open, random())!;
+}
+
+// `r` in [0, 1) lands in one topic's share of the open topics' total weight.
+export function pickWeighted(open: readonly Topic[], r: number): Topic | undefined {
+  let left = r * open.reduce((sum, t) => sum + t.weight, 0);
+  for (const topic of open) {
+    left -= topic.weight;
+    if (left < 0) return topic;
+  }
+  return open.at(-1);
 }
