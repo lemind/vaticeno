@@ -126,9 +126,9 @@ async function askOnce(
     pages: answer.urls.length,
     queries: answer.queries ?? [],
   });
-  if (parsed.data.status === 'live') return none('live');
-  // Prices with no page read are the model's memory, never a bookmaker's (odds.v5): searched again, then none.
+  // No page read: prices or a status from the model's memory, never a bookmaker's (odds.v5). Searched again, then none.
   if (answer.urls.length === 0) return none('no_prices', true, parsed.data.event);
+  if (parsed.data.status === 'live') return none('live');
   if (parsed.data.status === 'finished') return none('no_prices');
   const text = oddsText(parsed.data.event, averaged(outcomes));
   return text
